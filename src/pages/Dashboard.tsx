@@ -52,14 +52,14 @@ const Dashboard = () => {
               {t("dashboard.welcome")}, {t("dashboard.merchantName")} 👋
             </h1>
             <p className="text-muted-foreground text-sm">
-              {language === "ar" ? "إليك نظرة عامة على متجرك اليوم" : "Here's an overview of your store today"}
+              {t("dashboard.storeOverview")}
             </p>
           </div>
         </div>
         <div className="hidden sm:flex gap-2">
           <Button variant="outline" size="sm" className="gap-1.5">
             <Eye className="h-3.5 w-3.5" />
-            {language === "ar" ? "معاينة المتجر" : "View Store"}
+            {t("dashboard.viewStore")}
           </Button>
           <Button size="sm" className="gap-1.5">
             <Package className="h-3.5 w-3.5" />
@@ -86,7 +86,7 @@ const Dashboard = () => {
                 <ArrowUpRight className="h-3 w-3 text-emerald-600" />
                 <span className="text-xs font-medium text-emerald-600">{kpi.trend}</span>
                 <span className="text-xs text-muted-foreground">
-                  {language === "ar" ? "من الأمس" : "vs yesterday"}
+                  {t("dashboard.vsYesterday")}
                 </span>
               </div>
             </CardContent>

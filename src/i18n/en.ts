@@ -11,6 +11,8 @@ export default {
     profile: "Profile",
     settings: "Settings",
     logout: "Logout",
+    darkMode: "Dark Mode",
+    lightMode: "Light Mode",
   },
   dashboard: {
     welcome: "Welcome back",
@@ -33,6 +35,9 @@ export default {
     total: "Total",
     status: "Status",
     date: "Date",
+    storeOverview: "Here's an overview of your store today",
+    viewStore: "View Store",
+    vsYesterday: "vs yesterday",
   },
   products: {
     title: "Products",

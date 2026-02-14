@@ -1,8 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import { LayoutDashboard, Package, ShoppingCart, Store } from "lucide-react";
-import numuIcon from "@/assets/numu-icon.png";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { NavLink } from "@/components/NavLink";
+import numuIcon from "@/assets/numu-icon.png";
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +18,7 @@ import {
 
 const AppSidebar = () => {
   const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const location = useLocation();
 
   const navItems = [
@@ -27,7 +29,7 @@ const AppSidebar = () => {
   ];
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" side={isRTL ? "right" : "left"}>
       <SidebarContent>
         {/* Brand */}
         <div className="flex h-14 items-center gap-2 px-4 font-bold text-lg tracking-tight group-data-[collapsible=icon]:justify-center">
