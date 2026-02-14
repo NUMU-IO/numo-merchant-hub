@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import { LayoutDashboard, Package, ShoppingCart, Store } from "lucide-react";
+import numuIcon from "@/assets/numu-icon.png";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -30,9 +31,7 @@ const AppSidebar = () => {
       <SidebarContent>
         {/* Brand */}
         <div className="flex h-14 items-center gap-2 px-4 font-bold text-lg tracking-tight group-data-[collapsible=icon]:justify-center">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
-            N
-          </span>
+          <img src={numuIcon} alt="NUMU" className="h-8 w-8 object-contain" />
           <span className="group-data-[collapsible=icon]:hidden">NUMU</span>
         </div>
 
