@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
-import { LayoutDashboard, Package, ShoppingCart, Store } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Store, Banknote, Share2 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { NavLink } from "@/components/NavLink";
 import numuIcon from "@/assets/numu-icon.png";
@@ -26,6 +26,8 @@ const AppSidebar = () => {
     { title: t("nav.products"), url: "/products", icon: Package },
     { title: t("nav.orders"), url: "/orders", icon: ShoppingCart },
     { title: t("nav.store"), url: "/store", icon: Store },
+    { title: t("nav.cod"), url: "/cod", icon: Banknote },
+    { title: t("nav.social"), url: "/social", icon: Share2 },
   ];
 
   return (

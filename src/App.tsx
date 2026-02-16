@@ -9,6 +9,8 @@ import Dashboard from "@/pages/Dashboard";
 import Products from "@/pages/Products";
 import Orders from "@/pages/Orders";
 import StoreSettings from "@/pages/StoreSettings";
+import CODReconciliation from "@/pages/CODReconciliation";
+import SocialImport from "@/pages/SocialImport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +28,8 @@ const App = () => (
               <Route path="/products" element={<Products />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/store" element={<StoreSettings />} />
+              <Route path="/cod" element={<CODReconciliation />} />
+              <Route path="/social" element={<SocialImport />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
