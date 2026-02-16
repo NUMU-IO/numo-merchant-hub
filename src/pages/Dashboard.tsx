@@ -11,11 +11,13 @@ import { products } from "@/data/mock-products";
 import { orders } from "@/data/mock-orders";
 import { TrendingUp, ShoppingCart, Users, DollarSign, ArrowUpRight, Package, Eye } from "lucide-react";
 import numuIcon from "@/assets/numu-icon.png";
+import { useNavigate } from "react-router-dom";
 
 const Dashboard = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const [period, setPeriod] = useState<"7d" | "30d" | "90d">("7d");
+  const navigate = useNavigate();
 
   const revenueMap = { "7d": revenueData7d, "30d": revenueData30d, "90d": revenueData90d };
   const chartData = revenueMap[period];
@@ -35,18 +37,20 @@ const Dashboard = () => {
 
   const statusColorMap: Record<string, string> = {
     delivered: "bg-primary/10 text-primary",
-    shipped: "bg-blue-100 text-blue-700",
-    processing: "bg-yellow-100 text-yellow-700",
+    shipped: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    processing: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     pending: "bg-muted text-muted-foreground",
     cancelled: "bg-destructive/10 text-destructive",
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       {/* Welcome Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src={numuIcon} alt="NUMU" className="h-10 w-10 object-contain" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+            <img src={numuIcon} alt="NUMU" className="h-8 w-8 object-contain" />
+          </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
               {t("dashboard.welcome")}, {t("dashboard.merchantName")} 👋
@@ -61,7 +65,7 @@ const Dashboard = () => {
             <Eye className="h-3.5 w-3.5" />
             {t("dashboard.viewStore")}
           </Button>
-          <Button size="sm" className="gap-1.5">
+          <Button size="sm" className="gap-1.5" onClick={() => navigate("/products")}>
             <Package className="h-3.5 w-3.5" />
             {t("products.addProduct")}
           </Button>
@@ -70,19 +74,19 @@ const Dashboard = () => {
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((kpi) => (
-          <Card key={kpi.label} className="overflow-hidden">
+        {kpis.map((kpi, i) => (
+          <Card key={kpi.label} className="overflow-hidden transition-shadow hover:shadow-md" style={{ animationDelay: `${i * 75}ms` }}>
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-muted-foreground">{kpi.label}</p>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
-                  <kpi.icon className="h-4 w-4 text-muted-foreground" />
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+                  <kpi.icon className="h-4 w-4 text-primary" />
                 </div>
               </div>
               <div className="mt-3 flex items-end gap-2">
                 <p className="text-2xl font-bold tracking-tight">{kpi.value}</p>
               </div>
-              <div className="mt-1 flex items-center gap-1">
+              <div className="mt-1.5 flex items-center gap-1">
                 <ArrowUpRight className="h-3 w-3 text-emerald-600" />
                 <span className="text-xs font-medium text-emerald-600">{kpi.trend}</span>
                 <span className="text-xs text-muted-foreground">
@@ -178,15 +182,15 @@ const Dashboard = () => {
         <Card>
           <CardHeader className="flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">{t("dashboard.topProducts")}</CardTitle>
-            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">
+            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => navigate("/products")}>
               {t("dashboard.viewAll")}
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {topProducts.map((p, i) => (
-                <div key={p.id} className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-lg shrink-0">
+                <div key={p.id} className="flex items-center gap-3 rounded-lg p-2 -mx-2 transition-colors hover:bg-muted/50">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-lg shrink-0">
                     {p.image}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -204,7 +208,7 @@ const Dashboard = () => {
         <Card>
           <CardHeader className="flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-semibold">{t("dashboard.recentOrders")}</CardTitle>
-            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">
+            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => navigate("/orders")}>
               {t("dashboard.viewAll")}
             </Button>
           </CardHeader>
@@ -220,7 +224,7 @@ const Dashboard = () => {
               </TableHeader>
               <TableBody>
                 {recentOrders.map((o) => (
-                  <TableRow key={o.id}>
+                  <TableRow key={o.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate("/orders")}>
                     <TableCell className="font-medium">{o.orderNumber}</TableCell>
                     <TableCell>{language === "ar" ? o.customerNameAr : o.customerName}</TableCell>
                     <TableCell className="tabular-nums">{formatCurrency(o.total)}</TableCell>
