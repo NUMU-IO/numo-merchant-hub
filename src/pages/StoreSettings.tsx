@@ -12,7 +12,18 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Globe, Lock, Palette, ScrollText, Settings2, Truck, Upload } from "lucide-react";
+import { Globe, Lock, Palette, ScrollText, Settings2, Truck, Upload, Sparkles, Check } from "lucide-react";
+
+const storeThemes = [
+  { id: "minimal", name: "Minimal Clean", nameAr: "بسيط ونظيف", colors: ["#f8fafc", "#0f172a", "#3b82f6"], free: true, preview: "🤍" },
+  { id: "desert", name: "Desert Gold", nameAr: "ذهب الصحراء", colors: ["#fef3c7", "#78350f", "#d97706"], free: true, preview: "🏜️" },
+  { id: "midnight", name: "Midnight Blue", nameAr: "أزرق منتصف الليل", colors: ["#0f172a", "#e2e8f0", "#6366f1"], free: true, preview: "🌙" },
+  { id: "rose", name: "Rose Garden", nameAr: "حديقة الورد", colors: ["#fff1f2", "#881337", "#e11d48"], free: false, preview: "🌹" },
+  { id: "emerald", name: "Emerald Oasis", nameAr: "واحة الزمرد", colors: ["#ecfdf5", "#064e3b", "#10b981"], free: false, preview: "💎" },
+  { id: "sunset", name: "Cairo Sunset", nameAr: "غروب القاهرة", colors: ["#fff7ed", "#7c2d12", "#f97316"], free: true, preview: "🌅" },
+  { id: "lavender", name: "Lavender Dream", nameAr: "حلم اللافندر", colors: ["#faf5ff", "#581c87", "#a855f7"], free: false, preview: "💜" },
+  { id: "ocean", name: "Ocean Breeze", nameAr: "نسيم المحيط", colors: ["#f0f9ff", "#0c4a6e", "#0ea5e9"], free: true, preview: "🌊" },
+];
 
 const StoreSettings = () => {
   const { t } = useTranslation();
@@ -20,12 +31,14 @@ const StoreSettings = () => {
   const [storeOnline, setStoreOnline] = useState(true);
   const [layoutStyle, setLayoutStyle] = useState("grid");
   const [policyTab, setPolicyTab] = useState("return");
+  const [activeTheme, setActiveTheme] = useState("minimal");
 
   const save = () => toast.success(t("store.saved"));
 
   const tabs = [
     { value: "profile", label: t("store.profile"), icon: Settings2 },
     { value: "customization", label: t("store.customization"), icon: Palette },
+    { value: "themes", label: t("store.themes"), icon: Sparkles },
     { value: "domain", label: t("store.domain"), icon: Globe },
     { value: "policies", label: t("store.policies"), icon: ScrollText },
     { value: "status", label: t("store.status"), icon: Lock },
@@ -174,6 +187,133 @@ const StoreSettings = () => {
                 </div>
               </div>
               <Button onClick={save}>{t("store.save")}</Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Theme Marketplace */}
+        <TabsContent value="themes">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                {t("store.themeMarket")}
+              </CardTitle>
+              <CardDescription>{t("store.themeMarketDesc")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {storeThemes.map((theme) => {
+                  const isActive = activeTheme === theme.id;
+                  return (
+                    <div
+                      key={theme.id}
+                      className={`group relative rounded-2xl border-2 overflow-hidden transition-all duration-300 cursor-pointer hover:-translate-y-1 ${
+                        isActive
+                          ? "border-primary ring-2 ring-primary/20"
+                          : "border-border hover:border-primary/40"
+                      }`}
+                      style={{
+                        boxShadow: isActive
+                          ? "0 8px 24px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.4)"
+                          : "0 2px 8px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.4)",
+                      }}
+                      onClick={() => {
+                        setActiveTheme(theme.id);
+                        toast.success(
+                          language === "ar"
+                            ? `تم تطبيق ثيم "${theme.nameAr}"!`
+                            : `"${theme.name}" theme applied!`
+                        );
+                      }}
+                    >
+                      {/* Theme Preview Area */}
+                      <div
+                        className="h-32 flex items-center justify-center relative"
+                        style={{ backgroundColor: theme.colors[0] }}
+                      >
+                        <span className="text-4xl drop-shadow-sm">{theme.preview}</span>
+
+                        {/* Color palette dots */}
+                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                          {theme.colors.map((c, i) => (
+                            <div
+                              key={i}
+                              className="h-4 w-4 rounded-full border border-border/30"
+                              style={{
+                                backgroundColor: c,
+                                boxShadow: "inset 0 -1px 2px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1)",
+                              }}
+                            />
+                          ))}
+                        </div>
+
+                        {/* Active checkmark */}
+                        {isActive && (
+                          <div className="absolute top-2 end-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md">
+                            <Check className="h-3.5 w-3.5" />
+                          </div>
+                        )}
+
+                        {/* Badge */}
+                        <Badge
+                          variant="secondary"
+                          className={`absolute top-2 start-2 text-[10px] px-2 py-0.5 ${
+                            theme.free
+                              ? "bg-emerald-500/10 text-emerald-600"
+                              : "bg-amber-500/10 text-amber-600"
+                          }`}
+                        >
+                          {theme.free ? t("store.free") : t("store.premium")}
+                        </Badge>
+                      </div>
+
+                      {/* Theme Info */}
+                      <div className="p-3 bg-card">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold">{language === "ar" ? theme.nameAr : theme.name}</p>
+                        </div>
+
+                        {/* Mini storefront preview */}
+                        <div
+                          className="mt-2 rounded-lg p-2 flex gap-1.5"
+                          style={{ backgroundColor: theme.colors[0] }}
+                        >
+                          {[1, 2, 3].map((n) => (
+                            <div
+                              key={n}
+                              className="flex-1 rounded h-6"
+                              style={{
+                                backgroundColor: theme.colors[1],
+                                opacity: 0.12,
+                              }}
+                            />
+                          ))}
+                        </div>
+
+                        <div className="mt-3 flex gap-2">
+                          <Button
+                            size="sm"
+                            variant={isActive ? "default" : "outline"}
+                            className="flex-1 h-8 text-xs rounded-lg"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveTheme(theme.id);
+                              toast.success(
+                                language === "ar"
+                                  ? `تم تطبيق ثيم "${theme.nameAr}"!`
+                                  : `"${theme.name}" theme applied!`
+                              );
+                            }}
+                          >
+                            {isActive ? t("store.applied") : t("store.applyTheme")}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

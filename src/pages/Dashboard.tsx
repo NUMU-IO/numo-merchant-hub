@@ -12,6 +12,7 @@ import { orders } from "@/data/mock-orders";
 import { TrendingUp, ShoppingCart, Users, DollarSign, ArrowUpRight, Package, Eye } from "lucide-react";
 import numuIcon from "@/assets/numu-icon.png";
 import { useNavigate } from "react-router-dom";
+import { useCountUp } from "@/hooks/useCountUp";
 
 const Dashboard = () => {
   const { t } = useTranslation();
@@ -28,11 +29,17 @@ const Dashboard = () => {
   const topProducts = [...products].sort((a, b) => b.sold - a.sold).slice(0, 5);
   const recentOrders = [...orders].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
+  // Animated count-up values
+  const animRevenue = useCountUp(kpiData.todayRevenue, 1400);
+  const animOrders = useCountUp(kpiData.todayOrders, 800);
+  const animCustomers = useCountUp(kpiData.newCustomers, 800);
+  const animAvg = useCountUp(kpiData.avgOrderValue, 1200);
+
   const kpis = [
-    { label: t("dashboard.todayRevenue"), value: formatCurrency(kpiData.todayRevenue), icon: DollarSign, trend: "+12%", gradient: "from-emerald-500/10 to-emerald-600/5" },
-    { label: t("dashboard.todayOrders"), value: kpiData.todayOrders, icon: ShoppingCart, trend: "+8%", gradient: "from-blue-500/10 to-blue-600/5" },
-    { label: t("dashboard.newCustomers"), value: kpiData.newCustomers, icon: Users, trend: "+5%", gradient: "from-violet-500/10 to-violet-600/5" },
-    { label: t("dashboard.avgOrderValue"), value: formatCurrency(kpiData.avgOrderValue), icon: TrendingUp, trend: "+3%", gradient: "from-amber-500/10 to-amber-600/5" },
+    { label: t("dashboard.todayRevenue"), value: formatCurrency(animRevenue), icon: DollarSign, trend: "+12%", gradient: "from-emerald-500/10 to-emerald-600/5" },
+    { label: t("dashboard.todayOrders"), value: animOrders, icon: ShoppingCart, trend: "+8%", gradient: "from-blue-500/10 to-blue-600/5" },
+    { label: t("dashboard.newCustomers"), value: animCustomers, icon: Users, trend: "+5%", gradient: "from-violet-500/10 to-violet-600/5" },
+    { label: t("dashboard.avgOrderValue"), value: formatCurrency(animAvg), icon: TrendingUp, trend: "+3%", gradient: "from-amber-500/10 to-amber-600/5" },
   ];
 
   const iconColors = [
@@ -109,8 +116,8 @@ const Dashboard = () => {
               </div>
               <div className="mt-1.5 flex items-center gap-1">
                 <div
-                  className="flex items-center gap-0.5 rounded-full bg-emerald-500/10 px-1.5 py-0.5"
-                  style={{ boxShadow: "inset 0 1px 2px rgba(0,0,0,0.06)" }}
+                  className="flex items-center gap-0.5 rounded-full bg-emerald-500/10 px-1.5 py-0.5 animate-pulse"
+                  style={{ boxShadow: "inset 0 1px 2px rgba(0,0,0,0.06)", animationDuration: "3s" }}
                 >
                   <ArrowUpRight className="h-3 w-3 text-emerald-600" />
                   <span className="text-xs font-semibold text-emerald-600">{kpi.trend}</span>
