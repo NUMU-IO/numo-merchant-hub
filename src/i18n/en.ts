@@ -6,6 +6,10 @@ export default {
     store: "Store",
     cod: "COD Reconciliation",
     social: "Social Import",
+    customers: "Customers",
+    analytics: "Analytics",
+    marketing: "Marketing",
+    storefront: "Online Store",
   },
   header: {
     storeName: "NUMU Store",

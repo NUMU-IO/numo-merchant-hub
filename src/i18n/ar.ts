@@ -1,11 +1,15 @@
 export default {
   nav: {
-    dashboard: "الرئيسية",
+    dashboard: "لوحة التحكم",
     products: "المنتجات",
     orders: "الطلبات",
     store: "المتجر",
     cod: "تسوية الكاش",
     social: "استيراد سوشيال",
+    customers: "العملاء",
+    analytics: "التحليلات",
+    marketing: "التسويق",
+    storefront: "المتجر الإلكتروني",
   },
   header: {
     storeName: "متجر نومو",
