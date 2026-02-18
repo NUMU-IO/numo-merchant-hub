@@ -27,8 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, CheckCircle2, XCircle, Store, Rocket } from "lucide-react";
 import numuIcon from "@/assets/numu-icon.png";
-
-const STOREFRONT_HOST = import.meta.env.VITE_STOREFRONT_HOST || "localhost:8080";
+import { getStoreDomainSuffix } from "@/lib/storefront";
 
 export default function CreateStore() {
   const { t } = useTranslation();
@@ -135,7 +134,9 @@ export default function CreateStore() {
                       <Input id="subdomain" value={subdomain} onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="mystore" minLength={3} maxLength={63} className="h-11" required />
                       {subdomainIcon && <div className="absolute inset-y-0 end-3 flex items-center">{subdomainIcon}</div>}
                     </div>
-                    <span className="text-sm text-muted-foreground whitespace-nowrap">.{STOREFRONT_HOST}</span>
+                    {getStoreDomainSuffix() && (
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">{getStoreDomainSuffix()}</span>
+                    )}
                   </div>
                   {subdomainStatus !== "idle" && subdomainStatus !== "checking" && (
                     <p className={`text-xs ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>{subdomainMsg}</p>

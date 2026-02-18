@@ -17,7 +17,8 @@ import { toast } from "sonner";
 import {
   Globe, Lock, Palette, ScrollText, Settings2, Truck, Upload, Sparkles,
   Check, Store, Type, ImageIcon, ShoppingBag, MessageSquare, Eye, EyeOff,
-  Trash2, Plus, Loader2, ExternalLink, Phone,
+  Trash2, Plus, Loader2, ExternalLink, Phone, Compass, Tag, LayoutGrid,
+  ChevronUp, ChevronDown, GripVertical,
 } from "lucide-react";
 import { ThemePreview } from "@/components/ThemePreview";
 import {
@@ -26,6 +27,9 @@ import {
   heroSettings,
   productsSettings,
   footerSettings,
+  navigationSettings,
+  labelsSettings,
+  pageLayoutSettings,
   themeSchemas,
   groupSettings,
   type SettingDefinition,
@@ -38,6 +42,7 @@ import {
   type AvailableTheme,
 } from "@/services/themeApi";
 import { updateStore } from "@/services/storeApi";
+import { getStoreUrl, getStoreDomainSuffix } from "@/lib/storefront";
 import {
   fetchShippingSettings,
   addShippingZone,
@@ -164,13 +169,160 @@ function SettingField({
   }
 }
 
+// ─── Nav Links Editor ────────────────────────────────────────────────────────
+
+const AVAILABLE_ROUTES = [
+  { value: "/", labelEn: "Home", labelAr: "الرئيسية" },
+  { value: "/products", labelEn: "All Products", labelAr: "كل المنتجات" },
+  { value: "/products?category=clothing", labelEn: "Clothing", labelAr: "ملابس" },
+  { value: "/products?category=accessories", labelEn: "Accessories", labelAr: "إكسسوارات" },
+  { value: "/products?category=shoes", labelEn: "Shoes", labelAr: "أحذية" },
+  { value: "/products?category=bags", labelEn: "Bags", labelAr: "شنط" },
+  { value: "/products?category=electronics", labelEn: "Electronics", labelAr: "إلكترونيات" },
+  { value: "/products?tag=new", labelEn: "New Arrivals", labelAr: "وصل حديثاً" },
+  { value: "/products?tag=bestseller", labelEn: "Best Sellers", labelAr: "الأكثر مبيعاً" },
+  { value: "/shipping", labelEn: "Shipping", labelAr: "الشحن والتوصيل" },
+  { value: "/returns", labelEn: "Returns", labelAr: "الاسترجاع" },
+  { value: "/contact", labelEn: "Contact", labelAr: "تواصل معانا" },
+];
+
+function NavLinksEditor({
+  links,
+  onChange,
+  language,
+}: {
+  links: Array<{ label: string; to: string }>;
+  onChange: (links: Array<{ label: string; to: string }>) => void;
+  language: string;
+}) {
+  const addLink = () => onChange([...links, { label: "", to: "/" }]);
+  const removeLink = (i: number) => onChange(links.filter((_, idx) => idx !== i));
+  const updateLink = (i: number, field: "label" | "to", value: string) =>
+    onChange(links.map((l, idx) => (idx === i ? { ...l, [field]: value } : l)));
+  const moveLink = (i: number, dir: -1 | 1) => {
+    const next = [...links];
+    const j = i + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-3 pt-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-semibold">
+          {language === "ar" ? "روابط التنقل" : "Navigation Links"}
+        </Label>
+        <Button variant="outline" size="sm" className="gap-1 h-7 text-xs" onClick={addLink}>
+          <Plus className="h-3 w-3" />
+          {language === "ar" ? "إضافة" : "Add"}
+        </Button>
+      </div>
+      {links.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          {language === "ar" ? "سيتم استخدام الروابط الافتراضية" : "Default links will be used"}
+        </p>
+      )}
+      {links.map((link, i) => (
+        <div key={i} className="flex items-center gap-2 rounded-lg border p-2">
+          <div className="flex flex-col gap-0.5">
+            <button onClick={() => moveLink(i, -1)} className="p-0.5 hover:bg-muted rounded" disabled={i === 0}>
+              <ChevronUp className="h-3 w-3" />
+            </button>
+            <button onClick={() => moveLink(i, 1)} className="p-0.5 hover:bg-muted rounded" disabled={i === links.length - 1}>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          </div>
+          <Input
+            value={link.label}
+            onChange={(e) => updateLink(i, "label", e.target.value)}
+            placeholder={language === "ar" ? "النص" : "Label"}
+            className="flex-1 h-8 text-xs"
+          />
+          <select
+            value={link.to}
+            onChange={(e) => updateLink(i, "to", e.target.value)}
+            className="flex-1 h-8 text-xs rounded-md border border-input bg-background px-2"
+            dir="ltr"
+          >
+            {AVAILABLE_ROUTES.map((route) => (
+              <option key={route.value} value={route.value}>
+                {language === "ar" ? route.labelAr : route.labelEn} ({route.value})
+              </option>
+            ))}
+          </select>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeLink(i)}>
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Home Section Reorder ────────────────────────────────────────────────────
+
+function HomeSectionReorder({
+  sections,
+  onChange,
+  language,
+}: {
+  sections: Array<{ id: string; label: string; enabled: boolean }>;
+  onChange: (sections: Array<{ id: string; label: string; enabled: boolean }>) => void;
+  language: string;
+}) {
+  const toggle = (i: number) =>
+    onChange(sections.map((s, idx) => (idx === i ? { ...s, enabled: !s.enabled } : s)));
+  const move = (i: number, dir: -1 | 1) => {
+    const next = [...sections];
+    const j = i + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-3 pt-2">
+      <Label className="text-sm font-semibold">
+        {language === "ar" ? "ترتيب أقسام الصفحة الرئيسية" : "Home Page Section Order"}
+      </Label>
+      {sections.map((section, i) => (
+        <div
+          key={section.id}
+          className={`flex items-center gap-2 rounded-lg border p-2.5 transition-colors ${
+            section.enabled ? "bg-card" : "bg-muted/50 opacity-60"
+          }`}
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="flex flex-col gap-0.5">
+            <button onClick={() => move(i, -1)} className="p-0.5 hover:bg-muted rounded" disabled={i === 0}>
+              <ChevronUp className="h-3 w-3" />
+            </button>
+            <button onClick={() => move(i, 1)} className="p-0.5 hover:bg-muted rounded" disabled={i === sections.length - 1}>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          </div>
+          <span className="flex-1 text-sm font-medium">{section.label}</span>
+          <Switch
+            checked={section.enabled}
+            onCheckedChange={() => toggle(i)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const SECTION_CONFIG = [
   { key: "identity", label: "Identity", labelAr: "الهوية", icon: Store, settings: identitySettings },
   { key: "header", label: "Header", labelAr: "الهيدر", icon: Type, settings: headerSettings },
+  { key: "navigation", label: "Navigation", labelAr: "التنقل", icon: Compass, settings: navigationSettings },
   { key: "hero", label: "Hero", labelAr: "القسم الرئيسي", icon: ImageIcon, settings: heroSettings },
   { key: "products", label: "Products", labelAr: "المنتجات", icon: ShoppingBag, settings: productsSettings },
+  { key: "labels", label: "Labels", labelAr: "التسميات", icon: Tag, settings: labelsSettings },
+  { key: "layout", label: "Page Layout", labelAr: "تخطيط الصفحة", icon: LayoutGrid, settings: pageLayoutSettings },
   { key: "footer", label: "Footer", labelAr: "الفوتر", icon: MessageSquare, settings: footerSettings },
 ] as const;
 
@@ -179,6 +331,7 @@ const THEME_PREVIEWS: Record<string, { bg: string; fg: string; accent: string; i
   boutique: { bg: "#fdf2f8", fg: "#831843", accent: "#ec4899", icon: "🌸" },
   elegant: { bg: "#fffbeb", fg: "#78350f", accent: "#d97706", icon: "👑" },
   skeuomorphic: { bg: "#ecfdf5", fg: "#064e3b", accent: "#10b981", icon: "🎨" },
+  "tech-wave": { bg: "#0a0e1a", fg: "#e0e6ed", accent: "#00d4ff", icon: "⚡" },
 };
 
 function extractNonEmpty(state: Record<string, any>): Record<string, any> {
@@ -218,6 +371,19 @@ const StoreSettings = () => {
   const [heroState, setHeroState] = useState<Record<string, any>>({});
   const [productsState, setProductsState] = useState<Record<string, any>>({});
   const [footerState, setFooterState] = useState<Record<string, any>>({});
+  const [navigationState, setNavigationState] = useState<Record<string, any>>({});
+  const [labelsState, setLabelsState] = useState<Record<string, any>>({});
+  const [layoutState, setLayoutState] = useState<Record<string, any>>({});
+  const [navLinks, setNavLinks] = useState<Array<{ label: string; to: string }>>([]);
+  const [homeSections, setHomeSections] = useState<Array<{ id: string; label: string; enabled: boolean }>>([
+    { id: "hero", label: "القسم الرئيسي", enabled: true },
+    { id: "categories", label: "الفئات", enabled: true },
+    { id: "new_arrivals", label: "وصل حديثاً", enabled: true },
+    { id: "promo", label: "عرض ترويجي", enabled: true },
+    { id: "best_sellers", label: "الأكثر مبيعاً", enabled: true },
+    { id: "testimonials", label: "آراء العملاء", enabled: true },
+    { id: "newsletter", label: "النشرة البريدية", enabled: true },
+  ]);
 
   // ─── Shipping state ─────────────────────────────────────────────────────
   const [shippingData, setShippingData] = useState<ShippingSettings | null>(null);
@@ -264,10 +430,12 @@ const StoreSettings = () => {
   const sectionStates: Record<string, Record<string, any>> = {
     identity: identityState, header: headerState, hero: heroState,
     products: productsState, footer: footerState,
+    navigation: navigationState, labels: labelsState, layout: layoutState,
   };
   const sectionSetters: Record<string, React.Dispatch<React.SetStateAction<Record<string, any>>>> = {
     identity: setIdentityState, header: setHeaderState, hero: setHeroState,
     products: setProductsState, footer: setFooterState,
+    navigation: setNavigationState, labels: setLabelsState, layout: setLayoutState,
   };
 
   const handleSectionChange = useCallback(
@@ -324,6 +492,30 @@ const StoreSettings = () => {
           const { social_links, ...rest } = data.footer as any;
           setFooterState({ ...rest, ...(social_links || {}) });
         }
+        if (data.navigation) {
+          const { links, ...navRest } = data.navigation as any;
+          setNavigationState({ ...navRest });
+          if (links && Array.isArray(links)) setNavLinks(links);
+        }
+        if (data.labels) setLabelsState({ ...data.labels });
+        if (data.layout) {
+          const { home_sections, ...layoutRest } = data.layout as any;
+          setLayoutState({ ...layoutRest });
+          if (home_sections && Array.isArray(home_sections)) {
+            setHomeSections((prev) =>
+              prev
+                .map((s) => ({ ...s, enabled: home_sections.includes(s.id) }))
+                .sort((a, b) => {
+                  const ai = home_sections.indexOf(a.id);
+                  const bi = home_sections.indexOf(b.id);
+                  if (ai === -1 && bi === -1) return 0;
+                  if (ai === -1) return 1;
+                  if (bi === -1) return -1;
+                  return ai - bi;
+                })
+            );
+          }
+        }
       })
       .catch(() => {});
   }, [currentStore?.id]);
@@ -349,6 +541,13 @@ const StoreSettings = () => {
       ? { facebook: socialRaw.facebook || "", instagram: socialRaw.instagram || "", twitter: socialRaw.twitter || "", whatsapp: socialRaw.whatsapp || "" }
       : undefined;
 
+    const navPayload: Record<string, any> = { ...extractNonEmpty(navigationState) };
+    if (navLinks.length > 0) navPayload.links = navLinks;
+
+    const layoutPayload: Record<string, any> = { ...extractNonEmpty(layoutState) };
+    const enabledSections = homeSections.filter((s) => s.enabled).map((s) => s.id);
+    if (enabledSections.length > 0) layoutPayload.home_sections = enabledSections;
+
     return {
       theme: { base_theme: activeTheme, ...extractNonEmpty(themeState) },
       identity: extractNonEmpty(identityState) as any,
@@ -359,8 +558,11 @@ const StoreSettings = () => {
         ...footerRest,
         ...(social_links ? { social_links } : {}),
       } as any,
+      navigation: Object.keys(navPayload).length > 0 ? navPayload : undefined,
+      labels: extractNonEmpty(labelsState) as any,
+      layout: Object.keys(layoutPayload).length > 0 ? layoutPayload : undefined,
     };
-  }, [activeTheme, themeState, identityState, headerState, heroState, productsState, footerState]);
+  }, [activeTheme, themeState, identityState, headerState, heroState, productsState, footerState, navigationState, labelsState, layoutState, navLinks, homeSections]);
 
   const saveProfile = useCallback(async () => {
     if (!currentStore?.id) return;
@@ -466,7 +668,6 @@ const StoreSettings = () => {
   const tabs = [
     { value: "profile", label: t("store.profile"), icon: Settings2 },
     { value: "customization", label: t("store.customization"), icon: Palette },
-    { value: "themes", label: t("store.themes"), icon: Sparkles },
     { value: "domain", label: t("store.domain"), icon: Globe },
     { value: "policies", label: t("store.policies"), icon: ScrollText },
     { value: "status", label: t("store.status"), icon: Lock },
@@ -606,28 +807,94 @@ const StoreSettings = () => {
 
         {/* ═══ Customization ═══ */}
         <TabsContent value="customization">
-          {/* Save / Publish / Preview toggle bar */}
-          <div className="flex gap-3 mb-4">
-            <Button onClick={saveDraft} disabled={isSaving}>
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : null}
+          {/* ── Action bar ── */}
+          <div className="flex items-center gap-2 mb-5 rounded-xl border bg-card p-3">
+            <Button onClick={saveDraft} disabled={isSaving} variant="outline" size="sm" className="gap-2">
+              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Settings2 className="h-3.5 w-3.5" />}
               {language === "ar" ? "حفظ مسودة" : "Save Draft"}
             </Button>
-            <Button onClick={publish} variant="default" disabled={isSaving} className="bg-green-600 hover:bg-green-700">
+            <Button onClick={publish} disabled={isSaving} size="sm" className="gap-2 bg-green-600 hover:bg-green-700 text-white">
+              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
               {language === "ar" ? "نشر" : "Publish"}
             </Button>
+            {isDirty && (
+              <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 text-[10px]">
+                {language === "ar" ? "تغييرات غير محفوظة" : "Unsaved changes"}
+              </Badge>
+            )}
             <Button
-              variant="outline"
+              variant="ghost"
+              size="sm"
               onClick={() => setShowPreview((v) => !v)}
               className="gap-2 ms-auto"
             >
-              {showPreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
               {showPreview
-                ? (language === "ar" ? "إخفاء المعاينة" : "Hide Preview")
-                : (language === "ar" ? "معاينة حية" : "Live Preview")}
+                ? (language === "ar" ? "إخفاء" : "Hide")
+                : (language === "ar" ? "معاينة" : "Preview")}
             </Button>
           </div>
 
-          {/* Side-by-side layout: settings + resizable preview */}
+          {/* ── Theme picker strip ── */}
+          <div className="mb-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">{language === "ar" ? "اختر الثيم" : "Choose Theme"}</h3>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              {(availableThemes.length > 0 ? availableThemes : [
+                { id: "modern", name: "Modern", nameAr: "مودرن", description: "", layout: "default" },
+                { id: "boutique", name: "Boutique", nameAr: "بوتيك", description: "", layout: "default" },
+                { id: "elegant", name: "Elegant", nameAr: "أنيق", description: "", layout: "default" },
+                { id: "skeuomorphic", name: "Classic", nameAr: "كلاسيك", description: "", layout: "skeuomorphic" },
+              ]).map((theme) => {
+                const isActive = activeTheme === theme.id;
+                const preview = THEME_PREVIEWS[theme.id] || THEME_PREVIEWS.modern;
+                return (
+                  <button
+                    key={theme.id}
+                    onClick={() => {
+                      setActiveTheme(theme.id);
+                      setIsDirty(true);
+                    }}
+                    className={`shrink-0 rounded-xl border-2 overflow-hidden transition-all duration-200 w-36 hover:shadow-md ${
+                      isActive
+                        ? "border-primary ring-2 ring-primary/20 shadow-md"
+                        : "border-border hover:border-primary/40"
+                    }`}
+                  >
+                    <div
+                      className="h-16 flex items-center justify-center relative"
+                      style={{ backgroundColor: preview.bg }}
+                    >
+                      <span className="text-2xl">{preview.icon}</span>
+                      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1">
+                        {[preview.fg, preview.accent].map((c, i) => (
+                          <div
+                            key={i}
+                            className="h-2.5 w-2.5 rounded-full border border-white/40"
+                            style={{ backgroundColor: c }}
+                          />
+                        ))}
+                      </div>
+                      {isActive && (
+                        <div className="absolute top-1 end-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                          <Check className="h-3 w-3" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="px-2 py-1.5 bg-card text-center">
+                      <p className="text-xs font-semibold truncate">
+                        {language === "ar" ? theme.nameAr : theme.name}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Side-by-side layout: settings + resizable preview ── */}
           <div ref={splitRef} className="flex" style={{ gap: 0 }}>
             {/* Left: settings panel */}
             <div
@@ -640,20 +907,27 @@ const StoreSettings = () => {
               {/* Theme-specific settings (colors, fonts, layout) */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">{language === "ar" ? "إعدادات الثيم" : "Theme Settings"}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Palette className="h-4 w-4 text-primary" />
+                    <CardTitle className="text-sm">{language === "ar" ? "ألوان وخطوط" : "Colors & Typography"}</CardTitle>
+                  </div>
                   <CardDescription className="text-xs">
                     {language === "ar"
-                      ? `ثيم "${availableThemes.find((t) => t.id === activeTheme)?.nameAr || activeTheme}"`
-                      : `"${availableThemes.find((t) => t.id === activeTheme)?.name || activeTheme}" theme`}
+                      ? `إعدادات ثيم "${availableThemes.find((t) => t.id === activeTheme)?.nameAr || activeTheme}"`
+                      : `"${availableThemes.find((t) => t.id === activeTheme)?.name || activeTheme}" theme settings`}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-5">
                   {Array.from(groupedThemeSettings).map(([group, settings]) => (
-                    <div key={group} className="space-y-4">
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                        {language === "ar" ? settings[0].groupAr : group}
-                      </h3>
-                      <div className={`grid gap-4 ${showPreview ? "grid-cols-1" : "sm:grid-cols-2"}`}>
+                    <div key={group} className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-px flex-1 bg-border" />
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-2">
+                          {language === "ar" ? settings[0].groupAr : group}
+                        </span>
+                        <div className="h-px flex-1 bg-border" />
+                      </div>
+                      <div className={`grid gap-3 ${showPreview ? "grid-cols-1" : "sm:grid-cols-2"}`}>
                         {settings.map((setting) => (
                           <SettingField
                             key={setting.key}
@@ -669,38 +943,62 @@ const StoreSettings = () => {
                 </CardContent>
               </Card>
 
-              {/* Storefront Section Settings */}
-              <Accordion type="multiple" className="space-y-2">
-                {SECTION_CONFIG.map((section) => (
-                  <AccordionItem key={section.key} value={section.key} className="border rounded-lg px-4">
-                    <AccordionTrigger className="hover:no-underline gap-3">
-                      <div className="flex items-center gap-3">
-                        <section.icon className="h-4 w-4 text-primary" />
-                        <span className="font-medium">
-                          {language === "ar" ? section.labelAr : section.label}
-                        </span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="space-y-4 pb-4">
-                      {section.settings.map((setting) => (
-                        <SettingField
-                          key={setting.key}
-                          setting={setting}
-                          value={sectionStates[section.key]?.[setting.key]}
-                          onChange={handleSectionChange(section.key)}
-                          language={language}
-                        />
-                      ))}
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
+              {/* Storefront section settings */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <ScrollText className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold">{language === "ar" ? "أقسام المتجر" : "Store Sections"}</h3>
+                </div>
+                <Accordion type="multiple" className="space-y-2">
+                  {SECTION_CONFIG.map((section) => (
+                    <AccordionItem key={section.key} value={section.key} className="border rounded-xl px-4 bg-card">
+                      <AccordionTrigger className="hover:no-underline gap-3 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+                            <section.icon className="h-3.5 w-3.5 text-primary" />
+                          </div>
+                          <span className="text-sm font-medium">
+                            {language === "ar" ? section.labelAr : section.label}
+                          </span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="space-y-4 pb-4 pt-1">
+                        {section.settings.map((setting) => (
+                          <SettingField
+                            key={setting.key}
+                            setting={setting}
+                            value={sectionStates[section.key]?.[setting.key]}
+                            onChange={handleSectionChange(section.key)}
+                            language={language}
+                          />
+                        ))}
+                        {/* Nav links editor inside Navigation section */}
+                        {section.key === "navigation" && (
+                          <NavLinksEditor
+                            links={navLinks}
+                            onChange={(links) => { setNavLinks(links); setIsDirty(true); }}
+                            language={language}
+                          />
+                        )}
+                        {/* Home section reorder inside Layout section */}
+                        {section.key === "layout" && (
+                          <HomeSectionReorder
+                            sections={homeSections}
+                            onChange={(s) => { setHomeSections(s); setIsDirty(true); }}
+                            language={language}
+                          />
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </div>
             </div>
 
             {/* Drag handle */}
             {showPreview && (
               <div
-                className="w-2 shrink-0 cursor-col-resize group flex items-center justify-center hover:bg-primary/10 transition-colors"
+                className="w-2 shrink-0 cursor-col-resize group flex items-center justify-center hover:bg-primary/10 rounded transition-colors"
                 onMouseDown={startResize}
               >
                 <div className="w-0.5 h-12 rounded-full bg-border group-hover:bg-primary/40 transition-colors" />
@@ -710,7 +1008,7 @@ const StoreSettings = () => {
             {/* Right: live preview (sticky) */}
             {showPreview && (
               <div className="sticky top-4 self-start" style={{ width: `${previewPct}%` }}>
-                <Card className="overflow-hidden h-[calc(100vh-10rem)]">
+                <Card className="overflow-hidden h-[calc(100vh-10rem)] border-2 border-primary/10">
                   <CardContent className="p-0 h-full">
                     <ThemePreview
                       storeSubdomain={currentStore?.subdomain}
@@ -721,112 +1019,6 @@ const StoreSettings = () => {
               </div>
             )}
           </div>
-        </TabsContent>
-
-        {/* ═══ Themes ═══ */}
-        <TabsContent value="themes">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
-                {t("store.themeMarket")}
-              </CardTitle>
-              <CardDescription>{t("store.themeMarketDesc")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {availableThemes.length === 0 ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {availableThemes.map((theme) => {
-                    const isActive = activeTheme === theme.id;
-                    const preview = THEME_PREVIEWS[theme.id] || THEME_PREVIEWS.modern;
-                    return (
-                      <div
-                        key={theme.id}
-                        className={`group relative rounded-2xl border-2 overflow-hidden transition-all duration-300 cursor-pointer hover:-translate-y-1 ${
-                          isActive
-                            ? "border-primary ring-2 ring-primary/20"
-                            : "border-border hover:border-primary/40"
-                        }`}
-                        onClick={() => {
-                          setActiveTheme(theme.id);
-                          setIsDirty(true);
-                          toast.success(
-                            language === "ar"
-                              ? `تم اختيار ثيم "${theme.nameAr}"!`
-                              : `"${theme.name}" theme selected!`
-                          );
-                        }}
-                      >
-                        {/* Preview area */}
-                        <div
-                          className="h-32 flex items-center justify-center relative"
-                          style={{ backgroundColor: preview.bg }}
-                        >
-                          <span className="text-4xl drop-shadow-sm">{preview.icon}</span>
-                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-                            {[preview.bg, preview.fg, preview.accent].map((c, i) => (
-                              <div
-                                key={i}
-                                className="h-4 w-4 rounded-full border border-border/30"
-                                style={{
-                                  backgroundColor: c,
-                                  boxShadow: "inset 0 -1px 2px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1)",
-                                }}
-                              />
-                            ))}
-                          </div>
-                          {isActive && (
-                            <div className="absolute top-2 end-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md">
-                              <Check className="h-3.5 w-3.5" />
-                            </div>
-                          )}
-                          <Badge
-                            variant="secondary"
-                            className="absolute top-2 start-2 text-[10px] px-2 py-0.5 bg-emerald-500/10 text-emerald-600"
-                          >
-                            {t("store.free")}
-                          </Badge>
-                        </div>
-
-                        {/* Info */}
-                        <div className="p-3 bg-card">
-                          <p className="text-sm font-semibold">
-                            {language === "ar" ? theme.nameAr : theme.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                            {theme.description}
-                          </p>
-                          {theme.layout === "skeuomorphic" && (
-                            <Badge variant="outline" className="mt-2 text-[10px]">
-                              {language === "ar" ? "تصميم خاص" : "Special Layout"}
-                            </Badge>
-                          )}
-                          <div className="mt-3">
-                            <Button
-                              size="sm"
-                              variant={isActive ? "default" : "outline"}
-                              className="w-full h-8 text-xs rounded-lg"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveTheme(theme.id);
-                                setIsDirty(true);
-                              }}
-                            >
-                              {isActive ? t("store.applied") : t("store.applyTheme")}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* ═══ Domain ═══ */}
@@ -844,16 +1036,18 @@ const StoreSettings = () => {
                     disabled
                     className="max-w-[200px] bg-muted"
                   />
-                  <span className="text-sm text-muted-foreground">.numu.store</span>
+                  {getStoreDomainSuffix() && (
+                    <span className="text-sm text-muted-foreground">{getStoreDomainSuffix()}</span>
+                  )}
                 </div>
-                {currentStore?.store_url && (
+                {currentStore?.subdomain && (
                   <a
-                    href={currentStore.store_url}
+                    href={getStoreUrl(currentStore.subdomain)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-primary flex items-center gap-1 hover:underline"
                   >
-                    {currentStore.store_url}
+                    {getStoreUrl(currentStore.subdomain)}
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 )}

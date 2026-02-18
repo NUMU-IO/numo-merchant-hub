@@ -38,6 +38,7 @@ export interface CustomizationHeader {
   show_cart_icon: boolean;
   announcement_text: string;
   announcement_color: string;
+  announcement_text_color: string;
 }
 
 export interface CustomizationHero {
@@ -66,6 +67,35 @@ export interface CustomizationFooter {
   show_newsletter: boolean;
 }
 
+export interface CustomizationNavigation {
+  links: Array<{ label: string; to: string }>;
+  show_categories_in_nav: boolean;
+}
+
+export interface CustomizationLabels {
+  home_title: string;
+  products_title: string;
+  checkout_title: string;
+  order_confirmed_title: string;
+  cart_empty: string;
+  search_placeholder: string;
+  add_to_cart: string;
+  added_to_cart: string;
+  continue_shopping: string;
+  footer_shop_heading: string;
+  footer_help_heading: string;
+  footer_contact_heading: string;
+}
+
+export interface CustomizationLayout {
+  header_layout: string;
+  footer_layout: string;
+  footer_columns: number;
+  home_sections: string[];
+  hero_position: string;
+  product_card_style: string;
+}
+
 export interface CustomizationData {
   customization_mode: string;
   identity: CustomizationIdentity;
@@ -74,6 +104,9 @@ export interface CustomizationData {
   hero: CustomizationHero;
   products: CustomizationProducts;
   footer: CustomizationFooter;
+  navigation?: CustomizationNavigation;
+  labels?: CustomizationLabels;
+  layout?: CustomizationLayout;
   is_published: boolean;
   last_published_at: string | null;
 }
@@ -99,6 +132,9 @@ export function updateCustomization(
     hero: Partial<CustomizationHero>;
     products: Partial<CustomizationProducts>;
     footer: Partial<CustomizationFooter>;
+    navigation: Partial<CustomizationNavigation>;
+    labels: Partial<CustomizationLabels>;
+    layout: Partial<CustomizationLayout>;
   }>
 ): Promise<CustomizationData> {
   return apiClient<CustomizationData>(`/stores/${storeId}/settings/customization`, {

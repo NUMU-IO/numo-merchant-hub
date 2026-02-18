@@ -7,9 +7,7 @@ import { useRef, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Monitor, Tablet, Smartphone } from "lucide-react";
-
-const STOREFRONT_BASE =
-  import.meta.env.VITE_STOREFRONT_URL || "http://localhost:8081";
+import { getStoreUrl } from "@/lib/storefront";
 
 interface ThemePreviewProps {
   storeSubdomain?: string;
@@ -31,8 +29,8 @@ export function ThemePreview({ storeSubdomain, settings }: ThemePreviewProps) {
   const [loaded, setLoaded] = useState(false);
 
   const storefrontOrigin = storeSubdomain
-    ? `${new URL(STOREFRONT_BASE).protocol}//${storeSubdomain}.${new URL(STOREFRONT_BASE).host}`
-    : STOREFRONT_BASE;
+    ? getStoreUrl(storeSubdomain)
+    : getStoreUrl("preview");
   const storefrontUrl = `${storefrontOrigin}?preview=true`;
 
   // Send settings to iframe whenever they change (scoped to storefront origin)

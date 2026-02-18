@@ -106,6 +106,64 @@ const layoutSettings: SettingDefinition[] = [
   },
 ];
 
+// ─── Navigation, Labels & Page Layout Schemas ───────────────────────────────
+
+export const navigationSettings: SettingDefinition[] = [
+  { key: "show_categories_in_nav", type: "checkbox", label: "Show Categories in Nav", labelAr: "عرض الفئات في التنقل", default: true, group: "Navigation", groupAr: "التنقل" },
+];
+
+export const labelsSettings: SettingDefinition[] = [
+  { key: "home_title", type: "text", label: "Home Page Title", labelAr: "عنوان الصفحة الرئيسية", default: "", group: "Labels", groupAr: "التسميات" },
+  { key: "products_title", type: "text", label: "Products Page Title", labelAr: "عنوان صفحة المنتجات", default: "", group: "Labels", groupAr: "التسميات" },
+  { key: "checkout_title", type: "text", label: "Checkout Title", labelAr: "عنوان صفحة الشراء", default: "", group: "Labels", groupAr: "التسميات" },
+  { key: "search_placeholder", type: "text", label: "Search Placeholder", labelAr: "نص البحث", default: "", group: "Labels", groupAr: "التسميات" },
+  { key: "add_to_cart", type: "text", label: "Add to Cart Button", labelAr: "زر أضف للسلة", default: "", group: "Labels", groupAr: "التسميات" },
+  { key: "continue_shopping", type: "text", label: "Continue Shopping", labelAr: "مواصلة التسوق", default: "", group: "Labels", groupAr: "التسميات" },
+  { key: "footer_shop_heading", type: "text", label: "Footer Shop Heading", labelAr: "عنوان قسم التسوق", default: "", group: "Labels", groupAr: "التسميات" },
+  { key: "footer_help_heading", type: "text", label: "Footer Help Heading", labelAr: "عنوان قسم المساعدة", default: "", group: "Labels", groupAr: "التسميات" },
+  { key: "footer_contact_heading", type: "text", label: "Footer Contact Heading", labelAr: "عنوان قسم التواصل", default: "", group: "Labels", groupAr: "التسميات" },
+];
+
+export const pageLayoutSettings: SettingDefinition[] = [
+  {
+    key: "header_layout", type: "select", label: "Header Layout", labelAr: "تخطيط الهيدر",
+    default: "logo-right", group: "Page Layout", groupAr: "تخطيط الصفحة",
+    options: [
+      { label: "Logo Right + Nav Center", labelAr: "شعار يمين + تنقل وسط", value: "logo-right" },
+      { label: "Logo Centered", labelAr: "شعار في المنتصف", value: "logo-center" },
+      { label: "Logo Left + Nav Center", labelAr: "شعار يسار + تنقل وسط", value: "logo-left" },
+      { label: "Stacked (Logo Top)", labelAr: "مكدس (شعار فوق)", value: "stacked" },
+    ],
+  },
+  {
+    key: "footer_layout", type: "select", label: "Footer Layout", labelAr: "تخطيط الفوتر",
+    default: "4-col", group: "Page Layout", groupAr: "تخطيط الصفحة",
+    options: [
+      { label: "4 Columns", labelAr: "٤ أعمدة", value: "4-col" },
+      { label: "3 Columns", labelAr: "٣ أعمدة", value: "3-col" },
+      { label: "2 Columns", labelAr: "عمودين", value: "2-col" },
+      { label: "Minimal", labelAr: "بسيط", value: "minimal" },
+    ],
+  },
+  {
+    key: "product_card_style", type: "select", label: "Product Card Style", labelAr: "شكل كارت المنتج",
+    default: "default", group: "Page Layout", groupAr: "تخطيط الصفحة",
+    options: [
+      { label: "Default", labelAr: "افتراضي", value: "default" },
+      { label: "Compact", labelAr: "مدمج", value: "compact" },
+      { label: "Detailed", labelAr: "مفصل", value: "detailed" },
+    ],
+  },
+  {
+    key: "hero_position", type: "select", label: "Hero Position", labelAr: "موقع القسم الرئيسي",
+    default: "top", group: "Page Layout", groupAr: "تخطيط الصفحة",
+    options: [
+      { label: "Top (Default)", labelAr: "أعلى (افتراضي)", value: "top" },
+      { label: "After Categories", labelAr: "بعد الفئات", value: "after-categories" },
+    ],
+  },
+];
+
 // ─── Storefront Section Schemas ──────────────────────────────────────────────
 // Used by the Customization tab's Accordion sections (not per-theme).
 
@@ -117,7 +175,8 @@ export const identitySettings: SettingDefinition[] = [
 
 export const headerSettings: SettingDefinition[] = [
   { key: "announcement_text", type: "text", label: "Announcement Text", labelAr: "نص الإعلان", default: "", group: "Header", groupAr: "الهيدر", description: "Top bar message" },
-  { key: "announcement_color", type: "color", label: "Announcement Color", labelAr: "لون الإعلان", default: "#4318FF", group: "Header", groupAr: "الهيدر" },
+  { key: "announcement_color", type: "color", label: "Announcement BG Color", labelAr: "لون خلفية الإعلان", default: "#4318FF", group: "Header", groupAr: "الهيدر" },
+  { key: "announcement_text_color", type: "color", label: "Announcement Text Color", labelAr: "لون نص الإعلان", default: "#FFFFFF", group: "Header", groupAr: "الهيدر" },
   { key: "show_search_bar", type: "checkbox", label: "Show Search Bar", labelAr: "إظهار البحث", default: true, group: "Header", groupAr: "الهيدر" },
   { key: "show_cart_icon", type: "checkbox", label: "Show Cart Icon", labelAr: "إظهار السلة", default: true, group: "Header", groupAr: "الهيدر" },
 ];
@@ -180,6 +239,50 @@ export const themeSchemas: Record<string, ThemeSchema> = {
         label: "Enable Glassmorphism",
         labelAr: "تفعيل تأثير الزجاج",
         default: true,
+        group: "Effects",
+        groupAr: "التأثيرات",
+      },
+    ],
+  },
+  "tech-wave": {
+    themeId: "tech-wave",
+    settings: [
+      ...colorSettings,
+      ...typographySettings,
+      ...layoutSettings,
+      {
+        key: "enable_neon_glow",
+        type: "checkbox",
+        label: "Enable Neon Glow",
+        labelAr: "تفعيل التوهج النيون",
+        default: true,
+        group: "Effects",
+        groupAr: "التأثيرات",
+      },
+      {
+        key: "enable_wave_animation",
+        type: "checkbox",
+        label: "Enable Wave Animation",
+        labelAr: "تفعيل حركة الموجة",
+        default: true,
+        group: "Effects",
+        groupAr: "التأثيرات",
+      },
+      {
+        key: "enable_glassmorphism",
+        type: "checkbox",
+        label: "Enable Glassmorphism",
+        labelAr: "تفعيل تأثير الزجاج",
+        default: true,
+        group: "Effects",
+        groupAr: "التأثيرات",
+      },
+      {
+        key: "neon_color",
+        type: "color",
+        label: "Neon Color",
+        labelAr: "لون النيون",
+        default: "#00D4FF",
         group: "Effects",
         groupAr: "التأثيرات",
       },
