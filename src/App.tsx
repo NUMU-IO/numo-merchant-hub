@@ -13,6 +13,9 @@ import Orders from "@/pages/Orders";
 import StoreSettings from "@/pages/StoreSettings";
 import CODReconciliation from "@/pages/CODReconciliation";
 import SocialImport from "@/pages/SocialImport";
+import Customers from "@/pages/Customers";
+import Analytics from "@/pages/Analytics";
+import Marketing from "@/pages/Marketing";
 import Login from "@/pages/Login";
 import CreateStore from "@/pages/CreateStore";
 import NotFound from "./pages/NotFound";
@@ -84,6 +87,9 @@ const App = () => (
                   <Route path="/store" element={<StoreSettings />} />
                   <Route path="/cod" element={<CODReconciliation />} />
                   <Route path="/social" element={<SocialImport />} />
+                  <Route path="/customers" element={<Customers />} />
+                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/marketing" element={<Marketing />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />

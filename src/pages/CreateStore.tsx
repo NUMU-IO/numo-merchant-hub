@@ -25,21 +25,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, CheckCircle2, XCircle, Store } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Store, Rocket } from "lucide-react";
+import numuIcon from "@/assets/numu-icon.png";
 
-const STOREFRONT_HOST =
-  import.meta.env.VITE_STOREFRONT_HOST || "localhost:8080";
+const STOREFRONT_HOST = import.meta.env.VITE_STOREFRONT_HOST || "localhost:8080";
 
 export default function CreateStore() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { refetchStores, hasStores, isLoading } = useDashboardStore();
 
-  // If stores have loaded in the background, redirect to dashboard
   useEffect(() => {
-    if (!isLoading && hasStores) {
-      navigate("/", { replace: true });
-    }
+    if (!isLoading && hasStores) navigate("/", { replace: true });
   }, [isLoading, hasStores, navigate]);
 
   const [name, setName] = useState("");
@@ -47,53 +44,29 @@ export default function CreateStore() {
   const [description, setDescription] = useState("");
   const [language, setLanguage] = useState("ar");
   const [currency, setCurrency] = useState("EGP");
-
-  const [subdomainStatus, setSubdomainStatus] = useState<
-    "idle" | "checking" | "available" | "taken" | "invalid"
-  >("idle");
+  const [subdomainStatus, setSubdomainStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
   const [subdomainMsg, setSubdomainMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Auto-generate subdomain from name
   useEffect(() => {
-    const slug = name
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9-]/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "");
-    if (slug.length >= 3) {
-      setSubdomain(slug);
-    }
+    const slug = name.toLowerCase().trim().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    if (slug.length >= 3) setSubdomain(slug);
   }, [name]);
 
-  // Debounced subdomain availability check
   useEffect(() => {
-    if (subdomain.length < 3) {
-      setSubdomainStatus("idle");
-      return;
-    }
-
+    if (subdomain.length < 3) { setSubdomainStatus("idle"); return; }
     setSubdomainStatus("checking");
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
     debounceRef.current = setTimeout(async () => {
       try {
         const result = await checkSubdomain(subdomain);
         setSubdomainStatus(result.available ? "available" : "taken");
         setSubdomainMsg(result.message);
-      } catch {
-        setSubdomainStatus("invalid");
-        setSubdomainMsg("Could not check subdomain");
-      }
+      } catch { setSubdomainStatus("invalid"); setSubdomainMsg("Could not check subdomain"); }
     }, 500);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [subdomain]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,15 +74,8 @@ export default function CreateStore() {
     if (subdomainStatus !== "available") return;
     setError(null);
     setLoading(true);
-
     try {
-      await createStore({
-        name,
-        subdomain,
-        description: description || undefined,
-        default_language: language,
-        default_currency: currency,
-      });
+      await createStore({ name, subdomain, description: description || undefined, default_language: language, default_currency: currency });
       await refetchStores();
       navigate("/", { replace: true });
     } catch (err: any) {
@@ -120,137 +86,102 @@ export default function CreateStore() {
   };
 
   const subdomainIcon =
-    subdomainStatus === "checking" ? (
-      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-    ) : subdomainStatus === "available" ? (
-      <CheckCircle2 className="h-4 w-4 text-green-500" />
-    ) : subdomainStatus === "taken" || subdomainStatus === "invalid" ? (
-      <XCircle className="h-4 w-4 text-destructive" />
-    ) : null;
+    subdomainStatus === "checking" ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> :
+    subdomainStatus === "available" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> :
+    subdomainStatus === "taken" || subdomainStatus === "invalid" ? <XCircle className="h-4 w-4 text-destructive" /> : null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-lg">
-        <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 rounded-xl bg-primary flex items-center justify-center mb-2">
-            <Store className="h-6 w-6 text-primary-foreground" />
+    <div className="min-h-screen flex">
+      {/* Left decorative panel */}
+      <div className="hidden lg:flex lg:w-1/2 bg-primary relative overflow-hidden items-center justify-center">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-20 -start-10 h-64 w-64 rounded-full bg-primary-foreground/20 blur-3xl" />
+          <div className="absolute bottom-20 end-10 h-80 w-80 rounded-full bg-primary-foreground/15 blur-3xl" />
+        </div>
+        <div className="relative z-10 text-center px-12 space-y-6">
+          <Rocket className="h-16 w-16 text-primary-foreground mx-auto" />
+          <h2 className="text-3xl font-bold text-primary-foreground">{t("createStore.title")}</h2>
+          <p className="text-primary-foreground/70 text-sm max-w-sm mx-auto">{t("createStore.subtitle")}</p>
+        </div>
+      </div>
+
+      {/* Right form panel */}
+      <div className="flex-1 flex items-center justify-center bg-background p-6">
+        <div className="w-full max-w-lg space-y-6">
+          <div className="lg:hidden flex justify-center mb-4">
+            <img src={numuIcon} alt="NUMU" className="h-12 w-12" />
           </div>
-          <CardTitle className="text-2xl">{t("createStore.title")}</CardTitle>
-          <CardDescription>{t("createStore.subtitle")}</CardDescription>
-        </CardHeader>
 
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="storeName">{t("createStore.storeName")}</Label>
-              <Input
-                id="storeName"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t("createStore.storeNamePlaceholder")}
-                required
-              />
-            </div>
+          <Card className="border-0 shadow-[0_2px_12px_rgba(0,0,0,0.08),0_20px_60px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)]">
+            <CardHeader className="text-center space-y-2 pb-2">
+              <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
+                <Store className="h-6 w-6 text-primary" />
+              </div>
+              <CardTitle className="text-2xl font-bold">{t("createStore.title")}</CardTitle>
+              <CardDescription>{t("createStore.subtitle")}</CardDescription>
+            </CardHeader>
 
-            <div className="space-y-2">
-              <Label htmlFor="subdomain">{t("createStore.subdomain")}</Label>
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Input
-                    id="subdomain"
-                    value={subdomain}
-                    onChange={(e) =>
-                      setSubdomain(
-                        e.target.value
-                          .toLowerCase()
-                          .replace(/[^a-z0-9-]/g, "")
-                      )
-                    }
-                    placeholder="mystore"
-                    minLength={3}
-                    maxLength={63}
-                    required
-                  />
-                  {subdomainIcon && (
-                    <div className="absolute inset-y-0 end-2 flex items-center">
-                      {subdomainIcon}
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="storeName">{t("createStore.storeName")}</Label>
+                  <Input id="storeName" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("createStore.storeNamePlaceholder")} className="h-11" required />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="subdomain">{t("createStore.subdomain")}</Label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Input id="subdomain" value={subdomain} onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="mystore" minLength={3} maxLength={63} className="h-11" required />
+                      {subdomainIcon && <div className="absolute inset-y-0 end-3 flex items-center">{subdomainIcon}</div>}
                     </div>
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">.{STOREFRONT_HOST}</span>
+                  </div>
+                  {subdomainStatus !== "idle" && subdomainStatus !== "checking" && (
+                    <p className={`text-xs ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>{subdomainMsg}</p>
                   )}
                 </div>
-                <span className="text-sm text-muted-foreground whitespace-nowrap">
-                  .{STOREFRONT_HOST}
-                </span>
-              </div>
-              {subdomainStatus !== "idle" &&
-                subdomainStatus !== "checking" && (
-                  <p
-                    className={`text-xs ${
-                      subdomainStatus === "available"
-                        ? "text-green-600"
-                        : "text-destructive"
-                    }`}
-                  >
-                    {subdomainMsg}
-                  </p>
-                )}
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">
-                {t("createStore.description")}
-              </Label>
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t("createStore.descriptionPlaceholder")}
-                rows={3}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">{t("createStore.description")}</Label>
+                  <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("createStore.descriptionPlaceholder")} rows={3} />
+                </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>{t("createStore.language")}</Label>
-                <Select value={language} onValueChange={setLanguage}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ar">العربية</SelectItem>
-                    <SelectItem value="en">English</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>{t("createStore.currency")}</Label>
-                <Select value={currency} onValueChange={setCurrency}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="EGP">EGP (ج.م)</SelectItem>
-                    <SelectItem value="USD">USD ($)</SelectItem>
-                    <SelectItem value="SAR">SAR (ر.س)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>{t("createStore.language")}</Label>
+                    <Select value={language} onValueChange={setLanguage}>
+                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ar">العربية</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t("createStore.currency")}</Label>
+                    <Select value={currency} onValueChange={setCurrency}>
+                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="EGP">EGP (ج.م)</SelectItem>
+                        <SelectItem value="USD">USD ($)</SelectItem>
+                        <SelectItem value="SAR">SAR (ر.س)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-            {error && (
-              <p className="text-sm text-destructive text-center">{error}</p>
-            )}
+                {error && <p className="text-sm text-destructive text-center bg-destructive/10 rounded-lg p-2">{error}</p>}
 
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading || subdomainStatus !== "available"}
-            >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t("createStore.create")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+                <Button type="submit" className="w-full h-11 text-sm font-semibold gap-2" disabled={loading || subdomainStatus !== "available"}>
+                  {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {t("createStore.create")}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
