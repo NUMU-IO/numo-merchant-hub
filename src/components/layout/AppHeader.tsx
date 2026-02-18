@@ -1,20 +1,40 @@
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Bell, ChevronDown, Globe, Moon, Sun, User } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useDashboardStore } from "@/contexts/StoreContext";
+import {
+  Bell,
+  Check,
+  ChevronDown,
+  Globe,
+  Moon,
+  Plus,
+  Store,
+  Sun,
+  User,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const AppHeader = () => {
   const { t } = useTranslation();
   const { language, setLanguage } = useLanguage();
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains("dark"));
+  const { user, logout } = useAuth();
+  const { currentStore, stores, switchStore } = useDashboardStore();
+  const navigate = useNavigate();
+  const [isDark, setIsDark] = useState(() =>
+    document.documentElement.classList.contains("dark"),
+  );
 
   const toggleDark = () => {
     const next = !isDark;
@@ -58,6 +78,52 @@ const AppHeader = () => {
         {language === "en" ? "العربية" : "English"}
       </Button>
 
+      {/* Store Selector */}
+      {stores.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-2 max-w-[180px]">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary shrink-0">
+                {currentStore?.name?.charAt(0)?.toUpperCase() || "S"}
+              </div>
+              <span className="hidden text-sm font-medium sm:inline truncate">
+                {currentStore?.name ||
+                  (language === "ar" ? "اختر متجر" : "Select store")}
+              </span>
+              <ChevronDown className="h-3 w-3 shrink-0" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>
+              {language === "ar" ? "متاجرك" : "Your Stores"}
+            </DropdownMenuLabel>
+            {stores.map((store) => (
+              <DropdownMenuItem
+                key={store.id}
+                onClick={() => switchStore(store.id)}
+                className="gap-2"
+              >
+                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary shrink-0">
+                  {store.name.charAt(0).toUpperCase()}
+                </div>
+                <span className="truncate flex-1">{store.name}</span>
+                {store.id === currentStore?.id && (
+                  <Check className="h-4 w-4 text-primary shrink-0" />
+                )}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => navigate("/create-store")}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              {language === "ar" ? "إنشاء متجر جديد" : "Create new store"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+
       {/* Notifications */}
       <Button variant="ghost" size="icon" className="relative">
         <Bell className="h-4 w-4" />
@@ -69,10 +135,10 @@ const AppHeader = () => {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-              A
+              {user?.first_name?.charAt(0)?.toUpperCase() || "N"}
             </div>
             <span className="hidden text-sm font-medium sm:inline">
-              {t("dashboard.merchantName")}
+              {user?.first_name || t("dashboard.merchantName")}
             </span>
             <ChevronDown className="h-3 w-3" />
           </Button>
@@ -83,7 +149,9 @@ const AppHeader = () => {
             {t("header.profile")}
           </DropdownMenuItem>
           <DropdownMenuItem>{t("header.settings")}</DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive">{t("header.logout")}</DropdownMenuItem>
+          <DropdownMenuItem className="text-destructive" onClick={logout}>
+            {t("header.logout")}
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>

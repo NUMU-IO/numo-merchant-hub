@@ -1,0 +1,115 @@
+/**
+ * Theme-specific API calls for the NUMU merchant dashboard.
+ */
+
+import { apiClient } from "./api";
+
+export interface AvailableTheme {
+  id: string;
+  name: string;
+  nameAr: string;
+  layout: "default" | "skeuomorphic";
+  description: string;
+}
+
+export interface CustomizationTheme {
+  base_theme: string;
+  primary_color: string;
+  secondary_color: string;
+  accent_color: string;
+  background_color: string;
+  text_color: string;
+  button_style: string;
+  enable_animations: boolean;
+  border_radius: number;
+  heading_font: string;
+  nav_style: string;
+}
+
+export interface CustomizationIdentity {
+  logo_url: string;
+  store_name: string;
+  favicon_url: string;
+}
+
+export interface CustomizationHeader {
+  nav_layout: string;
+  show_search_bar: boolean;
+  show_cart_icon: boolean;
+  announcement_text: string;
+  announcement_color: string;
+}
+
+export interface CustomizationHero {
+  hero_image_url: string;
+  headline: string;
+  subtitle: string;
+  cta_text: string;
+  cta_link: string;
+}
+
+export interface CustomizationProducts {
+  layout: string;
+  products_per_row: number;
+  show_price: boolean;
+  show_rating: boolean;
+}
+
+export interface CustomizationFooter {
+  footer_text: string;
+  social_links: {
+    facebook: string;
+    instagram: string;
+    twitter: string;
+    whatsapp: string;
+  };
+  show_newsletter: boolean;
+}
+
+export interface CustomizationData {
+  customization_mode: string;
+  identity: CustomizationIdentity;
+  theme: CustomizationTheme;
+  header: CustomizationHeader;
+  hero: CustomizationHero;
+  products: CustomizationProducts;
+  footer: CustomizationFooter;
+  is_published: boolean;
+  last_published_at: string | null;
+}
+
+// Fetch the list of available storefront themes
+export function fetchThemes(): Promise<AvailableTheme[]> {
+  return apiClient<AvailableTheme[]>("/storefront/themes");
+}
+
+// Fetch current customization draft for the store
+export function fetchCustomization(storeId: string): Promise<CustomizationData> {
+  return apiClient<CustomizationData>(`/stores/${storeId}/settings/customization`);
+}
+
+// Save customization draft (partial update)
+export function updateCustomization(
+  storeId: string,
+  data: Partial<{
+    customization_mode: string;
+    identity: Partial<CustomizationIdentity>;
+    theme: Partial<CustomizationTheme>;
+    header: Partial<CustomizationHeader>;
+    hero: Partial<CustomizationHero>;
+    products: Partial<CustomizationProducts>;
+    footer: Partial<CustomizationFooter>;
+  }>
+): Promise<CustomizationData> {
+  return apiClient<CustomizationData>(`/stores/${storeId}/settings/customization`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+// Publish customization to live storefront
+export function publishCustomization(storeId: string): Promise<CustomizationData> {
+  return apiClient<CustomizationData>(`/stores/${storeId}/settings/customization/publish`, {
+    method: "POST",
+  });
+}
