@@ -344,18 +344,21 @@ const StoreSettings = () => {
   const buildFullPayload = useCallback(() => {
     const footerClean = extractNonEmpty(footerState);
     const { facebook, instagram, twitter, whatsapp, ...footerRest } = footerClean;
-    const social_links = extractNonEmpty({ facebook, instagram, twitter, whatsapp });
+    const socialRaw = extractNonEmpty({ facebook, instagram, twitter, whatsapp });
+    const social_links = Object.keys(socialRaw).length > 0
+      ? { facebook: socialRaw.facebook || "", instagram: socialRaw.instagram || "", twitter: socialRaw.twitter || "", whatsapp: socialRaw.whatsapp || "" }
+      : undefined;
 
     return {
       theme: { base_theme: activeTheme, ...extractNonEmpty(themeState) },
-      identity: extractNonEmpty(identityState),
-      header: extractNonEmpty(headerState),
-      hero: extractNonEmpty(heroState),
-      products: extractNonEmpty(productsState),
+      identity: extractNonEmpty(identityState) as any,
+      header: extractNonEmpty(headerState) as any,
+      hero: extractNonEmpty(heroState) as any,
+      products: extractNonEmpty(productsState) as any,
       footer: {
         ...footerRest,
-        ...(Object.keys(social_links).length > 0 ? { social_links } : {}),
-      },
+        ...(social_links ? { social_links } : {}),
+      } as any,
     };
   }, [activeTheme, themeState, identityState, headerState, heroState, productsState, footerState]);
 
