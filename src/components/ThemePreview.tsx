@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Monitor, Tablet, Smartphone } from "lucide-react";
 
 const STOREFRONT_BASE =
-  import.meta.env.VITE_STOREFRONT_URL || "http://localhost:8080";
+  import.meta.env.VITE_STOREFRONT_URL || "http://localhost:8081";
 
 interface ThemePreviewProps {
   storeSubdomain?: string;

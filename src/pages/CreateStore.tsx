@@ -33,7 +33,14 @@ const STOREFRONT_HOST =
 export default function CreateStore() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { refetchStores } = useDashboardStore();
+  const { refetchStores, hasStores, isLoading } = useDashboardStore();
+
+  // If stores have loaded in the background, redirect to dashboard
+  useEffect(() => {
+    if (!isLoading && hasStores) {
+      navigate("/", { replace: true });
+    }
+  }, [isLoading, hasStores, navigate]);
 
   const [name, setName] = useState("");
   const [subdomain, setSubdomain] = useState("");

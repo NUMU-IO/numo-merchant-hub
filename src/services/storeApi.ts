@@ -75,3 +75,87 @@ export async function checkSubdomain(
 export async function getStore(storeId: string): Promise<StoreData> {
   return apiClient<StoreData>(`/stores/${storeId}`);
 }
+
+export interface UpdateStoreData {
+  name?: string;
+  description?: string | null;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  address?: string | null;
+  social_links?: Record<string, string> | null;
+  default_language?: string;
+  settings?: Record<string, any>;
+  theme_settings?: Record<string, any>;
+}
+
+export async function updateStore(
+  storeId: string,
+  data: UpdateStoreData
+): Promise<StoreData> {
+  return apiClient<StoreData>(`/stores/${storeId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+// ─── Shipping Settings ────────────────────────────────────────────────────────
+
+export interface ShippingZone {
+  id: string;
+  zone: string;
+  governorates: string;
+  rate: number;
+  estimated_days: string;
+}
+
+export interface ShippingCarrierStatus {
+  enabled: boolean;
+  is_configured: boolean;
+  last_configured: string | null;
+}
+
+export interface ShippingSettings {
+  aramex: ShippingCarrierStatus;
+  bosta: ShippingCarrierStatus;
+  mylerz: ShippingCarrierStatus;
+  manual: ShippingCarrierStatus;
+  zones: ShippingZone[];
+  free_shipping_threshold: number;
+}
+
+export async function fetchShippingSettings(
+  storeId: string
+): Promise<ShippingSettings> {
+  return apiClient<ShippingSettings>(`/stores/${storeId}/settings/shipping`);
+}
+
+export async function updateShippingSettings(
+  storeId: string,
+  data: { free_shipping_threshold?: number; manual_enabled?: boolean }
+): Promise<ShippingSettings> {
+  return apiClient<ShippingSettings>(`/stores/${storeId}/settings/shipping`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function addShippingZone(
+  storeId: string,
+  data: { zone: string; governorates: string; rate: number; estimated_days: string }
+): Promise<ShippingZone> {
+  return apiClient<ShippingZone>(`/stores/${storeId}/settings/shipping/zones`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteShippingZone(
+  storeId: string,
+  zoneId: string
+): Promise<void> {
+  await apiClient(`/stores/${storeId}/settings/shipping/zones/${zoneId}`, {
+    method: "DELETE",
+  });
+}

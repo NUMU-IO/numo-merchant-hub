@@ -79,3 +79,18 @@ export async function register(data: RegisterData): Promise<AuthResponse> {
 export async function getMe(): Promise<User> {
   return apiClient<User>("/auth/me");
 }
+
+export async function refreshToken(refresh_token: string): Promise<AuthTokens> {
+  const res = await fetch(`${API_BASE}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token }),
+  });
+
+  if (!res.ok) {
+    throw new Error("Token refresh failed");
+  }
+
+  const json = await res.json();
+  return json.data;
+}
