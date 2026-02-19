@@ -19,23 +19,14 @@ import Marketing from "@/pages/Marketing";
 import Login from "@/pages/Login";
 import CreateStore from "@/pages/CreateStore";
 import NotFound from "./pages/NotFound";
-import { Loader2 } from "lucide-react";
+import { NumuLoadingScreen } from "@/components/NumuLoader";
 
 const queryClient = new QueryClient();
-
-/** Full-screen spinner while auth/store state is loading */
-function LoadingScreen() {
-  return (
-    <div className="flex h-screen items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-    </div>
-  );
-}
 
 /** Redirects unauthenticated users to /login */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <LoadingScreen />;
+  if (isLoading) return <NumuLoadingScreen />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -43,7 +34,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 /** Redirects authenticated users without stores to /create-store */
 function RequireStore({ children }: { children: React.ReactNode }) {
   const { hasStores, isLoading } = useDashboardStore();
-  if (isLoading) return <LoadingScreen />;
+  if (isLoading) return <NumuLoadingScreen />;
   if (!hasStores) return <Navigate to="/create-store" replace />;
   return <>{children}</>;
 }
