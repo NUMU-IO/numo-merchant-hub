@@ -8,7 +8,7 @@ export interface AvailableTheme {
   id: string;
   name: string;
   nameAr: string;
-  layout: "default" | "skeuomorphic";
+  layout: "default" | "skeuomorphic" | "neo-brutalism" | "editorial" | "luxury-minimal";
   description: string;
 }
 

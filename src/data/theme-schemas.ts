@@ -288,6 +288,85 @@ export const themeSchemas: Record<string, ThemeSchema> = {
       },
     ],
   },
+  "neo-brutalism": {
+    themeId: "neo-brutalism",
+    settings: [
+      ...colorSettings,
+      ...typographySettings,
+      ...layoutSettings,
+      {
+        key: "borderWidth",
+        type: "select",
+        label: "Border Width",
+        labelAr: "سُمك الحدود",
+        default: "3px",
+        group: "Effects",
+        groupAr: "التأثيرات",
+        options: [
+          { label: "Thin (2px)", labelAr: "رفيع (2px)", value: "2px" },
+          { label: "Medium (3px)", labelAr: "متوسط (3px)", value: "3px" },
+          { label: "Thick (4px)", labelAr: "سميك (4px)", value: "4px" },
+        ],
+      },
+      {
+        key: "shadowOffset",
+        type: "select",
+        label: "Shadow Offset",
+        labelAr: "إزاحة الظل",
+        default: "4px",
+        group: "Effects",
+        groupAr: "التأثيرات",
+        options: [
+          { label: "Small (3px)", labelAr: "صغير (3px)", value: "3px" },
+          { label: "Medium (4px)", labelAr: "متوسط (4px)", value: "4px" },
+          { label: "Large (6px)", labelAr: "كبير (6px)", value: "6px" },
+        ],
+      },
+      {
+        key: "enable_animations",
+        type: "checkbox",
+        label: "Enable Animations",
+        labelAr: "تفعيل الحركات",
+        default: true,
+        group: "Effects",
+        groupAr: "التأثيرات",
+      },
+    ],
+  },
+  editorial: {
+    themeId: "editorial",
+    settings: [
+      ...colorSettings,
+      ...typographySettings,
+      ...layoutSettings,
+      {
+        key: "enable_animations",
+        type: "checkbox",
+        label: "Enable Animations",
+        labelAr: "تفعيل الحركات",
+        default: true,
+        group: "Effects",
+        groupAr: "التأثيرات",
+      },
+    ],
+  },
+  "luxury-minimal": {
+    themeId: "luxury-minimal",
+    settings: [
+      ...colorSettings,
+      ...typographySettings,
+      ...layoutSettings,
+      {
+        key: "enable_animations",
+        type: "checkbox",
+        label: "Enable Animations",
+        labelAr: "تفعيل الحركات",
+        default: true,
+        group: "Effects",
+        groupAr: "التأثيرات",
+      },
+    ],
+  },
 };
 
 /** Group the settings by their `group` field. */

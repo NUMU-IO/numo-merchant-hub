@@ -332,6 +332,9 @@ const THEME_PREVIEWS: Record<string, { bg: string; fg: string; accent: string; i
   elegant: { bg: "#fffbeb", fg: "#78350f", accent: "#d97706", icon: "👑" },
   skeuomorphic: { bg: "#ecfdf5", fg: "#064e3b", accent: "#10b981", icon: "🎨" },
   "tech-wave": { bg: "#0a0e1a", fg: "#e0e6ed", accent: "#00d4ff", icon: "⚡" },
+  "neo-brutalism": { bg: "#fefce8", fg: "#1a1a1a", accent: "#a3e635", icon: "💥" },
+  editorial: { bg: "#f0f2ec", fg: "#1b1b1b", accent: "#2d6a4f", icon: "📰" },
+  "luxury-minimal": { bg: "#ffffff", fg: "#1a1a1a", accent: "#b8860b", icon: "💎" },
 };
 
 function extractNonEmpty(state: Record<string, any>): Record<string, any> {
@@ -847,6 +850,9 @@ const StoreSettings = () => {
                 { id: "boutique", name: "Boutique", nameAr: "بوتيك", description: "", layout: "default" },
                 { id: "elegant", name: "Elegant", nameAr: "أنيق", description: "", layout: "default" },
                 { id: "skeuomorphic", name: "Classic", nameAr: "كلاسيك", description: "", layout: "skeuomorphic" },
+                { id: "neo-brutalism", name: "Neo Brutalism", nameAr: "نيو بروتاليزم", description: "", layout: "neo-brutalism" },
+                { id: "editorial", name: "Editorial", nameAr: "إيديتوريال", description: "", layout: "editorial" },
+                { id: "luxury-minimal", name: "Luxury Minimal", nameAr: "فخامة مينيمال", description: "", layout: "luxury-minimal" },
               ]).map((theme) => {
                 const isActive = activeTheme === theme.id;
                 const preview = THEME_PREVIEWS[theme.id] || THEME_PREVIEWS.modern;

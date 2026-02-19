@@ -35,9 +35,9 @@ async function doRefresh(): Promise<string> {
   return tokens.access_token;
 }
 
-function buildHeaders(token: string | null, extra?: HeadersInit): HeadersInit {
+function buildHeaders(token: string | null, extra?: HeadersInit, isFormData?: boolean): HeadersInit {
   return {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(extra || {}),
   };
@@ -48,10 +48,11 @@ export async function apiClient<T>(
   options?: RequestInit
 ): Promise<T> {
   const token = localStorage.getItem(TOKEN_KEY);
+  const isFormData = options?.body instanceof FormData;
 
   const res = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
-    headers: buildHeaders(token, options?.headers as Record<string, string>),
+    headers: buildHeaders(token, options?.headers as Record<string, string>, isFormData),
   });
 
   // If 401 → try refresh once, then retry
@@ -64,7 +65,7 @@ export async function apiClient<T>(
 
       const retry = await fetch(`${API_BASE}${endpoint}`, {
         ...options,
-        headers: buildHeaders(newToken, options?.headers as Record<string, string>),
+        headers: buildHeaders(newToken, options?.headers as Record<string, string>, isFormData),
       });
 
       if (!retry.ok) {
@@ -85,6 +86,11 @@ export async function apiClient<T>(
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new Error(body?.detail || `API error: ${res.status}`);
+  }
+
+  // 204 No Content (e.g. DELETE) — no body to parse
+  if (res.status === 204) {
+    return undefined as T;
   }
 
   const json = await res.json();

@@ -1,8 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { products as initialProducts, categories, type Product, type ProductStatus, type ProductVariant } from "@/data/mock-products";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDashboardStore } from "@/contexts/StoreContext";
+import { categories, type Product, type ProductStatus, type ProductVariant } from "@/data/mock-products";
+import {
+  listProducts, createProduct as apiCreateProduct, updateProduct as apiUpdateProduct,
+  deleteProduct as apiDeleteProduct, uploadProductImage, deleteProductImage,
+  apiToProduct, productToApiCreate, productToApiUpdate,
+  type PaginatedProducts,
+} from "@/services/productApi";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,19 +29,41 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, ImagePlus, X, Tag } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, ImagePlus, X, Tag, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+
+const PAGE_SIZE = 20;
 
 const Products = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
-  const [productsList, setProductsList] = useState<Product[]>(initialProducts);
+  const { currentStore } = useDashboardStore();
+  const storeId = currentStore?.id;
+
+  // Product list state (API-driven)
+  const [productsList, setProductsList] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Filters
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ProductStatus>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+
+  // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Image upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [formImages, setFormImages] = useState<string[]>([]);
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -48,15 +77,52 @@ const Products = () => {
   const [formCategory, setFormCategory] = useState("Clothing");
   const [formVariants, setFormVariants] = useState<{ name: string; nameAr: string; options: string; optionsAr: string }[]>([]);
 
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter]);
+
+  // Fetch products from API
+  const fetchProducts = useCallback(async () => {
+    if (!storeId) return;
+    setIsLoading(true);
+    try {
+      const apiStatus = statusFilter === "all"
+        ? undefined
+        : statusFilter === "published" ? "active" : statusFilter;
+      const result = await listProducts(storeId, {
+        page: currentPage,
+        limit: PAGE_SIZE,
+        status: apiStatus,
+        search: debouncedSearch || undefined,
+      });
+      setProductsList(result.items.map(apiToProduct));
+      setTotalProducts(result.total);
+      setTotalPages(result.total_pages);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load products");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [storeId, currentPage, statusFilter, debouncedSearch]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  // Client-side category filter (backend uses UUID category_id, we use string names)
+  const filtered = categoryFilter === "all"
+    ? productsList
+    : productsList.filter((p) => p.category === categoryFilter);
+
   const formatCurrency = (val: number) =>
     language === "ar" ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
-
-  const filtered = productsList.filter((p) => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.nameAr.includes(search);
-    const matchStatus = statusFilter === "all" || p.status === statusFilter;
-    const matchCategory = categoryFilter === "all" || p.category === categoryFilter;
-    return matchSearch && matchStatus && matchCategory;
-  });
 
   const statusColor: Record<ProductStatus, string> = {
     published: "bg-primary/10 text-primary",
@@ -68,6 +134,7 @@ const Products = () => {
     setFormName(""); setFormNameAr(""); setFormDesc(""); setFormDescAr("");
     setFormPrice(""); setFormComparePrice(""); setFormStock("");
     setFormStatus("draft"); setFormCategory("Clothing"); setFormVariants([]);
+    setFormImages([]);
     setEditingProduct(null);
   };
 
@@ -82,6 +149,7 @@ const Products = () => {
     setFormDesc(p.description); setFormDescAr(p.descriptionAr);
     setFormPrice(String(p.price)); setFormComparePrice(p.compareAtPrice ? String(p.compareAtPrice) : "");
     setFormStock(String(p.stock)); setFormStatus(p.status); setFormCategory(p.category);
+    setFormImages(p.images.filter(img => img !== "📦"));
     setFormVariants(p.variants.map(v => ({
       name: v.name, nameAr: v.nameAr,
       options: v.options.join(", "), optionsAr: v.optionsAr.join(", "),
@@ -89,7 +157,10 @@ const Products = () => {
     setDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!storeId || isSaving) return;
+    setIsSaving(true);
+
     const variants: ProductVariant[] = formVariants
       .filter(v => v.name && v.options)
       .map((v, i) => ({
@@ -101,35 +172,100 @@ const Products = () => {
 
     const cat = categories.find(c => c.en === formCategory);
 
-    if (editingProduct) {
-      setProductsList(prev => prev.map(p => p.id === editingProduct.id ? {
-        ...p, name: formName, nameAr: formNameAr, description: formDesc, descriptionAr: formDescAr,
-        price: Number(formPrice), compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
-        stock: Number(formStock), status: formStatus, category: formCategory,
-        categoryAr: cat?.ar || formCategory, variants,
-      } : p));
-      toast.success(language === "ar" ? t("products.productUpdated") : t("products.productUpdated"));
-    } else {
-      const newProduct: Product = {
-        id: `P${String(productsList.length + 1).padStart(3, "0")}`,
-        name: formName, nameAr: formNameAr, description: formDesc, descriptionAr: formDescAr,
-        price: Number(formPrice), compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
-        stock: Number(formStock), status: formStatus,
-        category: formCategory, categoryAr: cat?.ar || formCategory,
-        sku: `NEW-${Date.now()}`, image: "📦", images: ["📦"], sold: 0, variants,
-      };
-      setProductsList(prev => [newProduct, ...prev]);
-      toast.success(language === "ar" ? "المنتج اتضاف!" : "Product added successfully!");
+    try {
+      if (editingProduct) {
+        const payload = productToApiUpdate({
+          name: formName, nameAr: formNameAr,
+          description: formDesc, descriptionAr: formDescAr,
+          price: Number(formPrice),
+          compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
+          stock: Number(formStock),
+          status: formStatus,
+          category: formCategory, categoryAr: cat?.ar || formCategory,
+          variants,
+          images: formImages.length > 0 ? formImages : undefined,
+        });
+        const updated = await apiUpdateProduct(storeId, editingProduct.id, payload);
+        setProductsList(prev => prev.map(p => p.id === editingProduct.id ? apiToProduct(updated) : p));
+        toast.success(t("products.productUpdated"));
+      } else {
+        const payload = productToApiCreate({
+          name: formName, nameAr: formNameAr,
+          description: formDesc, descriptionAr: formDescAr,
+          price: Number(formPrice),
+          compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
+          stock: Number(formStock),
+          status: formStatus,
+          category: formCategory, categoryAr: cat?.ar || formCategory,
+          variants,
+          images: formImages.length > 0 ? formImages : undefined,
+        });
+        const created = await apiCreateProduct(storeId, payload);
+        setProductsList(prev => [apiToProduct(created), ...prev]);
+        setTotalProducts(prev => prev + 1);
+        toast.success(language === "ar" ? "المنتج اتضاف!" : "Product added successfully!");
+      }
+      setDialogOpen(false);
+      resetForm();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save product");
+    } finally {
+      setIsSaving(false);
     }
-    setDialogOpen(false);
-    resetForm();
   };
 
-  const handleDelete = () => {
-    if (!deleteTarget) return;
-    setProductsList(prev => prev.filter(p => p.id !== deleteTarget.id));
-    toast.success(t("products.productDeleted"));
-    setDeleteTarget(null);
+  const handleDelete = async () => {
+    if (!deleteTarget || !storeId || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await apiDeleteProduct(storeId, deleteTarget.id);
+      setProductsList(prev => prev.filter(p => p.id !== deleteTarget.id));
+      setTotalProducts(prev => prev - 1);
+      toast.success(t("products.productDeleted"));
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete product");
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !storeId) return;
+
+    // If editing an existing product, upload directly
+    if (editingProduct) {
+      setUploadingImage(true);
+      try {
+        const result = await uploadProductImage(storeId, editingProduct.id, file);
+        setFormImages(prev => [...prev, result.url]);
+        // Update the product in the list too
+        setProductsList(prev => prev.map(p =>
+          p.id === editingProduct.id
+            ? { ...p, images: [...p.images.filter(img => img !== "📦"), result.url], image: result.url }
+            : p
+        ));
+        toast.success(language === "ar" ? "الصورة اترفعت!" : "Image uploaded!");
+      } catch (err: any) {
+        toast.error(err.message || "Upload failed");
+      } finally {
+        setUploadingImage(false);
+      }
+    }
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleImageDelete = async (imageUrl: string) => {
+    if (!storeId || !editingProduct) return;
+    try {
+      await deleteProductImage(storeId, editingProduct.id, imageUrl);
+      setFormImages(prev => prev.filter(url => url !== imageUrl));
+      toast.success(language === "ar" ? "الصورة اتمسحت" : "Image removed");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove image");
+    }
   };
 
   const addVariantRow = () => {
@@ -149,7 +285,7 @@ const Products = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t("products.title")}</h1>
-          <p className="text-sm text-muted-foreground">{productsList.length} {language === "ar" ? "منتج" : "products"}</p>
+          <p className="text-sm text-muted-foreground">{totalProducts} {language === "ar" ? "منتج" : "products"}</p>
         </div>
         <Button onClick={openAddDialog} className="gap-2">
           <Plus className="h-4 w-4" />
@@ -188,7 +324,11 @@ const Products = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {filtered.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : filtered.length === 0 ? (
             <p className="py-8 text-center text-muted-foreground">{t("products.noProducts")}</p>
           ) : (
             <div className="overflow-x-auto">
@@ -210,7 +350,11 @@ const Products = () => {
                   {filtered.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell>
-                        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-xl">{p.image}</span>
+                        {p.image.startsWith("http") ? (
+                          <img src={p.image} alt="" className="h-10 w-10 rounded-lg object-cover bg-muted" />
+                        ) : (
+                          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-xl">{p.image}</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div>
@@ -219,10 +363,14 @@ const Products = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="gap-1 font-normal">
-                          <Tag className="h-3 w-3" />
-                          {language === "ar" ? p.categoryAr : p.category}
-                        </Badge>
+                        {p.category ? (
+                          <Badge variant="outline" className="gap-1 font-normal">
+                            <Tag className="h-3 w-3" />
+                            {language === "ar" ? p.categoryAr : p.category}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div>
@@ -281,6 +429,25 @@ const Products = () => {
               </Table>
             </div>
           )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4">
+              <Button variant="outline" size="sm" disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => p - 1)} className="gap-1">
+                <ChevronLeft className="h-4 w-4" />
+                {language === "ar" ? "السابق" : "Previous"}
+              </Button>
+              <span className="text-sm text-muted-foreground px-2">
+                {language === "ar" ? `صفحة ${currentPage} من ${totalPages}` : `Page ${currentPage} of ${totalPages}`}
+              </span>
+              <Button variant="outline" size="sm" disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage(p => p + 1)} className="gap-1">
+                {language === "ar" ? "التالي" : "Next"}
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -295,23 +462,50 @@ const Products = () => {
           </DialogHeader>
 
           <div className="grid gap-5 py-2">
-            {/* Image Upload Placeholder */}
+            {/* Image Upload */}
             <div className="grid gap-2">
               <Label>{t("products.images")}</Label>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  className="flex h-24 w-24 flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted"
-                >
-                  <ImagePlus className="h-6 w-6 mb-1" />
-                  <span className="text-[10px]">{t("products.uploadImages")}</span>
-                </button>
+              <div className="flex gap-3 flex-wrap">
+                {formImages.map((url) => (
+                  <div key={url} className="relative group">
+                    <img src={url} alt="" className="h-24 w-24 rounded-lg object-cover bg-muted" />
+                    {editingProduct && (
+                      <button
+                        type="button"
+                        onClick={() => handleImageDelete(url)}
+                        className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
                 {editingProduct && (
-                  <div className="flex h-24 w-24 items-center justify-center rounded-lg bg-muted text-3xl">
-                    {editingProduct.image}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                    className="flex h-24 w-24 flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    {uploadingImage ? (
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    ) : (
+                      <>
+                        <ImagePlus className="h-6 w-6 mb-1" />
+                        <span className="text-[10px]">{t("products.uploadImages")}</span>
+                      </>
+                    )}
+                  </button>
+                )}
+                {!editingProduct && (
+                  <div className="flex h-24 items-center">
+                    <p className="text-xs text-muted-foreground">
+                      {language === "ar" ? "احفظ المنتج أولاً ثم أضف الصور" : "Save product first, then add images"}
+                    </p>
                   </div>
                 )}
               </div>
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleImageUpload} />
               <p className="text-xs text-muted-foreground">{t("products.uploadHint")}</p>
             </div>
 
@@ -425,7 +619,8 @@ const Products = () => {
             <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
               {t("products.cancel")}
             </Button>
-            <Button onClick={handleSave} disabled={!formName || !formPrice}>
+            <Button onClick={handleSave} disabled={!formName || !formPrice || isSaving}>
+              {isSaving && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               {t("products.save")}
             </Button>
           </DialogFooter>
@@ -441,7 +636,8 @@ const Products = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("products.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               {t("products.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
