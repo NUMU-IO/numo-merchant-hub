@@ -9,6 +9,7 @@ export default {
     customers: "العملاء",
     analytics: "التحليلات",
     marketing: "التسويق",
+    categories: "الفئات",
     storefront: "المتجر الإلكتروني",
   },
   header: {

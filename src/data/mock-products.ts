@@ -20,6 +20,7 @@ export interface Product {
   status: ProductStatus;
   category: string;
   categoryAr: string;
+  categoryId?: string;
   sku: string;
   image: string;
   images: string[];

@@ -9,6 +9,7 @@ export default {
     customers: "Customers",
     analytics: "Analytics",
     marketing: "Marketing",
+    categories: "Categories",
     storefront: "Online Store",
   },
   header: {

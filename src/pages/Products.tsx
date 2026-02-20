@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { categories, type Product, type ProductStatus, type ProductVariant } from "@/data/mock-products";
+import { type Product, type ProductStatus, type ProductVariant } from "@/data/mock-products";
+import { listCategories, type Category } from "@/services/categoryApi";
 import {
   listProducts, createProduct as apiCreateProduct, updateProduct as apiUpdateProduct,
   deleteProduct as apiDeleteProduct, uploadProductImage, deleteProductImage,
@@ -40,6 +41,9 @@ const Products = () => {
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
 
+  // Categories from API
+  const [apiCategories, setApiCategories] = useState<Category[]>([]);
+
   // Product list state (API-driven)
   const [productsList, setProductsList] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,6 +68,7 @@ const Products = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [formImages, setFormImages] = useState<string[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -76,6 +81,12 @@ const Products = () => {
   const [formStatus, setFormStatus] = useState<ProductStatus>("draft");
   const [formCategory, setFormCategory] = useState("Clothing");
   const [formVariants, setFormVariants] = useState<{ name: string; nameAr: string; options: string; optionsAr: string }[]>([]);
+
+  // Fetch categories from API
+  useEffect(() => {
+    if (!storeId) return;
+    listCategories(storeId).then(setApiCategories).catch(() => {});
+  }, [storeId]);
 
   // Debounce search
   useEffect(() => {
@@ -116,10 +127,10 @@ const Products = () => {
     fetchProducts();
   }, [fetchProducts]);
 
-  // Client-side category filter (backend uses UUID category_id, we use string names)
+  // Client-side category filter by category ID
   const filtered = categoryFilter === "all"
     ? productsList
-    : productsList.filter((p) => p.category === categoryFilter);
+    : productsList.filter((p) => p.categoryId === categoryFilter);
 
   const formatCurrency = (val: number) =>
     language === "ar" ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
@@ -133,8 +144,8 @@ const Products = () => {
   const resetForm = () => {
     setFormName(""); setFormNameAr(""); setFormDesc(""); setFormDescAr("");
     setFormPrice(""); setFormComparePrice(""); setFormStock("");
-    setFormStatus("draft"); setFormCategory("Clothing"); setFormVariants([]);
-    setFormImages([]);
+    setFormStatus("draft"); setFormCategory(""); setFormVariants([]);
+    setFormImages([]); setPendingFiles([]);
     setEditingProduct(null);
   };
 
@@ -148,7 +159,7 @@ const Products = () => {
     setFormName(p.name); setFormNameAr(p.nameAr);
     setFormDesc(p.description); setFormDescAr(p.descriptionAr);
     setFormPrice(String(p.price)); setFormComparePrice(p.compareAtPrice ? String(p.compareAtPrice) : "");
-    setFormStock(String(p.stock)); setFormStatus(p.status); setFormCategory(p.category);
+    setFormStock(String(p.stock)); setFormStatus(p.status); setFormCategory(p.categoryId || "");
     setFormImages(p.images.filter(img => img !== "📦"));
     setFormVariants(p.variants.map(v => ({
       name: v.name, nameAr: v.nameAr,
@@ -170,7 +181,7 @@ const Products = () => {
         optionsAr: v.optionsAr.split(",").map(o => o.trim()).filter(Boolean),
       }));
 
-    const cat = categories.find(c => c.en === formCategory);
+    const cat = apiCategories.find(c => c.id === formCategory);
 
     try {
       if (editingProduct) {
@@ -181,7 +192,8 @@ const Products = () => {
           compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
           stock: Number(formStock),
           status: formStatus,
-          category: formCategory, categoryAr: cat?.ar || formCategory,
+          categoryId: formCategory || undefined,
+          category: cat?.name || "", categoryAr: cat?.name || "",
           variants,
           images: formImages.length > 0 ? formImages : undefined,
         });
@@ -196,13 +208,18 @@ const Products = () => {
           compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
           stock: Number(formStock),
           status: formStatus,
-          category: formCategory, categoryAr: cat?.ar || formCategory,
+          categoryId: formCategory || undefined,
+          category: cat?.name || "", categoryAr: cat?.name || "",
           variants,
-          images: formImages.length > 0 ? formImages : undefined,
         });
         const created = await apiCreateProduct(storeId, payload);
-        setProductsList(prev => [apiToProduct(created), ...prev]);
-        setTotalProducts(prev => prev + 1);
+        // Upload pending images for the newly created product
+        for (const file of pendingFiles) {
+          try {
+            await uploadProductImage(storeId, created.id, file);
+          } catch { /* image upload failure is non-blocking */ }
+        }
+        fetchProducts();
         toast.success(language === "ar" ? "المنتج اتضاف!" : "Product added successfully!");
       }
       setDialogOpen(false);
@@ -234,13 +251,12 @@ const Products = () => {
     const file = e.target.files?.[0];
     if (!file || !storeId) return;
 
-    // If editing an existing product, upload directly
     if (editingProduct) {
+      // Upload directly for existing products
       setUploadingImage(true);
       try {
         const result = await uploadProductImage(storeId, editingProduct.id, file);
         setFormImages(prev => [...prev, result.url]);
-        // Update the product in the list too
         setProductsList(prev => prev.map(p =>
           p.id === editingProduct.id
             ? { ...p, images: [...p.images.filter(img => img !== "📦"), result.url], image: result.url }
@@ -252,8 +268,10 @@ const Products = () => {
       } finally {
         setUploadingImage(false);
       }
+    } else {
+      // Queue files for new products — will upload after creation
+      setPendingFiles(prev => [...prev, file]);
     }
-    // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -307,8 +325,8 @@ const Products = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("products.allCategories")}</SelectItem>
-                  {categories.map(c => (
-                    <SelectItem key={c.en} value={c.en}>{language === "ar" ? c.ar : c.en}</SelectItem>
+                  {apiCategories.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -363,10 +381,10 @@ const Products = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {p.category ? (
+                        {p.categoryId ? (
                           <Badge variant="outline" className="gap-1 font-normal">
                             <Tag className="h-3 w-3" />
-                            {language === "ar" ? p.categoryAr : p.category}
+                            {apiCategories.find(c => c.id === p.categoryId)?.name || p.category || "—"}
                           </Badge>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
@@ -453,7 +471,7 @@ const Products = () => {
 
       {/* Add / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <DialogHeader>
             <DialogTitle>{editingProduct ? t("products.editProductTitle") : t("products.addProductTitle")}</DialogTitle>
             <DialogDescription>
@@ -466,6 +484,7 @@ const Products = () => {
             <div className="grid gap-2">
               <Label>{t("products.images")}</Label>
               <div className="flex gap-3 flex-wrap">
+                {/* Existing uploaded images (edit mode) */}
                 {formImages.map((url) => (
                   <div key={url} className="relative group">
                     <img src={url} alt="" className="h-24 w-24 rounded-lg object-cover bg-muted" />
@@ -480,33 +499,40 @@ const Products = () => {
                     )}
                   </div>
                 ))}
-                {editingProduct && (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingImage}
-                    className="flex h-24 w-24 flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
-                  >
-                    {uploadingImage ? (
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                    ) : (
-                      <>
-                        <ImagePlus className="h-6 w-6 mb-1" />
-                        <span className="text-[10px]">{t("products.uploadImages")}</span>
-                      </>
-                    )}
-                  </button>
-                )}
-                {!editingProduct && (
-                  <div className="flex h-24 items-center">
-                    <p className="text-xs text-muted-foreground">
-                      {language === "ar" ? "احفظ المنتج أولاً ثم أضف الصور" : "Save product first, then add images"}
-                    </p>
+                {/* Pending file previews (new product) */}
+                {!editingProduct && pendingFiles.map((file, i) => (
+                  <div key={i} className="relative group">
+                    <img src={URL.createObjectURL(file)} alt="" className="h-24 w-24 rounded-lg object-cover bg-muted" />
+                    <button
+                      type="button"
+                      onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))}
+                      className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   </div>
-                )}
+                ))}
+                {/* Upload button — always visible */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingImage}
+                  className="flex h-24 w-24 flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                >
+                  {uploadingImage ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <>
+                      <ImagePlus className="h-6 w-6 mb-1" />
+                      <span className="text-[10px]">{t("products.uploadImages")}</span>
+                    </>
+                  )}
+                </button>
               </div>
               <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleImageUpload} />
-              <p className="text-xs text-muted-foreground">{t("products.uploadHint")}</p>
+              {!editingProduct && pendingFiles.length === 0 && (
+                <p className="text-xs text-muted-foreground">{t("products.uploadHint")}</p>
+              )}
             </div>
 
             <Separator />
@@ -556,10 +582,10 @@ const Products = () => {
               <div className="grid gap-2">
                 <Label>{t("products.category")}</Label>
                 <Select value={formCategory} onValueChange={setFormCategory}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={language === "ar" ? "اختر فئة" : "Select category"} /></SelectTrigger>
                   <SelectContent>
-                    {categories.map(c => (
-                      <SelectItem key={c.en} value={c.en}>{language === "ar" ? c.ar : c.en}</SelectItem>
+                    {apiCategories.filter(c => c.is_active).map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

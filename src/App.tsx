@@ -16,12 +16,22 @@ import SocialImport from "@/pages/SocialImport";
 import Customers from "@/pages/Customers";
 import Analytics from "@/pages/Analytics";
 import Marketing from "@/pages/Marketing";
+import Categories from "@/pages/Categories";
 import Login from "@/pages/Login";
 import CreateStore from "@/pages/CreateStore";
 import NotFound from "./pages/NotFound";
 import { NumuLoadingScreen } from "@/components/NumuLoader";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 /** Redirects unauthenticated users to /login */
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -81,6 +91,7 @@ const App = () => (
                   <Route path="/customers" element={<Customers />} />
                   <Route path="/analytics" element={<Analytics />} />
                   <Route path="/marketing" element={<Marketing />} />
+                  <Route path="/categories" element={<Categories />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />
