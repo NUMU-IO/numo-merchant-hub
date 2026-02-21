@@ -39,8 +39,20 @@ import {
   updateCustomization,
   publishCustomization,
   fetchThemes,
+  fetchThemeSchemas,
   type AvailableTheme,
+  type ThemeSchemaBundle,
+  type TemplateConfigData,
+  type SectionInstanceData,
 } from "@/services/themeApi";
+import {
+  SchemaForm,
+  SectionList,
+  SectionEditor,
+  AddSectionSheet,
+  CustomizationWalkthrough,
+  useWalkthroughStatus,
+} from "@/components/theme-editor";
 import { updateStore } from "@/services/storeApi";
 import { getStoreUrl, getStoreDomainSuffix } from "@/lib/storefront";
 import {
@@ -50,6 +62,36 @@ import {
   updateShippingSettings,
   type ShippingSettings,
 } from "@/services/storeApi";
+
+// ─── Preload Google Fonts for font picker ────────────────────────────────────
+const AVAILABLE_FONTS = [
+  "Cairo", "Tajawal", "IBM Plex Sans Arabic", "Noto Sans Arabic",
+  "El Messiri", "Almarai", "Changa", "Rubik", "Readex Pro",
+  "Inter", "Poppins", "Space Grotesk",
+];
+
+const HARDCODED_FONT_SETTINGS = [
+  { key: "heading_font", type: "font" as const, label: "Heading Font", labelAr: "خط العناوين", default: "Cairo", group: "Typography", groupAr: "الخطوط" },
+  { key: "body_font", type: "font" as const, label: "Body Font", labelAr: "خط النصوص", default: "Cairo", group: "Typography", groupAr: "الخطوط" },
+];
+
+/** Ensure heading_font + body_font are always present in a settings list */
+function ensureFontSettings(settings: any[]): any[] {
+  const keys = new Set(settings.map((s) => s.key));
+  const missing = HARDCODED_FONT_SETTINGS.filter((f) => !keys.has(f.key));
+  return missing.length ? [...settings, ...missing] : settings;
+}
+
+const _fontsPreloaded = { done: false };
+function preloadAllFonts() {
+  if (_fontsPreloaded.done) return;
+  _fontsPreloaded.done = true;
+  const families = AVAILABLE_FONTS.map(f => `family=${encodeURIComponent(f)}:wght@400;600;700`).join("&");
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+  document.head.appendChild(link);
+}
 
 // ─── Inline Setting Field Renderer ──────────────────────────────────────────
 
@@ -65,6 +107,46 @@ function SettingField({
   language: string;
 }) {
   const label = language === "ar" ? setting.labelAr : setting.label;
+
+  // Font picker for any setting with _font key suffix or type:"font"
+  if (setting.key.endsWith("_font") || setting.type === "font") {
+    const currentFont = (value as string) || (setting.default as string) || "Cairo";
+    return (
+      <div className="grid gap-2">
+        <Label>{label}</Label>
+        <div
+          className="rounded-lg border bg-muted/30 p-3 text-center"
+          style={{ fontFamily: `'${currentFont}', sans-serif` }}
+        >
+          <p className="text-lg font-bold">أهلاً وسهلاً</p>
+          <p className="text-sm text-muted-foreground">Hello World — {currentFont}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5 max-h-[240px] overflow-y-auto rounded-lg border p-1.5">
+          {AVAILABLE_FONTS.map((fontName) => {
+            const isSelected = fontName === currentFont;
+            return (
+              <button
+                key={fontName}
+                type="button"
+                onClick={() => onChange(setting.key, fontName)}
+                className={`rounded-md px-2.5 py-2 text-start transition-all hover:bg-accent/50 ${
+                  isSelected
+                    ? "bg-primary/10 border border-primary ring-1 ring-primary/20"
+                    : "border border-transparent"
+                }`}
+                style={{ fontFamily: `'${fontName}', sans-serif` }}
+              >
+                <span className="block text-sm font-semibold truncate">{fontName}</span>
+                <span className="block text-xs text-muted-foreground mt-0.5" style={{ fontFamily: `'${fontName}', sans-serif` }}>
+                  مرحباً بالعالم
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   switch (setting.type) {
     case "text":
@@ -140,6 +222,22 @@ function SettingField({
               {setting.options?.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
                   {language === "ar" ? opt.labelAr : opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    case "font":
+      return (
+        <div className="grid gap-2">
+          <Label>{label}</Label>
+          <Select value={value || String(setting.default)} onValueChange={(v) => onChange(setting.key, v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {AVAILABLE_FONTS.map((fontName) => (
+                <SelectItem key={fontName} value={fontName}>
+                  <span style={{ fontFamily: `'${fontName}', sans-serif` }}>{fontName}</span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -319,7 +417,6 @@ const SECTION_CONFIG = [
   { key: "identity", label: "Identity", labelAr: "الهوية", icon: Store, settings: identitySettings },
   { key: "header", label: "Header", labelAr: "الهيدر", icon: Type, settings: headerSettings },
   { key: "navigation", label: "Navigation", labelAr: "التنقل", icon: Compass, settings: navigationSettings },
-  { key: "hero", label: "Hero", labelAr: "القسم الرئيسي", icon: ImageIcon, settings: heroSettings },
   { key: "products", label: "Products", labelAr: "المنتجات", icon: ShoppingBag, settings: productsSettings },
   { key: "labels", label: "Labels", labelAr: "التسميات", icon: Tag, settings: labelsSettings },
   { key: "layout", label: "Page Layout", labelAr: "تخطيط الصفحة", icon: LayoutGrid, settings: pageLayoutSettings },
@@ -357,6 +454,8 @@ const StoreSettings = () => {
   const [isDirty, setIsDirty] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [policyTab, setPolicyTab] = useState("return");
+  const [walkthroughDone, resetWalkthrough] = useWalkthroughStatus();
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
 
   // ─── Profile state ──────────────────────────────────────────────────────
   const [profileState, setProfileState] = useState({
@@ -387,6 +486,12 @@ const StoreSettings = () => {
     { id: "testimonials", label: "آراء العملاء", enabled: true },
     { id: "newsletter", label: "النشرة البريدية", enabled: true },
   ]);
+
+  // ─── V2 Section Engine state ─────────────────────────────────────────────
+  const [themeSchemaBundle, setThemeSchemaBundle] = useState<ThemeSchemaBundle | null>(null);
+  const [templateConfig, setTemplateConfig] = useState<TemplateConfigData | null>(null);
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+  const [showAddSheet, setShowAddSheet] = useState(false);
 
   // ─── Shipping state ─────────────────────────────────────────────────────
   const [shippingData, setShippingData] = useState<ShippingSettings | null>(null);
@@ -456,6 +561,9 @@ const StoreSettings = () => {
 
   // ─── Effects ────────────────────────────────────────────────────────────
 
+  // Preload all Google Fonts on mount so font picker shows actual styles
+  useEffect(() => { preloadAllFonts(); }, []);
+
   // Pre-populate profile from currentStore
   useEffect(() => {
     if (!currentStore) return;
@@ -476,6 +584,25 @@ const StoreSettings = () => {
   useEffect(() => {
     fetchThemes().then(setAvailableThemes).catch(() => {});
   }, []);
+
+  // Fetch theme schemas when theme changes
+  useEffect(() => {
+    setSelectedSectionId(null);
+    fetchThemeSchemas(activeTheme)
+      .then((bundle) => {
+        setThemeSchemaBundle(bundle);
+        // Initialize template from defaults if not yet set from customization v2 data
+        setTemplateConfig((prev) => prev ?? (bundle.default_templates?.home ?? null));
+      })
+      .catch(() => {
+        setThemeSchemaBundle(null);
+        toast.error(
+          language === "ar"
+            ? "فشل تحميل إعدادات الثيم. الإعدادات الأساسية ستظهر بدلاً منها."
+            : "Failed to load theme schemas. Falling back to basic settings.",
+        );
+      });
+  }, [activeTheme]);
 
   // Pre-populate customization from API
   useEffect(() => {
@@ -519,6 +646,10 @@ const StoreSettings = () => {
             );
           }
         }
+        // V2: Load template if available
+        if ((data as any).schema_version === 2 && (data as any).templates?.home) {
+          setTemplateConfig((data as any).templates.home);
+        }
       })
       .catch(() => {});
   }, [currentStore?.id]);
@@ -533,6 +664,104 @@ const StoreSettings = () => {
       })
       .catch(() => {});
   }, [currentStore?.id]);
+
+  // ─── V2 Template Handlers ───────────────────────────────────────────────
+
+  const handleSectionReorder = useCallback((fromIndex: number, toIndex: number) => {
+    setTemplateConfig((prev) => {
+      if (!prev) return prev;
+      const newOrder = [...prev.order];
+      const [moved] = newOrder.splice(fromIndex, 1);
+      newOrder.splice(toIndex, 0, moved);
+      return { ...prev, order: newOrder };
+    });
+    setIsDirty(true);
+  }, []);
+
+  const handleToggleSection = useCallback((sectionId: string, disabled: boolean) => {
+    setTemplateConfig((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        sections: {
+          ...prev.sections,
+          [sectionId]: { ...prev.sections[sectionId], disabled },
+        },
+      };
+    });
+    setIsDirty(true);
+  }, []);
+
+  const handleAddSection = useCallback((sectionType: string, presetIndex?: number) => {
+    if (!sectionType) {
+      setShowAddSheet(true);
+      return;
+    }
+    if (!themeSchemaBundle) return;
+
+    const schema = themeSchemaBundle.sections.find((s) => s.type === sectionType);
+    if (!schema) return;
+
+    // Check section limit
+    if (schema.limit && templateConfig) {
+      const count = Object.values(templateConfig.sections).filter((s) => s.type === sectionType).length;
+      if (count >= schema.limit) {
+        toast.error(language === "ar" ? "تم الوصول للحد الأقصى لهذا القسم" : `Maximum ${schema.limit} of this section type`);
+        return;
+      }
+    }
+
+    const id = `${sectionType}_${Math.random().toString(36).slice(2, 6)}`;
+
+    // Collect defaults from schema
+    const defaults: Record<string, any> = {};
+    for (const s of schema.settings) {
+      if (s.default !== undefined) defaults[s.key] = s.default;
+    }
+
+    // Override with preset settings
+    const preset = presetIndex !== undefined ? schema.presets?.[presetIndex] : undefined;
+    const settings = preset?.settings ? { ...defaults, ...preset.settings } : defaults;
+
+    setTemplateConfig((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        sections: { ...prev.sections, [id]: { id, type: sectionType, settings } },
+        order: [...prev.order, id],
+      };
+    });
+    setSelectedSectionId(id);
+    setIsDirty(true);
+    setShowAddSheet(false);
+  }, [themeSchemaBundle, templateConfig, language]);
+
+  const handleRemoveSection = useCallback((sectionId: string) => {
+    setTemplateConfig((prev) => {
+      if (!prev) return prev;
+      const { [sectionId]: _, ...restSections } = prev.sections;
+      return { ...prev, sections: restSections, order: prev.order.filter((id) => id !== sectionId) };
+    });
+    if (selectedSectionId === sectionId) setSelectedSectionId(null);
+    setIsDirty(true);
+  }, [selectedSectionId]);
+
+  const handleSectionSettingChange = useCallback((sectionId: string, key: string, value: any) => {
+    setTemplateConfig((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        sections: {
+          ...prev.sections,
+          [sectionId]: {
+            ...prev.sections[sectionId],
+            settings: { ...prev.sections[sectionId].settings, [key]: value },
+          },
+        },
+      };
+    });
+    setIsDirty(true);
+  }, []);
 
   // ─── Handlers ───────────────────────────────────────────────────────────
 
@@ -551,11 +780,31 @@ const StoreSettings = () => {
     const enabledSections = homeSections.filter((s) => s.enabled).map((s) => s.id);
     if (enabledSections.length > 0) layoutPayload.home_sections = enabledSections;
 
-    return {
+    // Extract hero from v2 template for v1 backwards compat
+    let heroPayload = extractNonEmpty(heroState);
+    if (templateConfig) {
+      const heroSection = Object.values(templateConfig.sections).find((s) => s.type === "hero");
+      if (heroSection) heroPayload = { ...heroPayload, ...extractNonEmpty(heroSection.settings) };
+    }
+
+    // Derive home_sections from v2 template order
+    if (templateConfig) {
+      const v2ToV1: Record<string, string> = {
+        hero: "hero", categories: "categories", "featured-collection": "new_arrivals",
+        "promo-banner": "promo", testimonials: "testimonials", newsletter: "newsletter",
+      };
+      const derived = templateConfig.order
+        .filter((id) => !templateConfig.sections[id]?.disabled)
+        .map((id) => v2ToV1[templateConfig.sections[id]?.type] || templateConfig.sections[id]?.type)
+        .filter(Boolean);
+      if (derived.length > 0) layoutPayload.home_sections = derived;
+    }
+
+    const payload: Record<string, any> = {
       theme: { base_theme: activeTheme, ...extractNonEmpty(themeState) },
       identity: extractNonEmpty(identityState) as any,
       header: extractNonEmpty(headerState) as any,
-      hero: extractNonEmpty(heroState) as any,
+      hero: heroPayload as any,
       products: extractNonEmpty(productsState) as any,
       footer: {
         ...footerRest,
@@ -565,7 +814,15 @@ const StoreSettings = () => {
       labels: extractNonEmpty(labelsState) as any,
       layout: Object.keys(layoutPayload).length > 0 ? layoutPayload : undefined,
     };
-  }, [activeTheme, themeState, identityState, headerState, heroState, productsState, footerState, navigationState, labelsState, layoutState, navLinks, homeSections]);
+
+    // V2 section engine fields
+    if (templateConfig) {
+      payload.schema_version = 2;
+      payload.templates = { home: templateConfig };
+    }
+
+    return payload;
+  }, [activeTheme, themeState, identityState, headerState, heroState, productsState, footerState, navigationState, labelsState, layoutState, navLinks, homeSections, templateConfig]);
 
   const saveProfile = useCallback(async () => {
     if (!currentStore?.id) return;
@@ -810,8 +1067,15 @@ const StoreSettings = () => {
 
         {/* ═══ Customization ═══ */}
         <TabsContent value="customization">
+          {/* Onboarding walkthrough */}
+          <CustomizationWalkthrough
+            language={language}
+            forceShow={showWalkthrough}
+            onDismiss={() => setShowWalkthrough(false)}
+          />
+
           {/* ── Action bar ── */}
-          <div className="flex items-center gap-2 mb-5 rounded-xl border bg-card p-3">
+          <div data-tour="action-bar" className="flex items-center gap-2 mb-5 rounded-xl border bg-card p-3">
             <Button onClick={saveDraft} disabled={isSaving} variant="outline" size="sm" className="gap-2">
               {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Settings2 className="h-3.5 w-3.5" />}
               {language === "ar" ? "حفظ مسودة" : "Save Draft"}
@@ -825,21 +1089,34 @@ const StoreSettings = () => {
                 {language === "ar" ? "تغييرات غير محفوظة" : "Unsaved changes"}
               </Badge>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowPreview((v) => !v)}
-              className="gap-2 ms-auto"
-            >
-              {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              {showPreview
-                ? (language === "ar" ? "إخفاء" : "Hide")
-                : (language === "ar" ? "معاينة" : "Preview")}
-            </Button>
+            <div className="flex items-center gap-1 ms-auto">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { resetWalkthrough(); setShowWalkthrough(true); }}
+                className="gap-1.5 text-muted-foreground"
+                title={language === "ar" ? "دليل الاستخدام" : "Show guide"}
+              >
+                <Compass className="h-3.5 w-3.5" />
+                {language === "ar" ? "دليل" : "Guide"}
+              </Button>
+              <Button
+                data-tour="preview-toggle"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowPreview((v) => !v)}
+                className="gap-2"
+              >
+                {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {showPreview
+                  ? (language === "ar" ? "إخفاء" : "Hide")
+                  : (language === "ar" ? "معاينة" : "Preview")}
+              </Button>
+            </div>
           </div>
 
           {/* ── Theme picker strip ── */}
-          <div className="mb-5">
+          <div data-tour="theme-picker" className="mb-5">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="h-4 w-4 text-primary" />
               <h3 className="text-sm font-semibold">{language === "ar" ? "اختر الثيم" : "Choose Theme"}</h3>
@@ -910,50 +1187,135 @@ const StoreSettings = () => {
                 maxHeight: showPreview ? "calc(100vh - 10rem)" : undefined,
               }}
             >
-              {/* Theme-specific settings (colors, fonts, layout) */}
-              <Card>
+              {/* Quick color swatches preview */}
+              <div className="flex items-center gap-2 rounded-xl border bg-card p-3">
+                <span className="text-xs font-medium text-muted-foreground me-1">
+                  {language === "ar" ? "الألوان:" : "Colors:"}
+                </span>
+                {["primary_color", "secondary_color", "accent_color", "background_color", "text_color"].map((key) => (
+                  <div
+                    key={key}
+                    className="h-7 w-7 rounded-full border-2 border-white shadow-sm"
+                    style={{ backgroundColor: themeState[key] || "#ccc" }}
+                    title={key.replace(/_/g, " ")}
+                  />
+                ))}
+                <div className="ms-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Type className="h-3.5 w-3.5" />
+                  <span style={{ fontFamily: `'${themeState.heading_font || "Cairo"}', sans-serif` }}>
+                    {themeState.heading_font || "Cairo"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Theme-specific settings (colors, fonts, layout) — schema-driven */}
+              <Card data-tour="colors-typography">
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-2">
-                    <Palette className="h-4 w-4 text-primary" />
-                    <CardTitle className="text-sm">{language === "ar" ? "ألوان وخطوط" : "Colors & Typography"}</CardTitle>
-                  </div>
-                  <CardDescription className="text-xs">
-                    {language === "ar"
-                      ? `إعدادات ثيم "${availableThemes.find((t) => t.id === activeTheme)?.nameAr || activeTheme}"`
-                      : `"${availableThemes.find((t) => t.id === activeTheme)?.name || activeTheme}" theme settings`}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  {Array.from(groupedThemeSettings).map(([group, settings]) => (
-                    <div key={group} className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-px flex-1 bg-border" />
-                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-2">
-                          {language === "ar" ? settings[0].groupAr : group}
-                        </span>
-                        <div className="h-px flex-1 bg-border" />
-                      </div>
-                      <div className={`grid gap-3 ${showPreview ? "grid-cols-1" : "sm:grid-cols-2"}`}>
-                        {settings.map((setting) => (
-                          <SettingField
-                            key={setting.key}
-                            setting={setting}
-                            value={themeState[setting.key]}
-                            onChange={handleThemeSettingChange}
-                            language={language}
-                          />
-                        ))}
-                      </div>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                      <Palette className="h-4 w-4 text-primary" />
                     </div>
-                  ))}
+                    <div>
+                      <CardTitle className="text-sm">{language === "ar" ? "ألوان وخطوط" : "Colors & Typography"}</CardTitle>
+                      <CardDescription className="text-xs">
+                        {language === "ar"
+                          ? `ثيم "${availableThemes.find((t) => t.id === activeTheme)?.nameAr || activeTheme}"`
+                          : `"${availableThemes.find((t) => t.id === activeTheme)?.name || activeTheme}" theme`}
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {themeSchemaBundle?.global_settings ? (
+                    <SchemaForm
+                      settings={ensureFontSettings(themeSchemaBundle.global_settings)}
+                      values={themeState}
+                      onChange={handleThemeSettingChange}
+                    />
+                  ) : (
+                    <div className="space-y-5">
+                      {Array.from(groupedThemeSettings).map(([group, settings]) => (
+                        <div key={group} className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 bg-border" />
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-2">
+                              {language === "ar" ? settings[0].groupAr : group}
+                            </span>
+                            <div className="h-px flex-1 bg-border" />
+                          </div>
+                          <div className={`grid gap-3 ${showPreview ? "grid-cols-1" : "sm:grid-cols-2"}`}>
+                            {settings.map((setting) => (
+                              <SettingField
+                                key={setting.key}
+                                setting={setting}
+                                value={themeState[setting.key]}
+                                onChange={handleThemeSettingChange}
+                                language={language}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
-              {/* Storefront section settings */}
+              {/* V2: Home Page Sections — section list + editor */}
+              {templateConfig && themeSchemaBundle && (
+                <Card data-tour="home-sections">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                        <LayoutGrid className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm">
+                          {language === "ar" ? "أقسام الصفحة الرئيسية" : "Home Page Sections"}
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                          {language === "ar"
+                            ? "أضف وأزل ورتب أقسام الصفحة الرئيسية"
+                            : "Add, remove, and reorder home page sections"}
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Show either section list or section editor (not both) */}
+                    {selectedSectionId && templateConfig.sections[selectedSectionId] ? (() => {
+                      const section = templateConfig.sections[selectedSectionId];
+                      const schema = themeSchemaBundle.sections.find((s) => s.type === section.type);
+                      if (!schema) return null;
+                      return (
+                        <SectionEditor
+                          section={section}
+                          schema={schema}
+                          onChange={handleSectionSettingChange}
+                          onBack={() => setSelectedSectionId(null)}
+                        />
+                      );
+                    })() : (
+                      <SectionList
+                        template={templateConfig}
+                        sectionSchemas={themeSchemaBundle.sections}
+                        selectedSectionId={selectedSectionId}
+                        onSelectSection={setSelectedSectionId}
+                        onReorder={handleSectionReorder}
+                        onToggleSection={handleToggleSection}
+                        onAddSection={handleAddSection}
+                        onRemoveSection={handleRemoveSection}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Store-wide settings (identity, header, navigation, etc.) */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <ScrollText className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-semibold">{language === "ar" ? "أقسام المتجر" : "Store Sections"}</h3>
+                  <h3 className="text-sm font-semibold">{language === "ar" ? "إعدادات المتجر" : "Store Settings"}</h3>
                 </div>
                 <Accordion type="multiple" className="space-y-2">
                   {SECTION_CONFIG.map((section) => (
@@ -983,14 +1345,6 @@ const StoreSettings = () => {
                           <NavLinksEditor
                             links={navLinks}
                             onChange={(links) => { setNavLinks(links); setIsDirty(true); }}
-                            language={language}
-                          />
-                        )}
-                        {/* Home section reorder inside Layout section */}
-                        {section.key === "layout" && (
-                          <HomeSectionReorder
-                            sections={homeSections}
-                            onChange={(s) => { setHomeSections(s); setIsDirty(true); }}
                             language={language}
                           />
                         )}
@@ -1025,6 +1379,16 @@ const StoreSettings = () => {
               </div>
             )}
           </div>
+
+          {/* Add Section Sheet */}
+          {themeSchemaBundle && (
+            <AddSectionSheet
+              open={showAddSheet}
+              onOpenChange={setShowAddSheet}
+              sectionSchemas={themeSchemaBundle.sections}
+              onAddSection={handleAddSection}
+            />
+          )}
         </TabsContent>
 
         {/* ═══ Domain ═══ */}

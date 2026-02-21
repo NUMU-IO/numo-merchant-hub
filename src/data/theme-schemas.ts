@@ -3,7 +3,7 @@
  * The dashboard uses these to render a dynamic settings form per theme.
  */
 
-export type SettingType = "color" | "checkbox" | "image" | "text" | "select" | "range";
+export type SettingType = "color" | "checkbox" | "image" | "text" | "select" | "font" | "range";
 
 export interface SettingDefinition {
   key: string;
@@ -34,22 +34,41 @@ const colorSettings: SettingDefinition[] = [
   { key: "text_color", type: "color", label: "Text Color", labelAr: "لون النص", default: "", group: "Colors", groupAr: "الألوان" },
 ];
 
+const _fontOptions = [
+  { label: "Cairo", labelAr: "Cairo", value: "Cairo" },
+  { label: "Tajawal", labelAr: "Tajawal", value: "Tajawal" },
+  { label: "IBM Plex Sans Arabic", labelAr: "IBM Plex Sans Arabic", value: "IBM Plex Sans Arabic" },
+  { label: "Noto Sans Arabic", labelAr: "Noto Sans Arabic", value: "Noto Sans Arabic" },
+  { label: "El Messiri", labelAr: "El Messiri", value: "El Messiri" },
+  { label: "Almarai", labelAr: "Almarai", value: "Almarai" },
+  { label: "Changa", labelAr: "Changa", value: "Changa" },
+  { label: "Rubik", labelAr: "Rubik", value: "Rubik" },
+  { label: "Readex Pro", labelAr: "Readex Pro", value: "Readex Pro" },
+  { label: "Inter", labelAr: "Inter", value: "Inter" },
+  { label: "Poppins", labelAr: "Poppins", value: "Poppins" },
+  { label: "Space Grotesk", labelAr: "Space Grotesk", value: "Space Grotesk" },
+];
+
 const typographySettings: SettingDefinition[] = [
   {
     key: "heading_font",
-    type: "select",
+    type: "font",
     label: "Heading Font",
     labelAr: "خط العناوين",
     default: "Cairo",
     group: "Typography",
     groupAr: "الخطوط",
-    options: [
-      { label: "Cairo", labelAr: "القاهرة", value: "Cairo" },
-      { label: "Inter", labelAr: "إنتر", value: "Inter" },
-      { label: "Space Grotesk", labelAr: "سبيس جروتيسك", value: "Space Grotesk" },
-      { label: "Tajawal", labelAr: "تجوال", value: "Tajawal" },
-      { label: "Poppins", labelAr: "بوبينز", value: "Poppins" },
-    ],
+    options: _fontOptions,
+  },
+  {
+    key: "body_font",
+    type: "font",
+    label: "Body Font",
+    labelAr: "خط النصوص",
+    default: "Cairo",
+    group: "Typography",
+    groupAr: "الخطوط",
+    options: _fontOptions,
   },
 ];
 
