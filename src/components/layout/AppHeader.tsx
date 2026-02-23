@@ -4,11 +4,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import {
   Bell,
+  Calendar,
   Check,
   ChevronDown,
   Globe,
   Moon,
   Plus,
+  Search,
   Store,
   Sun,
   User,
@@ -23,7 +25,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { useEffect, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const AppHeader = () => {
@@ -51,11 +54,36 @@ const AppHeader = () => {
     }
   }, []);
 
+  const today = useMemo(() => {
+    const now = new Date();
+    return now.toLocaleDateString(language === "ar" ? "ar-EG" : "en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }, [language]);
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background px-4">
       <SidebarTrigger />
 
+      {/* Search */}
+      <div className="relative hidden md:flex max-w-xs flex-1">
+        <Search className="absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder={t("header.search")}
+          className="ps-9 h-9 rounded-xl bg-muted/50 border-transparent focus:border-border"
+        />
+      </div>
+
       <div className="flex-1" />
+
+      {/* Date */}
+      <div className="hidden lg:flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Calendar className="h-4 w-4" />
+        {today}
+      </div>
 
       {/* Dark Mode Toggle */}
       <Button

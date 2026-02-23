@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, Banknote, Share2,
-  Users, BarChart3, Megaphone, Settings,
+  Users, BarChart3, Megaphone, Settings, FolderOpen,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { NavLink } from "@/components/NavLink";
@@ -29,6 +29,7 @@ const AppSidebar = () => {
     { title: t("nav.dashboard"), url: "/", icon: LayoutDashboard },
     { title: t("nav.orders"), url: "/orders", icon: ShoppingCart },
     { title: t("nav.products"), url: "/products", icon: Package },
+    { title: t("nav.categories"), url: "/categories", icon: FolderOpen },
     { title: t("nav.customers"), url: "/customers", icon: Users },
   ];
 

@@ -204,6 +204,7 @@ export function apiToProduct(api: ApiProductResponse): Product {
     status: toDisplayStatus(api.status),
     category: attrs.categoryName || "",
     categoryAr: attrs.categoryNameAr || "",
+    categoryId: api.category_id || undefined,
     sku: api.sku || "",
     image: api.images[0] || "📦",
     images: api.images.length > 0 ? api.images : ["📦"],
@@ -232,6 +233,7 @@ export interface ProductFormData {
   status: ProductStatus;
   category: string;
   categoryAr: string;
+  categoryId?: string;
   sku?: string;
   variants: ProductVariant[];
   images?: string[];
@@ -247,6 +249,7 @@ export function productToApiCreate(form: ProductFormData): CreateProductData {
       ? form.compareAtPrice.toFixed(2)
       : undefined,
     quantity: form.stock,
+    category_id: form.categoryId || undefined,
     tags: [],
     images: form.images,
     attributes: {
@@ -281,6 +284,7 @@ export function productToApiUpdate(
   if (form.stock !== undefined) data.quantity = form.stock;
   if (form.status !== undefined) data.status = toApiStatus(form.status);
   if (form.images !== undefined) data.images = form.images;
+  if (form.categoryId !== undefined) data.category_id = form.categoryId || undefined;
 
   // Always send full attributes to avoid partial overwrites
   const attributes: Record<string, any> = {};

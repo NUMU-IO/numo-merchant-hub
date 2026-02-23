@@ -46,8 +46,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check stored token on mount
+  // Check stored token on mount (also accept tokens from URL params for cross-origin handoff)
   useEffect(() => {
+    // Accept tokens passed via URL from the landing page (different origin)
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get("token");
+    const urlRefresh = params.get("refresh_token");
+    if (urlToken && urlRefresh) {
+      localStorage.setItem(TOKEN_KEY, urlToken);
+      localStorage.setItem(REFRESH_KEY, urlRefresh);
+      // Clean tokens from URL without reload
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
       setIsLoading(false);

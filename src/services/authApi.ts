@@ -17,6 +17,7 @@ export interface User {
   status: string;
   avatar_url: string | null;
   is_verified: boolean;
+  trial_ends_at: string | null;
   created_at: string;
   updated_at: string;
 }
