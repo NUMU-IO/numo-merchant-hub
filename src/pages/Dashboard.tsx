@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,19 +14,34 @@ import {
   type DashboardStats, type RevenueDataPoint, type TopProduct,
 } from "@/services/analyticsApi";
 import { listOrders, type OrderListItem } from "@/services/orderApi";
-import { TrendingUp, ShoppingCart, Users, DollarSign, ArrowUpRight, Package, Eye } from "lucide-react";
-import numuIcon from "@/assets/numu-icon.png";
+import { TrendingUp, ShoppingCart, Users, DollarSign, ArrowUpRight, Package, Eye, Sun, Moon, CloudSun } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCountUp } from "@/hooks/useCountUp";
 import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
+
+function getGreetingIcon(): typeof Sun {
+  const hour = new Date().getHours();
+  if (hour < 12) return Sun;
+  if (hour < 18) return CloudSun;
+  return Moon;
+}
+
+function getGreetingKey(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "dashboard.goodMorning";
+  if (hour < 18) return "dashboard.goodAfternoon";
+  return "dashboard.goodEvening";
+}
 
 const Dashboard = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
+  const { user } = useAuth();
   const storeId = currentStore?.id;
   const [period, setPeriod] = useState<"7d" | "30d" | "90d">("7d");
   const navigate = useNavigate();
+  const GreetingIcon = getGreetingIcon();
 
   const periodDays = { "7d": 7, "30d": 30, "90d": 90 };
 
@@ -132,21 +148,14 @@ const Dashboard = () => {
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Welcome Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10"
-            style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.4)" }}
-          >
-            <img src={numuIcon} alt="NUMU" className="h-9 w-9 object-contain drop-shadow-sm" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              {t("dashboard.welcome")}, {currentStore?.name || t("dashboard.merchantName")} 👋
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              {t("dashboard.storeOverview")}
-            </p>
-          </div>
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+            <GreetingIcon className="h-6 w-6 text-amber-500" />
+            {t(getGreetingKey())}, {user?.first_name || currentStore?.name || t("dashboard.merchantName")}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {t("dashboard.storeOverview")}
+          </p>
         </div>
         <div className="hidden sm:flex gap-2">
           <Button variant="outline" size="sm" className={`gap-1.5 rounded-xl ${skeuButton}`}>
