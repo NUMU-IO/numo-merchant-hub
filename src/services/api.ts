@@ -3,7 +3,12 @@
  * Automatically refreshes expired tokens on 401.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8021/api/v1";
+if (!import.meta.env.VITE_API_URL) {
+  throw new Error(
+    "VITE_API_URL is not set. Refusing to start without a configured API endpoint."
+  );
+}
+const API_BASE = import.meta.env.VITE_API_URL;
 const TOKEN_KEY = "numu-token";
 const REFRESH_KEY = "numu-refresh-token";
 

@@ -4,7 +4,12 @@
 
 import { apiClient } from "./api";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8021/api/v1";
+if (!import.meta.env.VITE_API_URL) {
+  throw new Error(
+    "VITE_API_URL is not set. Refusing to start without a configured API endpoint."
+  );
+}
+const API_BASE = import.meta.env.VITE_API_URL;
 
 export interface User {
   id: string;
