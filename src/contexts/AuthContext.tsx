@@ -1,8 +1,8 @@
 /**
- * AuthContext — manages JWT authentication state for the dashboard.
+ * AuthContext — manages authentication state for the dashboard.
  *
- * Stores access + refresh tokens in localStorage.
- * On mount, validates the stored token by calling GET /auth/me.
+ * Session is determined by an httpOnly cookie set by the backend.
+ * On mount, validates the session by calling GET /auth/me.
  */
 
 import React, {
@@ -15,12 +15,10 @@ import React, {
 import {
   login as loginApi,
   register as registerApi,
+  logout as logoutApi,
   getMe,
 } from "@/services/authApi";
 import type { User, RegisterData } from "@/services/authApi";
-
-const TOKEN_KEY = "numu-token";
-const REFRESH_KEY = "numu-refresh-token";
 
 interface AuthContextType {
   user: User | null;
@@ -28,7 +26,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -37,7 +35,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   login: async () => {},
   register: async () => {},
-  logout: () => {},
+  logout: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -46,42 +44,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check stored token on mount
+  // Validate session on mount by calling /auth/me
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      setIsLoading(false);
-      return;
-    }
-
     getMe()
       .then((u) => setUser(u))
       .catch(() => {
-        // Token expired or invalid
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(REFRESH_KEY);
+        // No valid session
+        setUser(null);
       })
       .finally(() => setIsLoading(false));
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await loginApi(email, password);
-    localStorage.setItem(TOKEN_KEY, res.tokens.access_token);
-    localStorage.setItem(REFRESH_KEY, res.tokens.refresh_token);
     setUser(res.user);
   }, []);
 
   const register = useCallback(async (data: RegisterData) => {
     const res = await registerApi(data);
-    localStorage.setItem(TOKEN_KEY, res.tokens.access_token);
-    localStorage.setItem(REFRESH_KEY, res.tokens.refresh_token);
     setUser(res.user);
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_KEY);
-    setUser(null);
+  const logout = useCallback(async () => {
+    try {
+      await logoutApi();
+    } finally {
+      setUser(null);
+    }
   }, []);
 
   return (

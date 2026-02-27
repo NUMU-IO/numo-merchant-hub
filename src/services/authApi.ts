@@ -1,5 +1,6 @@
 /**
- * Auth API service — login, register, get current user.
+ * Auth API service — login, register, logout, get current user.
+ * Authentication is handled via httpOnly cookies set by the backend.
  */
 
 import { apiClient } from "./api";
@@ -26,15 +27,8 @@ export interface User {
   updated_at: string;
 }
 
-export interface AuthTokens {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-}
-
 export interface AuthResponse {
   user: User;
-  tokens: AuthTokens;
 }
 
 export interface RegisterData {
@@ -49,9 +43,9 @@ export async function login(
   email: string,
   password: string
 ): Promise<AuthResponse> {
-  // Can't use apiClient here because we need to set the token AFTER login
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
@@ -68,6 +62,7 @@ export async function login(
 export async function register(data: RegisterData): Promise<AuthResponse> {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
@@ -81,21 +76,13 @@ export async function register(data: RegisterData): Promise<AuthResponse> {
   return json.data;
 }
 
-export async function getMe(): Promise<User> {
-  return apiClient<User>("/auth/me");
+export async function logout(): Promise<void> {
+  await fetch(`${API_BASE}/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
 }
 
-export async function refreshToken(refresh_token: string): Promise<AuthTokens> {
-  const res = await fetch(`${API_BASE}/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token }),
-  });
-
-  if (!res.ok) {
-    throw new Error("Token refresh failed");
-  }
-
-  const json = await res.json();
-  return json.data;
+export async function getMe(): Promise<User> {
+  return apiClient<User>("/auth/me");
 }
