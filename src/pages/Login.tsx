@@ -42,10 +42,11 @@ export default function Login() {
     try {
       if (isRegister) {
         await register({ email, password, first_name: firstName, last_name: lastName });
+        navigate("/verify-email", { replace: true });
       } else {
         await login(email, password);
+        navigate("/", { replace: true });
       }
-      navigate("/", { replace: true });
     } catch (err: any) {
       setError(err.message || t("common.error"));
     } finally {

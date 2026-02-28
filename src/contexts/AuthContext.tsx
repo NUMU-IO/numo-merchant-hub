@@ -17,6 +17,7 @@ import {
   register as registerApi,
   logout as logoutApi,
   getMe,
+  fetchCsrfToken,
 } from "@/services/authApi";
 import type { User, RegisterData } from "@/services/authApi";
 
@@ -27,6 +28,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -36,6 +38,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   register: async () => {},
   logout: async () => {},
+  refreshUser: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -47,7 +50,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // Validate session on mount by calling /auth/me
   useEffect(() => {
     getMe()
-      .then((u) => setUser(u))
+      .then(async (u) => {
+        setUser(u);
+        // Ensure we have a CSRF token for subsequent requests
+        await fetchCsrfToken();
+      })
       .catch(() => {
         // No valid session
         setUser(null);
@@ -73,6 +80,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const u = await getMe();
+      setUser(u);
+    } catch {
+      // Session may have expired
+    }
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -82,6 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         login,
         register,
         logout,
+        refreshUser,
       }}
     >
       {children}
