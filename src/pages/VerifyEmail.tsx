@@ -74,8 +74,8 @@ export default function VerifyEmail() {
     }
   }
 
-  async function handleCodeSubmit() {
-    const fullCode = code.join("");
+  async function handleCodeSubmit(codeOverride?: string[]) {
+    const fullCode = (codeOverride ?? code).join("");
     if (fullCode.length !== 6) {
       setError("Please enter the complete 6-digit code");
       return;
@@ -126,7 +126,7 @@ export default function VerifyEmail() {
 
     // Auto-submit when all 6 digits are entered
     if (value && index === 5 && newCode.every((d) => d !== "")) {
-      setTimeout(() => handleCodeSubmit(), 100);
+      setTimeout(() => handleCodeSubmit(newCode), 100);
     }
   }
 
@@ -156,7 +156,7 @@ export default function VerifyEmail() {
 
     // Auto-submit if complete
     if (pasted.length === 6) {
-      setTimeout(() => handleCodeSubmit(), 100);
+      setTimeout(() => handleCodeSubmit(newCode), 100);
     }
   }
 
