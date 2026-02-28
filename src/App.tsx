@@ -18,6 +18,7 @@ import Analytics from "@/pages/Analytics";
 import Marketing from "@/pages/Marketing";
 import Categories from "@/pages/Categories";
 import Login from "@/pages/Login";
+import VerifyEmail from "@/pages/VerifyEmail";
 import CreateStore from "@/pages/CreateStore";
 import NotFound from "./pages/NotFound";
 import { NumuLoadingScreen } from "@/components/NumuLoader";
@@ -49,6 +50,13 @@ function RequireStore({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Redirects unverified users to /verify-email */
+function RequireVerified({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (user && !user.is_verified) return <Navigate to="/verify-email" replace />;
+  return <>{children}</>;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -62,23 +70,37 @@ const App = () => (
                 {/* Public */}
                 <Route path="/login" element={<Login />} />
 
+                {/* Auth required, verification pending */}
+                <Route
+                  path="/verify-email"
+                  element={
+                    <RequireAuth>
+                      <VerifyEmail />
+                    </RequireAuth>
+                  }
+                />
+
                 {/* Auth required, no store needed */}
                 <Route
                   path="/create-store"
                   element={
                     <RequireAuth>
-                      <CreateStore />
+                      <RequireVerified>
+                        <CreateStore />
+                      </RequireVerified>
                     </RequireAuth>
                   }
                 />
 
-                {/* Auth + store required — dashboard */}
+                {/* Auth + verified + store required — dashboard */}
                 <Route
                   element={
                     <RequireAuth>
-                      <RequireStore>
-                        <DashboardLayout />
-                      </RequireStore>
+                      <RequireVerified>
+                        <RequireStore>
+                          <DashboardLayout />
+                        </RequireStore>
+                      </RequireVerified>
                     </RequireAuth>
                   }
                 >
