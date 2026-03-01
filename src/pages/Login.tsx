@@ -19,6 +19,21 @@ import {
 import { Loader2, ArrowRight } from "lucide-react";
 import numuLogoDark from "@/assets/numu-logo-dark.png";
 import numuIcon from "@/assets/numu-icon.png";
+import { z } from "zod";
+
+const loginSchema = z.object({
+  email: z.string().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة"),
+  password: z.string().min(12, "كلمة المرور يجب أن تكون 12 حرفًا على الأقل"),
+});
+
+const registerSchema = z.object({
+  firstName: z.string().min(2, "الاسم الأول يجب أن يكون حرفين على الأقل").max(50, "الاسم الأول طويل جدًا"),
+  lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل").max(50, "اسم العائلة طويل جدًا"),
+  email: z.string().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة"),
+  password: z.string().min(12, "كلمة المرور يجب أن تكون 12 حرفًا على الأقل"),
+});
+
+type FieldErrors = Record<string, string>;
 
 export default function Login() {
   const { t } = useTranslation();
@@ -28,6 +43,7 @@ export default function Login() {
   const [isRegister, setIsRegister] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,8 +53,23 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+    setFieldErrors({});
 
+    const result = isRegister
+      ? registerSchema.safeParse({ firstName, lastName, email, password })
+      : loginSchema.safeParse({ email, password });
+
+    if (!result.success) {
+      const errs: FieldErrors = {};
+      for (const issue of result.error.issues) {
+        const key = String(issue.path[0]);
+        if (!errs[key]) errs[key] = issue.message;
+      }
+      setFieldErrors(errs);
+      return;
+    }
+
+    setLoading(true);
     try {
       if (isRegister) {
         await register({ email, password, first_name: firstName, last_name: lastName });
@@ -92,7 +123,7 @@ export default function Login() {
             </CardHeader>
 
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form noValidate onSubmit={handleSubmit} className="space-y-4">
                 {isRegister && (
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
@@ -101,9 +132,9 @@ export default function Login() {
                         id="firstName"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
-                        className="h-11"
-                        required
+                        className={`h-11 ${fieldErrors.firstName ? "border-destructive" : ""}`}
                       />
+                      {fieldErrors.firstName && <p className="text-xs text-destructive">{fieldErrors.firstName}</p>}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="lastName">{t("auth.lastName")}</Label>
@@ -111,9 +142,9 @@ export default function Login() {
                         id="lastName"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
-                        className="h-11"
-                        required
+                        className={`h-11 ${fieldErrors.lastName ? "border-destructive" : ""}`}
                       />
+                      {fieldErrors.lastName && <p className="text-xs text-destructive">{fieldErrors.lastName}</p>}
                     </div>
                   </div>
                 )}
@@ -126,9 +157,9 @@ export default function Login() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
-                    className="h-11"
-                    required
+                    className={`h-11 ${fieldErrors.email ? "border-destructive" : ""}`}
                   />
+                  {fieldErrors.email && <p className="text-xs text-destructive">{fieldErrors.email}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -139,10 +170,9 @@ export default function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    minLength={8}
-                    className="h-11"
-                    required
+                    className={`h-11 ${fieldErrors.password ? "border-destructive" : ""}`}
                   />
+                  {fieldErrors.password && <p className="text-xs text-destructive">{fieldErrors.password}</p>}
                 </div>
 
                 {error && (
@@ -166,7 +196,7 @@ export default function Login() {
                   {isRegister ? t("auth.hasAccount") : t("auth.noAccount")}{" "}
                   <button
                     type="button"
-                    onClick={() => { setIsRegister(!isRegister); setError(null); }}
+                    onClick={() => { setIsRegister(!isRegister); setError(null); setFieldErrors({}); }}
                     className="text-primary font-semibold hover:underline"
                   >
                     {isRegister ? t("auth.login") : t("auth.register")}

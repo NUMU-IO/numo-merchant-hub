@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -32,6 +32,55 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Plus, Search, MoreHorizontal, Pencil, Trash2, ImagePlus, X, Tag, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { z } from "zod";
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+async function validateImageMagicBytes(file: File): Promise<boolean> {
+  const buffer = await file.slice(0, 12).arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+
+  // JPEG: FF D8 FF
+  const isJPEG = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+
+  // PNG: 89 50 4E 47
+  const isPNG =
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47;
+
+  // WebP: 52 49 46 46 ?? ?? ?? ?? 57 45 42 50
+  const isWebP =
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50;
+
+  return isJPEG || isPNG || isWebP;
+}
+
+const productSchema = z.object({
+  name: z.string()
+    .min(3, "اسم المنتج يجب أن يكون 3 أحرف على الأقل")
+    .max(120, "اسم المنتج يجب ألا يتجاوز 120 حرفًا"),
+  price: z.string()
+    .min(1, "السعر مطلوب")
+    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, "السعر يجب أن يكون رقمًا موجبًا")
+    .refine((v) => /^\d+(\.\d{1,2})?$/.test(v), "السعر يجب ألا يتجاوز خانتين عشريتين"),
+  comparePrice: z.string()
+    .refine((v) => v === "" || (!isNaN(Number(v)) && Number(v) >= 0), "سعر المقارنة يجب أن يكون رقمًا صحيحًا"),
+  stock: z.string()
+    .refine((v) => v === "" || (!isNaN(Number(v)) && Number.isInteger(Number(v)) && Number(v) >= 0), "الكمية يجب أن تكون عددًا صحيحًا غير سالب"),
+  description: z.string().max(2000, "الوصف يجب ألا يتجاوز 2000 حرف").optional().or(z.literal("")),
+});
+
+type FieldErrors = Record<string, string>;
 
 const PAGE_SIZE = 20;
 
@@ -64,11 +113,22 @@ const Products = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Validation errors
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+
   // Image upload
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [validatingImage, setValidatingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [formImages, setFormImages] = useState<string[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
+  // Stable object URLs for pending file previews — revoked on cleanup
+  const pendingPreviews = useMemo(() => pendingFiles.map(f => URL.createObjectURL(f)), [pendingFiles]);
+  useEffect(() => {
+    return () => { pendingPreviews.forEach(url => URL.revokeObjectURL(url)); };
+  }, [pendingPreviews]);
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -116,8 +176,8 @@ const Products = () => {
       setProductsList(result.items.map(apiToProduct));
       setTotalProducts(result.total);
       setTotalPages(result.total_pages);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to load products");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load products");
     } finally {
       setIsLoading(false);
     }
@@ -146,7 +206,7 @@ const Products = () => {
     setFormPrice(""); setFormComparePrice(""); setFormStock("");
     setFormStatus("draft"); setFormCategory(""); setFormVariants([]);
     setFormImages([]); setPendingFiles([]);
-    setEditingProduct(null);
+    setEditingProduct(null); setFieldErrors({}); setImageError(null);
   };
 
   const openAddDialog = () => {
@@ -170,6 +230,26 @@ const Products = () => {
 
   const handleSave = async () => {
     if (!storeId || isSaving) return;
+    setFieldErrors({});
+
+    const result = productSchema.safeParse({
+      name: formName,
+      price: formPrice,
+      comparePrice: formComparePrice,
+      stock: formStock,
+      description: formDesc,
+    });
+
+    if (!result.success) {
+      const errs: FieldErrors = {};
+      for (const issue of result.error.issues) {
+        const key = String(issue.path[0]);
+        if (!errs[key]) errs[key] = issue.message;
+      }
+      setFieldErrors(errs);
+      return;
+    }
+
     setIsSaving(true);
 
     const variants: ProductVariant[] = formVariants
@@ -224,8 +304,8 @@ const Products = () => {
       }
       setDialogOpen(false);
       resetForm();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save product");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save product");
     } finally {
       setIsSaving(false);
     }
@@ -239,8 +319,8 @@ const Products = () => {
       setProductsList(prev => prev.filter(p => p.id !== deleteTarget.id));
       setTotalProducts(prev => prev - 1);
       toast.success(t("products.productDeleted"));
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete product");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete product");
     } finally {
       setIsDeleting(false);
       setDeleteTarget(null);
@@ -250,6 +330,34 @@ const Products = () => {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !storeId) return;
+    setImageError(null);
+
+    // Size check (synchronous)
+    if (file.size > MAX_FILE_SIZE) {
+      setImageError("حجم الصورة يجب أن لا يتجاوز 5 ميجابايت");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    // MIME type check (basic)
+    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+      setImageError("نوع الملف غير مدعوم. يرجى رفع صورة بصيغة JPG أو PNG أو WebP فقط");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    // Magic bytes check (async — reads first 12 bytes of the file)
+    setValidatingImage(true);
+    try {
+      const isValidImage = await validateImageMagicBytes(file);
+      if (!isValidImage) {
+        setImageError("نوع الملف غير مدعوم. يرجى رفع صورة بصيغة JPG أو PNG أو WebP فقط");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+    } finally {
+      setValidatingImage(false);
+    }
 
     if (editingProduct) {
       // Upload directly for existing products
@@ -263,8 +371,8 @@ const Products = () => {
             : p
         ));
         toast.success(language === "ar" ? "الصورة اترفعت!" : "Image uploaded!");
-      } catch (err: any) {
-        toast.error(err.message || "Upload failed");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Upload failed");
       } finally {
         setUploadingImage(false);
       }
@@ -281,8 +389,8 @@ const Products = () => {
       await deleteProductImage(storeId, editingProduct.id, imageUrl);
       setFormImages(prev => prev.filter(url => url !== imageUrl));
       toast.success(language === "ar" ? "الصورة اتمسحت" : "Image removed");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to remove image");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove image");
     }
   };
 
@@ -331,7 +439,7 @@ const Products = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as "all" | ProductStatus)}>
               <TabsList>
                 <TabsTrigger value="all">{t("products.all")}</TabsTrigger>
                 <TabsTrigger value="published">{t("products.published")}</TabsTrigger>
@@ -500,9 +608,9 @@ const Products = () => {
                   </div>
                 ))}
                 {/* Pending file previews (new product) */}
-                {!editingProduct && pendingFiles.map((file, i) => (
+                {!editingProduct && pendingPreviews.map((previewUrl, i) => (
                   <div key={i} className="relative group">
-                    <img src={URL.createObjectURL(file)} alt="" className="h-24 w-24 rounded-lg object-cover bg-muted" />
+                    <img src={previewUrl} alt="" className="h-24 w-24 rounded-lg object-cover bg-muted" />
                     <button
                       type="button"
                       onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))}
@@ -516,10 +624,10 @@ const Products = () => {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingImage}
+                  disabled={uploadingImage || validatingImage}
                   className="flex h-24 w-24 flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
                 >
-                  {uploadingImage ? (
+                  {(uploadingImage || validatingImage) ? (
                     <Loader2 className="h-6 w-6 animate-spin" />
                   ) : (
                     <>
@@ -529,8 +637,15 @@ const Products = () => {
                   )}
                 </button>
               </div>
-              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleImageUpload} />
-              {!editingProduct && pendingFiles.length === 0 && (
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImageUpload} />
+              {validatingImage && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {language === "ar" ? "جارٍ التحقق من الصورة..." : "Validating image..."}
+                </div>
+              )}
+              {imageError && <p className="text-xs text-destructive">{imageError}</p>}
+              {!editingProduct && pendingFiles.length === 0 && !imageError && (
                 <p className="text-xs text-muted-foreground">{t("products.uploadHint")}</p>
               )}
             </div>
@@ -541,7 +656,8 @@ const Products = () => {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>{t("products.productName")} (EN)</Label>
-                <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Product name" />
+                <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Product name" className={fieldErrors.name ? "border-destructive" : ""} />
+                {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
               </div>
               <div className="grid gap-2">
                 <Label>{t("products.productName")} (AR)</Label>
@@ -553,7 +669,8 @@ const Products = () => {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label>{t("products.description")} (EN)</Label>
-                <Textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Description" rows={2} />
+                <Textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Description" rows={2} className={fieldErrors.description ? "border-destructive" : ""} />
+                {fieldErrors.description && <p className="text-xs text-destructive">{fieldErrors.description}</p>}
               </div>
               <div className="grid gap-2">
                 <Label>{t("products.description")} (AR)</Label>
@@ -565,15 +682,18 @@ const Products = () => {
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               <div className="grid gap-2">
                 <Label>{t("products.price")}</Label>
-                <Input type="number" value={formPrice} onChange={e => setFormPrice(e.target.value)} placeholder="0" />
+                <Input type="number" value={formPrice} onChange={e => setFormPrice(e.target.value)} placeholder="0" className={fieldErrors.price ? "border-destructive" : ""} />
+                {fieldErrors.price && <p className="text-xs text-destructive">{fieldErrors.price}</p>}
               </div>
               <div className="grid gap-2">
                 <Label>{t("products.compareAtPrice")}</Label>
-                <Input type="number" value={formComparePrice} onChange={e => setFormComparePrice(e.target.value)} placeholder="0" />
+                <Input type="number" value={formComparePrice} onChange={e => setFormComparePrice(e.target.value)} placeholder="0" className={fieldErrors.comparePrice ? "border-destructive" : ""} />
+                {fieldErrors.comparePrice && <p className="text-xs text-destructive">{fieldErrors.comparePrice}</p>}
               </div>
               <div className="grid gap-2">
                 <Label>{t("products.stock")}</Label>
-                <Input type="number" value={formStock} onChange={e => setFormStock(e.target.value)} placeholder="0" />
+                <Input type="number" value={formStock} onChange={e => setFormStock(e.target.value)} placeholder="0" className={fieldErrors.stock ? "border-destructive" : ""} />
+                {fieldErrors.stock && <p className="text-xs text-destructive">{fieldErrors.stock}</p>}
               </div>
             </div>
 
@@ -645,7 +765,7 @@ const Products = () => {
             <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
               {t("products.cancel")}
             </Button>
-            <Button onClick={handleSave} disabled={!formName || !formPrice || isSaving}>
+            <Button onClick={handleSave} disabled={isSaving}>
               {isSaving && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               {t("products.save")}
             </Button>

@@ -5,6 +5,7 @@
  */
 
 import { apiClient } from "./api";
+import { initCSRF, clearCSRFToken } from "./csrf";
 
 if (!import.meta.env.VITE_API_URL) {
   throw new Error(
@@ -12,17 +13,6 @@ if (!import.meta.env.VITE_API_URL) {
   );
 }
 const API_BASE = import.meta.env.VITE_API_URL;
-
-/** Fetch a CSRF token from the backend (sets csrf_token cookie). */
-export async function fetchCsrfToken(): Promise<void> {
-  try {
-    await fetch(`${API_BASE}/auth/csrf-token`, {
-      credentials: "include",
-    });
-  } catch {
-    // Non-critical — CSRF cookie may already exist
-  }
-}
 
 export interface User {
   id: string;
@@ -70,7 +60,7 @@ export async function login(
   const json = await res.json();
 
   // Fetch CSRF token now that we have auth cookies
-  await fetchCsrfToken();
+  await initCSRF();
 
   return json.data;
 }
@@ -91,7 +81,7 @@ export async function register(data: RegisterData): Promise<AuthResponse> {
   const json = await res.json();
 
   // Fetch CSRF token now that we have auth cookies
-  await fetchCsrfToken();
+  await initCSRF();
 
   return json.data;
 }
@@ -101,6 +91,7 @@ export async function logout(): Promise<void> {
     method: "POST",
     credentials: "include",
   });
+  clearCSRFToken();
 }
 
 export async function getMe(): Promise<User> {
