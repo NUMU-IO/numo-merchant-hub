@@ -17,8 +17,8 @@ import {
   register as registerApi,
   logout as logoutApi,
   getMe,
-  fetchCsrfToken,
 } from "@/services/authApi";
+import { initCSRF } from "@/services/csrf";
 import type { User, RegisterData } from "@/services/authApi";
 
 interface AuthContextType {
@@ -53,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       .then(async (u) => {
         setUser(u);
         // Ensure we have a CSRF token for subsequent requests
-        await fetchCsrfToken();
+        await initCSRF();
       })
       .catch(() => {
         // No valid session
