@@ -268,6 +268,7 @@ export default {
     emailVerified: "تم تأكيد الإيميل!",
     verifiedRedirect: "تم تأكيد إيميلك بنجاح. هيتم تحويلك للوحة التحكم...",
     invalidCode: "الكود غلط أو انتهت صلاحيته",
+    goBackChangeEmail: "ارجع لتغيير الإيميل",
   },
   common: {
     currency: "ج.م",

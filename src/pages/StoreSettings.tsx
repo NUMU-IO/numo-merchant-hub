@@ -148,7 +148,7 @@ function SettingField({
     );
   }
 
-  switch (setting.type) {
+  switch (setting.type as string) {
     case "text":
       return (
         <div className="grid gap-2">

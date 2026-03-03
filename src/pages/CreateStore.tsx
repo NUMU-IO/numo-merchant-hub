@@ -1,5 +1,6 @@
 /**
  * CreateStore — onboarding page for merchants to create their first store.
+ * Premium split-panel layout with geometric branding.
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -11,33 +12,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, CheckCircle2, XCircle, Store, Rocket } from "lucide-react";
-import numuIcon from "@/assets/numu-icon.png";
+import { NumuIcon } from "@/components/NumuLogo";
 import { getStoreDomainSuffix } from "@/lib/storefront";
 import { z } from "zod";
 
 const createStoreSchema = z.object({
-  name: z.string()
-    .min(3, "اسم المتجر يجب أن يكون 3 أحرف على الأقل")
-    .max(60, "اسم المتجر يجب ألا يتجاوز 60 حرفًا"),
-  subdomain: z.string()
-    .min(3, "النطاق الفرعي يجب أن يكون 3 أحرف على الأقل")
-    .max(30, "النطاق الفرعي يجب ألا يتجاوز 30 حرفًا")
-    .regex(/^[a-z0-9-]+$/, "النطاق الفرعي يجب أن يحتوي فقط على أحرف صغيرة وأرقام وشرطات"),
+  name: z.string().min(3, "اسم المتجر يجب أن يكون 3 أحرف على الأقل").max(60, "اسم المتجر يجب ألا يتجاوز 60 حرفًا"),
+  subdomain: z.string().min(3, "النطاق الفرعي يجب أن يكون 3 أحرف على الأقل").max(30, "النطاق الفرعي يجب ألا يتجاوز 30 حرفًا").regex(/^[a-z0-9-]+$/, "النطاق الفرعي يجب أن يحتوي فقط على أحرف صغيرة وأرقام وشرطات"),
   description: z.string().max(500, "الوصف يجب ألا يتجاوز 500 حرف").optional().or(z.literal("")),
 });
 
@@ -46,11 +30,11 @@ type FieldErrors = Record<string, string>;
 export default function CreateStore() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { refetchStores, hasStores, isLoading } = useDashboardStore();
+  const { refetchStores, hasStores, isLoading: storesLoading } = useDashboardStore();
 
   useEffect(() => {
-    if (!isLoading && hasStores) navigate("/", { replace: true });
-  }, [isLoading, hasStores, navigate]);
+    if (!storesLoading && hasStores) navigate("/", { replace: true });
+  }, [storesLoading, hasStores, navigate]);
 
   const [name, setName] = useState("");
   const [subdomain, setSubdomain] = useState("");
@@ -86,7 +70,6 @@ export default function CreateStore() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFieldErrors({});
-
     const result = createStoreSchema.safeParse({ name, subdomain, description });
     if (!result.success) {
       const errs: FieldErrors = {};
@@ -97,7 +80,6 @@ export default function CreateStore() {
       setFieldErrors(errs);
       return;
     }
-
     if (subdomainStatus !== "available") return;
     setError(null);
     setLoading(true);
@@ -112,6 +94,11 @@ export default function CreateStore() {
     }
   };
 
+  const inputClass = (field: string) =>
+    `h-12 rounded-xl bg-muted/30 border-border/50 focus:border-primary focus:ring-primary/20 transition-all ${
+      fieldErrors[field] ? "border-destructive" : ""
+    }`;
+
   const subdomainIcon =
     subdomainStatus === "checking" ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> :
     subdomainStatus === "available" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> :
@@ -120,80 +107,82 @@ export default function CreateStore() {
   return (
     <div className="min-h-screen flex">
       {/* Left decorative panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-primary relative overflow-hidden items-center justify-center">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 -start-10 h-64 w-64 rounded-full bg-primary-foreground/20 blur-3xl" />
-          <div className="absolute bottom-20 end-10 h-80 w-80 rounded-full bg-primary-foreground/15 blur-3xl" />
+      <div className="hidden lg:flex lg:w-[45%] bg-primary relative overflow-hidden items-center justify-center">
+        <div className="absolute inset-0">
+          <div className="absolute top-16 -start-16 h-72 w-72 rounded-full bg-primary-foreground/10 blur-3xl" />
+          <div className="absolute bottom-16 end-8 h-96 w-96 rounded-full bg-primary-foreground/5 blur-3xl" />
         </div>
-        <div className="relative z-10 text-center px-12 space-y-6">
-          <Rocket className="h-16 w-16 text-primary-foreground mx-auto" />
-          <h2 className="text-3xl font-bold text-primary-foreground">{t("createStore.title")}</h2>
-          <p className="text-primary-foreground/70 text-sm max-w-sm mx-auto">{t("createStore.subtitle")}</p>
+        <div className="relative z-10 text-center px-12 space-y-8 max-w-md">
+          <Rocket className="h-16 w-16 text-primary-foreground/80 mx-auto" />
+          <div className="space-y-3">
+            <h2 className="text-3xl font-bold text-primary-foreground">{t("createStore.title")}</h2>
+            <p className="text-primary-foreground/60 text-sm leading-relaxed">{t("createStore.subtitle")}</p>
+          </div>
         </div>
       </div>
 
       {/* Right form panel */}
-      <div className="flex-1 flex items-center justify-center bg-background p-6">
-        <div className="w-full max-w-lg space-y-6">
-          <div className="lg:hidden flex justify-center mb-4">
-            <img src={numuIcon} alt="NUMU" className="h-12 w-12" />
+      <div className="flex-1 flex items-center justify-center bg-background p-6 sm:p-8">
+        <div className="w-full max-w-lg space-y-8">
+          <div className="lg:hidden flex justify-center">
+            <NumuIcon size={44} />
           </div>
 
-          <Card className="border-0 shadow-[0_2px_12px_rgba(0,0,0,0.08),0_20px_60px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)]">
-            <CardHeader className="text-center space-y-2 pb-2">
-              <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
+          <Card className="border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06),0_24px_64px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.3)] rounded-2xl">
+            <CardHeader className="text-center space-y-1 pb-1 pt-8">
+              <div className="mx-auto w-12 h-12 rounded-2xl bg-primary/8 flex items-center justify-center mb-2">
                 <Store className="h-6 w-6 text-primary" />
               </div>
-              <CardTitle className="text-2xl font-bold">{t("createStore.title")}</CardTitle>
+              <CardTitle className="text-2xl font-bold tracking-tight">{t("createStore.title")}</CardTitle>
               <CardDescription>{t("createStore.subtitle")}</CardDescription>
             </CardHeader>
 
-            <CardContent>
-              <form noValidate onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="storeName">{t("createStore.storeName")}</Label>
-                  <Input id="storeName" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("createStore.storeNamePlaceholder")} className={`h-11 ${fieldErrors.name ? "border-destructive" : ""}`} />
-                  {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
+            <CardContent className="px-6 pb-8">
+              <form noValidate onSubmit={handleSubmit} className="space-y-5 mt-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createStore.storeName")}</Label>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("createStore.storeNamePlaceholder")} className={inputClass("name")} />
+                  {fieldErrors.name && <p className="text-[11px] text-destructive">{fieldErrors.name}</p>}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="subdomain">{t("createStore.subdomain")}</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createStore.subdomain")}</Label>
                   <div className="flex items-center gap-2">
                     <div className="relative flex-1">
-                      <Input id="subdomain" value={subdomain} onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="mystore" className={`h-11 ${fieldErrors.subdomain ? "border-destructive" : ""}`} />
+                      <Input value={subdomain} onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="mystore" className={`${inputClass("subdomain")} pe-9`} />
                       {subdomainIcon && <div className="absolute inset-y-0 end-3 flex items-center">{subdomainIcon}</div>}
                     </div>
                     {getStoreDomainSuffix() && (
-                      <span className="text-sm text-muted-foreground whitespace-nowrap">{getStoreDomainSuffix()}</span>
+                      <span className="text-sm text-muted-foreground whitespace-nowrap font-mono">{getStoreDomainSuffix()}</span>
                     )}
                   </div>
                   {subdomainStatus !== "idle" && subdomainStatus !== "checking" && (
-                    <p className={`text-xs ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>{subdomainMsg}</p>
+                    <p className={`text-[11px] ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>{subdomainMsg}</p>
                   )}
-                  {fieldErrors.subdomain && <p className="text-xs text-destructive">{fieldErrors.subdomain}</p>}
+                  {fieldErrors.subdomain && <p className="text-[11px] text-destructive">{fieldErrors.subdomain}</p>}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="description">{t("createStore.description")}</Label>
-                  <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("createStore.descriptionPlaceholder")} rows={3} className={fieldErrors.description ? "border-destructive" : ""} />
-                  {fieldErrors.description && <p className="text-xs text-destructive">{fieldErrors.description}</p>}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createStore.description")}</Label>
+                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("createStore.descriptionPlaceholder")} rows={3} className={`rounded-xl bg-muted/30 border-border/50 ${fieldErrors.description ? "border-destructive" : ""}`} />
+                  {fieldErrors.description && <p className="text-[11px] text-destructive">{fieldErrors.description}</p>}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>{t("createStore.language")}</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createStore.language")}</Label>
                     <Select value={language} onValueChange={setLanguage}>
-                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="ar">العربية</SelectItem>
                         <SelectItem value="en">English</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label>{t("createStore.currency")}</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createStore.currency")}</Label>
                     <Select value={currency} onValueChange={setCurrency}>
-                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="EGP">EGP (ج.م)</SelectItem>
                         <SelectItem value="USD">USD ($)</SelectItem>
@@ -203,9 +192,13 @@ export default function CreateStore() {
                   </div>
                 </div>
 
-                {error && <p className="text-sm text-destructive text-center bg-destructive/10 rounded-lg p-2">{error}</p>}
+                {error && (
+                  <div className="text-sm text-destructive text-center bg-destructive/8 rounded-xl p-3 border border-destructive/15">
+                    {error}
+                  </div>
+                )}
 
-                <Button type="submit" className="w-full h-11 text-sm font-semibold gap-2" disabled={loading || subdomainStatus !== "available"}>
+                <Button type="submit" className="w-full h-12 text-sm font-bold gap-2 rounded-xl" disabled={loading || subdomainStatus !== "available"}>
                   {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                   {t("createStore.create")}
                 </Button>
