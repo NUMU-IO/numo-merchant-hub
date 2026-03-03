@@ -268,6 +268,7 @@ export default {
     emailVerified: "Email Verified!",
     verifiedRedirect: "Your email has been verified successfully. Redirecting to your dashboard...",
     invalidCode: "Invalid or expired verification code",
+    goBackChangeEmail: "Go back to change email",
   },
   common: {
     currency: "EGP",
