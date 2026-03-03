@@ -227,7 +227,7 @@ export default function Marketing() {
         const data: UpdateCouponData = {
           code: formCode.trim().toUpperCase(),
           coupon_type: formType,
-          value: parseFloat(formValue),
+          value: formType === "free_shipping" ? 0 : parseFloat(formValue),
           min_order_amount: formMinOrder ? parseFloat(formMinOrder) : null,
           max_discount_amount: formMaxDiscount ? parseFloat(formMaxDiscount) : null,
           usage_limit: formUsageLimit ? parseInt(formUsageLimit) : null,
@@ -241,7 +241,7 @@ export default function Marketing() {
         const data: CreateCouponData = {
           code: formCode.trim().toUpperCase(),
           coupon_type: formType,
-          value: parseFloat(formValue),
+          value: formType === "free_shipping" ? 0 : parseFloat(formValue),
           min_order_amount: formMinOrder ? parseFloat(formMinOrder) : null,
           max_discount_amount: formMaxDiscount ? parseFloat(formMaxDiscount) : null,
           usage_limit: formUsageLimit ? parseInt(formUsageLimit) : null,

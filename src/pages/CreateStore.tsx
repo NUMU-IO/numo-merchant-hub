@@ -28,6 +28,20 @@ import {
 import { Loader2, CheckCircle2, XCircle, Store, Rocket } from "lucide-react";
 import numuIcon from "@/assets/numu-icon.png";
 import { getStoreDomainSuffix } from "@/lib/storefront";
+import { z } from "zod";
+
+const createStoreSchema = z.object({
+  name: z.string()
+    .min(3, "اسم المتجر يجب أن يكون 3 أحرف على الأقل")
+    .max(60, "اسم المتجر يجب ألا يتجاوز 60 حرفًا"),
+  subdomain: z.string()
+    .min(3, "النطاق الفرعي يجب أن يكون 3 أحرف على الأقل")
+    .max(30, "النطاق الفرعي يجب ألا يتجاوز 30 حرفًا")
+    .regex(/^[a-z0-9-]+$/, "النطاق الفرعي يجب أن يحتوي فقط على أحرف صغيرة وأرقام وشرطات"),
+  description: z.string().max(500, "الوصف يجب ألا يتجاوز 500 حرف").optional().or(z.literal("")),
+});
+
+type FieldErrors = Record<string, string>;
 
 export default function CreateStore() {
   const { t } = useTranslation();
@@ -47,6 +61,7 @@ export default function CreateStore() {
   const [subdomainMsg, setSubdomainMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -70,6 +85,19 @@ export default function CreateStore() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFieldErrors({});
+
+    const result = createStoreSchema.safeParse({ name, subdomain, description });
+    if (!result.success) {
+      const errs: FieldErrors = {};
+      for (const issue of result.error.issues) {
+        const key = String(issue.path[0]);
+        if (!errs[key]) errs[key] = issue.message;
+      }
+      setFieldErrors(errs);
+      return;
+    }
+
     if (subdomainStatus !== "available") return;
     setError(null);
     setLoading(true);
@@ -121,17 +149,18 @@ export default function CreateStore() {
             </CardHeader>
 
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form noValidate onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="storeName">{t("createStore.storeName")}</Label>
-                  <Input id="storeName" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("createStore.storeNamePlaceholder")} className="h-11" required />
+                  <Input id="storeName" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("createStore.storeNamePlaceholder")} className={`h-11 ${fieldErrors.name ? "border-destructive" : ""}`} />
+                  {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="subdomain">{t("createStore.subdomain")}</Label>
                   <div className="flex items-center gap-2">
                     <div className="relative flex-1">
-                      <Input id="subdomain" value={subdomain} onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="mystore" minLength={3} maxLength={63} className="h-11" required />
+                      <Input id="subdomain" value={subdomain} onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="mystore" className={`h-11 ${fieldErrors.subdomain ? "border-destructive" : ""}`} />
                       {subdomainIcon && <div className="absolute inset-y-0 end-3 flex items-center">{subdomainIcon}</div>}
                     </div>
                     {getStoreDomainSuffix() && (
@@ -141,11 +170,13 @@ export default function CreateStore() {
                   {subdomainStatus !== "idle" && subdomainStatus !== "checking" && (
                     <p className={`text-xs ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>{subdomainMsg}</p>
                   )}
+                  {fieldErrors.subdomain && <p className="text-xs text-destructive">{fieldErrors.subdomain}</p>}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="description">{t("createStore.description")}</Label>
-                  <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("createStore.descriptionPlaceholder")} rows={3} />
+                  <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("createStore.descriptionPlaceholder")} rows={3} className={fieldErrors.description ? "border-destructive" : ""} />
+                  {fieldErrors.description && <p className="text-xs text-destructive">{fieldErrors.description}</p>}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

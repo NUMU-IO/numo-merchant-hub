@@ -1,10 +1,18 @@
 /**
- * Auth API service — login, register, get current user.
+ * Auth API service — login, register, logout, get current user.
+ * Authentication is handled via httpOnly cookies set by the backend.
+ * CSRF token is fetched after login/register so subsequent requests pass validation.
  */
 
 import { apiClient } from "./api";
+import { initCSRF, clearCSRFToken } from "./csrf";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8021/api/v1";
+if (!import.meta.env.VITE_API_URL) {
+  throw new Error(
+    "VITE_API_URL is not set. Refusing to start without a configured API endpoint."
+  );
+}
+const API_BASE = import.meta.env.VITE_API_URL;
 
 export interface User {
   id: string;
@@ -22,15 +30,8 @@ export interface User {
   updated_at: string;
 }
 
-export interface AuthTokens {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-}
-
 export interface AuthResponse {
   user: User;
-  tokens: AuthTokens;
 }
 
 export interface RegisterData {
@@ -45,9 +46,9 @@ export async function login(
   email: string,
   password: string
 ): Promise<AuthResponse> {
-  // Can't use apiClient here because we need to set the token AFTER login
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
@@ -58,12 +59,17 @@ export async function login(
   }
 
   const json = await res.json();
+
+  // Fetch CSRF token now that we have auth cookies
+  await initCSRF();
+
   return json.data;
 }
 
 export async function register(data: RegisterData): Promise<AuthResponse> {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
@@ -74,24 +80,64 @@ export async function register(data: RegisterData): Promise<AuthResponse> {
   }
 
   const json = await res.json();
+
+  // Fetch CSRF token now that we have auth cookies
+  await initCSRF();
+
   return json.data;
 }
 
-export async function getMe(): Promise<User> {
-  return apiClient<User>("/auth/me");
+export async function logout(): Promise<void> {
+  await fetch(`${API_BASE}/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+  clearCSRFToken();
 }
 
-export async function refreshToken(refresh_token: string): Promise<AuthTokens> {
-  const res = await fetch(`${API_BASE}/auth/refresh`, {
-    method: "POST",
+export async function getMe(): Promise<User> {
+  // Use raw fetch — NOT apiClient — to avoid the 401 → redirect loop.
+  // This is called on mount to check session validity; a 401 here simply
+  // means "not logged in", not "redirect now".
+  const res = await fetch(`${API_BASE}/auth/me`, {
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token }),
   });
 
   if (!res.ok) {
-    throw new Error("Token refresh failed");
+    throw new Error("Not authenticated");
   }
 
   const json = await res.json();
   return json.data;
+}
+
+/** Verify email using a 6-digit code. */
+export async function verifyEmailByCode(code: string): Promise<void> {
+  const res = await apiClient<{ message: string }>("/auth/verify-email-code", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+}
+
+/** Verify email using the JWT token (link click). */
+export async function verifyEmailByToken(token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/auth/verify-email`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail || `Verification failed (${res.status})`);
+  }
+}
+
+/** Request a new verification email (code + link). */
+export async function resendVerificationEmail(): Promise<void> {
+  await apiClient<{ message: string }>("/auth/resend-verification", {
+    method: "POST",
+  });
 }

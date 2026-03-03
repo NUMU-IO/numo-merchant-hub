@@ -1,86 +1,71 @@
 /**
  * Base API client for the NUMU merchant dashboard.
- * Automatically refreshes expired tokens on 401.
+ * Authentication is handled via httpOnly cookies set by the backend.
+ * CSRF protection: token is stored in memory and sent as X-CSRF-Token
+ * on every state-changing request (POST, PUT, PATCH, DELETE).
+ * On 401, redirects to login page.
+ * On 403 with CSRF failure, refreshes the token and retries once.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8021/api/v1";
-const TOKEN_KEY = "numu-token";
-const REFRESH_KEY = "numu-refresh-token";
+import { getCSRFToken, initCSRF } from "./csrf";
 
-// Shared refresh promise to prevent concurrent refresh attempts
-let refreshPromise: Promise<string> | null = null;
-
-async function doRefresh(): Promise<string> {
-  const refreshToken = localStorage.getItem(REFRESH_KEY);
-  if (!refreshToken) throw new Error("No refresh token");
-
-  const res = await fetch(`${API_BASE}/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-
-  if (!res.ok) {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_KEY);
-    throw new Error("Token refresh failed");
-  }
-
-  const json = await res.json();
-  const tokens = json.data;
-  localStorage.setItem(TOKEN_KEY, tokens.access_token);
-  if (tokens.refresh_token) {
-    localStorage.setItem(REFRESH_KEY, tokens.refresh_token);
-  }
-  return tokens.access_token;
+if (!import.meta.env.VITE_API_URL) {
+  throw new Error(
+    "VITE_API_URL is not set. Refusing to start without a configured API endpoint."
+  );
 }
+const API_BASE = import.meta.env.VITE_API_URL;
 
-function buildHeaders(token: string | null, extra?: HeadersInit, isFormData?: boolean): HeadersInit {
-  return {
-    ...(isFormData ? {} : { "Content-Type": "application/json" }),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(extra || {}),
-  };
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
+
+async function rawFetch(
+  endpoint: string,
+  options?: RequestInit,
+): Promise<Response> {
+  const isFormData = options?.body instanceof FormData;
+  const method = (options?.method || "GET").toUpperCase();
+
+  const csrfHeaders: Record<string, string> = {};
+  if (!SAFE_METHODS.has(method)) {
+    const token = getCSRFToken();
+    if (token) {
+      csrfHeaders["X-CSRF-Token"] = token;
+    }
+  }
+
+  return fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    credentials: "include",
+    headers: {
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
+      ...csrfHeaders,
+      ...(options?.headers as Record<string, string> || {}),
+    },
+  });
 }
 
 export async function apiClient<T>(
   endpoint: string,
-  options?: RequestInit
+  options?: RequestInit,
 ): Promise<T> {
-  const token = localStorage.getItem(TOKEN_KEY);
-  const isFormData = options?.body instanceof FormData;
+  let res = await rawFetch(endpoint, options);
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: buildHeaders(token, options?.headers as Record<string, string>, isFormData),
-  });
-
-  // If 401 → try refresh once, then retry
-  if (res.status === 401) {
-    try {
-      if (!refreshPromise) {
-        refreshPromise = doRefresh().finally(() => { refreshPromise = null; });
-      }
-      const newToken = await refreshPromise;
-
-      const retry = await fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers: buildHeaders(newToken, options?.headers as Record<string, string>, isFormData),
-      });
-
-      if (!retry.ok) {
-        const body = await retry.json().catch(() => null);
-        throw new Error(body?.detail || `API error: ${retry.status}`);
-      }
-
-      const json = await retry.json();
-      return json.data;
-    } catch {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(REFRESH_KEY);
-      window.location.href = "/login";
-      throw new Error("Session expired. Please log in again.");
+  // Handle CSRF token expiry: refresh token and retry once
+  if (res.status === 403) {
+    const body = await res.json().catch(() => null);
+    if (body?.detail === "CSRF validation failed") {
+      await initCSRF();
+      res = await rawFetch(endpoint, options);
+    } else {
+      throw new Error(body?.detail || `API error: ${res.status}`);
     }
+  }
+
+  if (res.status === 401) {
+    if (window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
+    throw new Error("Session expired. Please log in again.");
   }
 
   if (!res.ok) {
@@ -88,7 +73,6 @@ export async function apiClient<T>(
     throw new Error(body?.detail || `API error: ${res.status}`);
   }
 
-  // 204 No Content (e.g. DELETE) — no body to parse
   if (res.status === 204) {
     return undefined as T;
   }

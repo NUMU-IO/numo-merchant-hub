@@ -1,8 +1,8 @@
 /**
- * AuthContext — manages JWT authentication state for the dashboard.
+ * AuthContext — manages authentication state for the dashboard.
  *
- * Stores access + refresh tokens in localStorage.
- * On mount, validates the stored token by calling GET /auth/me.
+ * Session is determined by an httpOnly cookie set by the backend.
+ * On mount, validates the session by calling GET /auth/me.
  */
 
 import React, {
@@ -15,12 +15,11 @@ import React, {
 import {
   login as loginApi,
   register as registerApi,
+  logout as logoutApi,
   getMe,
 } from "@/services/authApi";
+import { initCSRF } from "@/services/csrf";
 import type { User, RegisterData } from "@/services/authApi";
-
-const TOKEN_KEY = "numu-token";
-const REFRESH_KEY = "numu-refresh-token";
 
 interface AuthContextType {
   user: User | null;
@@ -28,7 +27,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -37,7 +37,8 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   login: async () => {},
   register: async () => {},
-  logout: () => {},
+  logout: async () => {},
+  refreshUser: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -46,53 +47,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check stored token on mount (also accept tokens from URL params for cross-origin handoff)
+  // Validate session on mount by calling /auth/me
   useEffect(() => {
-    // Accept tokens passed via URL from the landing page (different origin)
-    const params = new URLSearchParams(window.location.search);
-    const urlToken = params.get("token");
-    const urlRefresh = params.get("refresh_token");
-    if (urlToken && urlRefresh) {
-      localStorage.setItem(TOKEN_KEY, urlToken);
-      localStorage.setItem(REFRESH_KEY, urlRefresh);
-      // Clean tokens from URL without reload
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      setIsLoading(false);
-      return;
-    }
-
     getMe()
-      .then((u) => setUser(u))
+      .then(async (u) => {
+        setUser(u);
+        // Ensure we have a CSRF token for subsequent requests
+        await initCSRF();
+      })
       .catch(() => {
-        // Token expired or invalid
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(REFRESH_KEY);
+        // No valid session
+        setUser(null);
       })
       .finally(() => setIsLoading(false));
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await loginApi(email, password);
-    localStorage.setItem(TOKEN_KEY, res.tokens.access_token);
-    localStorage.setItem(REFRESH_KEY, res.tokens.refresh_token);
     setUser(res.user);
   }, []);
 
   const register = useCallback(async (data: RegisterData) => {
     const res = await registerApi(data);
-    localStorage.setItem(TOKEN_KEY, res.tokens.access_token);
-    localStorage.setItem(REFRESH_KEY, res.tokens.refresh_token);
     setUser(res.user);
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(REFRESH_KEY);
-    setUser(null);
+  const logout = useCallback(async () => {
+    try {
+      await logoutApi();
+    } finally {
+      setUser(null);
+    }
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const u = await getMe();
+      setUser(u);
+    } catch {
+      // Session may have expired
+    }
   }, []);
 
   return (
@@ -104,6 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         login,
         register,
         logout,
+        refreshUser,
       }}
     >
       {children}
