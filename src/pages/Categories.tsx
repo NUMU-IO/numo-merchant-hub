@@ -118,8 +118,8 @@ export default function Categories() {
       setDialogOpen(false);
       resetForm();
       fetchCategories();
-    } catch (err: any) {
-      toast.error(err.message || (isAr ? "حدث خطأ" : "Something went wrong"));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : (isAr ? "حدث خطأ" : "Something went wrong"));
     } finally {
       setIsSaving(false);
     }
@@ -133,8 +133,8 @@ export default function Categories() {
       toast.success(isAr ? "تم حذف الفئة" : "Category deleted");
       setDeleteTarget(null);
       fetchCategories();
-    } catch (err: any) {
-      toast.error(err.message || (isAr ? "حدث خطأ" : "Something went wrong"));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : (isAr ? "حدث خطأ" : "Something went wrong"));
     } finally {
       setIsDeleting(false);
     }
@@ -150,8 +150,8 @@ export default function Categories() {
           : (isAr ? "تم تفعيل الفئة" : "Category activated")
       );
       fetchCategories();
-    } catch (err: any) {
-      toast.error(err.message || (isAr ? "حدث خطأ" : "Something went wrong"));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : (isAr ? "حدث خطأ" : "Something went wrong"));
     }
   };
 

@@ -44,6 +44,8 @@ import {
   type ThemeSchemaBundle,
   type TemplateConfigData,
   type SectionInstanceData,
+  type SectionSettingDefinition,
+  type CustomizationData,
 } from "@/services/themeApi";
 import {
   SchemaForm,
@@ -53,6 +55,7 @@ import {
   CustomizationWalkthrough,
   useWalkthroughStatus,
 } from "@/components/theme-editor";
+import type { SettingValue } from "@/components/theme-editor/SettingControl";
 import { updateStore } from "@/services/storeApi";
 import { getStoreUrl, getStoreDomainSuffix } from "@/lib/storefront";
 import {
@@ -76,7 +79,7 @@ const HARDCODED_FONT_SETTINGS = [
 ];
 
 /** Ensure heading_font + body_font are always present in a settings list */
-function ensureFontSettings(settings: any[]): any[] {
+function ensureFontSettings(settings: SectionSettingDefinition[]): SectionSettingDefinition[] {
   const keys = new Set(settings.map((s) => s.key));
   const missing = HARDCODED_FONT_SETTINGS.filter((f) => !keys.has(f.key));
   return missing.length ? [...settings, ...missing] : settings;
@@ -102,8 +105,8 @@ function SettingField({
   language,
 }: {
   setting: SettingDefinition;
-  value: any;
-  onChange: (key: string, val: any) => void;
+  value: SettingValue;
+  onChange: (key: string, val: SettingValue) => void;
   language: string;
 }) {
   const label = language === "ar" ? setting.labelAr : setting.label;
@@ -155,7 +158,7 @@ function SettingField({
           <Label>{label}</Label>
           {setting.description && <p className="text-xs text-muted-foreground">{setting.description}</p>}
           <Input
-            value={value || ""}
+            value={String(value || "")}
             onChange={(e) => onChange(setting.key, e.target.value)}
             placeholder={label}
           />
@@ -168,12 +171,12 @@ function SettingField({
           <div className="flex items-center gap-2">
             <input
               type="color"
-              value={value || "#000000"}
+              value={String(value || "#000000")}
               onChange={(e) => onChange(setting.key, e.target.value)}
               className="h-10 w-14 rounded-md border border-input cursor-pointer"
             />
             <Input
-              value={value || ""}
+              value={String(value || "")}
               onChange={(e) => onChange(setting.key, e.target.value)}
               className="font-mono"
               placeholder="#000000"
@@ -197,14 +200,14 @@ function SettingField({
           <Label>{label}</Label>
           <div className="flex items-center gap-3">
             {value ? (
-              <img src={value} alt={label} className="h-16 w-16 rounded-lg object-cover border" />
+              <img src={String(value)} alt={label} className="h-16 w-16 rounded-lg object-cover border" />
             ) : (
               <div className="h-16 w-16 rounded-lg border-2 border-dashed border-border bg-muted flex items-center justify-center text-muted-foreground text-xs">
                 {language === "ar" ? "صورة" : "IMG"}
               </div>
             )}
             <Input
-              value={value || ""}
+              value={String(value || "")}
               onChange={(e) => onChange(setting.key, e.target.value)}
               placeholder={language === "ar" ? "رابط الصورة" : "Image URL"}
               className="flex-1"
@@ -216,28 +219,12 @@ function SettingField({
       return (
         <div className="grid gap-2">
           <Label>{label}</Label>
-          <Select value={value || String(setting.default)} onValueChange={(v) => onChange(setting.key, v)}>
+          <Select value={String(value || setting.default)} onValueChange={(v) => onChange(setting.key, v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {setting.options?.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
                   {language === "ar" ? opt.labelAr : opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      );
-    case "font":
-      return (
-        <div className="grid gap-2">
-          <Label>{label}</Label>
-          <Select value={value || String(setting.default)} onValueChange={(v) => onChange(setting.key, v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {AVAILABLE_FONTS.map((fontName) => (
-                <SelectItem key={fontName} value={fontName}>
-                  <span style={{ fontFamily: `'${fontName}', sans-serif` }}>{fontName}</span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -256,7 +243,7 @@ function SettingField({
             min={setting.min}
             max={setting.max}
             step={setting.step}
-            value={value ?? setting.default}
+            value={Number(value ?? setting.default)}
             onChange={(e) => onChange(setting.key, Number(e.target.value))}
             className="w-full"
           />
@@ -434,8 +421,8 @@ const THEME_PREVIEWS: Record<string, { bg: string; fg: string; accent: string; i
   "luxury-minimal": { bg: "#ffffff", fg: "#1a1a1a", accent: "#b8860b", icon: "💎" },
 };
 
-function extractNonEmpty(state: Record<string, any>): Record<string, any> {
-  const result: Record<string, any> = {};
+function extractNonEmpty(state: Record<string, string | number | boolean>): Record<string, string | number | boolean> {
+  const result: Record<string, string | number | boolean> = {};
   for (const [k, v] of Object.entries(state)) {
     if (v !== "" && v !== undefined && v !== null) result[k] = v;
   }
@@ -467,15 +454,15 @@ const StoreSettings = () => {
   // ─── Theme / Customization state ────────────────────────────────────────
   const [availableThemes, setAvailableThemes] = useState<AvailableTheme[]>([]);
   const [activeTheme, setActiveTheme] = useState("modern");
-  const [themeState, setThemeState] = useState<Record<string, any>>({});
-  const [identityState, setIdentityState] = useState<Record<string, any>>({});
-  const [headerState, setHeaderState] = useState<Record<string, any>>({});
-  const [heroState, setHeroState] = useState<Record<string, any>>({});
-  const [productsState, setProductsState] = useState<Record<string, any>>({});
-  const [footerState, setFooterState] = useState<Record<string, any>>({});
-  const [navigationState, setNavigationState] = useState<Record<string, any>>({});
-  const [labelsState, setLabelsState] = useState<Record<string, any>>({});
-  const [layoutState, setLayoutState] = useState<Record<string, any>>({});
+  const [themeState, setThemeState] = useState<Record<string, SettingValue>>({});
+  const [identityState, setIdentityState] = useState<Record<string, SettingValue>>({});
+  const [headerState, setHeaderState] = useState<Record<string, SettingValue>>({});
+  const [heroState, setHeroState] = useState<Record<string, SettingValue>>({});
+  const [productsState, setProductsState] = useState<Record<string, SettingValue>>({});
+  const [footerState, setFooterState] = useState<Record<string, SettingValue>>({});
+  const [navigationState, setNavigationState] = useState<Record<string, SettingValue>>({});
+  const [labelsState, setLabelsState] = useState<Record<string, SettingValue>>({});
+  const [layoutState, setLayoutState] = useState<Record<string, SettingValue>>({});
   const [navLinks, setNavLinks] = useState<Array<{ label: string; to: string }>>([]);
   const [homeSections, setHomeSections] = useState<Array<{ id: string; label: string; enabled: boolean }>>([
     { id: "hero", label: "القسم الرئيسي", enabled: true },
@@ -535,26 +522,26 @@ const StoreSettings = () => {
   }, []);
 
   // Section maps for customization
-  const sectionStates: Record<string, Record<string, any>> = {
+  const sectionStates: Record<string, Record<string, SettingValue>> = {
     identity: identityState, header: headerState, hero: heroState,
     products: productsState, footer: footerState,
     navigation: navigationState, labels: labelsState, layout: layoutState,
   };
-  const sectionSetters: Record<string, React.Dispatch<React.SetStateAction<Record<string, any>>>> = {
+  const sectionSetters: Record<string, React.Dispatch<React.SetStateAction<Record<string, SettingValue>>>> = {
     identity: setIdentityState, header: setHeaderState, hero: setHeroState,
     products: setProductsState, footer: setFooterState,
     navigation: setNavigationState, labels: setLabelsState, layout: setLayoutState,
   };
 
   const handleSectionChange = useCallback(
-    (section: string) => (key: string, value: any) => {
+    (section: string) => (key: string, value: SettingValue) => {
       sectionSetters[section]?.((prev) => ({ ...prev, [key]: value }));
       setIsDirty(true);
     },
     []
   );
 
-  const handleThemeSettingChange = useCallback((key: string, value: any) => {
+  const handleThemeSettingChange = useCallback((key: string, value: SettingValue) => {
     setThemeState((prev) => ({ ...prev, [key]: value }));
     setIsDirty(true);
   }, []);
@@ -619,17 +606,17 @@ const StoreSettings = () => {
         if (data.hero) setHeroState({ ...data.hero });
         if (data.products) setProductsState({ ...data.products });
         if (data.footer) {
-          const { social_links, ...rest } = data.footer as any;
+          const { social_links, ...rest } = data.footer;
           setFooterState({ ...rest, ...(social_links || {}) });
         }
         if (data.navigation) {
-          const { links, ...navRest } = data.navigation as any;
+          const { links, ...navRest } = data.navigation;
           setNavigationState({ ...navRest });
           if (links && Array.isArray(links)) setNavLinks(links);
         }
         if (data.labels) setLabelsState({ ...data.labels });
         if (data.layout) {
-          const { home_sections, ...layoutRest } = data.layout as any;
+          const { home_sections, ...layoutRest } = data.layout;
           setLayoutState({ ...layoutRest });
           if (home_sections && Array.isArray(home_sections)) {
             setHomeSections((prev) =>
@@ -647,8 +634,9 @@ const StoreSettings = () => {
           }
         }
         // V2: Load template if available
-        if ((data as any).schema_version === 2 && (data as any).templates?.home) {
-          setTemplateConfig((data as any).templates.home);
+        const extData = data as CustomizationData & { schema_version?: number; templates?: { home: TemplateConfigData } };
+        if (extData.schema_version === 2 && extData.templates?.home) {
+          setTemplateConfig(extData.templates.home);
         }
       })
       .catch(() => {});
@@ -714,7 +702,7 @@ const StoreSettings = () => {
     const id = `${sectionType}_${Math.random().toString(36).slice(2, 6)}`;
 
     // Collect defaults from schema
-    const defaults: Record<string, any> = {};
+    const defaults: Record<string, SettingValue> = {};
     for (const s of schema.settings) {
       if (s.default !== undefined) defaults[s.key] = s.default;
     }
@@ -746,7 +734,7 @@ const StoreSettings = () => {
     setIsDirty(true);
   }, [selectedSectionId]);
 
-  const handleSectionSettingChange = useCallback((sectionId: string, key: string, value: any) => {
+  const handleSectionSettingChange = useCallback((sectionId: string, key: string, value: SettingValue) => {
     setTemplateConfig((prev) => {
       if (!prev) return prev;
       return {
@@ -773,15 +761,15 @@ const StoreSettings = () => {
       ? { facebook: socialRaw.facebook || "", instagram: socialRaw.instagram || "", twitter: socialRaw.twitter || "", whatsapp: socialRaw.whatsapp || "" }
       : undefined;
 
-    const navPayload: Record<string, any> = { ...extractNonEmpty(navigationState) };
+    const navPayload: Record<string, unknown> = { ...extractNonEmpty(navigationState) };
     if (navLinks.length > 0) navPayload.links = navLinks;
 
-    const layoutPayload: Record<string, any> = { ...extractNonEmpty(layoutState) };
+    const layoutPayload: Record<string, unknown> = { ...extractNonEmpty(layoutState) };
     const enabledSections = homeSections.filter((s) => s.enabled).map((s) => s.id);
     if (enabledSections.length > 0) layoutPayload.home_sections = enabledSections;
 
     // Extract hero from v2 template for v1 backwards compat
-    let heroPayload = extractNonEmpty(heroState);
+    let heroPayload: Record<string, string | number | boolean> = extractNonEmpty(heroState);
     if (templateConfig) {
       const heroSection = Object.values(templateConfig.sections).find((s) => s.type === "hero");
       if (heroSection) heroPayload = { ...heroPayload, ...extractNonEmpty(heroSection.settings) };
@@ -800,18 +788,18 @@ const StoreSettings = () => {
       if (derived.length > 0) layoutPayload.home_sections = derived;
     }
 
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
       theme: { base_theme: activeTheme, ...extractNonEmpty(themeState) },
-      identity: extractNonEmpty(identityState) as any,
-      header: extractNonEmpty(headerState) as any,
-      hero: heroPayload as any,
-      products: extractNonEmpty(productsState) as any,
+      identity: extractNonEmpty(identityState),
+      header: extractNonEmpty(headerState),
+      hero: heroPayload,
+      products: extractNonEmpty(productsState),
       footer: {
         ...footerRest,
         ...(social_links ? { social_links } : {}),
-      } as any,
+      },
       navigation: Object.keys(navPayload).length > 0 ? navPayload : undefined,
-      labels: extractNonEmpty(labelsState) as any,
+      labels: extractNonEmpty(labelsState),
       layout: Object.keys(layoutPayload).length > 0 ? layoutPayload : undefined,
     };
 
@@ -1196,7 +1184,7 @@ const StoreSettings = () => {
                   <div
                     key={key}
                     className="h-7 w-7 rounded-full border-2 border-white shadow-sm"
-                    style={{ backgroundColor: themeState[key] || "#ccc" }}
+                    style={{ backgroundColor: String(themeState[key] || "#ccc") }}
                     title={key.replace(/_/g, " ")}
                   />
                 ))}

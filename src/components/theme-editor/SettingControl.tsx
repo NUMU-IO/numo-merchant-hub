@@ -20,10 +20,12 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
+export type SettingValue = string | number | boolean;
+
 export interface SettingControlProps {
   setting: SectionSettingDefinition;
-  value: any;
-  onChange: (key: string, value: any) => void;
+  value: SettingValue;
+  onChange: (key: string, value: SettingValue) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -99,8 +101,8 @@ export function SettingControl({ setting, value, onChange }: SettingControlProps
 
 function renderControl(
   setting: SectionSettingDefinition,
-  value: any,
-  onChange: (key: string, value: any) => void,
+  value: SettingValue,
+  onChange: (key: string, value: SettingValue) => void,
 ) {
   // Font picker for any setting with _font key suffix (handles both type:"font" and type:"select")
   // Also triggers for type:"font" even without _font suffix
@@ -299,8 +301,8 @@ function FontPicker({
   onChange,
 }: {
   setting: SectionSettingDefinition;
-  value: any;
-  onChange: (key: string, value: any) => void;
+  value: SettingValue;
+  onChange: (key: string, value: SettingValue) => void;
 }) {
   // Always use canonical font list to guarantee all 12 fonts show
   const options = CANONICAL_FONTS;

@@ -30,7 +30,7 @@ export interface ApiProductResponse {
   images: string[];
   category_id: string | null;
   tags: string[];
-  attributes: Record<string, any>;
+  attributes: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -68,7 +68,7 @@ export interface CreateProductData {
   images?: string[];
   category_id?: string;
   tags?: string[];
-  attributes?: Record<string, any>;
+  attributes?: Record<string, unknown>;
 }
 
 export interface UpdateProductData extends Partial<CreateProductData> {
@@ -176,10 +176,27 @@ function toDisplayStatus(apiStatus: string): ProductStatus {
   return apiStatus as ProductStatus;
 }
 
-function extractVariants(attributes: Record<string, any>): ProductVariant[] {
+interface ProductAttributes {
+  nameAr?: string;
+  descriptionAr?: string;
+  categoryName?: string;
+  categoryNameAr?: string;
+  sold?: number;
+  variants?: RawVariant[];
+  [key: string]: unknown;
+}
+
+interface RawVariant {
+  name?: string;
+  nameAr?: string;
+  options?: string[];
+  optionsAr?: string[];
+}
+
+function extractVariants(attributes: ProductAttributes): ProductVariant[] {
   const raw = attributes?.variants;
   if (!Array.isArray(raw)) return [];
-  return raw.map((v: any, i: number) => ({
+  return raw.map((v: RawVariant, i: number) => ({
     id: `v-${i}`,
     name: v.name || "",
     nameAr: v.nameAr || "",
@@ -189,7 +206,7 @@ function extractVariants(attributes: Record<string, any>): ProductVariant[] {
 }
 
 export function apiToProduct(api: ApiProductResponse): Product {
-  const attrs = api.attributes || {};
+  const attrs = (api.attributes || {}) as ProductAttributes;
   return {
     id: api.id,
     name: api.name,
@@ -287,7 +304,7 @@ export function productToApiUpdate(
   if (form.categoryId !== undefined) data.category_id = form.categoryId || undefined;
 
   // Always send full attributes to avoid partial overwrites
-  const attributes: Record<string, any> = {};
+  const attributes: Record<string, unknown> = {};
   if (form.nameAr !== undefined) attributes.nameAr = form.nameAr;
   if (form.descriptionAr !== undefined)
     attributes.descriptionAr = form.descriptionAr;

@@ -114,7 +114,7 @@ const SocialImport = () => {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base">{t("social.recentPosts")}</CardTitle>
             <div className="flex items-center gap-2">
-              <Tabs value={platformFilter} onValueChange={(v) => setPlatformFilter(v as any)}>
+              <Tabs value={platformFilter} onValueChange={(v) => setPlatformFilter(v as "all" | "instagram" | "facebook")}>
                 <TabsList>
                   <TabsTrigger value="all">{t("social.all")}</TabsTrigger>
                   <TabsTrigger value="instagram" className="gap-1.5">

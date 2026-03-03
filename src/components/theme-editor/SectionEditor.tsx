@@ -11,19 +11,20 @@ import type {
   SectionSchemaData,
 } from "@/services/themeApi";
 import { SchemaForm } from "./SchemaForm";
+import type { SettingValue } from "./SettingControl";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 
 export interface SectionEditorProps {
   section: SectionInstanceData;
   schema: SectionSchemaData;
-  onChange: (sectionId: string, key: string, value: any) => void;
+  onChange: (sectionId: string, key: string, value: SettingValue) => void;
   onBack?: () => void;
 }
 
 export function SectionEditor({ section, schema, onChange, onBack }: SectionEditorProps) {
   const handleChange = useCallback(
-    (key: string, value: any) => {
+    (key: string, value: SettingValue) => {
       onChange(section.id, key, value);
     },
     [section.id, onChange],

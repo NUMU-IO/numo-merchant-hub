@@ -67,8 +67,8 @@ export default function VerifyEmail() {
       setSuccess(true);
       await refreshUser();
       setTimeout(() => navigate("/", { replace: true }), 1500);
-    } catch (err: any) {
-      setError(err.message || "Verification link is invalid or expired");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Verification link is invalid or expired");
     } finally {
       setLoading(false);
     }
@@ -88,8 +88,8 @@ export default function VerifyEmail() {
       setSuccess(true);
       await refreshUser();
       setTimeout(() => navigate("/", { replace: true }), 1500);
-    } catch (err: any) {
-      setError(err.message || "Invalid or expired code");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Invalid or expired code");
       // Clear code on error
       setCode(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
@@ -104,8 +104,8 @@ export default function VerifyEmail() {
     try {
       await resendVerificationEmail();
       setCooldown(60);
-    } catch (err: any) {
-      setError(err.message || "Failed to resend verification email");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to resend verification email");
     } finally {
       setResending(false);
     }

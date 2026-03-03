@@ -255,8 +255,8 @@ export default function Marketing() {
       setDialogOpen(false);
       resetForm();
       fetchCoupons();
-    } catch (err: any) {
-      toast.error(err.message || (isAr ? "حصل خطأ" : "Something went wrong"));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : (isAr ? "حصل خطأ" : "Something went wrong"));
     } finally {
       setIsSaving(false);
     }
@@ -270,8 +270,8 @@ export default function Marketing() {
       toast.success(isAr ? "تم حذف الكوبون" : "Coupon deleted");
       setDeleteTarget(null);
       fetchCoupons();
-    } catch (err: any) {
-      toast.error(err.message || (isAr ? "حصل خطأ" : "Something went wrong"));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : (isAr ? "حصل خطأ" : "Something went wrong"));
     } finally {
       setIsDeleting(false);
     }
@@ -285,8 +285,8 @@ export default function Marketing() {
         ? (coupon.is_active ? "تم تعطيل الكوبون" : "تم تفعيل الكوبون")
         : (coupon.is_active ? "Coupon deactivated" : "Coupon activated"));
       fetchCoupons();
-    } catch (err: any) {
-      toast.error(err.message || (isAr ? "حصل خطأ" : "Something went wrong"));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : (isAr ? "حصل خطأ" : "Something went wrong"));
     }
   };
 
@@ -558,7 +558,7 @@ export default function Marketing() {
             </div>
             <div>
               <Label>{isAr ? "نوع الخصم" : "Discount Type"}</Label>
-              <Select value={formType} onValueChange={(v) => setFormType(v as any)}>
+              <Select value={formType} onValueChange={(v) => setFormType(v as "percentage" | "fixed" | "free_shipping")}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>

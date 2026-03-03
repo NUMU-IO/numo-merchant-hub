@@ -78,8 +78,8 @@ export default function Login() {
         await login(email, password);
         navigate("/", { replace: true });
       }
-    } catch (err: any) {
-      setError(err.message || t("common.error"));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setLoading(false);
     }
