@@ -52,6 +52,7 @@ import {
   AddSectionSheet,
   CustomizationWalkthrough,
   useWalkthroughStatus,
+  ThemeMarketplace,
 } from "@/components/theme-editor";
 import { updateStore } from "@/services/storeApi";
 import { getStoreUrl, getStoreDomainSuffix } from "@/lib/storefront";
@@ -927,6 +928,7 @@ const StoreSettings = () => {
 
   const tabs = [
     { value: "profile", label: t("store.profile"), icon: Settings2 },
+    { value: "themes", label: language === "ar" ? "سوق الثيمات" : "Themes", icon: Sparkles },
     { value: "customization", label: t("store.customization"), icon: Palette },
     { value: "domain", label: t("store.domain"), icon: Globe },
     { value: "policies", label: t("store.policies"), icon: ScrollText },
@@ -1065,6 +1067,18 @@ const StoreSettings = () => {
           </Card>
         </TabsContent>
 
+        {/* ═══ Themes Marketplace ═══ */}
+        <TabsContent value="themes">
+          <ThemeMarketplace
+            activeTheme={activeTheme}
+            availableThemes={availableThemes}
+            onSelectTheme={(id) => {
+              setActiveTheme(id);
+              setIsDirty(true);
+            }}
+          />
+        </TabsContent>
+
         {/* ═══ Customization ═══ */}
         <TabsContent value="customization">
           {/* Onboarding walkthrough */}
@@ -1075,105 +1089,57 @@ const StoreSettings = () => {
           />
 
           {/* ── Action bar ── */}
-          <div data-tour="action-bar" className="flex items-center gap-2 mb-5 rounded-xl border bg-card p-3">
-            <Button onClick={saveDraft} disabled={isSaving} variant="outline" size="sm" className="gap-2">
-              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Settings2 className="h-3.5 w-3.5" />}
-              {language === "ar" ? "حفظ مسودة" : "Save Draft"}
-            </Button>
-            <Button onClick={publish} disabled={isSaving} size="sm" className="gap-2 bg-green-600 hover:bg-green-700 text-white">
-              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-              {language === "ar" ? "نشر" : "Publish"}
-            </Button>
-            {isDirty && (
-              <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 text-[10px]">
-                {language === "ar" ? "تغييرات غير محفوظة" : "Unsaved changes"}
-              </Badge>
-            )}
-            <div className="flex items-center gap-1 ms-auto">
+          <div data-tour="action-bar" className="flex items-center gap-2 mb-5 rounded-2xl border bg-card p-3 shadow-sm">
+            <div className="flex items-center gap-2 me-auto">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10">
+                <Palette className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold tracking-tight">
+                  {language === "ar" ? "تخصيص المتجر" : "Store Customization"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {language === "ar"
+                    ? `ثيم: ${availableThemes.find((t) => t.id === activeTheme)?.nameAr || activeTheme}`
+                    : `Theme: ${availableThemes.find((t) => t.id === activeTheme)?.name || activeTheme}`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {isDirty && (
+                <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 text-[10px]">
+                  {language === "ar" ? "تغييرات غير محفوظة" : "Unsaved"}
+                </Badge>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => { resetWalkthrough(); setShowWalkthrough(true); }}
-                className="gap-1.5 text-muted-foreground"
+                className="gap-1.5 text-muted-foreground h-8"
                 title={language === "ar" ? "دليل الاستخدام" : "Show guide"}
               >
                 <Compass className="h-3.5 w-3.5" />
-                {language === "ar" ? "دليل" : "Guide"}
               </Button>
               <Button
                 data-tour="preview-toggle"
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() => setShowPreview((v) => !v)}
-                className="gap-2"
+                className="gap-2 h-8 rounded-xl"
               >
                 {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 {showPreview
-                  ? (language === "ar" ? "إخفاء" : "Hide")
-                  : (language === "ar" ? "معاينة" : "Preview")}
+                  ? (language === "ar" ? "إخفاء المعاينة" : "Hide Preview")
+                  : (language === "ar" ? "معاينة مباشرة" : "Live Preview")}
               </Button>
-            </div>
-          </div>
-
-          {/* ── Theme picker strip ── */}
-          <div data-tour="theme-picker" className="mb-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">{language === "ar" ? "اختر الثيم" : "Choose Theme"}</h3>
-            </div>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {(availableThemes.length > 0 ? availableThemes : [
-                { id: "modern", name: "Modern", nameAr: "مودرن", description: "", layout: "default" },
-                { id: "boutique", name: "Boutique", nameAr: "بوتيك", description: "", layout: "default" },
-                { id: "elegant", name: "Elegant", nameAr: "أنيق", description: "", layout: "default" },
-                { id: "skeuomorphic", name: "Classic", nameAr: "كلاسيك", description: "", layout: "skeuomorphic" },
-                { id: "neo-brutalism", name: "Neo Brutalism", nameAr: "نيو بروتاليزم", description: "", layout: "neo-brutalism" },
-                { id: "editorial", name: "Editorial", nameAr: "إيديتوريال", description: "", layout: "editorial" },
-                { id: "luxury-minimal", name: "Luxury Minimal", nameAr: "فخامة مينيمال", description: "", layout: "luxury-minimal" },
-              ]).map((theme) => {
-                const isActive = activeTheme === theme.id;
-                const preview = THEME_PREVIEWS[theme.id] || THEME_PREVIEWS.modern;
-                return (
-                  <button
-                    key={theme.id}
-                    onClick={() => {
-                      setActiveTheme(theme.id);
-                      setIsDirty(true);
-                    }}
-                    className={`shrink-0 rounded-xl border-2 overflow-hidden transition-all duration-200 w-36 hover:shadow-md ${
-                      isActive
-                        ? "border-primary ring-2 ring-primary/20 shadow-md"
-                        : "border-border hover:border-primary/40"
-                    }`}
-                  >
-                    <div
-                      className="h-16 flex items-center justify-center relative"
-                      style={{ backgroundColor: preview.bg }}
-                    >
-                      <span className="text-2xl">{preview.icon}</span>
-                      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1">
-                        {[preview.fg, preview.accent].map((c, i) => (
-                          <div
-                            key={i}
-                            className="h-2.5 w-2.5 rounded-full border border-white/40"
-                            style={{ backgroundColor: c }}
-                          />
-                        ))}
-                      </div>
-                      {isActive && (
-                        <div className="absolute top-1 end-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                          <Check className="h-3 w-3" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="px-2 py-1.5 bg-card text-center">
-                      <p className="text-xs font-semibold truncate">
-                        {language === "ar" ? theme.nameAr : theme.name}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
+              <Button onClick={saveDraft} disabled={isSaving} variant="outline" size="sm" className="gap-2 h-8 rounded-xl">
+                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Settings2 className="h-3.5 w-3.5" />}
+                {language === "ar" ? "حفظ" : "Save Draft"}
+              </Button>
+              <Button onClick={publish} disabled={isSaving} size="sm" className="gap-2 h-8 rounded-xl">
+                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                {language === "ar" ? "نشر" : "Publish"}
+              </Button>
             </div>
           </div>
 
@@ -1181,46 +1147,60 @@ const StoreSettings = () => {
           <div ref={splitRef} className="flex" style={{ gap: 0 }}>
             {/* Left: settings panel */}
             <div
-              className="space-y-4 overflow-y-auto pe-3"
+              className="space-y-5 overflow-y-auto pe-3"
               style={{
                 width: showPreview ? `${100 - previewPct}%` : "100%",
                 maxHeight: showPreview ? "calc(100vh - 10rem)" : undefined,
               }}
             >
-              {/* Quick color swatches preview */}
-              <div className="flex items-center gap-2 rounded-xl border bg-card p-3">
-                <span className="text-xs font-medium text-muted-foreground me-1">
-                  {language === "ar" ? "الألوان:" : "Colors:"}
-                </span>
-                {["primary_color", "secondary_color", "accent_color", "background_color", "text_color"].map((key) => (
-                  <div
-                    key={key}
-                    className="h-7 w-7 rounded-full border-2 border-white shadow-sm"
-                    style={{ backgroundColor: themeState[key] || "#ccc" }}
-                    title={key.replace(/_/g, " ")}
-                  />
-                ))}
-                <div className="ms-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Type className="h-3.5 w-3.5" />
-                  <span style={{ fontFamily: `'${themeState.heading_font || "Cairo"}', sans-serif` }}>
-                    {themeState.heading_font || "Cairo"}
-                  </span>
+              {/* Active theme indicator */}
+              <div className="flex items-center gap-3 rounded-2xl border bg-card p-4">
+                <div
+                  className="h-12 w-12 rounded-xl flex items-center justify-center shadow-sm"
+                  style={{
+                    backgroundColor: (THEME_PREVIEWS[activeTheme] || THEME_PREVIEWS.modern).bg,
+                  }}
+                >
+                  <span className="text-lg">{(THEME_PREVIEWS[activeTheme] || THEME_PREVIEWS.modern).icon}</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold tracking-tight">
+                    {language === "ar"
+                      ? availableThemes.find((t) => t.id === activeTheme)?.nameAr || activeTheme
+                      : availableThemes.find((t) => t.id === activeTheme)?.name || activeTheme}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {language === "ar" ? "الثيم المفعّل حالياً" : "Currently active theme"}
+                  </p>
+                </div>
+                {/* Quick color swatches */}
+                <div className="flex gap-1">
+                  {["primary_color", "secondary_color", "accent_color"].map((key) => (
+                    <div
+                      key={key}
+                      className="h-6 w-6 rounded-full border-2 border-background shadow-sm"
+                      style={{ backgroundColor: themeState[key] || "#ccc" }}
+                      title={key.replace(/_/g, " ")}
+                    />
+                  ))}
                 </div>
               </div>
 
-              {/* Theme-specific settings (colors, fonts, layout) — schema-driven */}
-              <Card data-tour="colors-typography">
+              {/* Theme-specific settings (colors, fonts, layout) */}
+              <Card data-tour="colors-typography" className="rounded-2xl shadow-sm">
                 <CardHeader className="pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
                       <Palette className="h-4 w-4 text-primary" />
                     </div>
                     <div>
-                      <CardTitle className="text-sm">{language === "ar" ? "ألوان وخطوط" : "Colors & Typography"}</CardTitle>
+                      <CardTitle className="text-sm tracking-tight">
+                        {language === "ar" ? "الألوان والخطوط" : "Colors & Typography"}
+                      </CardTitle>
                       <CardDescription className="text-xs">
                         {language === "ar"
-                          ? `ثيم "${availableThemes.find((t) => t.id === activeTheme)?.nameAr || activeTheme}"`
-                          : `"${availableThemes.find((t) => t.id === activeTheme)?.name || activeTheme}" theme`}
+                          ? "خصّص ألوان وخطوط متجرك"
+                          : "Customize your store's colors and fonts"}
                       </CardDescription>
                     </div>
                   </div>
@@ -1261,28 +1241,27 @@ const StoreSettings = () => {
                 </CardContent>
               </Card>
 
-              {/* V2: Home Page Sections — section list + editor */}
+              {/* V2: Home Page Sections */}
               {templateConfig && themeSchemaBundle && (
-                <Card data-tour="home-sections">
+                <Card data-tour="home-sections" className="rounded-2xl shadow-sm">
                   <CardHeader className="pb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
                         <LayoutGrid className="h-4 w-4 text-primary" />
                       </div>
                       <div>
-                        <CardTitle className="text-sm">
+                        <CardTitle className="text-sm tracking-tight">
                           {language === "ar" ? "أقسام الصفحة الرئيسية" : "Home Page Sections"}
                         </CardTitle>
                         <CardDescription className="text-xs">
                           {language === "ar"
-                            ? "أضف وأزل ورتب أقسام الصفحة الرئيسية"
-                            : "Add, remove, and reorder home page sections"}
+                            ? "أضف وأزل ورتب أقسام الصفحة"
+                            : "Add, remove, and reorder page sections"}
                         </CardDescription>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {/* Show either section list or section editor (not both) */}
                     {selectedSectionId && templateConfig.sections[selectedSectionId] ? (() => {
                       const section = templateConfig.sections[selectedSectionId];
                       const schema = themeSchemaBundle.sections.find((s) => s.type === section.type);
@@ -1313,19 +1292,28 @@ const StoreSettings = () => {
 
               {/* Store-wide settings (identity, header, navigation, etc.) */}
               <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <ScrollText className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-semibold">{language === "ar" ? "إعدادات المتجر" : "Store Settings"}</h3>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+                    <ScrollText className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold tracking-tight">
+                      {language === "ar" ? "إعدادات المتجر" : "Store Settings"}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {language === "ar" ? "الهوية والهيدر والفوتر والتنقل" : "Identity, header, footer & navigation"}
+                    </p>
+                  </div>
                 </div>
                 <Accordion type="multiple" className="space-y-2">
                   {SECTION_CONFIG.map((section) => (
-                    <AccordionItem key={section.key} value={section.key} className="border rounded-xl px-4 bg-card">
+                    <AccordionItem key={section.key} value={section.key} className="border rounded-2xl px-4 bg-card shadow-sm">
                       <AccordionTrigger className="hover:no-underline gap-3 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10">
                             <section.icon className="h-3.5 w-3.5 text-primary" />
                           </div>
-                          <span className="text-sm font-medium">
+                          <span className="text-sm font-medium tracking-tight">
                             {language === "ar" ? section.labelAr : section.label}
                           </span>
                         </div>
@@ -1340,7 +1328,6 @@ const StoreSettings = () => {
                             language={language}
                           />
                         ))}
-                        {/* Nav links editor inside Navigation section */}
                         {section.key === "navigation" && (
                           <NavLinksEditor
                             links={navLinks}
@@ -1368,7 +1355,7 @@ const StoreSettings = () => {
             {/* Right: live preview (sticky) */}
             {showPreview && (
               <div className="sticky top-4 self-start" style={{ width: `${previewPct}%` }}>
-                <Card className="overflow-hidden h-[calc(100vh-10rem)] border-2 border-primary/10">
+                <Card className="overflow-hidden h-[calc(100vh-10rem)] border-2 border-primary/10 rounded-2xl">
                   <CardContent className="p-0 h-full">
                     <ThemePreview
                       storeSubdomain={currentStore?.subdomain}
