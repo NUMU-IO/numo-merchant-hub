@@ -4,3 +4,4 @@ export { SectionList } from "./SectionList";
 export { SectionEditor } from "./SectionEditor";
 export { AddSectionSheet } from "./AddSectionSheet";
 export { CustomizationWalkthrough, useWalkthroughStatus } from "./CustomizationWalkthrough";
+export { ThemeMarketplace } from "./ThemeMarketplace";

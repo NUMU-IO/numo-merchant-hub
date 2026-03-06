@@ -6,18 +6,11 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { NavLink } from "@/components/NavLink";
-import numuIcon from "@/assets/numu-icon.png";
+import { NumuIcon } from "@/components/NumuLogo";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarFooter,
-  SidebarSeparator,
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
+  SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
+  SidebarFooter, SidebarSeparator,
 } from "@/components/ui/sidebar";
 
 const AppSidebar = () => {
@@ -47,12 +40,9 @@ const AppSidebar = () => {
   const isActive = (url: string) =>
     url === "/" ? location.pathname === "/" : location.pathname.startsWith(url);
 
-  const renderGroup = (
-    label: string,
-    items: typeof mainNav
-  ) => (
+  const renderGroup = (label: string, items: typeof mainNav) => (
     <SidebarGroup>
-      <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 group-data-[collapsible=icon]:hidden">
+      <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/50 group-data-[collapsible=icon]:hidden px-3 mb-1">
         {label}
       </SidebarGroupLabel>
       <SidebarGroupContent>
@@ -63,9 +53,10 @@ const AppSidebar = () => {
                 asChild
                 isActive={isActive(item.url)}
                 tooltip={item.title}
+                className="h-9 rounded-lg transition-smooth"
               >
                 <NavLink to={item.url} end={item.url === "/"}>
-                  <item.icon className="h-[18px] w-[18px]" />
+                  <item.icon className="h-4 w-4" />
                   <span className="text-[13px] font-medium">{item.title}</span>
                 </NavLink>
               </SidebarMenuButton>
@@ -80,35 +71,37 @@ const AppSidebar = () => {
     <Sidebar collapsible="icon" side={isRTL ? "right" : "left"}>
       <SidebarContent>
         {/* Brand */}
-        <div className="flex h-16 items-center gap-2.5 px-4 group-data-[collapsible=icon]:justify-center border-b border-sidebar-border">
-          <img src={numuIcon} alt="NUMU" className="h-8 w-8 object-contain" />
+        <div className="flex h-14 items-center gap-2.5 px-4 group-data-[collapsible=icon]:justify-center border-b border-sidebar-border">
+          <NumuIcon size={26} />
           <div className="group-data-[collapsible=icon]:hidden">
-            <span className="text-lg font-bold tracking-tight">NUMU</span>
-            <span className="text-[10px] text-muted-foreground block -mt-1 font-medium">
+            <span className="text-sm font-black tracking-[0.08em]">NUMU</span>
+            <span className="text-[10px] text-muted-foreground/50 block -mt-0.5 font-medium">
               {isRTL ? "لوحة التحكم" : "Merchant"}
             </span>
           </div>
         </div>
 
-        {renderGroup(isRTL ? "الرئيسية" : "Main", mainNav)}
-        <SidebarSeparator />
-        {renderGroup(isRTL ? "القنوات" : "Channels", channelsNav)}
-        <SidebarSeparator />
-        {renderGroup(isRTL ? "التقارير" : "Insights", insightsNav)}
+        <div className="py-2">
+          {renderGroup(isRTL ? "الرئيسية" : "Main", mainNav)}
+          <SidebarSeparator className="my-2" />
+          {renderGroup(isRTL ? "القنوات" : "Channels", channelsNav)}
+          <SidebarSeparator className="my-2" />
+          {renderGroup(isRTL ? "التقارير" : "Insights", insightsNav)}
+        </div>
       </SidebarContent>
 
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip={t("header.settings")}>
+            <SidebarMenuButton asChild tooltip={t("header.settings")} className="h-9 rounded-lg">
               <NavLink to="/store">
-                <Settings className="h-[18px] w-[18px]" />
+                <Settings className="h-4 w-4" />
                 <span className="text-[13px] font-medium">{t("header.settings")}</span>
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <div className="px-4 py-2 text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
+        <div className="px-4 py-2 text-[10px] text-muted-foreground/30 font-medium group-data-[collapsible=icon]:hidden">
           NUMU © 2026
         </div>
       </SidebarFooter>

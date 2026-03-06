@@ -8,6 +8,10 @@ import {
   bulkUpdateStatus, getOrderTimeline, markOrderPaid,
   type OrderListItem, type Order as ApiOrder, type TimelineEvent,
 } from "@/services/orderApi";
+import {
+  createRefund, listOrderRefunds, approveRefund, rejectRefund, processRefund,
+  type RefundListItem, type RefundReason, type CreateRefundRequest,
+} from "@/services/refundApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +27,10 @@ import {
 import {
   ArrowLeft, CheckCircle2, Circle, Clock, Package, Truck, XCircle,
   MoreHorizontal, Printer, FileDown, ChevronRight, ArrowRightCircle, Loader2,
+  RotateCcw, AlertCircle,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
 
@@ -45,6 +52,15 @@ const Orders = () => {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Refund state
+  const [orderRefunds, setOrderRefunds] = useState<RefundListItem[]>([]);
+  const [showRefundForm, setShowRefundForm] = useState(false);
+  const [refundType, setRefundType] = useState<"full" | "partial">("full");
+  const [refundReason, setRefundReason] = useState<RefundReason>("customer_request");
+  const [refundNote, setRefundNote] = useState("");
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundLoading, setRefundLoading] = useState(false);
 
   // React Query hook for orders list
   const ordersQuery = useQuery({
@@ -73,10 +89,12 @@ const Orders = () => {
   const openOrderDetail = async (orderId: string) => {
     if (!storeId) return;
     setDetailLoading(true);
+    setShowRefundForm(false);
     try {
-      const [order, timeline] = await Promise.all([
+      const [order, timeline, refunds] = await Promise.all([
         getOrder(storeId, orderId),
         getOrderTimeline(storeId, orderId).catch(() => ({ events: [] as TimelineEvent[], order_id: "", order_number: "" })),
+        listOrderRefunds(storeId, orderId).catch(() => ({ items: [] as RefundListItem[] })),
       ]);
       setSelectedOrderDetail(order);
       setOrderTimeline(timeline.events || []);
@@ -102,6 +120,17 @@ const Orders = () => {
     unpaid: "bg-destructive/10 text-destructive",
     cod: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     refunded: "bg-blue-500/10 text-blue-600",
+    partially_refunded: "bg-blue-500/10 text-blue-600",
+  };
+
+  const refundStatusColor: Record<string, string> = {
+    requested: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    approved: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    processing: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    processed: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    completed: "bg-primary/10 text-primary",
+    rejected: "bg-destructive/10 text-destructive",
+    failed: "bg-destructive/10 text-destructive",
   };
 
   const timelineIcons: Record<string, React.ReactNode> = {
@@ -159,6 +188,80 @@ const Orders = () => {
       invalidateOrders();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to mark as paid");
+    }
+  };
+
+  const loadRefunds = async (orderId: string) => {
+    if (!storeId) return;
+    try {
+      const refunds = await listOrderRefunds(storeId, orderId);
+      setOrderRefunds(refunds.items || []);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleCreateRefund = async () => {
+    if (!storeId || !selectedOrderDetail) return;
+    setRefundLoading(true);
+    try {
+      const data: CreateRefundRequest = {
+        refund_type: refundType,
+        reason: refundReason,
+        reason_note: refundNote || undefined,
+        amount: refundType === "partial" ? Math.round(Number(refundAmount) * 100) : undefined,
+      };
+      await createRefund(storeId, selectedOrderDetail.id, data);
+      toast.success(language === "ar" ? "تم إنشاء طلب الاسترداد" : "Refund request created");
+      setShowRefundForm(false);
+      setRefundNote("");
+      setRefundAmount("");
+      await loadRefunds(selectedOrderDetail.id);
+    } catch (err: any) {
+      toast.error(err.message || (language === "ar" ? "فشل إنشاء الاسترداد" : "Failed to create refund"));
+    } finally {
+      setRefundLoading(false);
+    }
+  };
+
+  const handleApproveRefund = async (refundId: string) => {
+    if (!storeId || !selectedOrderDetail) return;
+    try {
+      await approveRefund(storeId, selectedOrderDetail.id, refundId);
+      toast.success(language === "ar" ? "تمت الموافقة على الاسترداد" : "Refund approved");
+      await loadRefunds(selectedOrderDetail.id);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to approve refund");
+    }
+  };
+
+  const handleRejectRefund = async (refundId: string) => {
+    if (!storeId || !selectedOrderDetail) return;
+    try {
+      await rejectRefund(storeId, selectedOrderDetail.id, refundId);
+      toast.success(language === "ar" ? "تم رفض الاسترداد" : "Refund rejected");
+      await loadRefunds(selectedOrderDetail.id);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reject refund");
+    }
+  };
+
+  const handleProcessRefund = async (refundId: string) => {
+    if (!storeId || !selectedOrderDetail) return;
+    try {
+      const result = await processRefund(storeId, selectedOrderDetail.id, refundId);
+      if (result.status === "completed") {
+        toast.success(language === "ar" ? "تم معالجة الاسترداد بنجاح" : "Refund processed successfully");
+      } else if (result.status === "failed") {
+        toast.error(language === "ar" ? "فشلت معالجة الاسترداد" : `Refund failed: ${result.failure_reason || "Unknown error"}`);
+      }
+      await loadRefunds(selectedOrderDetail.id);
+      // Refresh the order to pick up payment_status changes
+      const updated = await getOrder(storeId, selectedOrderDetail.id);
+      setSelectedOrderDetail(updated);
+      invalidateOrders();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to process refund");
     }
   };
 
@@ -325,6 +428,136 @@ const Orders = () => {
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     {language === "ar" ? "تأكيد الدفع" : "Mark as Paid"}
                   </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Refunds Section */}
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <RotateCcw className="h-4 w-4" />
+                    {t("refunds.title")}
+                  </CardTitle>
+                  {o.is_paid && !showRefundForm && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowRefundForm(true)}>
+                      {t("refunds.requestRefund")}
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Create Refund Form */}
+                {showRefundForm && (
+                  <div className="space-y-3 p-3 rounded-lg border bg-muted/30">
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">{t("refunds.type")}</label>
+                      <Select value={refundType} onValueChange={(v) => setRefundType(v as "full" | "partial")}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="full">{t("refunds.full")}</SelectItem>
+                          <SelectItem value="partial">{t("refunds.partial")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {refundType === "partial" && (
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium">{t("refunds.amount")}</label>
+                        <Input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          placeholder={language === "ar" ? "المبلغ" : "Amount"}
+                          value={refundAmount}
+                          onChange={(e) => setRefundAmount(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">{t("refunds.reason")}</label>
+                      <Select value={refundReason} onValueChange={(v) => setRefundReason(v as RefundReason)}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="customer_request">{t("refunds.reasons.customer_request")}</SelectItem>
+                          <SelectItem value="defective">{t("refunds.reasons.defective")}</SelectItem>
+                          <SelectItem value="wrong_item">{t("refunds.reasons.wrong_item")}</SelectItem>
+                          <SelectItem value="not_as_described">{t("refunds.reasons.not_as_described")}</SelectItem>
+                          <SelectItem value="duplicate_order">{t("refunds.reasons.duplicate_order")}</SelectItem>
+                          <SelectItem value="other">{t("refunds.reasons.other")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">{t("refunds.note")}</label>
+                      <Textarea
+                        placeholder={language === "ar" ? "ملاحظات إضافية..." : "Additional notes..."}
+                        value={refundNote}
+                        onChange={(e) => setRefundNote(e.target.value)}
+                        className="text-xs min-h-[60px]"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="flex-1 h-7 text-xs" onClick={handleCreateRefund} disabled={refundLoading}>
+                        {refundLoading && <Loader2 className="h-3 w-3 animate-spin me-1" />}
+                        {t("refunds.submit")}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowRefundForm(false)}>
+                        {language === "ar" ? "إلغاء" : "Cancel"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Refund List */}
+                {orderRefunds.length > 0 ? (
+                  <div className="space-y-2">
+                    {orderRefunds.map((r) => (
+                      <div key={r.id} className="p-2.5 rounded-lg border text-xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{r.refund_number}</span>
+                          <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${refundStatusColor[r.status] || ""}`}>
+                            {t(`refunds.statuses.${r.status}`)}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>{r.refund_type === "full" ? t("refunds.full") : t("refunds.partial")}</span>
+                          <span className="font-medium text-foreground">{formatCurrency(r.amount)}</span>
+                        </div>
+                        <div className="text-muted-foreground">
+                          {t(`refunds.reasons.${r.reason}`)}
+                        </div>
+                        {/* Action buttons based on status */}
+                        {r.status === "requested" && (
+                          <div className="flex gap-1.5 pt-1">
+                            <Button size="sm" className="h-6 text-[10px] flex-1" onClick={() => handleApproveRefund(r.id)}>
+                              {t("refunds.approve")}
+                            </Button>
+                            <Button size="sm" variant="destructive" className="h-6 text-[10px] flex-1" onClick={() => handleRejectRefund(r.id)}>
+                              {t("refunds.reject")}
+                            </Button>
+                          </div>
+                        )}
+                        {r.status === "approved" && (
+                          <Button size="sm" className="h-6 text-[10px] w-full" onClick={() => handleProcessRefund(r.id)}>
+                            <RotateCcw className="h-3 w-3 me-1" />
+                            {t("refunds.process")}
+                          </Button>
+                        )}
+                        {r.status === "failed" && (
+                          <Button size="sm" variant="outline" className="h-6 text-[10px] w-full" onClick={() => handleProcessRefund(r.id)}>
+                            <AlertCircle className="h-3 w-3 me-1" />
+                            {t("refunds.retry")}
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  !showRefundForm && (
+                    <p className="text-xs text-muted-foreground">{t("refunds.noRefunds")}</p>
+                  )
                 )}
               </CardContent>
             </Card>
