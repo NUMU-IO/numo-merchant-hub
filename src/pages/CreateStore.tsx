@@ -87,8 +87,8 @@ export default function CreateStore() {
       await createStore({ name, subdomain, description: description || undefined, default_language: language, default_currency: currency });
       await refetchStores();
       navigate("/", { replace: true });
-    } catch (err: any) {
-      setError(err.message || t("common.error"));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setLoading(false);
     }

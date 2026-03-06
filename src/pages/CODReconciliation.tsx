@@ -157,7 +157,7 @@ const CODReconciliation = () => {
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base">{t("cod.transactionList")}</CardTitle>
-            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as "all" | CODStatus)}>
               <TabsList>
                 <TabsTrigger value="all">{t("cod.all")}</TabsTrigger>
                 <TabsTrigger value="pending">{t("cod.pending")}</TabsTrigger>
