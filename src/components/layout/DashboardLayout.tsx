@@ -3,11 +3,19 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { AlertTriangle, Clock, Timer } from "lucide-react";
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
+
+function PageFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+    </div>
+  );
+}
 
 const DashboardLayout = () => {
   const { currentStore } = useDashboardStore();
@@ -24,11 +32,11 @@ const DashboardLayout = () => {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col min-w-0">
           <AppHeader />
-          <main className="flex-1 overflow-auto p-4 md:p-6">
+          <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
             {trialDaysLeft !== null && trialDaysLeft > 0 && (
               <Alert className="mb-6 border-blue-200 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-950/40">
                 <Timer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -73,7 +81,9 @@ const DashboardLayout = () => {
                 </AlertDescription>
               </Alert>
             )}
-            <Outlet />
+            <Suspense fallback={<PageFallback />}>
+              <Outlet />
+            </Suspense>
           </main>
         </div>
       </div>
