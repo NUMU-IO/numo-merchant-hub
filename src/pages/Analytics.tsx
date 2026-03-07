@@ -3,6 +3,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   BarChart3, TrendingUp, ShoppingCart, Users, DollarSign,
   MapPin, ArrowUpRight, ArrowDownRight, RefreshCw,
@@ -34,7 +35,6 @@ export default function Analytics() {
 
   const [period, setPeriod] = useState<Period>(30);
 
-  // React Query hooks
   const overviewQuery = useQuery({
     queryKey: ["analytics", "overview", storeId, period],
     queryFn: () => getSalesOverview(storeId!, period),
@@ -105,7 +105,7 @@ export default function Analytics() {
     if (value === undefined || value === null) return null;
     const positive = value >= 0;
     return (
-      <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${positive ? "text-emerald-600" : "text-red-500"}`}>
+      <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${positive ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
         {positive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
         {positive ? "+" : ""}{value.toFixed(1)}%
       </span>
@@ -119,30 +119,31 @@ export default function Analytics() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-primary" />
-            {t("nav.analytics")}
-          </h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl font-semibold tracking-tight">{t("nav.analytics")}</h1>
+          <p className="text-[13px] text-muted-foreground mt-0.5">
             {isAr ? "تقارير وإحصائيات متجرك" : "Your store reports and statistics"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {([7, 30, 90] as Period[]).map((p) => (
-            <Button
-              key={p}
-              variant={period === p ? "default" : "outline"}
-              size="sm"
-              onClick={() => setPeriod(p)}
-            >
-              {periodLabels[p]}
-            </Button>
-          ))}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRefresh} disabled={isRefetching}>
-            <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
+        <div className="flex items-center gap-1.5">
+          <div className="flex gap-0.5 rounded-lg bg-muted/60 p-0.5">
+            {([7, 30, 90] as Period[]).map((p) => (
+              <Button
+                key={p}
+                variant={period === p ? "default" : "ghost"}
+                size="sm"
+                className={`h-7 text-[11px] px-2.5 rounded-md ${period === p ? "" : "text-muted-foreground"}`}
+                onClick={() => setPeriod(p)}
+              >
+                {periodLabels[p]}
+              </Button>
+            ))}
+          </div>
+          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={handleRefresh} disabled={isRefetching}>
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`} />
           </Button>
         </div>
       </div>
@@ -152,148 +153,123 @@ export default function Analytics() {
       ) : (
         <>
           {/* KPI Cards */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">{isAr ? "إجمالي المبيعات" : "Total Sales"}</p>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <p className="text-2xl font-bold mt-2">{overview ? formatCurrency(overview.total_sales) : "—"}</p>
-                <TrendBadge value={overview?.sales_change_percent} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">{isAr ? "إجمالي الطلبات" : "Total Orders"}</p>
-                  <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <p className="text-2xl font-bold mt-2">{overview?.total_orders ?? "—"}</p>
-                <TrendBadge value={overview?.orders_change_percent} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">{isAr ? "متوسط قيمة الطلب" : "Avg Order Value"}</p>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <p className="text-2xl font-bold mt-2">{overview ? formatCurrency(overview.avg_order_value) : "—"}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">{isAr ? "معدل التحويل" : "Conversion Rate"}</p>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <p className="text-2xl font-bold mt-2">{conversion ? `${conversion.conversion_rate.toFixed(1)}%` : "—"}</p>
-              </CardContent>
-            </Card>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: isAr ? "إجمالي المبيعات" : "Total Sales", value: overview ? formatCurrency(overview.total_sales) : "—", trend: overview?.sales_change_percent, icon: DollarSign, bg: "bg-emerald-500/8 dark:bg-emerald-500/15", iconColor: "text-emerald-600 dark:text-emerald-400" },
+              { label: isAr ? "إجمالي الطلبات" : "Total Orders", value: overview?.total_orders ?? "—", trend: overview?.orders_change_percent, icon: ShoppingCart, bg: "bg-blue-500/8 dark:bg-blue-500/15", iconColor: "text-blue-600 dark:text-blue-400" },
+              { label: isAr ? "متوسط قيمة الطلب" : "Avg Order Value", value: overview ? formatCurrency(overview.avg_order_value) : "—", trend: undefined, icon: TrendingUp, bg: "bg-amber-500/8 dark:bg-amber-500/15", iconColor: "text-amber-600 dark:text-amber-400" },
+              { label: isAr ? "معدل التحويل" : "Conversion Rate", value: conversion ? `${conversion.conversion_rate.toFixed(1)}%` : "—", trend: undefined, icon: BarChart3, bg: "bg-violet-500/8 dark:bg-violet-500/15", iconColor: "text-violet-600 dark:text-violet-400" },
+            ].map((kpi) => (
+              <Card key={kpi.label} className="border-border/60">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</p>
+                    <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${kpi.bg}`}>
+                      <kpi.icon className={`h-3.5 w-3.5 ${kpi.iconColor}`} />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold tabular-nums">{kpi.value}</p>
+                  {kpi.trend !== undefined && <TrendBadge value={kpi.trend} />}
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           {/* Charts */}
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{isAr ? "المبيعات" : "Sales"}</CardTitle>
+            <Card className="border-border/60">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">{isAr ? "المبيعات" : "Sales"}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px]">
+                <div className="h-[280px]">
                   {chartData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={chartData}>
                         <defs>
                           <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.2} />
+                            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.12} />
                             <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                        <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 100).toLocaleString()}`} />
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
+                        <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 100).toLocaleString()}`} />
                         <Tooltip
-                          contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                          contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", fontSize: "12px" }}
                           formatter={(value: number) => [formatCurrency(value), isAr ? "المبيعات" : "Sales"]}
                         />
-                        <Area type="monotone" dataKey="sales" stroke="hsl(var(--primary))" fill="url(#colorSales)" strokeWidth={2} />
+                        <Area type="monotone" dataKey="sales" stroke="hsl(var(--primary))" fill="url(#colorSales)" strokeWidth={1.5} dot={false} />
                       </AreaChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                      {isAr ? "مفيش بيانات" : "No data available"}
-                    </div>
+                    <EmptyState icon={TrendingUp} title={isAr ? "مفيش بيانات" : "No data available"} />
                   )}
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{isAr ? "الطلبات" : "Orders"}</CardTitle>
+            <Card className="border-border/60">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">{isAr ? "الطلبات" : "Orders"}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px]">
+                <div className="h-[280px]">
                   {chartData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                        <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} axisLine={false} tickLine={false} />
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
+                        <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
                         <Tooltip
-                          contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                          contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", fontSize: "12px" }}
                           formatter={(value: number) => [value, isAr ? "الطلبات" : "Orders"]}
                         />
                         <Bar dataKey="orders" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                      {isAr ? "مفيش بيانات" : "No data available"}
-                    </div>
+                    <EmptyState icon={ShoppingCart} title={isAr ? "مفيش بيانات" : "No data available"} />
                   )}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Bottom section: Top Products, Locations, Customer Stats */}
+          {/* Bottom section */}
           <div className="grid gap-4 lg:grid-cols-3">
             {/* Top Products */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{isAr ? "أكتر المنتجات مبيعاً" : "Top Products"}</CardTitle>
+            <Card className="border-border/60">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold">{isAr ? "أكتر المنتجات مبيعاً" : "Top Products"}</CardTitle>
               </CardHeader>
               <CardContent>
                 {topProducts.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-0.5">
                     {topProducts.map((p, i) => (
-                      <div key={p.id} className="flex items-center justify-between">
+                      <div key={p.id} className="flex items-center justify-between rounded-lg p-2 -mx-2 hover:bg-muted/50 transition-colors">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}</span>
-                          <span className="text-sm truncate">{p.name}</span>
+                          <span className="text-[11px] font-bold text-muted-foreground/40 w-4 tabular-nums">{i + 1}</span>
+                          <span className="text-[13px] font-medium truncate">{p.name}</span>
                         </div>
                         <div className="text-end shrink-0">
-                          <p className="text-sm font-medium tabular-nums">{formatCurrency(p.revenue)}</p>
-                          <p className="text-xs text-muted-foreground">{p.quantity_sold} {isAr ? "مبيع" : "sold"}</p>
+                          <p className="text-[13px] font-semibold tabular-nums">{formatCurrency(p.revenue)}</p>
+                          <p className="text-[10px] text-muted-foreground">{p.quantity_sold} {isAr ? "مبيع" : "sold"}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    {isAr ? "مفيش بيانات" : "No data"}
-                  </p>
+                  <EmptyState icon={BarChart3} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
                 )}
               </CardContent>
             </Card>
 
             {/* Sales by Location */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
+            <Card className="border-border/60">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
                   {isAr ? "المبيعات حسب الموقع" : "Sales by Location"}
                 </CardTitle>
               </CardHeader>
@@ -302,59 +278,47 @@ export default function Analytics() {
                   <div className="space-y-3">
                     {locations.map((loc) => (
                       <div key={loc.location}>
-                        <div className="flex items-center justify-between text-sm mb-1">
-                          <span>{loc.location}</span>
-                          <span className="font-medium tabular-nums">{formatCurrency(loc.sales)}</span>
+                        <div className="flex items-center justify-between text-[13px] mb-1.5">
+                          <span className="font-medium">{loc.location}</span>
+                          <span className="font-semibold tabular-nums">{formatCurrency(loc.sales)}</span>
                         </div>
                         <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary rounded-full"
-                            style={{ width: `${loc.percentage}%` }}
-                          />
+                          <div className="h-full bg-primary/70 rounded-full transition-all duration-500" style={{ width: `${loc.percentage}%` }} />
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    {isAr ? "مفيش بيانات" : "No data"}
-                  </p>
+                  <EmptyState icon={MapPin} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
                 )}
               </CardContent>
             </Card>
 
             {/* Customer Stats */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="h-4 w-4" />
+            <Card className="border-border/60">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
                   {isAr ? "إحصائيات العملاء" : "Customer Stats"}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {customerStats ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{isAr ? "إجمالي العملاء" : "Total Customers"}</span>
-                      <span className="text-sm font-bold tabular-nums">{customerStats.total_customers.toLocaleString(isAr ? "ar-EG" : undefined)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{isAr ? "عملاء جدد" : "New Customers"}</span>
-                      <span className="text-sm font-bold tabular-nums">{customerStats.new_customers.toLocaleString(isAr ? "ar-EG" : undefined)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{isAr ? "عملاء عائدين" : "Returning"}</span>
-                      <span className="text-sm font-bold tabular-nums">{customerStats.returning_customers.toLocaleString(isAr ? "ar-EG" : undefined)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{isAr ? "متوسط قيمة العميل" : "Avg Customer Value"}</span>
-                      <span className="text-sm font-bold tabular-nums">{formatCurrency(customerStats.avg_customer_value)}</span>
-                    </div>
+                  <div className="space-y-3">
+                    {[
+                      { label: isAr ? "إجمالي العملاء" : "Total Customers", value: customerStats.total_customers.toLocaleString(isAr ? "ar-EG" : undefined) },
+                      { label: isAr ? "عملاء جدد" : "New Customers", value: customerStats.new_customers.toLocaleString(isAr ? "ar-EG" : undefined) },
+                      { label: isAr ? "عملاء عائدين" : "Returning", value: customerStats.returning_customers.toLocaleString(isAr ? "ar-EG" : undefined) },
+                      { label: isAr ? "متوسط قيمة العميل" : "Avg Customer Value", value: formatCurrency(customerStats.avg_customer_value) },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center justify-between rounded-lg p-2 -mx-2 hover:bg-muted/50 transition-colors">
+                        <span className="text-[13px] text-muted-foreground">{item.label}</span>
+                        <span className="text-[13px] font-semibold tabular-nums">{item.value}</span>
+                      </div>
+                    ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    {isAr ? "مفيش بيانات" : "No data"}
-                  </p>
+                  <EmptyState icon={Users} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
                 )}
               </CardContent>
             </Card>

@@ -11,8 +11,11 @@ import AppHeader from "./AppHeader";
 
 function PageFallback() {
   return (
-    <div className="flex items-center justify-center min-h-[50vh]">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+        <p className="text-xs text-muted-foreground animate-pulse">Loading...</p>
+      </div>
     </div>
   );
 }
@@ -32,58 +35,60 @@ const DashboardLayout = () => {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-background">
+      <div className="flex min-h-screen w-full">
         <AppSidebar />
-        <div className="flex flex-1 flex-col min-w-0">
+        <div className="flex flex-1 flex-col min-w-0 bg-muted/30">
           <AppHeader />
-          <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
-            {trialDaysLeft !== null && trialDaysLeft > 0 && (
-              <Alert className="mb-6 border-blue-200 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-950/40">
-                <Timer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                <AlertTitle className="text-blue-800 dark:text-blue-200">
-                  {t("dashboard.trialTitle", { count: trialDaysLeft, days: trialDaysLeft })}
-                </AlertTitle>
-                <AlertDescription className="text-blue-700 dark:text-blue-300">
-                  {t("dashboard.trialDesc", {
-                    date: new Date(user!.trial_ends_at!).toLocaleDateString(undefined, {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    }),
-                  })}
-                </AlertDescription>
-              </Alert>
-            )}
-            {trialDaysLeft === 0 && (
-              <Alert className="mb-6 border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-950/40">
-                <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                <AlertTitle className="text-red-800 dark:text-red-200">{t("dashboard.trialExpiredTitle")}</AlertTitle>
-                <AlertDescription className="text-red-700 dark:text-red-300">
-                  {t("dashboard.trialExpiredDesc")}
-                </AlertDescription>
-              </Alert>
-            )}
-            {currentStore?.status === "suspended" && (
-              <Alert className="mb-6 border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-950/40">
-                <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                <AlertTitle className="text-red-800 dark:text-red-200">{t("dashboard.storeSuspendedTitle")}</AlertTitle>
-                <AlertDescription className="text-red-700 dark:text-red-300">
-                  {t("dashboard.storeSuspendedDesc")}
-                </AlertDescription>
-              </Alert>
-            )}
-            {currentStore?.status === "pending_approval" && (
-              <Alert className="mb-6 border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-950/40">
-                <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                <AlertTitle className="text-amber-800 dark:text-amber-200">{t("dashboard.pendingApprovalTitle")}</AlertTitle>
-                <AlertDescription className="text-amber-700 dark:text-amber-300">
-                  {t("dashboard.pendingApprovalDesc")}
-                </AlertDescription>
-              </Alert>
-            )}
-            <Suspense fallback={<PageFallback />}>
-              <Outlet />
-            </Suspense>
+          <main className="flex-1 overflow-auto">
+            <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:px-8 lg:py-6">
+              {trialDaysLeft !== null && trialDaysLeft > 0 && (
+                <Alert className="mb-5 rounded-xl border-blue-200 bg-blue-50/80 dark:border-blue-500/30 dark:bg-blue-950/40">
+                  <Timer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <AlertTitle className="text-blue-800 dark:text-blue-200 text-sm font-semibold">
+                    {t("dashboard.trialTitle", { count: trialDaysLeft, days: trialDaysLeft })}
+                  </AlertTitle>
+                  <AlertDescription className="text-blue-700/80 dark:text-blue-300 text-xs">
+                    {t("dashboard.trialDesc", {
+                      date: new Date(user!.trial_ends_at!).toLocaleDateString(undefined, {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      }),
+                    })}
+                  </AlertDescription>
+                </Alert>
+              )}
+              {trialDaysLeft === 0 && (
+                <Alert className="mb-5 rounded-xl border-red-200 bg-red-50/80 dark:border-red-500/30 dark:bg-red-950/40">
+                  <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  <AlertTitle className="text-red-800 dark:text-red-200 text-sm font-semibold">{t("dashboard.trialExpiredTitle")}</AlertTitle>
+                  <AlertDescription className="text-red-700/80 dark:text-red-300 text-xs">
+                    {t("dashboard.trialExpiredDesc")}
+                  </AlertDescription>
+                </Alert>
+              )}
+              {currentStore?.status === "suspended" && (
+                <Alert className="mb-5 rounded-xl border-red-200 bg-red-50/80 dark:border-red-500/30 dark:bg-red-950/40">
+                  <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  <AlertTitle className="text-red-800 dark:text-red-200 text-sm font-semibold">{t("dashboard.storeSuspendedTitle")}</AlertTitle>
+                  <AlertDescription className="text-red-700/80 dark:text-red-300 text-xs">
+                    {t("dashboard.storeSuspendedDesc")}
+                  </AlertDescription>
+                </Alert>
+              )}
+              {currentStore?.status === "pending_approval" && (
+                <Alert className="mb-5 rounded-xl border-amber-200 bg-amber-50/80 dark:border-amber-500/30 dark:bg-amber-950/40">
+                  <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <AlertTitle className="text-amber-800 dark:text-amber-200 text-sm font-semibold">{t("dashboard.pendingApprovalTitle")}</AlertTitle>
+                  <AlertDescription className="text-amber-700/80 dark:text-amber-300 text-xs">
+                    {t("dashboard.pendingApprovalDesc")}
+                  </AlertDescription>
+                </Alert>
+              )}
+              <Suspense fallback={<PageFallback />}>
+                <Outlet />
+              </Suspense>
+            </div>
           </main>
         </div>
       </div>

@@ -6,12 +6,7 @@
  * attached to every state-changing request via the X-CSRF-Token header.
  */
 
-if (!import.meta.env.VITE_API_URL) {
-  throw new Error(
-    "VITE_API_URL is not set. CSRF module cannot initialise without an API endpoint."
-  );
-}
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 let csrfToken: string | null = null;
 let pending: Promise<void> | null = null;
