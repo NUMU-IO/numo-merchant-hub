@@ -113,8 +113,8 @@ export default function Categories() {
       await updateCategory(storeId, cat.id, { is_active: !cat.is_active });
       toast.success(cat.is_active ? (isAr ? "تم إلغاء تفعيل الفئة" : "Category deactivated") : (isAr ? "تم تفعيل الفئة" : "Category activated"));
       fetchCategories();
-    } catch (err: any) {
-      toast.error(err.message || (isAr ? "حدث خطأ" : "Something went wrong"));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : (isAr ? "حدث خطأ" : "Something went wrong"));
     }
   };
 

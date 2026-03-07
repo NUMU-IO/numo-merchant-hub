@@ -5,12 +5,12 @@
 
 import { useMemo } from "react";
 import type { SectionSettingDefinition } from "@/services/themeApi";
-import { SettingControl } from "./SettingControl";
+import { SettingControl, type SettingValue } from "./SettingControl";
 
 export interface SchemaFormProps {
   settings: SectionSettingDefinition[];
-  values: Record<string, any>;
-  onChange: (key: string, value: any) => void;
+  values: Record<string, SettingValue>;
+  onChange: (key: string, value: SettingValue) => void;
 }
 
 interface SettingGroup {

@@ -66,7 +66,7 @@ const Orders = () => {
   const ordersQuery = useQuery({
     queryKey: ["orders", storeId, page, statusFilter],
     queryFn: () => {
-      const params: Record<string, any> = { page, limit: 20 };
+      const params: Record<string, string | number | boolean> = { page, limit: 20 };
       if (statusFilter !== "all") params.status = statusFilter;
       return listOrders(storeId!, params);
     },
@@ -98,9 +98,8 @@ const Orders = () => {
       ]);
       setSelectedOrderDetail(order);
       setOrderTimeline(timeline.events || []);
-      setOrderRefunds(refunds.items || []);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to load order");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to load order");
     } finally {
       setDetailLoading(false);
     }
@@ -161,9 +160,9 @@ const Orders = () => {
         setOrderTimeline(tl.events || []);
       }
       invalidateOrders();
-    } catch (err: any) {
-      const msg = err.message || "";
-      const isTransition = msg.toLowerCase().includes("cannot") || err.status === 422;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      const isTransition = msg.toLowerCase().includes("cannot") || (err instanceof Object && 'status' in err && (err as Record<string, unknown>).status === 422);
       if (isTransition) {
         toast.error(
           language === "ar"
@@ -187,8 +186,8 @@ const Orders = () => {
         setOrderTimeline(tl.events || []);
       }
       invalidateOrders();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to mark as paid");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to mark as paid");
     }
   };
 
@@ -284,8 +283,8 @@ const Orders = () => {
       }
       setSelected(new Set());
       invalidateOrders();
-    } catch (err: any) {
-      toast.error(err.message || "Bulk update failed");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Bulk update failed");
     }
   };
 
@@ -641,7 +640,7 @@ const Orders = () => {
 
       <Card>
         <CardHeader className="pb-3">
-          <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v as any); setPage(1); }}>
+          <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v as "all" | FulfillmentStatus); setPage(1); }}>
             <TabsList className="flex-wrap">
               <TabsTrigger value="all">{t("orders.all")}</TabsTrigger>
               <TabsTrigger value="pending">{t("orders.pending")}</TabsTrigger>
