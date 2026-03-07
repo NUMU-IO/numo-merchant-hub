@@ -42,7 +42,7 @@ const AppSidebar = () => {
 
   const renderGroup = (label: string, items: typeof mainNav) => (
     <SidebarGroup>
-      <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/50 group-data-[collapsible=icon]:hidden px-3 mb-1">
+      <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/40 group-data-[collapsible=icon]:hidden px-3 mb-0.5">
         {label}
       </SidebarGroupLabel>
       <SidebarGroupContent>
@@ -53,10 +53,10 @@ const AppSidebar = () => {
                 asChild
                 isActive={isActive(item.url)}
                 tooltip={item.title}
-                className="h-9 rounded-lg transition-smooth"
+                className="h-8 rounded-lg transition-all duration-150"
               >
                 <NavLink to={item.url} end={item.url === "/"}>
-                  <item.icon className="h-4 w-4" />
+                  <item.icon className="h-[15px] w-[15px]" />
                   <span className="text-[13px] font-medium">{item.title}</span>
                 </NavLink>
               </SidebarMenuButton>
@@ -72,20 +72,20 @@ const AppSidebar = () => {
       <SidebarContent>
         {/* Brand */}
         <div className="flex h-14 items-center gap-2.5 px-4 group-data-[collapsible=icon]:justify-center border-b border-sidebar-border">
-          <NumuIcon size={26} />
+          <NumuIcon size={24} />
           <div className="group-data-[collapsible=icon]:hidden">
             <span className="text-sm font-black tracking-[0.08em]">NUMU</span>
-            <span className="text-[10px] text-muted-foreground/50 block -mt-0.5 font-medium">
-              {isRTL ? "لوحة التحكم" : "Merchant"}
+            <span className="text-[10px] text-muted-foreground/40 block -mt-0.5 font-medium">
+              {isRTL ? "لوحة التحكم" : "Merchant Hub"}
             </span>
           </div>
         </div>
 
-        <div className="py-2">
+        <div className="py-1.5">
           {renderGroup(isRTL ? "الرئيسية" : "Main", mainNav)}
-          <SidebarSeparator className="my-2" />
+          <SidebarSeparator className="my-1.5 opacity-50" />
           {renderGroup(isRTL ? "القنوات" : "Channels", channelsNav)}
-          <SidebarSeparator className="my-2" />
+          <SidebarSeparator className="my-1.5 opacity-50" />
           {renderGroup(isRTL ? "التقارير" : "Insights", insightsNav)}
         </div>
       </SidebarContent>
@@ -93,15 +93,15 @@ const AppSidebar = () => {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip={t("header.settings")} className="h-9 rounded-lg">
+            <SidebarMenuButton asChild tooltip={t("header.settings")} className="h-8 rounded-lg">
               <NavLink to="/store">
-                <Settings className="h-4 w-4" />
+                <Settings className="h-[15px] w-[15px]" />
                 <span className="text-[13px] font-medium">{t("header.settings")}</span>
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <div className="px-4 py-2 text-[10px] text-muted-foreground/30 font-medium group-data-[collapsible=icon]:hidden">
+        <div className="px-4 py-2 text-[10px] text-muted-foreground/25 font-medium group-data-[collapsible=icon]:hidden">
           NUMU © 2026
         </div>
       </SidebarFooter>

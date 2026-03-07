@@ -14,7 +14,7 @@ import {
   getDashboardStats, getRevenueChart, getTopProducts,
 } from "@/services/analyticsApi";
 import { listOrders } from "@/services/orderApi";
-import { TrendingUp, ShoppingCart, Users, DollarSign, ArrowUpRight, Package, Eye } from "lucide-react";
+import { TrendingUp, ShoppingCart, Users, DollarSign, ArrowUpRight, ArrowDownRight, Package, Eye, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCountUp } from "@/hooks/useCountUp";
 import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
@@ -78,23 +78,23 @@ const Dashboard = () => {
   const animAvg = useCountUp(avgOrder / 100, 1200);
 
   const trendPercent = stats?.revenue_change_percent ?? 0;
-  const trendStr = trendPercent >= 0 ? `+${trendPercent.toFixed(0)}%` : `${trendPercent.toFixed(0)}%`;
+  const trendStr = trendPercent >= 0 ? `+${trendPercent.toFixed(1)}%` : `${trendPercent.toFixed(1)}%`;
 
   const kpis = [
-    { label: t("dashboard.todayRevenue"), value: formatCurrency(animRevenue * 100), icon: DollarSign, trend: trendStr, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10" },
-    { label: t("dashboard.todayOrders"), value: animOrders, icon: ShoppingCart, trend: `${todayOrders}`, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10" },
-    { label: t("dashboard.newCustomers"), value: animCustomers, icon: Users, trend: `${newCustomers}`, color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-500/10" },
-    { label: t("dashboard.avgOrderValue"), value: formatCurrency(animAvg * 100), icon: TrendingUp, trend: "-", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10" },
+    { label: t("dashboard.todayRevenue"), value: formatCurrency(animRevenue * 100), icon: DollarSign, trend: trendPercent, trendLabel: trendStr, bg: "bg-emerald-500/8 dark:bg-emerald-500/15", iconColor: "text-emerald-600 dark:text-emerald-400" },
+    { label: t("dashboard.todayOrders"), value: animOrders, icon: ShoppingCart, trend: null, trendLabel: null, bg: "bg-blue-500/8 dark:bg-blue-500/15", iconColor: "text-blue-600 dark:text-blue-400" },
+    { label: t("dashboard.newCustomers"), value: animCustomers, icon: Users, trend: null, trendLabel: null, bg: "bg-violet-500/8 dark:bg-violet-500/15", iconColor: "text-violet-600 dark:text-violet-400" },
+    { label: t("dashboard.avgOrderValue"), value: formatCurrency(animAvg * 100), icon: TrendingUp, trend: null, trendLabel: null, bg: "bg-amber-500/8 dark:bg-amber-500/15", iconColor: "text-amber-600 dark:text-amber-400" },
   ];
 
   const statusColorMap: Record<string, string> = {
-    delivered: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-    fulfilled: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-    shipped: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
-    confirmed: "bg-teal-500/10 text-teal-700 dark:text-teal-400",
-    processing: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-    pending: "bg-muted text-muted-foreground",
-    cancelled: "bg-destructive/10 text-destructive",
+    delivered: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
+    fulfilled: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
+    shipped: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+    confirmed: "bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800",
+    processing: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+    pending: "bg-muted text-muted-foreground border-border",
+    cancelled: "bg-destructive/10 text-destructive border-destructive/20",
   };
 
   const orderStatusData = useMemo(() => stats ? [
@@ -127,44 +127,44 @@ const Dashboard = () => {
       {/* Welcome Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
             {greeting}, {user?.first_name || currentStore?.name || t("dashboard.merchantName")}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <p className="text-[13px] text-muted-foreground mt-0.5">
             {t("dashboard.storeOverview")}
           </p>
         </div>
         <div className="hidden sm:flex gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
-            <Eye className="h-3.5 w-3.5" />
+          <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg">
+            <ExternalLink className="h-3 w-3" />
             {t("dashboard.viewStore")}
           </Button>
-          <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate("/products")}>
-            <Package className="h-3.5 w-3.5" />
+          <Button size="sm" className="gap-1.5 h-8 text-xs rounded-lg" onClick={() => navigate("/products")}>
+            <Package className="h-3 w-3" />
             {t("products.addProduct")}
           </Button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi, i) => (
-          <Card key={kpi.label} className="animate-fade-up" style={{ animationDelay: `${i * 50}ms`, animationFillMode: "both" }}>
-            <CardContent className="p-5">
+          <Card key={kpi.label} className="animate-fade-up border-border/60 hover:shadow-md transition-shadow duration-200" style={{ animationDelay: `${i * 60}ms`, animationFillMode: "both" }}>
+            <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</p>
-                <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${kpi.bg}`}>
-                  <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</p>
+                <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${kpi.bg}`}>
+                  <kpi.icon className={`h-3.5 w-3.5 ${kpi.iconColor}`} />
                 </div>
               </div>
-              <p className="text-2xl font-bold tracking-tight tabular-nums">{kpi.value}</p>
-              {i === 0 && (
+              <p className="text-2xl font-bold tracking-tight tabular-nums leading-none">{kpi.value}</p>
+              {kpi.trend !== null && (
                 <div className="mt-2 flex items-center gap-1.5">
-                  <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${trendPercent >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-                    <ArrowUpRight className={`h-3 w-3 ${trendPercent < 0 ? "rotate-90" : ""}`} />
-                    {trendStr}
+                  <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${kpi.trend >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                    {kpi.trend >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                    {kpi.trendLabel}
                   </span>
-                  <span className="text-xs text-muted-foreground">{t("dashboard.vsYesterday")}</span>
+                  <span className="text-[11px] text-muted-foreground">{t("dashboard.vsYesterday")}</span>
                 </div>
               )}
             </CardContent>
@@ -175,17 +175,17 @@ const Dashboard = () => {
       {/* Charts Row */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Revenue Chart */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
+        <Card className="lg:col-span-2 border-border/60">
+          <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle>{t("dashboard.revenueTrend")}</CardTitle>
-              <div className="flex gap-1 rounded-lg bg-muted p-0.5">
+              <CardTitle className="text-sm font-semibold">{t("dashboard.revenueTrend")}</CardTitle>
+              <div className="flex gap-0.5 rounded-lg bg-muted/60 p-0.5">
                 {(["7d", "30d", "90d"] as const).map((p) => (
                   <Button
                     key={p}
                     variant={period === p ? "default" : "ghost"}
                     size="sm"
-                    className="h-7 text-xs px-2.5 rounded-md"
+                    className={`h-6 text-[11px] px-2 rounded-md ${period === p ? "" : "text-muted-foreground hover:text-foreground"}`}
                     onClick={() => setPeriod(p)}
                   >
                     {t(`dashboard.last${p === "7d" ? "7days" : p === "30d" ? "30days" : "90days"}`)}
@@ -194,31 +194,32 @@ const Dashboard = () => {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="h-[280px]">
+          <CardContent className="pb-4">
+            <div className="h-[260px]">
               {revenueChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={revenueChartData}>
                     <defs>
                       <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.12} />
                         <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" vertical={false} />
-                    <XAxis dataKey="day" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} width={50} />
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
+                    <XAxis dataKey="day" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} width={45} />
                     <Tooltip
                       contentStyle={{
                         background: "hsl(var(--card))",
                         border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
+                        borderRadius: "10px",
                         boxShadow: "var(--shadow-lg)",
-                        fontSize: "13px",
+                        fontSize: "12px",
+                        padding: "8px 12px",
                       }}
                       formatter={(value: number) => [formatCurrency(value * 100), t("dashboard.todayRevenue")]}
                     />
-                    <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="url(#colorRevenue)" strokeWidth={2} />
+                    <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="url(#colorRevenue)" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
@@ -233,17 +234,17 @@ const Dashboard = () => {
         </Card>
 
         {/* Order Status Donut */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("dashboard.orderStatus")}</CardTitle>
+        <Card className="border-border/60">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold">{t("dashboard.orderStatus")}</CardTitle>
           </CardHeader>
           <CardContent>
             {orderStatusData.length > 0 ? (
               <>
-                <div className="h-[200px]">
+                <div className="h-[180px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={orderStatusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} strokeWidth={2} stroke="hsl(var(--card))">
+                      <Pie data={orderStatusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={78} paddingAngle={3} strokeWidth={2} stroke="hsl(var(--card))">
                         {orderStatusData.map((entry, i) => (
                           <Cell key={i} fill={entry.fill} />
                         ))}
@@ -252,8 +253,8 @@ const Dashboard = () => {
                         contentStyle={{
                           background: "hsl(var(--card))",
                           border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px",
-                          fontSize: "13px",
+                          borderRadius: "10px",
+                          fontSize: "12px",
                         }}
                         formatter={(value: number, name: string) => {
                           const item = orderStatusData.find(d => d.name === name);
@@ -263,10 +264,10 @@ const Dashboard = () => {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                <div className="mt-1 grid grid-cols-2 gap-1">
                   {orderStatusData.map((s) => (
-                    <div key={s.name} className="flex items-center gap-2 text-xs rounded-md p-1.5 hover:bg-muted/50 transition-colors">
-                      <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: s.fill }} />
+                    <div key={s.name} className="flex items-center gap-2 text-[11px] rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors">
+                      <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.fill }} />
                       <span className="text-muted-foreground truncate">{isAr ? s.nameAr : s.name}</span>
                       <span className="font-semibold ms-auto tabular-nums">{s.value}</span>
                     </div>
@@ -274,11 +275,7 @@ const Dashboard = () => {
                 </div>
               </>
             ) : (
-              <EmptyState
-                icon={ShoppingCart}
-                title={isAr ? "لا توجد طلبات بعد" : "No orders yet"}
-                className="py-8"
-              />
+              <EmptyState icon={ShoppingCart} title={isAr ? "لا توجد طلبات بعد" : "No orders yet"} className="py-8" />
             )}
           </CardContent>
         </Card>
@@ -287,27 +284,27 @@ const Dashboard = () => {
       {/* Bottom Row */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Top Products */}
-        <Card>
-          <CardHeader>
+        <Card className="border-border/60">
+          <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle>{t("dashboard.topProducts")}</CardTitle>
-              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-7" onClick={() => navigate("/products")}>
-                {t("dashboard.viewAll")}
+              <CardTitle className="text-sm font-semibold">{t("dashboard.topProducts")}</CardTitle>
+              <Button variant="ghost" size="sm" className="text-[11px] text-muted-foreground h-7 rounded-lg" onClick={() => navigate("/products")}>
+                {t("dashboard.viewAll")} →
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             {topProducts.length > 0 ? (
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {topProducts.map((p, i) => (
-                  <div key={p.id} className="flex items-center gap-3 rounded-lg p-2 -mx-2 transition-colors hover:bg-muted/50 cursor-pointer">
-                    <span className="text-xs font-bold text-muted-foreground/50 w-5 text-center tabular-nums">{i + 1}</span>
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-sm shrink-0">📦</div>
+                  <div key={p.id} className="flex items-center gap-3 rounded-lg p-2.5 -mx-2.5 transition-colors hover:bg-muted/50 cursor-pointer group">
+                    <span className="text-[11px] font-bold text-muted-foreground/40 w-4 text-center tabular-nums">{i + 1}</span>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-xs shrink-0 group-hover:bg-primary/10 transition-colors">📦</div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{p.name}</p>
-                      <p className="text-xs text-muted-foreground">{p.quantity_sold} {t("dashboard.units")}</p>
+                      <p className="text-[13px] font-medium truncate">{p.name}</p>
+                      <p className="text-[11px] text-muted-foreground">{p.quantity_sold} {t("dashboard.units")}</p>
                     </div>
-                    <span className="text-sm font-semibold tabular-nums">{formatCurrency(p.revenue)}</span>
+                    <span className="text-[13px] font-semibold tabular-nums">{formatCurrency(p.revenue)}</span>
                   </div>
                 ))}
               </div>
@@ -318,12 +315,12 @@ const Dashboard = () => {
         </Card>
 
         {/* Recent Orders */}
-        <Card>
-          <CardHeader>
+        <Card className="border-border/60">
+          <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle>{t("dashboard.recentOrders")}</CardTitle>
-              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-7" onClick={() => navigate("/orders")}>
-                {t("dashboard.viewAll")}
+              <CardTitle className="text-sm font-semibold">{t("dashboard.recentOrders")}</CardTitle>
+              <Button variant="ghost" size="sm" className="text-[11px] text-muted-foreground h-7 rounded-lg" onClick={() => navigate("/orders")}>
+                {t("dashboard.viewAll")} →
               </Button>
             </div>
           </CardHeader>
@@ -331,21 +328,21 @@ const Dashboard = () => {
             {recentOrders.length > 0 ? (
               <Table>
                 <TableHeader>
-                  <TableRow className="border-border/50 hover:bg-transparent">
-                    <TableHead className="text-xs">{t("dashboard.order")}</TableHead>
-                    <TableHead className="text-xs">{t("dashboard.customer")}</TableHead>
-                    <TableHead className="text-xs">{t("dashboard.total")}</TableHead>
-                    <TableHead className="text-xs">{t("dashboard.status")}</TableHead>
+                  <TableRow className="border-border/40 hover:bg-transparent">
+                    <TableHead className="text-[11px] font-semibold text-muted-foreground h-8">{t("dashboard.order")}</TableHead>
+                    <TableHead className="text-[11px] font-semibold text-muted-foreground h-8">{t("dashboard.customer")}</TableHead>
+                    <TableHead className="text-[11px] font-semibold text-muted-foreground h-8">{t("dashboard.total")}</TableHead>
+                    <TableHead className="text-[11px] font-semibold text-muted-foreground h-8">{t("dashboard.status")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {recentOrders.map((o) => (
-                    <TableRow key={o.id} className="table-row-interactive" onClick={() => navigate("/orders")}>
-                      <TableCell className="font-medium text-sm">{o.order_number}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{o.customer_name || "-"}</TableCell>
-                      <TableCell className="text-sm tabular-nums font-medium">{formatCurrency(o.total)}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={`text-[11px] font-medium px-2 py-0.5 ${statusColorMap[o.status] || ""}`}>
+                    <TableRow key={o.id} className="table-row-interactive border-border/30" onClick={() => navigate("/orders")}>
+                      <TableCell className="font-medium text-[13px] py-2.5">{o.order_number}</TableCell>
+                      <TableCell className="text-[13px] text-muted-foreground py-2.5">{o.customer_name || "—"}</TableCell>
+                      <TableCell className="text-[13px] tabular-nums font-medium py-2.5">{formatCurrency(o.total)}</TableCell>
+                      <TableCell className="py-2.5">
+                        <Badge variant="outline" className={`text-[10px] font-medium px-1.5 py-0 border ${statusColorMap[o.status] || ""}`}>
                           {t(`orders.${o.status}`)}
                         </Badge>
                       </TableCell>
