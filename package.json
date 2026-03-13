@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate:types": "openapi-typescript http://localhost:8000/openapi.json -o ./src/types/api.generated.ts"
+    "generate:types": "openapi-typescript http://localhost:8000/openapi.json -o ./src/types/api.generated.ts",
+    "prepare": "husky"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -84,6 +85,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
+    "husky": "^9.1.7",
     "jsdom": "^20.0.3",
     "kill-port": "^2.0.1",
     "lovable-tagger": "^1.1.13",
