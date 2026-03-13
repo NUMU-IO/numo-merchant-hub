@@ -21,6 +21,14 @@ import {
 import { initCSRF } from "@/services/csrf";
 import type { User, RegisterData } from "@/services/authApi";
 
+/** Thrown by `login()` when the account requires 2FA verification. */
+export class TwoFactorRequiredError extends Error {
+  constructor(public readonly challengeToken: string) {
+    super("2fa_required");
+    this.name = "TwoFactorRequiredError";
+  }
+}
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -64,6 +72,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await loginApi(email, password);
+    if (res.requires_2fa && res.challenge_token) {
+      throw new TwoFactorRequiredError(res.challenge_token);
+    }
     setUser(res.user);
   }, []);
 
