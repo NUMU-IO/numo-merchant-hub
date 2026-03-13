@@ -362,10 +362,10 @@ export function CustomizationWalkthrough({
       if (e.key === "Escape") dismiss();
       if (e.key === "ArrowRight") {
         // RTL: ArrowRight = prev, LTR: ArrowRight = next
-        language === "ar" ? prev() : next();
+        if (language === "ar") prev(); else next();
       }
       if (e.key === "ArrowLeft") {
-        language === "ar" ? next() : prev();
+        if (language === "ar") next(); else prev();
       }
     };
     window.addEventListener("keydown", handler);

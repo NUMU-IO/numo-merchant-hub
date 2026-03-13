@@ -38,8 +38,9 @@ const TaxInvoicing = () => {
         });
       })
       .catch(() => {
-        const s = (currentStore as any).settings || {};
-        const a = (currentStore as any).address || {};
+        const storeData = currentStore as unknown as Record<string, Record<string, string> | undefined>;
+        const s = storeData.settings ?? {};
+        const a = storeData.address ?? {};
         setTaxState({
           tax_id: s.tax_id || "",
           name_ar: s.name_ar || "",
