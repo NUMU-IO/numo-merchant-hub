@@ -64,4 +64,29 @@ export default defineConfig(({ mode }) => ({
     drop: mode === "production" ? ["debugger"] : [],
     pure: mode === "production" ? ["console.log", "console.debug", "console.info"] : [],
   },
+  build: {
+    // Split vendor chunks so browsers can cache stable deps separately and
+    // download multiple chunks in parallel on first load.
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          // Heavy charting library — only needed on analytics pages
+          if (id.includes("recharts") || id.includes("/d3-")) return "charts";
+          // Error monitoring — non-critical for initial render
+          if (id.includes("@sentry/")) return "sentry";
+          // i18n — loads separately, rarely changes
+          if (id.includes("i18next") || id.includes("react-i18next")) return "i18n";
+          // Radix UI primitives — large but stable
+          if (id.includes("@radix-ui/")) return "radix";
+          // React core + router
+          if (id.includes("react-dom") || id.includes("react-router")) return "react";
+          // TanStack Query
+          if (id.includes("@tanstack/")) return "tanstack";
+          // Everything else (date-fns, zod, lucide, etc.)
+          return "vendor";
+        },
+      },
+    },
+  },
 }));

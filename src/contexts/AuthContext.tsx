@@ -55,16 +55,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Validate session on mount by calling /auth/me
+  // Validate session on mount by calling /auth/me.
+  // initCSRF is independent of the session check — run both in parallel.
   useEffect(() => {
-    getMe()
-      .then(async (u) => {
+    Promise.all([getMe(), initCSRF()])
+      .then(([u]) => {
         setUser(u);
-        // Ensure we have a CSRF token for subsequent requests
-        await initCSRF();
       })
       .catch(() => {
-        // No valid session
+        // No valid session; CSRF failure is non-critical
         setUser(null);
       })
       .finally(() => setIsLoading(false));
