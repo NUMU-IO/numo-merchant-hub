@@ -68,6 +68,7 @@ const AppHeader = () => {
           size="icon"
           className="h-8 w-8 rounded-lg"
           onClick={toggleDark}
+          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
         >
           {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
         </Button>
@@ -120,9 +121,9 @@ const AppHeader = () => {
         )}
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-lg">
+        <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-lg" aria-label="Notifications">
           <Bell className="h-3.5 w-3.5" />
-          <span className="absolute top-1 end-1 h-1.5 w-1.5 rounded-full bg-destructive" />
+          <span className="absolute top-1 end-1 h-1.5 w-1.5 rounded-full bg-destructive" aria-hidden="true" />
         </Button>
 
         {/* Profile */}

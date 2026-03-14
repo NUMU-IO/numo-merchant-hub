@@ -205,13 +205,13 @@ export default function Categories() {
                     <span>{cat.product_count} {isAr ? "منتج" : "products"}</span>
                   </div>
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => handleToggleActive(cat)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => handleToggleActive(cat)} aria-label={cat.is_active ? (isAr ? "تعطيل الفئة" : "Deactivate category") : (isAr ? "تفعيل الفئة" : "Activate category")}>
                       {cat.is_active ? <ToggleRight className="h-3.5 w-3.5 text-primary" /> : <ToggleLeft className="h-3.5 w-3.5 text-muted-foreground" />}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => openEditDialog(cat)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => openEditDialog(cat)} aria-label={isAr ? "تعديل الفئة" : "Edit category"}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive" onClick={() => setDeleteTarget(cat)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive" onClick={() => setDeleteTarget(cat)} aria-label={isAr ? "حذف الفئة" : "Delete category"}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>

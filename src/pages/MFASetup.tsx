@@ -243,6 +243,7 @@ function EnableDialog({ open, onClose, onComplete, isAr }: EnableDialogProps) {
                         type="button"
                         onClick={() => setShowSecret((v) => !v)}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={showSecret ? "Hide secret key" : "Show secret key"}
                       >
                         {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -439,6 +440,7 @@ function DisableDialog({ open, onClose, onComplete, isAr }: DisableDialogProps) 
               type="button"
               onClick={() => setShowPw((v) => !v)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label={showPw ? "Hide password" : "Show password"}
             >
               {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
