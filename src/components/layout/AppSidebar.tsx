@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, Banknote, Share2,
   Users, BarChart3, Megaphone, Settings, FolderOpen,
-  ArrowRightLeft, Webhook, ShieldCheck, Scale,
+  ArrowRightLeft, Webhook, ShieldCheck, Scale, CreditCard,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { NavLink } from "@/components/NavLink";
@@ -43,6 +43,7 @@ const AppSidebar = () => {
     { title: isRTL ? "المستردات" : "Refunds", url: "/refunds", icon: ArrowRightLeft },
     { title: isRTL ? "Webhooks" : "Webhooks", url: "/webhooks", icon: Webhook },
     { title: isRTL ? "الأمان" : "Security", url: "/security", icon: ShieldCheck },
+    { title: isRTL ? "الخطة" : "Plan", url: "/plan", icon: CreditCard },
   ];
 
   const isActive = (url: string) =>

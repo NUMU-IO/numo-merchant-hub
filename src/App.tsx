@@ -26,6 +26,7 @@ const Refunds = lazy(() => import("@/pages/Refunds"));
 const Webhooks = lazy(() => import("@/pages/Webhooks"));
 const MFASetup = lazy(() => import("@/pages/MFASetup"));
 const Reconciliation = lazy(() => import("@/pages/Reconciliation"));
+const Plan = lazy(() => import("@/pages/Plan"));
 const Login = lazy(() => import("@/pages/Login"));
 const TwoFactorChallenge = lazy(() => import("@/pages/TwoFactorChallenge"));
 const VerifyEmail = lazy(() => import("@/pages/VerifyEmail"));
@@ -141,6 +142,7 @@ const App = () => (
                     <Route path="/webhooks" element={<Webhooks />} />
                     <Route path="/security" element={<MFASetup />} />
                     <Route path="/reconciliation" element={<Reconciliation />} />
+                    <Route path="/plan" element={<Plan />} />
                   </Route>
 
                   <Route path="*" element={<NotFound />} />
