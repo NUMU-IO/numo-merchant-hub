@@ -3,8 +3,8 @@
  * Authentication is handled via httpOnly cookies set by the backend.
  * CSRF protection: token is stored in memory and sent as X-CSRF-Token
  * on every state-changing request (POST, PUT, PATCH, DELETE).
- * On 401, attempts token refresh then retries; redirects to login if refresh fails.
- * On 403 with CSRF failure, refreshes the CSRF token and retries once.
+ * On 401, redirects to login page.
+ * On 403 with CSRF failure, refreshes the token and retries once.
  */
 
 import { getCSRFToken, initCSRF } from "./csrf";
@@ -12,25 +12,6 @@ import { getCSRFToken, initCSRF } from "./csrf";
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
-
-let isRefreshing = false;
-let refreshPromise: Promise<boolean> | null = null;
-
-async function tryRefreshToken(): Promise<boolean> {
-  if (isRefreshing && refreshPromise) return refreshPromise;
-  isRefreshing = true;
-  refreshPromise = fetch(`${API_BASE}/auth/refresh`, {
-    method: "POST",
-    credentials: "include",
-  })
-    .then((r) => r.ok)
-    .catch(() => false)
-    .finally(() => {
-      isRefreshing = false;
-      refreshPromise = null;
-    });
-  return refreshPromise;
-}
 
 async function rawFetch(
   endpoint: string,
@@ -64,7 +45,7 @@ export async function apiClient<T>(
 ): Promise<T> {
   let res = await rawFetch(endpoint, options);
 
-  // Handle CSRF token expiry: refresh CSRF token and retry once
+  // Handle CSRF token expiry: refresh token and retry once
   if (res.status === 403) {
     const body = await res.json().catch(() => null);
     if (body?.detail === "CSRF validation failed") {
@@ -75,29 +56,16 @@ export async function apiClient<T>(
     }
   }
 
-  // Handle expired access token: attempt refresh then retry once
   if (res.status === 401) {
-    const onAuthPage = ["/login", "/register", "/verify-email"].some((p) =>
-      window.location.pathname.startsWith(p),
-    );
-
-    if (!onAuthPage) {
-      const refreshed = await tryRefreshToken();
-      if (refreshed) {
-        res = await rawFetch(endpoint, options);
-      }
-      if (res.status === 401) {
-        window.location.href = "/login";
-        throw new Error("Session expired. Please log in again.");
-      }
-    } else {
-      throw new Error("Not authenticated");
+    if (window.location.pathname !== "/login") {
+      window.location.href = "/login";
     }
+    throw new Error("Session expired. Please log in again.");
   }
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.detail || body?.error?.message || `API error: ${res.status}`);
+    throw new Error(body?.detail || `API error: ${res.status}`);
   }
 
   if (res.status === 204) {

@@ -64,7 +64,7 @@ ChartContainer.displayName = "Chart";
  */
 function sanitizeColorValue(value: string): string | null {
   const trimmed = value.trim();
-  if (/^[a-zA-Z0-9#\s,().%\-/]+$/.test(trimmed) || /^var\(--[a-zA-Z0-9-]+\)$/.test(trimmed)) {
+  if (/^[a-zA-Z0-9#\s,().%\-\/]+$/.test(trimmed) || /^var\(--[a-zA-Z0-9-]+\)$/.test(trimmed)) {
     return trimmed;
   }
   return null;

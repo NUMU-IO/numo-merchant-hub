@@ -451,7 +451,7 @@ export default function Marketing() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <code className="text-sm font-bold bg-muted px-2 py-0.5 rounded">{coupon.code}</code>
-                          <button onClick={() => copyCode(coupon.code)} className="text-muted-foreground hover:text-foreground" aria-label={`Copy coupon code ${coupon.code}`}>
+                          <button onClick={() => copyCode(coupon.code)} className="text-muted-foreground hover:text-foreground">
                             <Copy className="h-3.5 w-3.5" />
                           </button>
                         </div>
@@ -490,21 +490,19 @@ export default function Marketing() {
                           <button
                             onClick={() => handleToggleActive(coupon)}
                             className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                            aria-label={coupon.is_active ? (isAr ? "تعطيل" : "Deactivate coupon") : (isAr ? "تفعيل" : "Activate coupon")}
+                            title={coupon.is_active ? (isAr ? "تعطيل" : "Deactivate") : (isAr ? "تفعيل" : "Activate")}
                           >
                             {coupon.is_active ? <ToggleRight className="h-4 w-4 text-primary" /> : <ToggleLeft className="h-4 w-4" />}
                           </button>
                           <button
                             onClick={() => openEditDialog(coupon)}
                             className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                            aria-label={isAr ? "تعديل الكوبون" : "Edit coupon"}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={() => setDeleteTarget(coupon)}
                             className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-destructive"
-                            aria-label={isAr ? "حذف الكوبون" : "Delete coupon"}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>

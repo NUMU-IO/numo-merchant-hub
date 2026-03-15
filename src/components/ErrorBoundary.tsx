@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from "react";
+import * as Sentry from "@sentry/react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 
 interface Props {
@@ -18,12 +19,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Dynamic import keeps Sentry off the critical path while still capturing errors.
-    // By the time componentDidCatch fires, Sentry is almost certainly already loaded.
-    import("@sentry/react").then(({ captureException }) => {
-      captureException(error, {
-        extra: { componentStack: errorInfo.componentStack },
-      });
+    Sentry.captureException(error, {
+      extra: { componentStack: errorInfo.componentStack },
     });
   }
 

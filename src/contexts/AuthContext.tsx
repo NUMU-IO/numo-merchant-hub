@@ -21,14 +21,6 @@ import {
 import { initCSRF } from "@/services/csrf";
 import type { User, RegisterData } from "@/services/authApi";
 
-/** Thrown by `login()` when the account requires 2FA verification. */
-export class TwoFactorRequiredError extends Error {
-  constructor(public readonly challengeToken: string) {
-    super("2fa_required");
-    this.name = "TwoFactorRequiredError";
-  }
-}
-
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -55,26 +47,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Validate session on mount by calling /auth/me.
-  // initCSRF is independent of the session check — run both in parallel.
+  // Validate session on mount by calling /auth/me
   useEffect(() => {
-    Promise.all([getMe(), initCSRF()])
-      .then(([u]) => {
+    getMe()
+      .then(async (u) => {
         setUser(u);
+        // Ensure we have a CSRF token for subsequent requests
+        await initCSRF();
       })
       .catch(() => {
-        // No valid session — don't call setUser(null) here: initial state is already
-        // null, and overriding would race with a concurrent register/login action.
+        // No valid session
+        setUser(null);
       })
       .finally(() => setIsLoading(false));
   }, []);
 
-
   const login = useCallback(async (email: string, password: string) => {
     const res = await loginApi(email, password);
-    if (res.requires_2fa && res.challenge_token) {
-      throw new TwoFactorRequiredError(res.challenge_token);
-    }
     setUser(res.user);
   }, []);
 

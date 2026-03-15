@@ -3,11 +3,6 @@
  *
  * After authentication, fetches the user's stores via GET /stores/.
  * Persists the selected store ID in localStorage so it survives refresh.
- *
- * Performance note: stores are fetched immediately on mount (in parallel
- * with the auth/me check) because the session cookie is already present.
- * If the optimistic fetch fails (no session) the auth-aware effect retries
- * once the session is confirmed.
  */
 
 import React, {
@@ -50,13 +45,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
   const [currentStore, setCurrentStore] = useState<StoreData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // null = not yet fetched (or failed — retry eligible)
-  // true = fetched successfully
+  // Track which auth state we last fetched for, so we know when to re-fetch
   const fetchedForAuthRef = useRef<boolean | null>(null);
 
-  // Fetch stores without an auth pre-check — the API returns 401 if the
-  // session is invalid and we handle it in the catch block.
   const fetchStores = useCallback(async () => {
+    if (!isAuthenticated) {
+      setStores([]);
+      setCurrentStore(null);
+      fetchedForAuthRef.current = false;
+      return;
+    }
+
     try {
       setIsLoading(true);
       const result = await listStores();
@@ -75,28 +74,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
       console.error("[StoreContext] Failed to fetch stores:", err);
       setStores([]);
       setCurrentStore(null);
-      // Leave fetchedForAuthRef as null so the auth-aware effect can retry.
+      fetchedForAuthRef.current = true;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
-  // Optimistic fetch on mount — fires in parallel with the auth/me request.
-  // For authenticated users this resolves at the same time as auth, cutting
-  // one full round-trip from the critical path.
   useEffect(() => {
+    if (authLoading) return;
     fetchStores();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Retry once auth is confirmed: covers the case where the optimistic fetch
-  // failed because the session cookie wasn't present yet, or the user just
-  // logged in during this page load.
-  useEffect(() => {
-    if (authLoading || !isAuthenticated) return;
-    if (fetchedForAuthRef.current === true) return; // already have good data
-    fetchStores();
-  }, [authLoading, isAuthenticated, fetchStores]);
+  }, [authLoading, fetchStores]);
 
   const switchStore = useCallback(
     (storeId: string) => {
@@ -110,7 +97,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   // Derive loading: true if auth is still loading, or if we're authenticated
-  // but haven't completed a successful fetch for this session yet.
+  // but haven't completed a fetch for this auth session yet.
   const effectiveLoading =
     authLoading ||
     isLoading ||
