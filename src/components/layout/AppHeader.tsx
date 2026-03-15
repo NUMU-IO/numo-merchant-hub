@@ -143,11 +143,11 @@ const AppHeader = () => {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 rounded-lg text-sm">
+            <DropdownMenuItem className="gap-2 rounded-lg text-sm" onClick={() => navigate("/profile")}>
               <User className="h-3.5 w-3.5" />
               {t("header.profile")}
             </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2 rounded-lg text-sm" onClick={() => navigate("/store")}>
+            <DropdownMenuItem className="gap-2 rounded-lg text-sm" onClick={() => navigate("/settings")}>
               <Settings className="h-3.5 w-3.5" />
               {t("header.settings")}
             </DropdownMenuItem>
