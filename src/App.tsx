@@ -22,13 +22,10 @@ const Customers = lazy(() => import("@/pages/Customers"));
 const Analytics = lazy(() => import("@/pages/Analytics"));
 const Marketing = lazy(() => import("@/pages/Marketing"));
 const Categories = lazy(() => import("@/pages/Categories"));
-const Refunds = lazy(() => import("@/pages/Refunds"));
-const Webhooks = lazy(() => import("@/pages/Webhooks"));
-const MFASetup = lazy(() => import("@/pages/MFASetup"));
-const Reconciliation = lazy(() => import("@/pages/Reconciliation"));
-const Plan = lazy(() => import("@/pages/Plan"));
+const Profile = lazy(() => import("@/pages/Profile"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const Notifications = lazy(() => import("@/pages/Notifications"));
 const Login = lazy(() => import("@/pages/Login"));
-const TwoFactorChallenge = lazy(() => import("@/pages/TwoFactorChallenge"));
 const VerifyEmail = lazy(() => import("@/pages/VerifyEmail"));
 const CreateStore = lazy(() => import("@/pages/CreateStore"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -92,7 +89,6 @@ const App = () => (
                 <Routes>
                   {/* Public */}
                   <Route path="/login" element={<Login />} />
-                  <Route path="/2fa-challenge" element={<TwoFactorChallenge />} />
 
                   {/* Auth required, verification pending */}
                   <Route
@@ -138,11 +134,9 @@ const App = () => (
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/marketing" element={<Marketing />} />
                     <Route path="/categories" element={<Categories />} />
-                    <Route path="/refunds" element={<Refunds />} />
-                    <Route path="/webhooks" element={<Webhooks />} />
-                    <Route path="/security" element={<MFASetup />} />
-                    <Route path="/reconciliation" element={<Reconciliation />} />
-                    <Route path="/plan" element={<Plan />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/notifications" element={<Notifications />} />
                   </Route>
 
                   <Route path="*" element={<NotFound />} />

@@ -184,7 +184,7 @@ export interface SectionSchemaData {
     nameAr?: string;
     category?: string;
     categoryAr?: string;
-    settings?: Record<string, unknown>;
+    settings?: Record<string, any>;
   }>;
 }
 
@@ -192,7 +192,7 @@ export interface SectionInstanceData {
   id: string;
   type: string;
   disabled?: boolean;
-  settings: Record<string, unknown>;
+  settings: Record<string, any>;
 }
 
 export interface TemplateConfigData {

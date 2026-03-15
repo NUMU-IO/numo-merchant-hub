@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { createStore, checkSubdomain } from "@/services/storeApi";
@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CheckCircle2, XCircle, Store, Rocket, KeyRound } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Store, Rocket } from "lucide-react";
 import { NumuIcon } from "@/components/NumuLogo";
 import { getStoreDomainSuffix } from "@/lib/storefront";
 import { z } from "zod";
@@ -23,7 +23,6 @@ const createStoreSchema = z.object({
   name: z.string().min(3, "اسم المتجر يجب أن يكون 3 أحرف على الأقل").max(60, "اسم المتجر يجب ألا يتجاوز 60 حرفًا"),
   subdomain: z.string().min(3, "النطاق الفرعي يجب أن يكون 3 أحرف على الأقل").max(30, "النطاق الفرعي يجب ألا يتجاوز 30 حرفًا").regex(/^[a-z0-9-]+$/, "النطاق الفرعي يجب أن يحتوي فقط على أحرف صغيرة وأرقام وشرطات"),
   description: z.string().max(500, "الوصف يجب ألا يتجاوز 500 حرف").optional().or(z.literal("")),
-  invite_code: z.string().min(1, "رمز الدعوة مطلوب"),
 });
 
 type FieldErrors = Record<string, string>;
@@ -37,11 +36,9 @@ export default function CreateStore() {
     if (!storesLoading && hasStores) navigate("/", { replace: true });
   }, [storesLoading, hasStores, navigate]);
 
-  const [searchParams] = useSearchParams();
   const [name, setName] = useState("");
   const [subdomain, setSubdomain] = useState("");
   const [description, setDescription] = useState("");
-  const [inviteCode, setInviteCode] = useState(searchParams.get("invite") ?? "");
   const [language, setLanguage] = useState("ar");
   const [currency, setCurrency] = useState("EGP");
   const [subdomainStatus, setSubdomainStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
@@ -73,7 +70,7 @@ export default function CreateStore() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFieldErrors({});
-    const result = createStoreSchema.safeParse({ name, subdomain, description, invite_code: inviteCode });
+    const result = createStoreSchema.safeParse({ name, subdomain, description });
     if (!result.success) {
       const errs: FieldErrors = {};
       for (const issue of result.error.issues) {
@@ -87,7 +84,7 @@ export default function CreateStore() {
     setError(null);
     setLoading(true);
     try {
-      await createStore({ name, subdomain, description: description || undefined, default_language: language, default_currency: currency, invite_code: inviteCode || undefined });
+      await createStore({ name, subdomain, description: description || undefined, default_language: language, default_currency: currency });
       await refetchStores();
       navigate("/", { replace: true });
     } catch (err: unknown) {
@@ -142,15 +139,6 @@ export default function CreateStore() {
 
             <CardContent className="px-6 pb-8">
               <form noValidate onSubmit={handleSubmit} className="space-y-5 mt-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createStore.inviteCode", "رمز الدعوة")}</Label>
-                  <div className="relative">
-                    <KeyRound className="absolute inset-y-0 start-3 my-auto h-4 w-4 text-muted-foreground" />
-                    <Input value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} placeholder="XXXX-XXXX" className={`${inputClass("invite_code")} ps-9`} />
-                  </div>
-                  {fieldErrors.invite_code && <p className="text-[11px] text-destructive">{fieldErrors.invite_code}</p>}
-                </div>
-
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createStore.storeName")}</Label>
                   <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("createStore.storeNamePlaceholder")} className={inputClass("name")} />

@@ -100,7 +100,7 @@ export async function listProducts(
   }
   const qs = query.toString();
   return apiClient<PaginatedProducts>(
-    `/stores/${storeId}/products/${qs ? `?${qs}` : ""}`,
+    `/stores/${storeId}/products${qs ? `?${qs}` : ""}`,
   );
 }
 

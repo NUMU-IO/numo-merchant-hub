@@ -1167,7 +1167,7 @@ const StoreSettings = () => {
                     <div
                       key={key}
                       className="h-6 w-6 rounded-full border-2 border-background shadow-sm"
-                      style={{ backgroundColor: themeState[key] || "#ccc" }}
+                      style={{ backgroundColor: String(themeState[key] || "#ccc") }}
                       title={key.replace(/_/g, " ")}
                     />
                   ))}

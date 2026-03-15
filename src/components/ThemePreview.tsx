@@ -11,7 +11,7 @@ import { getStoreUrl } from "@/lib/storefront";
 
 interface ThemePreviewProps {
   storeSubdomain?: string;
-  settings: Record<string, unknown>;
+  settings: Record<string, any>;
 }
 
 const VIEWPORTS = {

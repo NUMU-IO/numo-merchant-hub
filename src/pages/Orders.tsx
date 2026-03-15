@@ -217,8 +217,8 @@ const Orders = () => {
       setRefundNote("");
       setRefundAmount("");
       await loadRefunds(selectedOrderDetail.id);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : (language === "ar" ? "فشل إنشاء الاسترداد" : "Failed to create refund"));
+    } catch (err: any) {
+      toast.error(err.message || (language === "ar" ? "فشل إنشاء الاسترداد" : "Failed to create refund"));
     } finally {
       setRefundLoading(false);
     }
@@ -230,8 +230,8 @@ const Orders = () => {
       await approveRefund(storeId, selectedOrderDetail.id, refundId);
       toast.success(language === "ar" ? "تمت الموافقة على الاسترداد" : "Refund approved");
       await loadRefunds(selectedOrderDetail.id);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to approve refund");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to approve refund");
     }
   };
 
@@ -241,8 +241,8 @@ const Orders = () => {
       await rejectRefund(storeId, selectedOrderDetail.id, refundId);
       toast.success(language === "ar" ? "تم رفض الاسترداد" : "Refund rejected");
       await loadRefunds(selectedOrderDetail.id);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to reject refund");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reject refund");
     }
   };
 
@@ -260,8 +260,8 @@ const Orders = () => {
       const updated = await getOrder(storeId, selectedOrderDetail.id);
       setSelectedOrderDetail(updated);
       invalidateOrders();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to process refund");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to process refund");
     }
   };
 
@@ -289,7 +289,7 @@ const Orders = () => {
   };
 
   const toggleSelect = (id: string) => {
-    setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   };
 
   const handlePrint = (o: ApiOrder) => {

@@ -68,7 +68,6 @@ const AppHeader = () => {
           size="icon"
           className="h-8 w-8 rounded-lg"
           onClick={toggleDark}
-          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
         >
           {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
         </Button>
@@ -121,9 +120,9 @@ const AppHeader = () => {
         )}
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-lg" aria-label="Notifications">
+        <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-lg" onClick={() => navigate("/notifications")}>
           <Bell className="h-3.5 w-3.5" />
-          <span className="absolute top-1 end-1 h-1.5 w-1.5 rounded-full bg-destructive" aria-hidden="true" />
+          <span className="absolute top-1 end-1 h-1.5 w-1.5 rounded-full bg-destructive" />
         </Button>
 
         {/* Profile */}
@@ -144,11 +143,11 @@ const AppHeader = () => {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 rounded-lg text-sm">
+            <DropdownMenuItem className="gap-2 rounded-lg text-sm" onClick={() => navigate("/profile")}>
               <User className="h-3.5 w-3.5" />
               {t("header.profile")}
             </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2 rounded-lg text-sm" onClick={() => navigate("/store")}>
+            <DropdownMenuItem className="gap-2 rounded-lg text-sm" onClick={() => navigate("/settings")}>
               <Settings className="h-3.5 w-3.5" />
               {t("header.settings")}
             </DropdownMenuItem>

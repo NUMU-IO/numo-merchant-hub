@@ -147,15 +147,3 @@ export async function processRefund(
     { method: "POST" },
   );
 }
-
-export async function listStoreRefunds(
-  storeId: string,
-  params?: { status?: RefundStatus; page?: number; page_size?: number },
-): Promise<PaginatedRefunds> {
-  const qs = new URLSearchParams();
-  if (params?.status) qs.set("status", params.status);
-  if (params?.page) qs.set("page", String(params.page));
-  if (params?.page_size) qs.set("page_size", String(params.page_size));
-  const query = qs.toString() ? `?${qs.toString()}` : "";
-  return apiClient<PaginatedRefunds>(`/stores/${storeId}/refunds${query}`);
-}
