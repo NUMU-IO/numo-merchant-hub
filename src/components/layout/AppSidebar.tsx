@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, Banknote, Share2,
-  Users, BarChart3, Megaphone, Settings, FolderOpen,
+  Users, BarChart3, Megaphone, Settings, FolderOpen, User, Bell,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { NavLink } from "@/components/NavLink";
@@ -93,8 +93,16 @@ const AppSidebar = () => {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip={t("header.settings")} className="h-8 rounded-lg">
-              <NavLink to="/store">
+            <SidebarMenuButton asChild tooltip={isRTL ? "الإشعارات" : "Notifications"} className="h-8 rounded-lg" isActive={isActive("/notifications")}>
+              <NavLink to="/notifications">
+                <Bell className="h-[15px] w-[15px]" />
+                <span className="text-[13px] font-medium">{isRTL ? "الإشعارات" : "Notifications"}</span>
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip={t("header.settings")} className="h-8 rounded-lg" isActive={isActive("/settings")}>
+              <NavLink to="/settings">
                 <Settings className="h-[15px] w-[15px]" />
                 <span className="text-[13px] font-medium">{t("header.settings")}</span>
               </NavLink>

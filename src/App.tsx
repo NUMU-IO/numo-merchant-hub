@@ -22,6 +22,9 @@ const Customers = lazy(() => import("@/pages/Customers"));
 const Analytics = lazy(() => import("@/pages/Analytics"));
 const Marketing = lazy(() => import("@/pages/Marketing"));
 const Categories = lazy(() => import("@/pages/Categories"));
+const Profile = lazy(() => import("@/pages/Profile"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const Notifications = lazy(() => import("@/pages/Notifications"));
 const Login = lazy(() => import("@/pages/Login"));
 const VerifyEmail = lazy(() => import("@/pages/VerifyEmail"));
 const CreateStore = lazy(() => import("@/pages/CreateStore"));
@@ -131,6 +134,9 @@ const App = () => (
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/marketing" element={<Marketing />} />
                     <Route path="/categories" element={<Categories />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/notifications" element={<Notifications />} />
                   </Route>
 
                   <Route path="*" element={<NotFound />} />
