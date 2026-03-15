@@ -39,6 +39,7 @@ export interface CreateStoreData {
   name: string;
   subdomain: string;
   slug?: string;
+  invite_code?: string;
   description?: string;
   default_currency?: string;
   default_language?: string;
