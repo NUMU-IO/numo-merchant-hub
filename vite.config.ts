@@ -48,8 +48,9 @@ export default defineConfig(({ mode }) => ({
     },
     proxy: {
       "/api": {
-        target: "http://localhost:8021",
+        target: "http://188.166.156.151",
         changeOrigin: true,
+        autoRewrite: true,
       },
     },
   },
