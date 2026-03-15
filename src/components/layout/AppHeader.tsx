@@ -120,7 +120,7 @@ const AppHeader = () => {
         )}
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-lg">
+        <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-lg" onClick={() => navigate("/notifications")}>
           <Bell className="h-3.5 w-3.5" />
           <span className="absolute top-1 end-1 h-1.5 w-1.5 rounded-full bg-destructive" />
         </Button>
