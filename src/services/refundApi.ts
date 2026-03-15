@@ -157,5 +157,5 @@ export async function listStoreRefunds(
   if (params?.page) qs.set("page", String(params.page));
   if (params?.page_size) qs.set("page_size", String(params.page_size));
   const query = qs.toString() ? `?${qs.toString()}` : "";
-  return apiClient<PaginatedRefunds>(`/stores/${storeId}/refunds/${query}`);
+  return apiClient<PaginatedRefunds>(`/stores/${storeId}/refunds${query}`);
 }

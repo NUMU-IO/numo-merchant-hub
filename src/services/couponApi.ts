@@ -76,7 +76,7 @@ export async function listCoupons(
   if (params?.is_active !== undefined) qs.set("is_active", String(params.is_active));
   const query = qs.toString();
   return apiClient<PaginatedCoupons>(
-    `/stores/${storeId}/coupons${query ? `?${query}` : ""}`
+    `/stores/${storeId}/coupons/${query ? `?${query}` : ""}`
   );
 }
 

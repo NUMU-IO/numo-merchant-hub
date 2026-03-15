@@ -63,11 +63,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setUser(u);
       })
       .catch(() => {
-        // No valid session; CSRF failure is non-critical
-        setUser(null);
+        // No valid session — don't call setUser(null) here: initial state is already
+        // null, and overriding would race with a concurrent register/login action.
       })
       .finally(() => setIsLoading(false));
   }, []);
+
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await loginApi(email, password);

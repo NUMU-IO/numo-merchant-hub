@@ -62,7 +62,7 @@ export interface CreateWebhookRequest {
 
 /** Returns plain array — backend uses ListResponse (not paginated) */
 export async function listWebhooks(storeId: string): Promise<WebhookSubscription[]> {
-  return apiClient<WebhookSubscription[]>(`/stores/${storeId}/webhooks/`);
+  return apiClient<WebhookSubscription[]>(`/stores/${storeId}/webhooks`);
 }
 
 /** Returns the created subscription; secret is included ONCE in this response */
@@ -70,7 +70,7 @@ export async function createWebhook(
   storeId: string,
   data: CreateWebhookRequest,
 ): Promise<WebhookSubscription> {
-  return apiClient<WebhookSubscription>(`/stores/${storeId}/webhooks/`, {
+  return apiClient<WebhookSubscription>(`/stores/${storeId}/webhooks`, {
     method: "POST",
     body: JSON.stringify(data),
   });
