@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, TwoFactorRequiredError } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,8 +72,19 @@ export default function Login() {
         await register({ email, password, first_name: firstName, last_name: lastName });
         navigate("/verify-email", { replace: true });
       } else {
-        await login(email, password);
-        navigate("/", { replace: true });
+        try {
+          await login(email, password);
+          navigate("/", { replace: true });
+        } catch (loginErr: unknown) {
+          if (loginErr instanceof TwoFactorRequiredError) {
+            navigate("/2fa-challenge", {
+              replace: true,
+              state: { challengeToken: loginErr.challengeToken },
+            });
+            return;
+          }
+          throw loginErr;
+        }
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t("common.error"));
@@ -191,6 +202,7 @@ export default function Login() {
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute inset-y-0 end-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>

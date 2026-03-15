@@ -76,7 +76,7 @@ export async function listCoupons(
   if (params?.is_active !== undefined) qs.set("is_active", String(params.is_active));
   const query = qs.toString();
   return apiClient<PaginatedCoupons>(
-    `/stores/${storeId}/coupons${query ? `?${query}` : ""}`
+    `/stores/${storeId}/coupons/${query ? `?${query}` : ""}`
   );
 }
 
@@ -91,7 +91,7 @@ export async function createCoupon(
   storeId: string,
   data: CreateCouponData
 ): Promise<Coupon> {
-  return apiClient<Coupon>(`/stores/${storeId}/coupons`, {
+  return apiClient<Coupon>(`/stores/${storeId}/coupons/`, {
     method: "POST",
     body: JSON.stringify(data),
   });

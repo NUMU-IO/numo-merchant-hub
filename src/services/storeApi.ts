@@ -22,7 +22,7 @@ export interface StoreData {
   contact_phone: string | null;
   address: string | null;
   social_links: Record<string, string> | null;
-  theme_settings: Record<string, any> | null;
+  theme_settings: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
@@ -39,6 +39,7 @@ export interface CreateStoreData {
   name: string;
   subdomain: string;
   slug?: string;
+  invite_code?: string;
   description?: string;
   default_currency?: string;
   default_language?: string;
@@ -86,8 +87,8 @@ export interface UpdateStoreData {
   address?: string | null;
   social_links?: Record<string, string> | null;
   default_language?: string;
-  settings?: Record<string, any>;
-  theme_settings?: Record<string, any>;
+  settings?: Record<string, unknown>;
+  theme_settings?: Record<string, unknown>;
 }
 
 export async function updateStore(

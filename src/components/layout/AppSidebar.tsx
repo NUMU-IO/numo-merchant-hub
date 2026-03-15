@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, Banknote, Share2,
   Users, BarChart3, Megaphone, Settings, FolderOpen,
+  ArrowRightLeft, Webhook, ShieldCheck, Scale, CreditCard,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { NavLink } from "@/components/NavLink";
@@ -35,6 +36,14 @@ const AppSidebar = () => {
   const insightsNav = [
     { title: t("nav.analytics"), url: "/analytics", icon: BarChart3 },
     { title: t("nav.cod"), url: "/cod", icon: Banknote },
+    { title: isRTL ? "التسوية" : "Reconciliation", url: "/reconciliation", icon: Scale },
+  ];
+
+  const accountNav = [
+    { title: isRTL ? "المستردات" : "Refunds", url: "/refunds", icon: ArrowRightLeft },
+    { title: isRTL ? "Webhooks" : "Webhooks", url: "/webhooks", icon: Webhook },
+    { title: isRTL ? "الأمان" : "Security", url: "/security", icon: ShieldCheck },
+    { title: isRTL ? "الخطة" : "Plan", url: "/plan", icon: CreditCard },
   ];
 
   const isActive = (url: string) =>
@@ -87,6 +96,8 @@ const AppSidebar = () => {
           {renderGroup(isRTL ? "القنوات" : "Channels", channelsNav)}
           <SidebarSeparator className="my-1.5 opacity-50" />
           {renderGroup(isRTL ? "التقارير" : "Insights", insightsNav)}
+          <SidebarSeparator className="my-1.5 opacity-50" />
+          {renderGroup(isRTL ? "الحساب" : "Account", accountNav)}
         </div>
       </SidebarContent>
 

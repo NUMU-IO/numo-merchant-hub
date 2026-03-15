@@ -135,7 +135,7 @@ export async function listOrders(
   if (params?.search) qs.set("search", params.search);
   const query = qs.toString();
   return apiClient<PaginatedOrders>(
-    `/stores/${storeId}/orders${query ? `?${query}` : ""}`,
+    `/stores/${storeId}/orders/${query ? `?${query}` : ""}`,
   );
 }
 

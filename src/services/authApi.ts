@@ -31,7 +31,11 @@ export interface User {
 }
 
 export interface AuthResponse {
-  user: User;
+  user: User | null;
+  /** True when the account has 2FA enabled — full tokens are NOT set yet. */
+  requires_2fa?: boolean;
+  /** Temporary JWT to exchange at /auth/2fa/complete-login. */
+  challenge_token?: string;
 }
 
 export interface RegisterData {
@@ -59,10 +63,35 @@ export async function login(
   }
 
   const json = await res.json();
+  const data: AuthResponse = json.data;
 
-  // Fetch CSRF token now that we have auth cookies
+  // Only init CSRF when we actually have a session (no 2FA pending)
+  if (!data.requires_2fa) {
+    await initCSRF();
+  }
+
+  return data;
+}
+
+/** Exchange a 2FA challenge token + code for full auth cookies. */
+export async function completeTwoFactorLogin(
+  challengeToken: string,
+  code: string,
+): Promise<AuthResponse> {
+  const res = await fetch(`${API_BASE}/auth/2fa/complete-login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ challenge_token: challengeToken, code }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail || "Invalid verification code");
+  }
+
+  const json = await res.json();
   await initCSRF();
-
   return json.data;
 }
 
