@@ -91,7 +91,7 @@ export async function createCoupon(
   storeId: string,
   data: CreateCouponData
 ): Promise<Coupon> {
-  return apiClient<Coupon>(`/stores/${storeId}/coupons`, {
+  return apiClient<Coupon>(`/stores/${storeId}/coupons/`, {
     method: "POST",
     body: JSON.stringify(data),
   });
