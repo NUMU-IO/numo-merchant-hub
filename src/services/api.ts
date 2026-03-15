@@ -77,18 +77,21 @@ export async function apiClient<T>(
 
   // Handle expired access token: attempt refresh then retry once
   if (res.status === 401) {
-    const refreshed = await tryRefreshToken();
-    if (refreshed) {
-      res = await rawFetch(endpoint, options);
-      if (res.status !== 401) {
-        // Fall through to normal response handling below
-      } else {
+    const onAuthPage = ["/login", "/register", "/verify-email"].some((p) =>
+      window.location.pathname.startsWith(p),
+    );
+
+    if (!onAuthPage) {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) {
+        res = await rawFetch(endpoint, options);
+      }
+      if (res.status === 401) {
         window.location.href = "/login";
         throw new Error("Session expired. Please log in again.");
       }
     } else {
-      window.location.href = "/login";
-      throw new Error("Session expired. Please log in again.");
+      throw new Error("Not authenticated");
     }
   }
 
