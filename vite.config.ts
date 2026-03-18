@@ -25,8 +25,8 @@ function vitePluginCSP(): Plugin {
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
                 "font-src 'self' https://fonts.gstatic.com",
                 "img-src 'self' data: blob: https:",
-                "connect-src 'self' https://*.numu.store https://*.sentry.io https://*.ingest.sentry.io",
-                "frame-src 'self' https://*.numu.store",
+                "connect-src 'self' https://numueg.tech https://*.numueg.tech https://*.numu.store https://*.sentry.io https://*.ingest.sentry.io",
+                "frame-src 'self' https://numueg.tech https://*.numueg.tech https://*.numu.store",
                 "worker-src 'self' blob:",
               ].join("; ") + ";",
             },
@@ -48,8 +48,11 @@ export default defineConfig(({ mode }) => ({
     },
     proxy: {
       "/api": {
-        target: "http://localhost:8021",
+        // After SSL cert is issued, change to: https://numueg.tech
+        target: "http://188.166.156.151",
         changeOrigin: true,
+        cookieDomainRewrite: "",
+        secure: false,
       },
     },
   },
