@@ -654,7 +654,7 @@ export default function Settings() {
                 </div>
               </CardContent>
 
-              <TwoFactorSetupDialog open={show2FADialog} onOpenChange={(v) => { setShow2FADialog(v); if (!v) {} }} isAr={isAr} />
+              <TwoFactorSetupDialog open={show2FADialog} onOpenChange={(v) => { setShow2FADialog(v); }} onEnabled={() => setTwoFAEnabled(true)} isAr={isAr} />
             </Card>
           )}
 
