@@ -22,7 +22,7 @@ import {
 
 // --- 2FA Setup Dialog ---
 function TwoFactorSetupDialog({
-  open, onOpenChange, isAr,
+  open, onOpenChange, onEnabled, isAr,
 }: {
   open: boolean; onOpenChange: (v: boolean) => void; isAr: boolean;
 }) {
