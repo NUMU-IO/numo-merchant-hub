@@ -43,6 +43,11 @@ const CODReconciliation = () => {
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
   const [mismatches, setMismatches] = useState<Record<string, ReconciliationMismatch[]>>({});
   const [loadingMismatches, setLoadingMismatches] = useState<string | null>(null);
+  const [targetDate, setTargetDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split("T")[0];
+  });
 
   const fetchRuns = () => {
     if (!storeId) return;
@@ -61,7 +66,7 @@ const CODReconciliation = () => {
     if (!storeId || triggering) return;
     setTriggering(true);
     try {
-      const result = await triggerReconciliation(storeId);
+      const result = await triggerReconciliation(storeId, targetDate);
       toast({
         title: isAr ? "تمت التسوية" : "Reconciliation Complete",
         description: result.message,
@@ -160,10 +165,19 @@ const CODReconciliation = () => {
           <h1 className="text-xl font-semibold tracking-tight">{isAr ? "تسوية المدفوعات" : "Payment Reconciliation"}</h1>
           <p className="text-[13px] text-muted-foreground mt-0.5">{isAr ? "مراجعة تسويات المدفوعات اليومية وأي اختلافات" : "Review daily payment reconciliation runs and mismatches"}</p>
         </div>
-        <Button onClick={handleTrigger} disabled={triggering} size="sm" className="gap-1.5 shrink-0">
-          {triggering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-          {isAr ? "تشغيل الآن" : "Run Now"}
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <input
+            type="date"
+            value={targetDate}
+            onChange={(e) => setTargetDate(e.target.value)}
+            max={new Date().toISOString().split("T")[0]}
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+          />
+          <Button onClick={handleTrigger} disabled={triggering} size="sm" className="gap-1.5">
+            {triggering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+            {isAr ? "تشغيل الآن" : "Run Now"}
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -338,7 +352,7 @@ const CODReconciliation = () => {
                                   <TableCell className="font-mono text-xs">{m.order_number || "—"}</TableCell>
                                   <TableCell className="text-xs">{m.gateway || "—"}</TableCell>
                                   <TableCell className="text-xs font-medium">{m.expected_amount_cents != null ? formatCurrency(m.expected_amount_cents) : "—"}</TableCell>
-                                  <TableCell className="text-xs font-medium">{m.actual_amount_cents != null ? formatCurrency(m.actual_amount_cents) : "—"}</TableCell>
+                                  <TableCell className="text-xs font-medium">{m.actual_amount_cents != null ? formatCurrency(m.actual_amount_cents) : m.gateway?.toLowerCase() === "cod" ? (isAr ? "نقدي" : "Cash") : "—"}</TableCell>
                                   <TableCell>
                                     {m.resolved ? (
                                       <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 gap-1">
