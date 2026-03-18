@@ -45,7 +45,7 @@ export async function listCustomers(
   if (params?.query) qs.set("query", params.query);
   const query = qs.toString();
   return apiClient<PaginatedCustomers>(
-    `/stores/${storeId}/customers${query ? `?${query}` : ""}`
+    `/stores/${storeId}/customers/${query ? `?${query}` : ""}`
   );
 }
 
