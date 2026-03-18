@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -13,12 +13,14 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Settings2, Globe, CreditCard, Shield, Zap, Monitor,
   Moon, Sun, Loader2, ExternalLink, Key, Webhook,
   Plus, Trash2, Copy, Eye, EyeOff, CheckCircle2,
-  Smartphone, QrCode, ShieldCheck, X,
+  Smartphone, QrCode, ShieldCheck, X, AlertTriangle,
 } from "lucide-react";
+import { enable2FA, verify2FA, disable2FA, get2FAStatus, type Enable2FAData, type TwoFactorStatus } from "@/services/mfaApi";
 
 // --- 2FA Setup Dialog ---
 function TwoFactorSetupDialog({
@@ -29,6 +31,23 @@ function TwoFactorSetupDialog({
   const [step, setStep] = useState<"intro" | "qr" | "verify" | "done">("intro");
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [setupData, setSetupData] = useState<Enable2FAData | null>(null);
+  const [error, setError] = useState("");
+
+  const handleStartSetup = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await enable2FA();
+      setSetupData(data);
+      setStep("qr");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : (isAr ? "فشل بدء الإعداد" : "Failed to start setup"));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleVerify = async () => {
     if (code.length !== 6) {
@@ -36,16 +55,40 @@ function TwoFactorSetupDialog({
       return;
     }
     setVerifying(true);
-    await new Promise(r => setTimeout(r, 1200));
-    setVerifying(false);
-    setStep("done");
-    onEnabled();
-    toast.success(isAr ? "تم تفعيل المصادقة الثنائية" : "2FA enabled successfully");
+    setError("");
+    try {
+      const result = await verify2FA(code);
+      if (result.verified) {
+        setStep("done");
+        onEnabled();
+        toast.success(isAr ? "تم تفعيل المصادقة الثنائية" : "2FA enabled successfully");
+      } else {
+        setError(isAr ? "الرمز غير صحيح" : "Invalid code. Please try again.");
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : (isAr ? "فشل التحقق" : "Verification failed"));
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const handleClose = () => {
     onOpenChange(false);
-    setTimeout(() => { setStep("intro"); setCode(""); }, 300);
+    setTimeout(() => { setStep("intro"); setCode(""); setSetupData(null); setError(""); }, 300);
+  };
+
+  const copySecret = () => {
+    if (setupData?.secret) {
+      navigator.clipboard.writeText(setupData.secret);
+      toast.success(isAr ? "تم النسخ" : "Copied!");
+    }
+  };
+
+  const copyBackupCodes = () => {
+    if (setupData?.backup_codes) {
+      navigator.clipboard.writeText(setupData.backup_codes.join("\n"));
+      toast.success(isAr ? "تم نسخ رموز النسخ الاحتياطي" : "Backup codes copied!");
+    }
   };
 
   return (
@@ -63,6 +106,13 @@ function TwoFactorSetupDialog({
             {step === "done" && (isAr ? "تم تفعيل المصادقة الثنائية بنجاح" : "Two-factor authentication is now enabled")}
           </DialogDescription>
         </DialogHeader>
+
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            {error}
+          </div>
+        )}
 
         {step === "intro" && (
           <div className="space-y-4 py-2">
@@ -87,11 +137,11 @@ function TwoFactorSetupDialog({
           </div>
         )}
 
-        {step === "qr" && (
+        {step === "qr" && setupData && (
           <div className="space-y-4 py-2">
             <div className="flex justify-center">
-              <div className="h-40 w-40 rounded-xl bg-muted/60 border-2 border-dashed border-border flex items-center justify-center">
-                <QrCode className="h-16 w-16 text-muted-foreground/40" />
+              <div className="rounded-xl bg-white p-3 border shadow-sm">
+                <QRCodeSVG value={setupData.provisioning_uri} size={160} level="M" />
               </div>
             </div>
             <div className="space-y-1.5">
@@ -99,10 +149,10 @@ function TwoFactorSetupDialog({
                 {isAr ? "أو أدخل المفتاح يدوياً:" : "Or enter the key manually:"}
               </p>
               <div className="flex items-center gap-2 justify-center">
-                <code className="text-xs font-mono bg-muted/60 rounded-lg px-3 py-1.5 tracking-wider">
-                  NUMU-XXXX-XXXX-XXXX
+                <code className="text-xs font-mono bg-muted/60 rounded-lg px-3 py-1.5 tracking-wider select-all">
+                  {setupData.secret}
                 </code>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toast.success(isAr ? "تم النسخ" : "Copied!")}>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={copySecret}>
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
@@ -121,6 +171,7 @@ function TwoFactorSetupDialog({
                 className="h-10 text-center text-lg font-mono tracking-[0.5em] max-w-48 mx-auto"
                 maxLength={6}
                 dir="ltr"
+                autoFocus
               />
               <p className="text-[11px] text-muted-foreground text-center">
                 {isAr ? "أدخل الرمز المكون من 6 أرقام من تطبيق المصادقة" : "Enter the 6-digit code from your authenticator app"}
@@ -129,21 +180,43 @@ function TwoFactorSetupDialog({
           </div>
         )}
 
-        {step === "done" && (
-          <div className="flex flex-col items-center gap-3 py-6">
-            <div className="h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
-              <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+        {step === "done" && setupData && (
+          <div className="space-y-4 py-2">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+              </div>
+              <p className="text-sm font-medium">{isAr ? "تم التفعيل بنجاح!" : "Successfully Enabled!"}</p>
             </div>
-            <p className="text-sm font-medium">{isAr ? "تم التفعيل بنجاح!" : "Successfully Enabled!"}</p>
-            <p className="text-xs text-muted-foreground text-center max-w-[280px]">
-              {isAr ? "حسابك الآن محمي بالمصادقة الثنائية" : "Your account is now protected with two-factor authentication"}
-            </p>
+            {/* Backup codes */}
+            <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {isAr ? "رموز النسخ الاحتياطي" : "Backup Codes"}
+                </p>
+                <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1" onClick={copyBackupCodes}>
+                  <Copy className="h-2.5 w-2.5" />{isAr ? "نسخ" : "Copy"}
+                </Button>
+              </div>
+              <p className="text-[10px] text-amber-600 dark:text-amber-500">
+                {isAr ? "احفظ هذه الرموز في مكان آمن. لن تظهر مرة أخرى!" : "Save these codes somewhere safe. They won't be shown again!"}
+              </p>
+              <div className="grid grid-cols-2 gap-1">
+                {setupData.backup_codes.map((bc) => (
+                  <code key={bc} className="text-[11px] font-mono bg-white dark:bg-background rounded px-2 py-1 text-center border">
+                    {bc}
+                  </code>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
         <DialogFooter className="gap-2 sm:gap-0">
           {step === "intro" && (
-            <Button onClick={() => setStep("qr")} size="sm" className="gap-1.5 rounded-lg">
+            <Button onClick={handleStartSetup} disabled={loading} size="sm" className="gap-1.5 rounded-lg">
+              {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {isAr ? "متابعة" : "Continue"}
             </Button>
           )}
@@ -294,9 +367,17 @@ export default function Settings() {
   const [activeSection, setActiveSection] = useState("general");
 
   // 2FA state
-  const [twoFAEnabled, setTwoFAEnabled] = useState(false);
+  const [twoFAStatus, setTwoFAStatus] = useState<TwoFactorStatus | null>(null);
   const [show2FADialog, setShow2FADialog] = useState(false);
   const [disabling2FA, setDisabling2FA] = useState(false);
+  const [showDisableDialog, setShowDisableDialog] = useState(false);
+  const [disablePassword, setDisablePassword] = useState("");
+
+  const twoFAEnabled = twoFAStatus?.is_enabled ?? false;
+
+  useEffect(() => {
+    get2FAStatus().then(setTwoFAStatus).catch(() => {});
+  }, []);
 
   // Webhooks state
   const [webhooks, setWebhooks] = useState<WebhookEntry[]>([
@@ -314,17 +395,32 @@ export default function Settings() {
   const [showLiveKey, setShowLiveKey] = useState(false);
   const [showTestKey, setShowTestKey] = useState(false);
 
-  const handle2FAToggle = useCallback(async () => {
+  const handle2FAToggle = useCallback(() => {
     if (twoFAEnabled) {
-      setDisabling2FA(true);
-      await new Promise(r => setTimeout(r, 800));
-      setTwoFAEnabled(false);
-      setDisabling2FA(false);
-      toast.success(isAr ? "تم إلغاء المصادقة الثنائية" : "2FA disabled");
+      setShowDisableDialog(true);
     } else {
       setShow2FADialog(true);
     }
-  }, [twoFAEnabled, isAr]);
+  }, [twoFAEnabled]);
+
+  const handleDisable2FA = useCallback(async () => {
+    if (!disablePassword) {
+      toast.error(isAr ? "أدخل كلمة المرور" : "Enter your password");
+      return;
+    }
+    setDisabling2FA(true);
+    try {
+      await disable2FA(disablePassword);
+      setTwoFAStatus(prev => prev ? { ...prev, is_enabled: false, method: null } : prev);
+      toast.success(isAr ? "تم إلغاء المصادقة الثنائية" : "2FA disabled");
+      setShowDisableDialog(false);
+      setDisablePassword("");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : (isAr ? "فشل إلغاء 2FA" : "Failed to disable 2FA"));
+    } finally {
+      setDisabling2FA(false);
+    }
+  }, [disablePassword, isAr]);
 
   const handleDeleteWebhook = useCallback((id: string) => {
     setWebhooks(prev => prev.filter(w => w.id !== id));
@@ -655,7 +751,46 @@ export default function Settings() {
                 </div>
               </CardContent>
 
-              <TwoFactorSetupDialog open={show2FADialog} onOpenChange={(v) => { setShow2FADialog(v); }} onEnabled={() => setTwoFAEnabled(true)} isAr={isAr} />
+              <TwoFactorSetupDialog
+                open={show2FADialog}
+                onOpenChange={setShow2FADialog}
+                onEnabled={() => setTwoFAStatus(prev => prev ? { ...prev, is_enabled: true, method: "totp" } : prev)}
+                isAr={isAr}
+              />
+
+              {/* Disable 2FA Dialog */}
+              <Dialog open={showDisableDialog} onOpenChange={setShowDisableDialog}>
+                <DialogContent className="sm:max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle className="text-base flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-destructive" />
+                      {isAr ? "إلغاء المصادقة الثنائية" : "Disable 2FA"}
+                    </DialogTitle>
+                    <DialogDescription className="text-xs">
+                      {isAr ? "أدخل كلمة المرور للتأكيد" : "Enter your password to confirm"}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-2">
+                    <Input
+                      type="password"
+                      value={disablePassword}
+                      onChange={(e) => setDisablePassword(e.target.value)}
+                      placeholder={isAr ? "كلمة المرور" : "Password"}
+                      className="h-9 text-sm"
+                      dir="ltr"
+                    />
+                  </div>
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Button variant="outline" size="sm" className="rounded-lg" onClick={() => { setShowDisableDialog(false); setDisablePassword(""); }}>
+                      {isAr ? "إلغاء" : "Cancel"}
+                    </Button>
+                    <Button variant="destructive" size="sm" className="gap-1.5 rounded-lg" onClick={handleDisable2FA} disabled={disabling2FA || !disablePassword}>
+                      {disabling2FA && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      {isAr ? "إلغاء 2FA" : "Disable 2FA"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </Card>
           )}
 
