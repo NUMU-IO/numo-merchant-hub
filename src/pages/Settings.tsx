@@ -24,7 +24,7 @@ import {
 function TwoFactorSetupDialog({
   open, onOpenChange, onEnabled, isAr,
 }: {
-  open: boolean; onOpenChange: (v: boolean) => void; isAr: boolean;
+  open: boolean; onOpenChange: (v: boolean) => void; onEnabled: () => void; isAr: boolean;
 }) {
   const [step, setStep] = useState<"intro" | "qr" | "verify" | "done">("intro");
   const [code, setCode] = useState("");
