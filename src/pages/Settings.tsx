@@ -39,6 +39,7 @@ function TwoFactorSetupDialog({
     await new Promise(r => setTimeout(r, 1200));
     setVerifying(false);
     setStep("done");
+    onEnabled();
     toast.success(isAr ? "تم تفعيل المصادقة الثنائية" : "2FA enabled successfully");
   };
 
