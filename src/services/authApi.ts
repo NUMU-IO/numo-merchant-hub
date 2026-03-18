@@ -34,6 +34,22 @@ export interface AuthResponse {
   user: User;
 }
 
+export interface LoginResponse {
+  user: User | null;
+  requires_2fa: boolean;
+  challenge_token: string | null;
+}
+
+/** Thrown by login() when the account has 2FA enabled. */
+export class TwoFactorRequiredError extends Error {
+  challengeToken: string;
+  constructor(challengeToken: string) {
+    super("2FA verification required");
+    this.name = "TwoFactorRequiredError";
+    this.challengeToken = challengeToken;
+  }
+}
+
 export interface RegisterData {
   email: string;
   password: string;
@@ -59,11 +75,42 @@ export async function login(
   }
 
   const json = await res.json();
+  const data = json.data as LoginResponse;
+
+  // If 2FA is required, throw so the caller can prompt for the code
+  if (data.requires_2fa && data.challenge_token) {
+    throw new TwoFactorRequiredError(data.challenge_token);
+  }
 
   // Fetch CSRF token now that we have auth cookies
   await initCSRF();
 
-  return json.data;
+  return { user: data.user! };
+}
+
+/** Complete login for accounts with 2FA enabled. */
+export async function complete2FALogin(
+  challengeToken: string,
+  code: string
+): Promise<AuthResponse> {
+  const res = await fetch(`${API_BASE}/auth/2fa/complete-login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ challenge_token: challengeToken, code }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail || `2FA verification failed (${res.status})`);
+  }
+
+  const json = await res.json();
+
+  // Now we have auth cookies — fetch CSRF token
+  await initCSRF();
+
+  return { user: json.data.user };
 }
 
 export async function register(data: RegisterData): Promise<AuthResponse> {
@@ -140,4 +187,44 @@ export async function resendVerificationEmail(): Promise<void> {
   await apiClient<{ message: string }>("/auth/resend-verification", {
     method: "POST",
   });
+}
+
+/** Change password (requires current password). Revokes all other sessions. */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  await apiClient<{ message: string }>("/auth/me/password", {
+    method: "PATCH",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
+/** Request a password reset email. */
+export async function forgotPassword(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail || "Request failed");
+  }
+}
+
+/** Reset password using the token from email. */
+export async function resetPassword(
+  token: string,
+  newPassword: string
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail || "Reset failed");
+  }
 }

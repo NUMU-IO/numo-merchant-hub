@@ -16,37 +16,67 @@ import {
   ChevronUp,
   FileSearch,
   Scale,
+  Play,
 } from "lucide-react";
 import {
   listReconciliationRuns,
   listRunMismatches,
+  triggerReconciliation,
   type ReconciliationRun,
   type ReconciliationMismatch,
 } from "@/services/reconciliationApi";
+import { useToast } from "@/hooks/use-toast";
 
 type RunStatus = "all" | "completed" | "failed" | "running" | "pending";
 
 const CODReconciliation = () => {
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
+  const { toast } = useToast();
   const isAr = language === "ar";
   const storeId = currentStore?.id;
 
   const [runs, setRuns] = useState<ReconciliationRun[]>([]);
   const [loading, setLoading] = useState(true);
+  const [triggering, setTriggering] = useState(false);
   const [statusFilter, setStatusFilter] = useState<RunStatus>("all");
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
   const [mismatches, setMismatches] = useState<Record<string, ReconciliationMismatch[]>>({});
   const [loadingMismatches, setLoadingMismatches] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchRuns = () => {
     if (!storeId) return;
     setLoading(true);
     listReconciliationRuns(storeId)
       .then(setRuns)
       .catch(() => {})
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchRuns();
   }, [storeId]);
+
+  const handleTrigger = async () => {
+    if (!storeId || triggering) return;
+    setTriggering(true);
+    try {
+      const result = await triggerReconciliation(storeId);
+      toast({
+        title: isAr ? "تمت التسوية" : "Reconciliation Complete",
+        description: result.message,
+      });
+      fetchRuns();
+    } catch (err) {
+      toast({
+        title: isAr ? "فشل التشغيل" : "Failed to Run",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setTriggering(false);
+    }
+  };
 
   const toggleRun = async (runId: string) => {
     if (expandedRun === runId) {
@@ -125,9 +155,15 @@ const CODReconciliation = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{isAr ? "تسوية المدفوعات" : "Payment Reconciliation"}</h1>
-        <p className="text-[13px] text-muted-foreground mt-0.5">{isAr ? "مراجعة تسويات المدفوعات اليومية وأي اختلافات" : "Review daily payment reconciliation runs and mismatches"}</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">{isAr ? "تسوية المدفوعات" : "Payment Reconciliation"}</h1>
+          <p className="text-[13px] text-muted-foreground mt-0.5">{isAr ? "مراجعة تسويات المدفوعات اليومية وأي اختلافات" : "Review daily payment reconciliation runs and mismatches"}</p>
+        </div>
+        <Button onClick={handleTrigger} disabled={triggering} size="sm" className="gap-1.5 shrink-0">
+          {triggering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+          {isAr ? "تشغيل الآن" : "Run Now"}
+        </Button>
       </div>
 
       {/* KPI Cards */}

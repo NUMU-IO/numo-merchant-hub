@@ -15,12 +15,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  Settings2, Globe, CreditCard, Shield, Zap, Monitor,
+  Settings2, Globe, CreditCard, Shield, Zap, Monitor, User,
   Moon, Sun, Loader2, ExternalLink, Key, Webhook,
   Plus, Trash2, Copy, Eye, EyeOff, CheckCircle2,
   Smartphone, QrCode, ShieldCheck, X, AlertTriangle,
 } from "lucide-react";
 import { enable2FA, verify2FA, disable2FA, get2FAStatus, type Enable2FAData, type TwoFactorStatus } from "@/services/mfaApi";
+import { changePassword } from "@/services/authApi";
 
 // --- 2FA Setup Dialog ---
 function TwoFactorSetupDialog({
@@ -378,6 +379,13 @@ export default function Settings() {
   useEffect(() => {
     get2FAStatus().then(setTwoFAStatus).catch(() => {});
   }, []);
+
+  // Sessions / Activity state
+  const [showSessionsDialog, setShowSessionsDialog] = useState(false);
+  const [showActivityDialog, setShowActivityDialog] = useState(false);
+  const [revokePassword, setRevokePassword] = useState("");
+  const [revokeNewPassword, setRevokeNewPassword] = useState("");
+  const [revokingAll, setRevokingAll] = useState(false);
 
   // Webhooks state
   const [webhooks, setWebhooks] = useState<WebhookEntry[]>([
@@ -740,14 +748,18 @@ export default function Settings() {
                     <Label className="text-[13px]">{isAr ? "جلسات نشطة" : "Active Sessions"}</Label>
                     <p className="text-[11px] text-muted-foreground">{isAr ? "إدارة الأجهزة المتصلة" : "Manage connected devices"}</p>
                   </div>
-                  <Button variant="ghost" size="sm" className="h-7 text-[11px] rounded-lg">{isAr ? "عرض الجلسات" : "View Sessions"}</Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-[11px] rounded-lg" onClick={() => setShowSessionsDialog(true)}>
+                    {isAr ? "عرض الجلسات" : "View Sessions"}
+                  </Button>
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <Label className="text-[13px]">{isAr ? "سجل النشاط" : "Activity Log"}</Label>
                     <p className="text-[11px] text-muted-foreground">{isAr ? "آخر الأنشطة على حسابك" : "Recent account activity"}</p>
                   </div>
-                  <Button variant="ghost" size="sm" className="h-7 text-[11px] rounded-lg">{isAr ? "عرض السجل" : "View Log"}</Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-[11px] rounded-lg" onClick={() => setShowActivityDialog(true)}>
+                    {isAr ? "عرض السجل" : "View Log"}
+                  </Button>
                 </div>
               </CardContent>
 
@@ -789,6 +801,186 @@ export default function Settings() {
                       {isAr ? "إلغاء 2FA" : "Disable 2FA"}
                     </Button>
                   </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Active Sessions Dialog */}
+              <Dialog open={showSessionsDialog} onOpenChange={(v) => { setShowSessionsDialog(v); if (!v) { setRevokePassword(""); setRevokeNewPassword(""); } }}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-base flex items-center gap-2">
+                      <Monitor className="h-4 w-4 text-blue-600" />
+                      {isAr ? "الجلسات النشطة" : "Active Sessions"}
+                    </DialogTitle>
+                    <DialogDescription className="text-xs">
+                      {isAr ? "إدارة جلسات تسجيل الدخول الخاصة بك" : "Manage your login sessions"}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 py-2">
+                    {/* Current session */}
+                    <div className="rounded-lg border p-3 bg-primary/5 border-primary/20">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Monitor className="h-4 w-4 text-primary" />
+                          <span className="text-[13px] font-medium">{isAr ? "الجلسة الحالية" : "Current Session"}</span>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-200 gap-1">
+                          <CheckCircle2 className="h-2.5 w-2.5" />
+                          {isAr ? "نشطة" : "Active"}
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1.5">
+                        {navigator.userAgent.includes("Chrome") ? "Chrome" : navigator.userAgent.includes("Firefox") ? "Firefox" : navigator.userAgent.includes("Safari") ? "Safari" : "Browser"} — {navigator.platform || "Unknown OS"}
+                      </p>
+                    </div>
+
+                    <Separator />
+
+                    {/* Revoke all sessions */}
+                    <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800 p-3 space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                        <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                          {isAr ? "إنهاء جميع الجلسات الأخرى" : "Revoke All Other Sessions"}
+                        </p>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        {isAr
+                          ? "سيتم تسجيل خروجك من جميع الأجهزة الأخرى. يتطلب تغيير كلمة المرور."
+                          : "You'll be logged out of all other devices. This requires changing your password."}
+                      </p>
+                      <div className="space-y-2">
+                        <Input
+                          type="password"
+                          value={revokePassword}
+                          onChange={(e) => setRevokePassword(e.target.value)}
+                          placeholder={isAr ? "كلمة المرور الحالية" : "Current password"}
+                          className="h-8 text-xs"
+                          dir="ltr"
+                        />
+                        <Input
+                          type="password"
+                          value={revokeNewPassword}
+                          onChange={(e) => setRevokeNewPassword(e.target.value)}
+                          placeholder={isAr ? "كلمة مرور جديدة" : "New password"}
+                          className="h-8 text-xs"
+                          dir="ltr"
+                        />
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="w-full h-8 text-xs gap-1.5 rounded-lg"
+                        disabled={revokingAll || !revokePassword || !revokeNewPassword}
+                        onClick={async () => {
+                          if (revokeNewPassword.length < 8) {
+                            toast.error(isAr ? "كلمة المرور يجب أن تكون 8 أحرف على الأقل" : "New password must be at least 8 characters");
+                            return;
+                          }
+                          setRevokingAll(true);
+                          try {
+                            await changePassword(revokePassword, revokeNewPassword);
+                            toast.success(isAr ? "تم إنهاء جميع الجلسات الأخرى" : "All other sessions revoked");
+                            setShowSessionsDialog(false);
+                            setRevokePassword("");
+                            setRevokeNewPassword("");
+                          } catch (err: unknown) {
+                            toast.error(err instanceof Error ? err.message : (isAr ? "فشلت العملية" : "Operation failed"));
+                          } finally {
+                            setRevokingAll(false);
+                          }
+                        }}
+                      >
+                        {revokingAll && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {isAr ? "إنهاء الجلسات وتغيير كلمة المرور" : "Revoke Sessions & Change Password"}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* Activity Log Dialog */}
+              <Dialog open={showActivityDialog} onOpenChange={setShowActivityDialog}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-base flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-blue-600" />
+                      {isAr ? "سجل النشاط" : "Activity Log"}
+                    </DialogTitle>
+                    <DialogDescription className="text-xs">
+                      {isAr ? "آخر أنشطة الأمان على حسابك" : "Recent security activity on your account"}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-2 py-2 max-h-[400px] overflow-y-auto">
+                    {/* Account creation */}
+                    {user?.created_at && (
+                      <div className="flex items-start gap-3 rounded-lg border p-3">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500/10 shrink-0 mt-0.5">
+                          <User className="h-3.5 w-3.5 text-blue-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium">{isAr ? "إنشاء الحساب" : "Account Created"}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {new Date(user.created_at).toLocaleString(isAr ? "ar-EG" : "en-US", { dateStyle: "medium", timeStyle: "short" })}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Email verified */}
+                    {user?.is_verified && (
+                      <div className="flex items-start gap-3 rounded-lg border p-3">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 shrink-0 mt-0.5">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium">{isAr ? "تم تأكيد البريد الإلكتروني" : "Email Verified"}</p>
+                          <p className="text-[11px] text-muted-foreground">{isAr ? "تم التحقق من عنوان البريد" : "Email address has been verified"}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2FA enabled */}
+                    {twoFAStatus?.enabled_at && (
+                      <div className="flex items-start gap-3 rounded-lg border p-3">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 shrink-0 mt-0.5">
+                          <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium">{isAr ? "تفعيل المصادقة الثنائية" : "2FA Enabled"}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {new Date(twoFAStatus.enabled_at).toLocaleString(isAr ? "ar-EG" : "en-US", { dateStyle: "medium", timeStyle: "short" })}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2FA last used */}
+                    {twoFAStatus?.last_used_at && (
+                      <div className="flex items-start gap-3 rounded-lg border p-3">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/10 shrink-0 mt-0.5">
+                          <Key className="h-3.5 w-3.5 text-amber-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium">{isAr ? "آخر استخدام للمصادقة الثنائية" : "Last 2FA Verification"}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {new Date(twoFAStatus.last_used_at).toLocaleString(isAr ? "ar-EG" : "en-US", { dateStyle: "medium", timeStyle: "short" })}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Current login */}
+                    <div className="flex items-start gap-3 rounded-lg border p-3 bg-primary/5 border-primary/20">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 shrink-0 mt-0.5">
+                        <Monitor className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium">{isAr ? "الجلسة الحالية" : "Current Login Session"}</p>
+                        <p className="text-[11px] text-muted-foreground">{isAr ? "نشطة الآن" : "Active now"}</p>
+                      </div>
+                    </div>
+                  </div>
                 </DialogContent>
               </Dialog>
             </Card>

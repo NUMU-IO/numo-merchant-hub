@@ -28,6 +28,8 @@ const Notifications = lazy(() => import("@/pages/Notifications"));
 const Login = lazy(() => import("@/pages/Login"));
 const VerifyEmail = lazy(() => import("@/pages/VerifyEmail"));
 const CreateStore = lazy(() => import("@/pages/CreateStore"));
+const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -89,6 +91,8 @@ const App = () => (
                 <Routes>
                   {/* Public */}
                   <Route path="/login" element={<Login />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
 
                   {/* Auth required, verification pending */}
                   <Route

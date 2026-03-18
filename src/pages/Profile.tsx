@@ -11,8 +11,9 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
   User, Mail, Phone, Shield, Calendar, Key,
-  Loader2, Camera, CheckCircle2,
+  Loader2, Camera, CheckCircle2, AlertCircle,
 } from "lucide-react";
+import { changePassword } from "@/services/authApi";
 
 export default function Profile() {
   const { t } = useTranslation();
@@ -54,13 +55,13 @@ export default function Profile() {
     }
     setChangingPassword(true);
     try {
-      await new Promise(r => setTimeout(r, 800));
-      toast.success(isAr ? "تم تغيير كلمة المرور" : "Password changed successfully");
+      await changePassword(currentPassword, newPassword);
+      toast.success(isAr ? "تم تغيير كلمة المرور. تم إنهاء جميع الجلسات الأخرى." : "Password changed. All other sessions have been revoked.");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch {
-      toast.error(isAr ? "فشل تغيير كلمة المرور" : "Failed to change password");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : (isAr ? "فشل تغيير كلمة المرور" : "Failed to change password"));
     } finally {
       setChangingPassword(false);
     }

@@ -57,3 +57,23 @@ export async function listRunMismatches(
     `/stores/${storeId}/reconciliation/runs/${runId}/mismatches${qs ? `?${qs}` : ""}`
   );
 }
+
+export interface TriggerReconciliationResponse {
+  run_id: string;
+  status: string;
+  message: string;
+}
+
+/** Trigger a reconciliation run for a given date (defaults to yesterday). */
+export async function triggerReconciliation(
+  storeId: string,
+  targetDate?: string
+): Promise<TriggerReconciliationResponse> {
+  return apiClient<TriggerReconciliationResponse>(
+    `/stores/${storeId}/reconciliation/runs/trigger`,
+    {
+      method: "POST",
+      body: JSON.stringify(targetDate ? { target_date: targetDate } : {}),
+    }
+  );
+}

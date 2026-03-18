@@ -17,6 +17,8 @@ import {
   register as registerApi,
   logout as logoutApi,
   getMe,
+  complete2FALogin as complete2FALoginApi,
+  TwoFactorRequiredError,
 } from "@/services/authApi";
 import { initCSRF } from "@/services/csrf";
 import type { User, RegisterData } from "@/services/authApi";
@@ -26,6 +28,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  complete2FALogin: (challengeToken: string, code: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -36,6 +39,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   isLoading: true,
   login: async () => {},
+  complete2FALogin: async () => {},
   register: async () => {},
   logout: async () => {},
   refreshUser: async () => {},
@@ -63,7 +67,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
+    // Throws TwoFactorRequiredError if 2FA is enabled — caller should catch it
     const res = await loginApi(email, password);
+    setUser(res.user);
+  }, []);
+
+  const complete2FALogin = useCallback(async (challengeToken: string, code: string) => {
+    const res = await complete2FALoginApi(challengeToken, code);
     setUser(res.user);
   }, []);
 
@@ -96,6 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         isAuthenticated: !!user,
         isLoading,
         login,
+        complete2FALogin,
         register,
         logout,
         refreshUser,

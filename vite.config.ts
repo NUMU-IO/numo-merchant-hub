@@ -19,16 +19,17 @@ function vitePluginCSP(): Plugin {
             tag: "meta",
             attrs: {
               "http-equiv": "Content-Security-Policy",
-              content: [
-                "default-src 'self'",
-                "script-src 'self'",
-                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-                "font-src 'self' https://fonts.gstatic.com",
-                "img-src 'self' data: blob: https:",
-                "connect-src 'self' https://numueg.tech https://*.numueg.tech https://*.numu.store https://*.sentry.io https://*.ingest.sentry.io",
-                "frame-src 'self' https://numueg.tech https://*.numueg.tech https://*.numu.store",
-                "worker-src 'self' blob:",
-              ].join("; ") + ";",
+              content:
+                [
+                  "default-src 'self'",
+                  "script-src 'self'",
+                  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+                  "font-src 'self' https://fonts.gstatic.com",
+                  "img-src 'self' data: blob: https:",
+                  "connect-src 'self' https://numueg.tech https://*.numueg.tech https://*.numu.store https://*.sentry.io https://*.ingest.sentry.io",
+                  "frame-src 'self' https://numueg.tech https://*.numueg.tech https://*.numu.store",
+                  "worker-src 'self' blob:",
+                ].join("; ") + ";",
             },
             injectTo: "head",
           },
@@ -56,7 +57,11 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-  plugins: [react(), mode === "development" && componentTagger(), vitePluginCSP()].filter(Boolean),
+  plugins: [
+    react(),
+    mode === "development" && componentTagger(),
+    vitePluginCSP(),
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -68,7 +73,14 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks: {
           "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-ui": ["@radix-ui/react-dialog", "@radix-ui/react-select", "@radix-ui/react-tabs", "@radix-ui/react-tooltip", "@radix-ui/react-popover", "@radix-ui/react-dropdown-menu"],
+          "vendor-ui": [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-select",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-tooltip",
+            "@radix-ui/react-popover",
+            "@radix-ui/react-dropdown-menu",
+          ],
           "vendor-charts": ["recharts"],
           "vendor-query": ["@tanstack/react-query"],
         },
@@ -77,6 +89,9 @@ export default defineConfig(({ mode }) => ({
   },
   esbuild: {
     drop: mode === "production" ? ["debugger"] : [],
-    pure: mode === "production" ? ["console.log", "console.debug", "console.info"] : [],
+    pure:
+      mode === "production"
+        ? ["console.log", "console.debug", "console.info"]
+        : [],
   },
 }));
