@@ -129,10 +129,10 @@
   .auth-dot-grid {
     background-image: radial-gradient(
       circle,
-      hsl(var(--primary-foreground) / 0.06) 1px,
+      hsl(0 0% 100% / 0.03) 1px,
       transparent 1px
     );
-    background-size: 24px 24px;
+    background-size: 28px 28px;
   }
 
   @keyframes auth-enter {
@@ -146,118 +146,196 @@
     animation: auth-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
+  /* ── Auth page — iOS 26 Liquid Glass ── */
   .auth-page {
-    background-color: hsl(220 30% 6%);
+    background-color: hsl(222 30% 7%);
+    position: relative;
+    overflow: hidden;
   }
 
+  /* Ambient color orbs behind the glass */
+  .auth-page::before,
+  .auth-page::after {
+    content: "";
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.5;
+    pointer-events: none;
+    animation: auth-orb-drift 18s ease-in-out infinite alternate;
+  }
+  .auth-page::before {
+    width: 420px;
+    height: 420px;
+    background: radial-gradient(circle, hsl(215 80% 50% / 0.45), transparent 70%);
+    top: -10%;
+    left: -5%;
+  }
+  .auth-page::after {
+    width: 360px;
+    height: 360px;
+    background: radial-gradient(circle, hsl(270 60% 55% / 0.35), transparent 70%);
+    bottom: -8%;
+    right: -5%;
+    animation-delay: -9s;
+  }
+
+  @keyframes auth-orb-drift {
+    0%   { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(30px, -20px) scale(1.08); }
+  }
+
+  /* ── Liquid Glass card ── */
   .auth-glass {
-    background: hsl(0 0% 100% / 0.07);
-    backdrop-filter: blur(20px) saturate(1.4);
-    -webkit-backdrop-filter: blur(20px) saturate(1.4);
-    border: 1px solid hsl(0 0% 100% / 0.1);
-    color: hsl(0 0% 95%);
+    position: relative;
+    background: linear-gradient(
+      165deg,
+      hsl(0 0% 100% / 0.18) 0%,
+      hsl(0 0% 100% / 0.08) 50%,
+      hsl(0 0% 100% / 0.05) 100%
+    );
+    backdrop-filter: blur(48px) saturate(1.6) brightness(1.1);
+    -webkit-backdrop-filter: blur(48px) saturate(1.6) brightness(1.1);
+    border: 1px solid hsl(0 0% 100% / 0.2);
+    border-top-color: hsl(0 0% 100% / 0.4);
+    border-left-color: hsl(0 0% 100% / 0.25);
+    box-shadow:
+      0 8px 32px hsl(0 0% 0% / 0.2),
+      0 2px 8px hsl(0 0% 0% / 0.1),
+      inset 0 1px 0 hsl(0 0% 100% / 0.15),
+      inset 1px 0 0 hsl(0 0% 100% / 0.05);
+    color: hsl(0 0% 96%);
   }
 
+  /* Specular highlight along top edge */
+  .auth-glass::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(0 0% 100% / 0.5) 30%,
+      hsl(0 0% 100% / 0.7) 50%,
+      hsl(0 0% 100% / 0.5) 70%,
+      transparent
+    );
+    border-radius: 999px;
+  }
+
+  /* ── Inputs on glass ── */
   .auth-glass input,
   .auth-glass textarea {
-    background: hsl(0 0% 100% / 0.06) !important;
-    border-color: hsl(0 0% 100% / 0.12) !important;
-    color: hsl(0 0% 95%) !important;
+    background: hsl(0 0% 100% / 0.08) !important;
+    border-color: hsl(0 0% 100% / 0.15) !important;
+    color: hsl(0 0% 97%) !important;
+    box-shadow: inset 0 1px 2px hsl(0 0% 0% / 0.08) !important;
   }
 
   .auth-glass input::placeholder,
   .auth-glass textarea::placeholder {
-    color: hsl(0 0% 100% / 0.3) !important;
+    color: hsl(0 0% 100% / 0.35) !important;
   }
 
   .auth-glass input:focus,
   .auth-glass textarea:focus {
-    border-color: hsl(0 0% 100% / 0.3) !important;
-    ring-color: hsl(0 0% 100% / 0.05) !important;
+    background: hsl(0 0% 100% / 0.12) !important;
+    border-color: hsl(0 0% 100% / 0.35) !important;
+    box-shadow:
+      inset 0 1px 2px hsl(0 0% 0% / 0.06),
+      0 0 0 3px hsl(215 80% 60% / 0.15) !important;
   }
 
   .auth-glass label {
-    color: hsl(0 0% 80%);
+    color: hsl(0 0% 82%);
   }
 
   .auth-glass p.text-muted-foreground,
   .auth-glass .text-muted-foreground {
-    color: hsl(0 0% 60%);
+    color: hsl(0 0% 65%);
   }
 
   .auth-glass p.text-destructive {
-    color: hsl(0 80% 65%);
+    color: hsl(0 80% 68%);
   }
 
-  /* Select triggers on glass */
+  /* ── Select triggers ── */
   .auth-glass [role="combobox"],
   .auth-glass button[data-slot="trigger"] {
-    background: hsl(0 0% 100% / 0.06) !important;
-    border-color: hsl(0 0% 100% / 0.12) !important;
-    color: hsl(0 0% 90%) !important;
+    background: hsl(0 0% 100% / 0.08) !important;
+    border-color: hsl(0 0% 100% / 0.15) !important;
+    color: hsl(0 0% 92%) !important;
+    box-shadow: inset 0 1px 2px hsl(0 0% 0% / 0.08) !important;
   }
 
-  /* Links and toggle buttons on glass */
+  /* ── Links ── */
   .auth-glass a,
   .auth-glass .text-foreground {
-    color: hsl(0 0% 95%);
+    color: hsl(0 0% 96%);
   }
   .auth-glass a:hover {
     color: hsl(0 0% 100%);
   }
 
-  /* Separator line on glass */
+  /* ── Dividers ── */
   .auth-glass .border-border\/40,
   .auth-glass .border-t {
     border-color: hsl(0 0% 100% / 0.1) !important;
   }
 
-  /* Error alert on glass */
+  /* ── Error alert ── */
   .auth-glass .bg-destructive\/\[0\.04\] {
-    background: hsl(0 60% 50% / 0.12) !important;
-    border-color: hsl(0 60% 50% / 0.2) !important;
+    background: hsl(0 55% 50% / 0.14) !important;
+    border-color: hsl(0 55% 50% / 0.25) !important;
   }
 
-  /* Verification code inputs on glass */
+  /* ── OTP code inputs ── */
   .auth-glass input[inputmode="numeric"] {
-    background: hsl(0 0% 100% / 0.04) !important;
-  }
-
-  /* Icon containers on glass */
-  .auth-glass .bg-primary\/\[0\.07\] {
-    background: hsl(0 0% 100% / 0.08) !important;
-  }
-  .auth-glass .text-primary {
-    color: hsl(0 0% 85%) !important;
-  }
-
-  /* Emerald success icon on glass */
-  .auth-glass .bg-emerald-500\/\[0\.08\] {
-    background: hsl(142 71% 45% / 0.12) !important;
-  }
-
-  /* Outline buttons on glass (has bg-background class from shadcn) */
-  .auth-glass .bg-background {
     background: hsl(0 0% 100% / 0.06) !important;
-    border-color: hsl(0 0% 100% / 0.15) !important;
-    color: hsl(0 0% 90%) !important;
   }
-  .auth-glass .bg-background:hover {
+
+  /* ── Icon pill containers ── */
+  .auth-glass .bg-primary\/\[0\.07\] {
     background: hsl(0 0% 100% / 0.1) !important;
   }
+  .auth-glass .text-primary {
+    color: hsl(0 0% 88%) !important;
+  }
 
-  /* Default (primary) buttons on glass — bg-primary class */
+  .auth-glass .bg-emerald-500\/\[0\.08\] {
+    background: hsl(142 60% 45% / 0.15) !important;
+  }
+
+  /* ── Outline / ghost buttons ── */
+  .auth-glass .bg-background {
+    background: hsl(0 0% 100% / 0.08) !important;
+    border-color: hsl(0 0% 100% / 0.18) !important;
+    color: hsl(0 0% 92%) !important;
+  }
+  .auth-glass .bg-background:hover {
+    background: hsl(0 0% 100% / 0.14) !important;
+  }
+
+  /* ── Primary (CTA) buttons — frosted white pill ── */
   .auth-glass .bg-primary {
-    background: hsl(0 0% 100% / 0.95) !important;
-    color: hsl(220 30% 8%) !important;
+    background: hsl(0 0% 100% / 0.92) !important;
+    color: hsl(220 30% 10%) !important;
+    border: 1px solid hsl(0 0% 100% / 0.6) !important;
+    box-shadow: 0 2px 8px hsl(0 0% 0% / 0.1) !important;
   }
   .auth-glass .bg-primary:hover {
     background: hsl(0 0% 100%) !important;
+    box-shadow: 0 4px 14px hsl(0 0% 0% / 0.12) !important;
   }
   .auth-glass .bg-primary:disabled,
   .auth-glass button[type="submit"]:disabled {
-    background: hsl(0 0% 100% / 0.15) !important;
+    background: hsl(0 0% 100% / 0.12) !important;
     color: hsl(0 0% 100% / 0.3) !important;
+    border-color: hsl(0 0% 100% / 0.08) !important;
+    box-shadow: none !important;
   }
 
   /* Smooth transition utility */
