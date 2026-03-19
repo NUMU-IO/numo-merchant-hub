@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, ArrowRight, ArrowLeft, Eye, EyeOff, ShieldCheck } from "lucide-react";
-import { NumuIcon } from "@/components/NumuLogo";
 import { TwoFactorRequiredError } from "@/services/authApi";
 import { z } from "zod";
 
@@ -135,10 +134,10 @@ export default function Login() {
 
       {/* ── Form card ── */}
       <div className="w-full max-w-[420px] lg:ms-auto lg:me-[8%] xl:me-[12%]">
-        <div className="bg-background rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.12)] p-7 sm:p-9 auth-enter">
+        <div className="auth-glass rounded-2xl p-7 sm:p-9 auth-enter">
           {/* Mobile logo */}
           <div className="lg:hidden mb-6 flex justify-center">
-            <NumuIcon size={36} />
+            <span className="text-base font-black tracking-[0.18em] text-white/70">NUMU</span>
           </div>
 
           {challengeToken ? (

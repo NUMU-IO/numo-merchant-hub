@@ -125,7 +125,7 @@ export default function VerifyEmail() {
   if (success) {
     return (
       <div className="min-h-screen auth-page auth-dot-grid flex flex-col items-center justify-center p-4 sm:p-6">
-        <div className="bg-background rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.12)] p-9 auth-enter text-center">
+        <div className="auth-glass rounded-2xl p-9 auth-enter text-center">
           <div className="flex justify-center mb-4">
             <div className="h-11 w-11 rounded-full bg-emerald-500/[0.08] flex items-center justify-center">
               <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -141,7 +141,7 @@ export default function VerifyEmail() {
   return (
     <div className="min-h-screen auth-page auth-dot-grid flex flex-col items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-[420px]">
-        <div className="bg-background rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.12)] p-7 sm:p-9 auth-enter">
+        <div className="auth-glass rounded-2xl p-7 sm:p-9 auth-enter">
           {/* Header */}
           <div className="flex items-center gap-3 mb-1.5">
             <div className="h-9 w-9 rounded-full bg-primary/[0.07] flex items-center justify-center">

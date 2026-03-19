@@ -147,7 +147,117 @@
   }
 
   .auth-page {
-    background-color: hsl(var(--primary));
+    background-color: hsl(220 30% 6%);
+  }
+
+  .auth-glass {
+    background: hsl(0 0% 100% / 0.07);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid hsl(0 0% 100% / 0.1);
+    color: hsl(0 0% 95%);
+  }
+
+  .auth-glass input,
+  .auth-glass textarea {
+    background: hsl(0 0% 100% / 0.06) !important;
+    border-color: hsl(0 0% 100% / 0.12) !important;
+    color: hsl(0 0% 95%) !important;
+  }
+
+  .auth-glass input::placeholder,
+  .auth-glass textarea::placeholder {
+    color: hsl(0 0% 100% / 0.3) !important;
+  }
+
+  .auth-glass input:focus,
+  .auth-glass textarea:focus {
+    border-color: hsl(0 0% 100% / 0.3) !important;
+    ring-color: hsl(0 0% 100% / 0.05) !important;
+  }
+
+  .auth-glass label {
+    color: hsl(0 0% 80%);
+  }
+
+  .auth-glass p.text-muted-foreground,
+  .auth-glass .text-muted-foreground {
+    color: hsl(0 0% 60%);
+  }
+
+  .auth-glass p.text-destructive {
+    color: hsl(0 80% 65%);
+  }
+
+  /* Select triggers on glass */
+  .auth-glass [role="combobox"],
+  .auth-glass button[data-slot="trigger"] {
+    background: hsl(0 0% 100% / 0.06) !important;
+    border-color: hsl(0 0% 100% / 0.12) !important;
+    color: hsl(0 0% 90%) !important;
+  }
+
+  /* Links and toggle buttons on glass */
+  .auth-glass a,
+  .auth-glass .text-foreground {
+    color: hsl(0 0% 95%);
+  }
+  .auth-glass a:hover {
+    color: hsl(0 0% 100%);
+  }
+
+  /* Separator line on glass */
+  .auth-glass .border-border\/40,
+  .auth-glass .border-t {
+    border-color: hsl(0 0% 100% / 0.1) !important;
+  }
+
+  /* Error alert on glass */
+  .auth-glass .bg-destructive\/\[0\.04\] {
+    background: hsl(0 60% 50% / 0.12) !important;
+    border-color: hsl(0 60% 50% / 0.2) !important;
+  }
+
+  /* Verification code inputs on glass */
+  .auth-glass input[inputmode="numeric"] {
+    background: hsl(0 0% 100% / 0.04) !important;
+  }
+
+  /* Icon containers on glass */
+  .auth-glass .bg-primary\/\[0\.07\] {
+    background: hsl(0 0% 100% / 0.08) !important;
+  }
+  .auth-glass .text-primary {
+    color: hsl(0 0% 85%) !important;
+  }
+
+  /* Emerald success icon on glass */
+  .auth-glass .bg-emerald-500\/\[0\.08\] {
+    background: hsl(142 71% 45% / 0.12) !important;
+  }
+
+  /* Outline buttons on glass (has bg-background class from shadcn) */
+  .auth-glass .bg-background {
+    background: hsl(0 0% 100% / 0.06) !important;
+    border-color: hsl(0 0% 100% / 0.15) !important;
+    color: hsl(0 0% 90%) !important;
+  }
+  .auth-glass .bg-background:hover {
+    background: hsl(0 0% 100% / 0.1) !important;
+  }
+
+  /* Default (primary) buttons on glass — bg-primary class */
+  .auth-glass .bg-primary {
+    background: hsl(0 0% 100% / 0.95) !important;
+    color: hsl(220 30% 8%) !important;
+  }
+  .auth-glass .bg-primary:hover {
+    background: hsl(0 0% 100%) !important;
+  }
+  .auth-glass .bg-primary:disabled,
+  .auth-glass button[type="submit"]:disabled {
+    background: hsl(0 0% 100% / 0.15) !important;
+    color: hsl(0 0% 100% / 0.3) !important;
   }
 
   /* Smooth transition utility */

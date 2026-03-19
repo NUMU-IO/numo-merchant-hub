@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
-import { NumuIcon } from "@/components/NumuLogo";
 import { getStoreDomainSuffix } from "@/lib/storefront";
 import { z } from "zod";
 
@@ -121,9 +120,9 @@ export default function CreateStore() {
 
       {/* ── Form card ── */}
       <div className="w-full max-w-[460px] lg:ms-auto lg:me-[8%] xl:me-[12%]">
-        <div className="bg-background rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.12)] p-7 sm:p-9 auth-enter">
+        <div className="auth-glass rounded-2xl p-7 sm:p-9 auth-enter">
           <div className="lg:hidden mb-6 flex justify-center">
-            <NumuIcon size={36} />
+            <span className="text-base font-black tracking-[0.18em] text-white/70">NUMU</span>
           </div>
 
           <h1 className="text-xl font-semibold tracking-tight">{t("createStore.title")}</h1>

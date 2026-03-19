@@ -32,7 +32,7 @@ export default function ForgotPassword() {
   return (
     <div className="min-h-screen auth-page auth-dot-grid flex flex-col items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-[420px]">
-        <div className="bg-background rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.12)] p-7 sm:p-9 auth-enter">
+        <div className="auth-glass rounded-2xl p-7 sm:p-9 auth-enter">
           {sent ? (
             <div className="text-center">
               <div className="flex justify-center mb-4">
