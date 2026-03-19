@@ -37,7 +37,7 @@ const DashboardLayout = () => {
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
-        <div className="flex flex-1 flex-col min-w-0 bg-muted/30">
+        <div className="flex flex-1 flex-col min-w-0 dash-content">
           <AppHeader />
           <main className="flex-1 overflow-auto">
             <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:px-8 lg:py-6">

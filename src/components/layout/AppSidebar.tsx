@@ -71,12 +71,12 @@ const AppSidebar = () => {
     <Sidebar collapsible="icon" side={isRTL ? "right" : "left"}>
       <SidebarContent>
         {/* Brand */}
-        <div className="flex h-14 items-center gap-2.5 px-4 group-data-[collapsible=icon]:justify-center border-b border-sidebar-border">
-          <NumuIcon size={24} />
+        <div className="flex h-14 items-center gap-2.5 px-4 group-data-[collapsible=icon]:justify-center border-b border-sidebar-border/60">
+          <NumuIcon size={22} />
           <div className="group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-black tracking-[0.08em]">NUMU</span>
-            <span className="text-[10px] text-muted-foreground/40 block -mt-0.5 font-medium">
-              {isRTL ? "لوحة التحكم" : "Merchant Hub"}
+            <span className="text-[13px] font-extrabold tracking-[0.1em]">NUMU</span>
+            <span className="text-[9px] text-muted-foreground/35 block -mt-0.5 font-medium tracking-wide">
+              {isRTL ? "لوحة التحكم" : "MERCHANT HUB"}
             </span>
           </div>
         </div>

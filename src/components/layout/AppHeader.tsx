@@ -41,7 +41,7 @@ const AppHeader = () => {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border/60 bg-background/80 backdrop-blur-xl px-4">
+    <header className="dash-header">
       <SidebarTrigger className="h-8 w-8" />
 
       {/* Spacer */}

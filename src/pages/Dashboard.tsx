@@ -124,18 +124,18 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="flex items-center justify-between">
+      {/* Welcome */}
+      <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-lg font-semibold tracking-tight">
             {greeting}, {user?.first_name || currentStore?.name || t("dashboard.merchantName")}
           </h1>
-          <p className="text-[13px] text-muted-foreground mt-0.5">
+          <p className="text-[13px] text-muted-foreground/80 mt-0.5">
             {t("dashboard.storeOverview")}
           </p>
         </div>
-        <div className="hidden sm:flex gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg">
+        <div className="hidden sm:flex gap-2 shrink-0">
+          <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg border-border/60">
             <ExternalLink className="h-3 w-3" />
             {t("dashboard.viewStore")}
           </Button>
@@ -149,17 +149,17 @@ const Dashboard = () => {
       {/* KPI Cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi, i) => (
-          <Card key={kpi.label} className="animate-fade-up border-border/60 hover:shadow-md transition-shadow duration-200" style={{ animationDelay: `${i * 60}ms`, animationFillMode: "both" }}>
+          <Card key={kpi.label} className="animate-fade-up group" style={{ animationDelay: `${i * 60}ms`, animationFillMode: "both" }}>
             <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</p>
-                <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${kpi.bg}`}>
-                  <kpi.icon className={`h-3.5 w-3.5 ${kpi.iconColor}`} />
+              <div className="flex items-center gap-2.5 mb-3">
+                <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${kpi.bg} transition-transform duration-200 group-hover:scale-105`}>
+                  <kpi.icon className={`h-4 w-4 ${kpi.iconColor}`} />
                 </div>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</p>
               </div>
-              <p className="text-2xl font-bold tracking-tight tabular-nums leading-none">{kpi.value}</p>
+              <p className="text-[1.65rem] font-bold tracking-tight tabular-nums leading-none">{kpi.value}</p>
               {kpi.trend !== null && (
-                <div className="mt-2 flex items-center gap-1.5">
+                <div className="mt-2.5 flex items-center gap-1.5">
                   <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${kpi.trend >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
                     {kpi.trend >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                     {kpi.trendLabel}
@@ -175,21 +175,19 @@ const Dashboard = () => {
       {/* Charts Row */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Revenue Chart */}
-        <Card className="lg:col-span-2 border-border/60">
+        <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">{t("dashboard.revenueTrend")}</CardTitle>
-              <div className="flex gap-0.5 rounded-lg bg-muted/60 p-0.5">
+              <div className="flex gap-0.5 rounded-lg bg-muted/50 dark:bg-muted/30 p-0.5">
                 {(["7d", "30d", "90d"] as const).map((p) => (
-                  <Button
+                  <button
                     key={p}
-                    variant={period === p ? "default" : "ghost"}
-                    size="sm"
-                    className={`h-6 text-[11px] px-2 rounded-md ${period === p ? "" : "text-muted-foreground hover:text-foreground"}`}
+                    className={`h-6 text-[10px] font-medium px-2.5 rounded-md transition-all duration-150 ${period === p ? "bg-background dark:bg-white/10 text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                     onClick={() => setPeriod(p)}
                   >
                     {t(`dashboard.last${p === "7d" ? "7days" : p === "30d" ? "30days" : "90days"}`)}
-                  </Button>
+                  </button>
                 ))}
               </div>
             </div>
@@ -234,7 +232,7 @@ const Dashboard = () => {
         </Card>
 
         {/* Order Status Donut */}
-        <Card className="border-border/60">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">{t("dashboard.orderStatus")}</CardTitle>
           </CardHeader>
@@ -284,7 +282,7 @@ const Dashboard = () => {
       {/* Bottom Row */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Top Products */}
-        <Card className="border-border/60">
+        <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">{t("dashboard.topProducts")}</CardTitle>
@@ -315,7 +313,7 @@ const Dashboard = () => {
         </Card>
 
         {/* Recent Orders */}
-        <Card className="border-border/60">
+        <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">{t("dashboard.recentOrders")}</CardTitle>
