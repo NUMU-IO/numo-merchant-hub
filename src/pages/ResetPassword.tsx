@@ -4,9 +4,6 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from "@/components/ui/card";
 import { Loader2, ArrowLeft, Eye, EyeOff, CheckCircle2, AlertTriangle } from "lucide-react";
 import { NumuIcon } from "@/components/NumuLogo";
 import { resetPassword } from "@/services/authApi";
@@ -47,140 +44,150 @@ export default function ResetPassword() {
     }
   };
 
+  const inputCls =
+    "h-11 rounded-lg bg-transparent border-border/70 placeholder:text-muted-foreground/40 focus:border-foreground focus:ring-1 focus:ring-foreground/5 transition-colors";
+
+  /* ── Invalid / expired token ── */
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <div className="w-full max-w-[420px] space-y-8">
-          <div className="flex justify-center">
-            <NumuIcon size={44} />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+        <div className="w-full max-w-[380px] auth-enter text-center">
+          <div className="flex justify-center mb-10">
+            <NumuIcon size={36} />
           </div>
-          <Card className="border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06),0_24px_64px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.3)] rounded-2xl">
-            <CardContent className="px-6 py-10">
-              <div className="flex flex-col items-center gap-3">
-                <div className="h-14 w-14 rounded-full bg-destructive/10 flex items-center justify-center">
-                  <AlertTriangle className="h-7 w-7 text-destructive" />
-                </div>
-                <p className="text-sm font-medium">{t("auth.invalidResetLink", "Invalid or expired reset link")}</p>
-                <p className="text-xs text-muted-foreground text-center">
-                  {t("auth.requestNewLink", "Please request a new password reset link.")}
-                </p>
-                <Button asChild variant="outline" size="sm" className="mt-2 gap-1.5 rounded-lg">
-                  <Link to="/forgot-password">
-                    {t("auth.forgotPassword", "Forgot Password")}
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex justify-center mb-4">
+            <div className="h-11 w-11 rounded-full bg-destructive/[0.06] flex items-center justify-center">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+            </div>
+          </div>
+          <h1 className="text-xl font-semibold tracking-tight">
+            {t("auth.invalidResetLink", "Invalid or expired reset link")}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {t("auth.requestNewLink", "Please request a new password reset link.")}
+          </p>
+          <Button asChild variant="outline" size="sm" className="mt-6 gap-1.5 rounded-lg">
+            <Link to="/forgot-password">
+              {t("auth.forgotPassword", "Forgot Password")}
+            </Link>
+          </Button>
         </div>
+        <p className="mt-auto pt-10 text-[11px] text-muted-foreground/40">
+          &copy; 2026 NUMU
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <div className="w-full max-w-[420px] space-y-8">
-        <div className="flex justify-center">
-          <NumuIcon size={44} />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+      <div className="w-full max-w-[380px] auth-enter">
+        <div className="flex justify-center mb-10">
+          <NumuIcon size={36} />
         </div>
 
-        <Card className="border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06),0_24px_64px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.3)] rounded-2xl">
-          <CardHeader className="text-center space-y-1 pb-1 pt-8">
-            <CardTitle className="text-2xl font-bold tracking-tight">
-              {success ? t("auth.passwordReset", "Password Reset") : t("auth.newPassword", "Set New Password")}
-            </CardTitle>
-            <CardDescription className="text-sm">
-              {success
-                ? t("auth.passwordResetSuccess", "Your password has been reset successfully.")
-                : t("auth.newPasswordDesc", "Enter your new password below.")}
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="px-6 pb-8">
-            {success ? (
-              <div className="space-y-5 mt-4">
-                <div className="flex flex-col items-center gap-3 py-4">
-                  <div className="h-14 w-14 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                    <CheckCircle2 className="h-7 w-7 text-emerald-600" />
-                  </div>
-                  <p className="text-sm text-muted-foreground text-center">
-                    {t("auth.canNowLogin", "You can now log in with your new password.")}
-                  </p>
-                </div>
-                <Button asChild className="w-full h-12 text-sm font-bold gap-2 rounded-xl">
-                  <Link to="/login">
-                    {t("auth.login")}
-                  </Link>
-                </Button>
+        {success ? (
+          /* ── Success state ── */
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="h-11 w-11 rounded-full bg-emerald-500/[0.08] flex items-center justify-center">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               </div>
-            ) : (
-              <form noValidate onSubmit={handleSubmit} className="space-y-5 mt-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="password" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    {t("auth.newPassword", "New Password")}
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      className="h-12 rounded-xl bg-muted/30 border-border/50 focus:border-primary focus:ring-primary/20 transition-all pe-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 end-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
+            </div>
+            <h1 className="text-xl font-semibold tracking-tight">
+              {t("auth.passwordReset", "Password Reset")}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t("auth.canNowLogin", "You can now log in with your new password.")}
+            </p>
+            <Button asChild className="w-full h-11 text-sm font-semibold rounded-lg mt-7">
+              <Link to="/login">
+                {t("auth.login")}
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          /* ── Form ── */
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">
+              {t("auth.newPassword", "Set New Password")}
+            </h1>
+            <p className="mt-1.5 text-sm text-muted-foreground mb-7">
+              {t("auth.newPasswordDesc", "Enter your new password below.")}
+            </p>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="confirmPassword" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    {t("auth.confirmPassword", "Confirm Password")}
-                  </Label>
+            <form noValidate onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-[13px] font-medium">
+                  {t("auth.newPassword", "New Password")}
+                </Label>
+                <div className="relative">
                   <Input
-                    id="confirmPassword"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="h-12 rounded-xl bg-muted/30 border-border/50 focus:border-primary focus:ring-primary/20 transition-all"
+                    className={`${inputCls} pe-10`}
+                    autoFocus
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 end-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
+              </div>
 
-                {error && (
-                  <div className="text-sm text-destructive text-center bg-destructive/8 rounded-xl p-3 border border-destructive/15">
-                    {error}
-                  </div>
-                )}
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-[13px] font-medium">
+                  {t("auth.confirmPassword", "Confirm Password")}
+                </Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className={inputCls}
+                />
+              </div>
 
-                <Button type="submit" className="w-full h-12 text-sm font-bold gap-2 rounded-xl" disabled={loading || !password || !confirmPassword}>
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    t("auth.resetPassword", "Reset Password")
-                  )}
-                </Button>
-
-                <p className="text-sm text-center text-muted-foreground pt-1">
-                  <Link to="/login" className="text-primary font-bold hover:underline underline-offset-2 inline-flex items-center gap-1">
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                    {t("auth.backToLogin", "Back to Login")}
-                  </Link>
+              {error && (
+                <p className="text-sm text-destructive bg-destructive/[0.04] border border-destructive/10 rounded-lg px-3 py-2.5">
+                  {error}
                 </p>
-              </form>
-            )}
-          </CardContent>
-        </Card>
+              )}
 
-        <p className="text-center text-[11px] text-muted-foreground/60 font-medium tracking-wide">
-          NUMU &copy; 2026
-        </p>
+              <Button
+                type="submit"
+                className="w-full h-11 text-sm font-semibold rounded-lg mt-1"
+                disabled={loading || !password || !confirmPassword}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  t("auth.resetPassword", "Reset Password")
+                )}
+              </Button>
+
+              <Link
+                to="/login"
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors justify-center pt-1"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                {t("auth.backToLogin", "Back to Login")}
+              </Link>
+            </form>
+          </div>
+        )}
       </div>
+
+      <p className="mt-auto pt-10 text-[11px] text-muted-foreground/40">
+        &copy; 2026 NUMU
+      </p>
     </div>
   );
 }

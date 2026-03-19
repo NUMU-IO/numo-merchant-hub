@@ -1,6 +1,5 @@
 /**
  * Login / Register page for the NUMU merchant dashboard.
- * Clean, premium split-panel layout with geometric logo.
  */
 
 import { useState } from "react";
@@ -10,11 +9,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from "@/components/ui/card";
 import { Loader2, ArrowRight, ArrowLeft, Eye, EyeOff, ShieldCheck } from "lucide-react";
-import { NumuLogo, NumuIcon } from "@/components/NumuLogo";
+import { NumuIcon } from "@/components/NumuLogo";
 import { TwoFactorRequiredError } from "@/services/authApi";
 import { z } from "zod";
 
@@ -106,234 +102,253 @@ export default function Login() {
     }
   };
 
-  const inputClass = (field: string) =>
-    `h-12 rounded-xl bg-muted/30 border-border/50 focus:border-primary focus:ring-primary/20 transition-all ${
+  const inputCls = (field: string) =>
+    `h-11 rounded-lg bg-transparent border-border/70 placeholder:text-muted-foreground/40 focus:border-foreground focus:ring-1 focus:ring-foreground/5 transition-colors ${
       fieldErrors[field] ? "border-destructive focus:border-destructive" : ""
     }`;
 
   return (
     <div className="min-h-screen flex">
-      {/* Left decorative panel */}
-      <div className="hidden lg:flex lg:w-[45%] bg-primary relative overflow-hidden items-center justify-center">
-        {/* Soft gradient orbs */}
-        <div className="absolute inset-0">
-          <div className="absolute top-16 -start-16 h-72 w-72 rounded-full bg-primary-foreground/10 blur-3xl" />
-          <div className="absolute bottom-16 end-8 h-96 w-96 rounded-full bg-primary-foreground/5 blur-3xl" />
-          <div className="absolute top-1/2 start-1/3 h-48 w-48 rounded-full bg-primary-foreground/8 blur-2xl" />
-        </div>
-        {/* Content */}
-        <div className="relative z-10 text-center px-12 space-y-8 max-w-md">
-          {/* Geometric shapes mimicking Mrkoon style */}
-          <div className="flex justify-center">
-            <div className="relative">
-              <div className="flex gap-2 justify-center mb-2">
-                <div className="w-10 h-10 rounded-full bg-primary-foreground/20" />
-                <div className="w-10 h-10 rounded-lg bg-primary-foreground/15" />
-              </div>
-              <div className="flex gap-2 justify-center">
-                <div className="w-11 h-11 rounded-xl bg-primary-foreground/25" />
-                <div className="w-11 h-11 rounded-full bg-primary-foreground/18" />
-              </div>
-            </div>
-          </div>
+      {/* ── Brand panel ── */}
+      <div className="hidden lg:flex lg:w-[44%] xl:w-[42%] bg-primary relative overflow-hidden flex-col justify-between p-10 xl:p-14">
+        <div className="auth-dot-grid absolute inset-0" />
 
-          <div className="space-y-3">
-            <h1 className="text-4xl font-black tracking-wider text-primary-foreground">
-              NUMU
-            </h1>
-            <p className="text-primary-foreground/60 text-sm leading-relaxed max-w-xs mx-auto">
-              {isRegister ? t("auth.registerDesc") : t("auth.loginDesc")}
-            </p>
-          </div>
+        <div className="relative z-10">
+          <span className="text-base font-black tracking-[0.18em] text-primary-foreground/70">
+            NUMU
+          </span>
         </div>
+
+        <div className="relative z-10 max-w-[280px]">
+          <h2 className="text-[1.85rem] font-semibold text-primary-foreground leading-[1.25] tracking-tight">
+            {isRegister ? (
+              <>Start selling<br />online, today.</>
+            ) : (
+              <>Commerce,<br />simplified.</>
+            )}
+          </h2>
+          <div className="w-8 h-px bg-primary-foreground/20 mt-6 mb-5" />
+          <p className="text-primary-foreground/40 text-[13px] leading-relaxed">
+            {isRegister
+              ? t("auth.registerDesc")
+              : t("auth.loginDesc")}
+          </p>
+        </div>
+
+        <p className="relative z-10 text-primary-foreground/20 text-[11px]">
+          &copy; 2026 NUMU
+        </p>
       </div>
 
-      {/* Right form panel */}
-      <div className="flex-1 flex items-center justify-center bg-background p-6 sm:p-8">
-        <div className="w-full max-w-[420px] space-y-8">
+      {/* ── Form panel ── */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-background">
+        <div className="w-full max-w-[380px] auth-enter">
           {/* Mobile logo */}
-          <div className="lg:hidden flex justify-center">
-            <NumuIcon size={44} />
+          <div className="lg:hidden mb-10 flex justify-center">
+            <NumuIcon size={36} />
           </div>
 
-          <Card className="border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06),0_24px_64px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.3)] rounded-2xl">
-            {challengeToken ? (
-              /* ── 2FA Code Entry ── */
-              <>
-                <CardHeader className="text-center space-y-1 pb-1 pt-8">
-                  <div className="flex justify-center mb-2">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <ShieldCheck className="h-6 w-6 text-primary" />
+          {challengeToken ? (
+            /* ── 2FA verification ── */
+            <div>
+              <div className="flex items-center gap-3 mb-1.5">
+                <div className="h-9 w-9 rounded-full bg-primary/[0.07] flex items-center justify-center">
+                  <ShieldCheck className="h-[18px] w-[18px] text-primary" />
+                </div>
+                <h1 className="text-xl font-semibold tracking-tight">
+                  {t("auth.twoFactorTitle", "Two-Factor Authentication")}
+                </h1>
+              </div>
+              <p className="text-sm text-muted-foreground mb-7 ms-12">
+                {t("auth.twoFactorDesc", "Enter the 6-digit code from your authenticator app")}
+              </p>
+
+              <form noValidate onSubmit={handle2FASubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="twoFACode" className="text-[13px] font-medium">
+                    {t("auth.verificationCode", "Verification Code")}
+                  </Label>
+                  <Input
+                    id="twoFACode"
+                    value={twoFACode}
+                    onChange={(e) => setTwoFACode(e.target.value.replace(/[^0-9a-zA-Z-]/g, "").slice(0, 10))}
+                    placeholder="000000"
+                    className="h-11 rounded-lg bg-transparent border-border/70 focus:border-foreground focus:ring-1 focus:ring-foreground/5 transition-colors text-center text-lg font-mono tracking-[0.3em]"
+                    maxLength={10}
+                    dir="ltr"
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground/70">
+                    {t("auth.twoFactorHint", "Enter a 6-digit TOTP code or a backup code (XXXX-XXXX)")}
+                  </p>
+                </div>
+
+                {error && (
+                  <p className="text-sm text-destructive bg-destructive/[0.04] border border-destructive/10 rounded-lg px-3 py-2.5">
+                    {error}
+                  </p>
+                )}
+
+                <Button
+                  type="submit"
+                  className="w-full h-11 text-sm font-semibold gap-2 rounded-lg"
+                  disabled={loading || !twoFACode}
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      {t("auth.verify", "Verify")}
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+
+                <button
+                  type="button"
+                  onClick={() => { setChallengeToken(null); setTwoFACode(""); setError(null); }}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mx-auto pt-1"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  {t("auth.backToLogin", "Back to Login")}
+                </button>
+              </form>
+            </div>
+          ) : (
+            /* ── Login / Register form ── */
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">
+                {isRegister ? t("auth.register") : t("auth.login")}
+              </h1>
+              <p className="mt-1.5 text-sm text-muted-foreground mb-7">
+                {isRegister ? t("auth.registerDesc") : t("auth.loginDesc")}
+              </p>
+
+              <form noValidate onSubmit={handleSubmit} className="space-y-4">
+                {isRegister && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName" className="text-[13px] font-medium">
+                        {t("auth.firstName")}
+                      </Label>
+                      <Input
+                        id="firstName"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className={inputCls("firstName")}
+                      />
+                      {fieldErrors.firstName && (
+                        <p className="text-xs text-destructive">{fieldErrors.firstName}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName" className="text-[13px] font-medium">
+                        {t("auth.lastName")}
+                      </Label>
+                      <Input
+                        id="lastName"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className={inputCls("lastName")}
+                      />
+                      {fieldErrors.lastName && (
+                        <p className="text-xs text-destructive">{fieldErrors.lastName}</p>
+                      )}
                     </div>
                   </div>
-                  <CardTitle className="text-2xl font-bold tracking-tight">
-                    {t("auth.twoFactorTitle", "Two-Factor Authentication")}
-                  </CardTitle>
-                  <CardDescription className="text-sm">
-                    {t("auth.twoFactorDesc", "Enter the 6-digit code from your authenticator app")}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="px-6 pb-8">
-                  <form noValidate onSubmit={handle2FASubmit} className="space-y-5 mt-4">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="twoFACode" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        {t("auth.verificationCode", "Verification Code")}
-                      </Label>
-                      <Input
-                        id="twoFACode"
-                        value={twoFACode}
-                        onChange={(e) => setTwoFACode(e.target.value.replace(/[^0-9a-zA-Z-]/g, "").slice(0, 10))}
-                        placeholder="000000"
-                        className="h-12 rounded-xl bg-muted/30 border-border/50 focus:border-primary focus:ring-primary/20 transition-all text-center text-lg font-mono tracking-[0.3em]"
-                        maxLength={10}
-                        dir="ltr"
-                        autoFocus
-                      />
-                      <p className="text-[11px] text-muted-foreground text-center">
-                        {t("auth.twoFactorHint", "Enter a 6-digit TOTP code or a backup code (XXXX-XXXX)")}
-                      </p>
-                    </div>
+                )}
 
-                    {error && (
-                      <div className="text-sm text-destructive text-center bg-destructive/8 rounded-xl p-3 border border-destructive/15">
-                        {error}
-                      </div>
-                    )}
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-[13px] font-medium">
+                    {t("auth.email")}
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@company.com"
+                    className={inputCls("email")}
+                  />
+                  {fieldErrors.email && (
+                    <p className="text-xs text-destructive">{fieldErrors.email}</p>
+                  )}
+                </div>
 
-                    <Button type="submit" className="w-full h-12 text-sm font-bold gap-2 rounded-xl" disabled={loading || !twoFACode}>
-                      {loading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          {t("auth.verify", "Verify")}
-                          <ArrowRight className="h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
-
-                    <p className="text-sm text-center text-muted-foreground pt-1">
-                      <button
-                        type="button"
-                        onClick={() => { setChallengeToken(null); setTwoFACode(""); setError(null); }}
-                        className="text-primary font-bold hover:underline underline-offset-2 inline-flex items-center gap-1"
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-[13px] font-medium">
+                      {t("auth.password")}
+                    </Label>
+                    {!isRegister && (
+                      <Link
+                        to="/forgot-password"
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        <ArrowLeft className="h-3.5 w-3.5" />
-                        {t("auth.backToLogin", "Back to Login")}
-                      </button>
-                    </p>
-                  </form>
-                </CardContent>
-              </>
-            ) : (
-              /* ── Login / Register Form ── */
-              <>
-                <CardHeader className="text-center space-y-1 pb-1 pt-8">
-                  <CardTitle className="text-2xl font-bold tracking-tight">
-                    {isRegister ? t("auth.register") : t("auth.login")}
-                  </CardTitle>
-                  <CardDescription className="text-sm">
-                    {isRegister ? t("auth.registerDesc") : t("auth.loginDesc")}
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="px-6 pb-8">
-                  <form noValidate onSubmit={handleSubmit} className="space-y-5 mt-4">
-                    {isRegister && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="firstName" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                            {t("auth.firstName")}
-                          </Label>
-                          <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass("firstName")} />
-                          {fieldErrors.firstName && <p className="text-[11px] text-destructive">{fieldErrors.firstName}</p>}
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="lastName" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                            {t("auth.lastName")}
-                          </Label>
-                          <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass("lastName")} />
-                          {fieldErrors.lastName && <p className="text-[11px] text-destructive">{fieldErrors.lastName}</p>}
-                        </div>
-                      </div>
+                        {t("auth.forgotPassword", "Forgot Password?")}
+                      </Link>
                     )}
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className={`${inputCls("password")} pe-10`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 end-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {fieldErrors.password && (
+                    <p className="text-xs text-destructive">{fieldErrors.password}</p>
+                  )}
+                </div>
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="email" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        {t("auth.email")}
-                      </Label>
-                      <Input
-                        id="email" type="email" value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@example.com"
-                        className={inputClass("email")}
-                      />
-                      {fieldErrors.email && <p className="text-[11px] text-destructive">{fieldErrors.email}</p>}
-                    </div>
+                {error && (
+                  <p className="text-sm text-destructive bg-destructive/[0.04] border border-destructive/10 rounded-lg px-3 py-2.5">
+                    {error}
+                  </p>
+                )}
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="password" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        {t("auth.password")}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="password" type={showPassword ? "text" : "password"} value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="••••••••••••"
-                          className={`${inputClass("password")} pe-10`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute inset-y-0 end-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                      {fieldErrors.password && <p className="text-[11px] text-destructive">{fieldErrors.password}</p>}
-                      {!isRegister && (
-                        <div className="flex justify-end -mt-1">
-                          <Link to="/forgot-password" className="text-[11px] text-primary hover:underline underline-offset-2 font-medium">
-                            {t("auth.forgotPassword", "Forgot Password?")}
-                          </Link>
-                        </div>
-                      )}
-                    </div>
+                <Button
+                  type="submit"
+                  className="w-full h-11 text-sm font-semibold gap-2 rounded-lg mt-1"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      {isRegister ? t("auth.register") : t("auth.login")}
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </form>
 
-                    {error && (
-                      <div className="text-sm text-destructive text-center bg-destructive/8 rounded-xl p-3 border border-destructive/15">
-                        {error}
-                      </div>
-                    )}
+              <p className="mt-6 text-sm text-center text-muted-foreground">
+                {isRegister ? t("auth.hasAccount") : t("auth.noAccount")}{" "}
+                <button
+                  type="button"
+                  onClick={() => { setIsRegister(!isRegister); setError(null); setFieldErrors({}); }}
+                  className="text-foreground font-semibold hover:underline underline-offset-2"
+                >
+                  {isRegister ? t("auth.login") : t("auth.register")}
+                </button>
+              </p>
+            </div>
+          )}
 
-                    <Button type="submit" className="w-full h-12 text-sm font-bold gap-2 rounded-xl" disabled={loading}>
-                      {loading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          {isRegister ? t("auth.register") : t("auth.login")}
-                          <ArrowRight className="h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
-
-                    <p className="text-sm text-center text-muted-foreground pt-1">
-                      {isRegister ? t("auth.hasAccount") : t("auth.noAccount")}{" "}
-                      <button
-                        type="button"
-                        onClick={() => { setIsRegister(!isRegister); setError(null); setFieldErrors({}); }}
-                        className="text-primary font-bold hover:underline underline-offset-2"
-                      >
-                        {isRegister ? t("auth.login") : t("auth.register")}
-                      </button>
-                    </p>
-                  </form>
-                </CardContent>
-              </>
-            )}
-          </Card>
-
-          <p className="text-center text-[11px] text-muted-foreground/60 font-medium tracking-wide">
-            NUMU © 2026
+          {/* Footer — visible on mobile only since brand panel has its own */}
+          <p className="lg:hidden text-center text-[11px] text-muted-foreground/40 mt-10">
+            &copy; 2026 NUMU
           </p>
         </div>
       </div>

@@ -125,6 +125,27 @@
 }
 
 @layer utilities {
+  /* Auth pages ─────────────────────────────────── */
+  .auth-dot-grid {
+    background-image: radial-gradient(
+      circle,
+      hsl(var(--primary-foreground) / 0.06) 1px,
+      transparent 1px
+    );
+    background-size: 24px 24px;
+  }
+
+  @keyframes auth-enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  .auth-enter {
+    animation: auth-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
   /* Smooth transition utility */
   .transition-smooth {
     @apply transition-all duration-200 ease-out;
