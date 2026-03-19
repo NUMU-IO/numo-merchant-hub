@@ -5,7 +5,7 @@
  */
 
 import { apiClient } from "./api";
-import { initCSRF, clearCSRFToken } from "./csrf";
+import { initCSRF, clearCSRFToken, getCSRFToken } from "./csrf";
 
 if (!import.meta.env.VITE_API_URL) {
   throw new Error(
@@ -77,8 +77,10 @@ export async function login(
   const json = await res.json();
   const data = json.data as LoginResponse;
 
-  // If 2FA is required, throw so the caller can prompt for the code
+  // If 2FA is required, fetch CSRF (stale cookies may trigger validation)
+  // then throw so the caller can prompt for the code
   if (data.requires_2fa && data.challenge_token) {
+    await initCSRF();
     throw new TwoFactorRequiredError(data.challenge_token);
   }
 
@@ -93,10 +95,14 @@ export async function complete2FALogin(
   challengeToken: string,
   code: string
 ): Promise<AuthResponse> {
+  const csrfToken = getCSRFToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+
   const res = await fetch(`${API_BASE}/auth/2fa/complete-login`, {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ challenge_token: challengeToken, code }),
   });
 

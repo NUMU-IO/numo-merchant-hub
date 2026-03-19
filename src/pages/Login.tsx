@@ -2,14 +2,15 @@
  * Login / Register page for the NUMU merchant dashboard.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowRight, ArrowLeft, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Loader2, ArrowRight, ArrowLeft, Eye, EyeOff, ShieldCheck, Globe } from "lucide-react";
 import { TwoFactorRequiredError } from "@/services/authApi";
 import { z } from "zod";
 
@@ -45,6 +46,29 @@ export default function Login() {
 
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [twoFACode, setTwoFACode] = useState("");
+
+  const { language, setLanguage, isRTL } = useLanguage();
+
+  // Rotating taglines
+  const taglines = [
+    t("auth.heroTagline1"),
+    t("auth.heroTagline2"),
+    t("auth.heroTagline3"),
+    t("auth.heroTagline4"),
+  ];
+  const [taglineIdx, setTaglineIdx] = useState(0);
+  const [taglineAnim, setTaglineAnim] = useState<"enter" | "exit">("enter");
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTaglineAnim("exit");
+      setTimeout(() => {
+        setTaglineIdx((i) => (i + 1) % taglines.length);
+        setTaglineAnim("enter");
+      }, 400);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [taglines.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,37 +131,49 @@ export default function Login() {
 
   return (
     <div className="min-h-screen auth-page auth-dot-grid relative flex items-center justify-center p-4 sm:p-6 lg:p-10">
-      {/* ── Brand text — visible on lg+ ── */}
-      <div className="hidden lg:block fixed start-10 xl:start-14 top-10 xl:top-14 bottom-10 xl:bottom-14 w-[320px] z-10">
-        <div className="h-full flex flex-col justify-between">
-          <span className="text-base font-black tracking-[0.18em] text-primary-foreground/70">
-            NUMU
-          </span>
+      {/* ── Language toggle ── */}
+      <button
+        type="button"
+        onClick={() => setLanguage(language === "en" ? "ar" : "en")}
+        className="fixed top-5 end-5 z-20 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white/50 hover:text-white/80 transition-colors bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] backdrop-blur-sm"
+      >
+        <Globe className="h-3.5 w-3.5" />
+        {language === "en" ? "العربية" : "English"}
+      </button>
 
-          <div className="max-w-[280px]">
-            <h2 className="text-[1.85rem] font-semibold text-primary-foreground leading-[1.25] tracking-tight">
-              {isRegister ? (
-                <>Start selling<br />online, today.</>
-              ) : (
-                <>Commerce,<br />simplified.</>
-              )}
-            </h2>
-            <div className="w-8 h-px bg-primary-foreground/20 mt-6 mb-5" />
-            <p className="text-primary-foreground/40 text-[13px] leading-relaxed">
-              {isRegister ? t("auth.registerDesc") : t("auth.loginDesc")}
+      {/* ── Hero brand — visible on lg+ ── */}
+      <div className="hidden lg:flex fixed inset-y-0 start-0 w-[50%] z-10 items-center pointer-events-none ps-14 xl:ps-20">
+        <div className="flex flex-col items-start pointer-events-auto">
+          <h1 className="auth-hero-brand select-none" dir={isRTL ? "rtl" : "ltr"}>
+            {isRTL ? "نُمو" : "NUMU"}
+          </h1>
+          <div className={`auth-hero-line w-24 mt-6 mb-5 ${isRTL ? "ms-auto me-0" : ""}`} />
+          <div className="h-[3.5rem] overflow-hidden">
+            <p
+              key={taglineIdx}
+              className={`text-[1.5rem] xl:text-[1.75rem] font-medium text-white/70 leading-snug ${
+                isRTL ? "" : "tracking-tight"
+              } ${taglineAnim === "enter" ? "auth-tagline-enter" : "auth-tagline-exit"}`}
+            >
+              {taglines[taglineIdx]}
             </p>
           </div>
+          <p className="text-white/25 text-[13px] leading-relaxed mt-3 max-w-[320px]">
+            {t("auth.heroSubtitle")}
+          </p>
 
-          <p className="text-primary-foreground/20 text-[11px]">&copy; 2026 NUMU</p>
+          <p className="text-white/15 text-[11px] mt-12">&copy; 2026 {isRTL ? "نُمو" : "NUMU"}</p>
         </div>
       </div>
 
       {/* ── Form card ── */}
-      <div className="w-full max-w-[420px] lg:ms-auto lg:me-[8%] xl:me-[12%]">
+      <div className="w-full max-w-[420px] lg:ms-auto lg:me-[6%] xl:me-[10%]">
         <div className="auth-glass rounded-2xl p-7 sm:p-9 auth-enter">
           {/* Mobile logo */}
           <div className="lg:hidden mb-6 flex justify-center">
-            <span className="text-base font-black tracking-[0.18em] text-white/70">NUMU</span>
+            <span className={`text-base font-black text-white/70 ${isRTL ? "" : "tracking-[0.18em]"}`}>
+              {isRTL ? "نُمو" : "NUMU"}
+            </span>
           </div>
 
           {challengeToken ? (
@@ -148,17 +184,17 @@ export default function Login() {
                   <ShieldCheck className="h-[18px] w-[18px] text-primary" />
                 </div>
                 <h1 className="text-xl font-semibold tracking-tight">
-                  {t("auth.twoFactorTitle", "Two-Factor Authentication")}
+                  {t("auth.twoFactorTitle")}
                 </h1>
               </div>
               <p className="text-sm text-muted-foreground mb-7 ms-12">
-                {t("auth.twoFactorDesc", "Enter the 6-digit code from your authenticator app")}
+                {t("auth.twoFactorDesc")}
               </p>
 
               <form noValidate onSubmit={handle2FASubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="twoFACode" className="text-[13px] font-medium">
-                    {t("auth.verificationCode", "Verification Code")}
+                    {t("auth.verificationCode")}
                   </Label>
                   <Input
                     id="twoFACode"
@@ -171,7 +207,7 @@ export default function Login() {
                     autoFocus
                   />
                   <p className="text-xs text-muted-foreground/70">
-                    {t("auth.twoFactorHint", "Enter a 6-digit TOTP code or a backup code (XXXX-XXXX)")}
+                    {t("auth.twoFactorHint")}
                   </p>
                 </div>
 
@@ -182,7 +218,7 @@ export default function Login() {
                 )}
 
                 <Button type="submit" className="w-full h-11 text-sm font-semibold gap-2 rounded-lg" disabled={loading || !twoFACode}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t("auth.verify", "Verify")}<ArrowRight className="h-4 w-4" /></>}
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t("auth.verify")}<ArrowRight className="h-4 w-4" /></>}
                 </Button>
 
                 <button
@@ -191,7 +227,7 @@ export default function Login() {
                   className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mx-auto pt-1"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
-                  {t("auth.backToLogin", "Back to Login")}
+                  {t("auth.backToLogin")}
                 </button>
               </form>
             </div>
@@ -232,7 +268,7 @@ export default function Login() {
                     <Label htmlFor="password" className="text-[13px] font-medium">{t("auth.password")}</Label>
                     {!isRegister && (
                       <Link to="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                        {t("auth.forgotPassword", "Forgot Password?")}
+                        {t("auth.forgotPassword")}
                       </Link>
                     )}
                   </div>
@@ -268,7 +304,7 @@ export default function Login() {
 
         {/* Mobile footer */}
         <p className="lg:hidden text-center text-[11px] text-primary-foreground/30 mt-6">
-          &copy; 2026 NUMU
+          &copy; 2026 {isRTL ? "نُمو" : "NUMU"}
         </p>
       </div>
     </div>
