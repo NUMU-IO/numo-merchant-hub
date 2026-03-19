@@ -44,7 +44,6 @@ export default function Login() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
 
-  // 2FA challenge state
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [twoFACode, setTwoFACode] = useState("");
 
@@ -103,48 +102,42 @@ export default function Login() {
   };
 
   const inputCls = (field: string) =>
-    `h-11 rounded-lg bg-transparent border-border/70 placeholder:text-muted-foreground/40 focus:border-foreground focus:ring-1 focus:ring-foreground/5 transition-colors ${
+    `h-11 rounded-lg border-border/70 placeholder:text-muted-foreground/40 focus:border-foreground focus:ring-1 focus:ring-foreground/5 transition-colors ${
       fieldErrors[field] ? "border-destructive focus:border-destructive" : ""
     }`;
 
   return (
-    <div className="min-h-screen flex">
-      {/* ── Brand panel ── */}
-      <div className="hidden lg:flex lg:w-[44%] xl:w-[42%] bg-primary relative overflow-hidden flex-col justify-between p-10 xl:p-14">
-        <div className="auth-dot-grid absolute inset-0" />
-
-        <div className="relative z-10">
+    <div className="min-h-screen auth-page auth-dot-grid relative flex items-center justify-center p-4 sm:p-6 lg:p-10">
+      {/* ── Brand text — visible on lg+ ── */}
+      <div className="hidden lg:block fixed start-10 xl:start-14 top-10 xl:top-14 bottom-10 xl:bottom-14 w-[320px] z-10">
+        <div className="h-full flex flex-col justify-between">
           <span className="text-base font-black tracking-[0.18em] text-primary-foreground/70">
             NUMU
           </span>
-        </div>
 
-        <div className="relative z-10 max-w-[280px]">
-          <h2 className="text-[1.85rem] font-semibold text-primary-foreground leading-[1.25] tracking-tight">
-            {isRegister ? (
-              <>Start selling<br />online, today.</>
-            ) : (
-              <>Commerce,<br />simplified.</>
-            )}
-          </h2>
-          <div className="w-8 h-px bg-primary-foreground/20 mt-6 mb-5" />
-          <p className="text-primary-foreground/40 text-[13px] leading-relaxed">
-            {isRegister
-              ? t("auth.registerDesc")
-              : t("auth.loginDesc")}
-          </p>
-        </div>
+          <div className="max-w-[280px]">
+            <h2 className="text-[1.85rem] font-semibold text-primary-foreground leading-[1.25] tracking-tight">
+              {isRegister ? (
+                <>Start selling<br />online, today.</>
+              ) : (
+                <>Commerce,<br />simplified.</>
+              )}
+            </h2>
+            <div className="w-8 h-px bg-primary-foreground/20 mt-6 mb-5" />
+            <p className="text-primary-foreground/40 text-[13px] leading-relaxed">
+              {isRegister ? t("auth.registerDesc") : t("auth.loginDesc")}
+            </p>
+          </div>
 
-        <p className="relative z-10 text-primary-foreground/20 text-[11px]">
-          &copy; 2026 NUMU
-        </p>
+          <p className="text-primary-foreground/20 text-[11px]">&copy; 2026 NUMU</p>
+        </div>
       </div>
 
-      {/* ── Form panel ── */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-background">
-        <div className="w-full max-w-[380px] auth-enter">
+      {/* ── Form card ── */}
+      <div className="w-full max-w-[420px] lg:ms-auto lg:me-[8%] xl:me-[12%]">
+        <div className="bg-background rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.12)] p-7 sm:p-9 auth-enter">
           {/* Mobile logo */}
-          <div className="lg:hidden mb-10 flex justify-center">
+          <div className="lg:hidden mb-6 flex justify-center">
             <NumuIcon size={36} />
           </div>
 
@@ -173,7 +166,7 @@ export default function Login() {
                     value={twoFACode}
                     onChange={(e) => setTwoFACode(e.target.value.replace(/[^0-9a-zA-Z-]/g, "").slice(0, 10))}
                     placeholder="000000"
-                    className="h-11 rounded-lg bg-transparent border-border/70 focus:border-foreground focus:ring-1 focus:ring-foreground/5 transition-colors text-center text-lg font-mono tracking-[0.3em]"
+                    className="h-11 rounded-lg border-border/70 focus:border-foreground focus:ring-1 focus:ring-foreground/5 transition-colors text-center text-lg font-mono tracking-[0.3em]"
                     maxLength={10}
                     dir="ltr"
                     autoFocus
@@ -189,19 +182,8 @@ export default function Login() {
                   </p>
                 )}
 
-                <Button
-                  type="submit"
-                  className="w-full h-11 text-sm font-semibold gap-2 rounded-lg"
-                  disabled={loading || !twoFACode}
-                >
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      {t("auth.verify", "Verify")}
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
+                <Button type="submit" className="w-full h-11 text-sm font-semibold gap-2 rounded-lg" disabled={loading || !twoFACode}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t("auth.verify", "Verify")}<ArrowRight className="h-4 w-4" /></>}
                 </Button>
 
                 <button
@@ -228,87 +210,40 @@ export default function Login() {
                 {isRegister && (
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label htmlFor="firstName" className="text-[13px] font-medium">
-                        {t("auth.firstName")}
-                      </Label>
-                      <Input
-                        id="firstName"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        className={inputCls("firstName")}
-                      />
-                      {fieldErrors.firstName && (
-                        <p className="text-xs text-destructive">{fieldErrors.firstName}</p>
-                      )}
+                      <Label htmlFor="firstName" className="text-[13px] font-medium">{t("auth.firstName")}</Label>
+                      <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls("firstName")} />
+                      {fieldErrors.firstName && <p className="text-xs text-destructive">{fieldErrors.firstName}</p>}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="lastName" className="text-[13px] font-medium">
-                        {t("auth.lastName")}
-                      </Label>
-                      <Input
-                        id="lastName"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        className={inputCls("lastName")}
-                      />
-                      {fieldErrors.lastName && (
-                        <p className="text-xs text-destructive">{fieldErrors.lastName}</p>
-                      )}
+                      <Label htmlFor="lastName" className="text-[13px] font-medium">{t("auth.lastName")}</Label>
+                      <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputCls("lastName")} />
+                      {fieldErrors.lastName && <p className="text-xs text-destructive">{fieldErrors.lastName}</p>}
                     </div>
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-[13px] font-medium">
-                    {t("auth.email")}
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@company.com"
-                    className={inputCls("email")}
-                  />
-                  {fieldErrors.email && (
-                    <p className="text-xs text-destructive">{fieldErrors.email}</p>
-                  )}
+                  <Label htmlFor="email" className="text-[13px] font-medium">{t("auth.email")}</Label>
+                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" className={inputCls("email")} />
+                  {fieldErrors.email && <p className="text-xs text-destructive">{fieldErrors.email}</p>}
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-[13px] font-medium">
-                      {t("auth.password")}
-                    </Label>
+                    <Label htmlFor="password" className="text-[13px] font-medium">{t("auth.password")}</Label>
                     {!isRegister && (
-                      <Link
-                        to="/forgot-password"
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      >
+                      <Link to="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
                         {t("auth.forgotPassword", "Forgot Password?")}
                       </Link>
                     )}
                   </div>
                   <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      className={`${inputCls("password")} pe-10`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 end-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
-                    >
+                    <Input id="password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••••••" className={`${inputCls("password")} pe-10`} />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 end-3 flex items-center text-muted-foreground hover:text-foreground transition-colors">
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  {fieldErrors.password && (
-                    <p className="text-xs text-destructive">{fieldErrors.password}</p>
-                  )}
+                  {fieldErrors.password && <p className="text-xs text-destructive">{fieldErrors.password}</p>}
                 </div>
 
                 {error && (
@@ -317,40 +252,25 @@ export default function Login() {
                   </p>
                 )}
 
-                <Button
-                  type="submit"
-                  className="w-full h-11 text-sm font-semibold gap-2 rounded-lg mt-1"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      {isRegister ? t("auth.register") : t("auth.login")}
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
+                <Button type="submit" className="w-full h-11 text-sm font-semibold gap-2 rounded-lg mt-1" disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{isRegister ? t("auth.register") : t("auth.login")}<ArrowRight className="h-4 w-4" /></>}
                 </Button>
               </form>
 
               <p className="mt-6 text-sm text-center text-muted-foreground">
                 {isRegister ? t("auth.hasAccount") : t("auth.noAccount")}{" "}
-                <button
-                  type="button"
-                  onClick={() => { setIsRegister(!isRegister); setError(null); setFieldErrors({}); }}
-                  className="text-foreground font-semibold hover:underline underline-offset-2"
-                >
+                <button type="button" onClick={() => { setIsRegister(!isRegister); setError(null); setFieldErrors({}); }} className="text-foreground font-semibold hover:underline underline-offset-2">
                   {isRegister ? t("auth.login") : t("auth.register")}
                 </button>
               </p>
             </div>
           )}
-
-          {/* Footer — visible on mobile only since brand panel has its own */}
-          <p className="lg:hidden text-center text-[11px] text-muted-foreground/40 mt-10">
-            &copy; 2026 NUMU
-          </p>
         </div>
+
+        {/* Mobile footer */}
+        <p className="lg:hidden text-center text-[11px] text-primary-foreground/30 mt-6">
+          &copy; 2026 NUMU
+        </p>
       </div>
     </div>
   );

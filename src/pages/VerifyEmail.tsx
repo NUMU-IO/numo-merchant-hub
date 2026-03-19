@@ -12,7 +12,6 @@ import {
 } from "@/services/authApi";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, Mail, RefreshCw, ArrowLeft } from "lucide-react";
-import { NumuIcon } from "@/components/NumuLogo";
 
 export default function VerifyEmail() {
   const { t } = useTranslation();
@@ -60,10 +59,7 @@ export default function VerifyEmail() {
 
   async function handleCodeSubmit(codeOverride?: string[]) {
     const fullCode = (codeOverride ?? code).join("");
-    if (fullCode.length !== 6) {
-      setError(t("auth.invalidCode"));
-      return;
-    }
+    if (fullCode.length !== 6) { setError(t("auth.invalidCode")); return; }
     setLoading(true);
     setError(null);
     try {
@@ -126,11 +122,10 @@ export default function VerifyEmail() {
     if (pasted.length === 6) setTimeout(() => handleCodeSubmit(newCode), 100);
   }
 
-  /* ── Success ── */
   if (success) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
-        <div className="auth-enter text-center">
+      <div className="min-h-screen auth-page auth-dot-grid flex flex-col items-center justify-center p-4 sm:p-6">
+        <div className="bg-background rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.12)] p-9 auth-enter text-center">
           <div className="flex justify-center mb-4">
             <div className="h-11 w-11 rounded-full bg-emerald-500/[0.08] flex items-center justify-center">
               <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -144,99 +139,73 @@ export default function VerifyEmail() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
-      <div className="w-full max-w-[380px] auth-enter">
-        <div className="flex justify-center mb-10">
-          <NumuIcon size={36} />
-        </div>
-
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-1.5">
-          <div className="h-9 w-9 rounded-full bg-primary/[0.07] flex items-center justify-center">
-            <Mail className="h-[18px] w-[18px] text-primary" />
+    <div className="min-h-screen auth-page auth-dot-grid flex flex-col items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-[420px]">
+        <div className="bg-background rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.12)] p-7 sm:p-9 auth-enter">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-1.5">
+            <div className="h-9 w-9 rounded-full bg-primary/[0.07] flex items-center justify-center">
+              <Mail className="h-[18px] w-[18px] text-primary" />
+            </div>
+            <h1 className="text-xl font-semibold tracking-tight">{t("auth.verifyEmail")}</h1>
           </div>
-          <h1 className="text-xl font-semibold tracking-tight">
-            {t("auth.verifyEmail")}
-          </h1>
-        </div>
-        <p className="text-sm text-muted-foreground mb-7 ms-12">
-          {t("auth.verifyEmailDesc")}
-          {user?.email && (
-            <span className="block font-medium text-foreground mt-1">{user.email}</span>
-          )}
-        </p>
-
-        {/* Code inputs */}
-        <div className="flex justify-center gap-2.5 mb-5" dir="ltr" onPaste={handlePaste}>
-          {code.map((digit, i) => (
-            <input
-              key={i}
-              ref={(el) => { inputRefs.current[i] = el; }}
-              type="text"
-              inputMode="numeric"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => handleCodeChange(i, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(i, e)}
-              className="w-11 h-12 text-center text-xl font-semibold rounded-lg
-                bg-transparent text-foreground
-                border border-border/70 focus:border-foreground focus:ring-1 focus:ring-foreground/5
-                outline-none transition-colors"
-              disabled={loading}
-              autoFocus={i === 0}
-            />
-          ))}
-        </div>
-
-        {error && (
-          <p className="text-sm text-destructive bg-destructive/[0.04] border border-destructive/10 rounded-lg px-3 py-2.5 mb-4">
-            {error}
+          <p className="text-sm text-muted-foreground mb-7 ms-12">
+            {t("auth.verifyEmailDesc")}
+            {user?.email && <span className="block font-medium text-foreground mt-1">{user.email}</span>}
           </p>
-        )}
 
-        <Button
-          onClick={() => handleCodeSubmit()}
-          className="w-full h-11 text-sm font-semibold rounded-lg"
-          disabled={loading || code.some((d) => d === "")}
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("auth.verifyButton")}
-        </Button>
+          {/* Code inputs */}
+          <div className="flex justify-center gap-2.5 mb-5" dir="ltr" onPaste={handlePaste}>
+            {code.map((digit, i) => (
+              <input
+                key={i}
+                ref={(el) => { inputRefs.current[i] = el; }}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleCodeChange(i, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(i, e)}
+                className="w-11 h-12 text-center text-xl font-semibold rounded-lg
+                  bg-transparent text-foreground
+                  border border-border/70 focus:border-foreground focus:ring-1 focus:ring-foreground/5
+                  outline-none transition-colors"
+                disabled={loading}
+                autoFocus={i === 0}
+              />
+            ))}
+          </div>
 
-        {/* Resend */}
-        <div className="text-center mt-6 space-y-2">
-          <p className="text-sm text-muted-foreground">{t("auth.didntReceive")}</p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleResend}
-            disabled={resending || cooldown > 0}
-            className="text-foreground font-semibold gap-1.5"
-          >
-            {resending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            {cooldown > 0 ? `${t("auth.resendIn")} ${cooldown}s` : t("auth.resendCode")}
+          {error && (
+            <p className="text-sm text-destructive bg-destructive/[0.04] border border-destructive/10 rounded-lg px-3 py-2.5 mb-4">{error}</p>
+          )}
+
+          <Button onClick={() => handleCodeSubmit()} className="w-full h-11 text-sm font-semibold rounded-lg" disabled={loading || code.some((d) => d === "")}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("auth.verifyButton")}
           </Button>
-        </div>
 
-        {/* Go back */}
-        <div className="mt-6 pt-5 border-t border-border/40">
-          <button
-            type="button"
-            onClick={handleGoBack}
-            className="w-full flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            {t("auth.goBackChangeEmail")}
-          </button>
-        </div>
+          {/* Resend */}
+          <div className="text-center mt-6 space-y-2">
+            <p className="text-sm text-muted-foreground">{t("auth.didntReceive")}</p>
+            <Button variant="ghost" size="sm" onClick={handleResend} disabled={resending || cooldown > 0} className="text-foreground font-semibold gap-1.5">
+              {resending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {cooldown > 0 ? `${t("auth.resendIn")} ${cooldown}s` : t("auth.resendCode")}
+            </Button>
+          </div>
 
-        <p className="text-xs text-center text-muted-foreground/50 mt-5">
-          {t("auth.orClickLink")}
-        </p>
+          {/* Go back */}
+          <div className="mt-6 pt-5 border-t border-border/40">
+            <button type="button" onClick={handleGoBack} className="w-full flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              {t("auth.goBackChangeEmail")}
+            </button>
+          </div>
+
+          <p className="text-xs text-center text-muted-foreground/50 mt-4">{t("auth.orClickLink")}</p>
+        </div>
       </div>
 
-      <p className="mt-auto pt-10 text-[11px] text-muted-foreground/40">
-        &copy; 2026 NUMU
-      </p>
+      <p className="mt-8 text-[11px] text-primary-foreground/25">&copy; 2026 NUMU</p>
     </div>
   );
 }

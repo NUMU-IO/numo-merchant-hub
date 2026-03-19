@@ -146,6 +146,10 @@
     animation: auth-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
+  .auth-page {
+    background-color: hsl(var(--primary));
+  }
+
   /* Smooth transition utility */
   .transition-smooth {
     @apply transition-all duration-200 ease-out;
