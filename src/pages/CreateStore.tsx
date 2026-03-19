@@ -1,6 +1,5 @@
 /**
  * CreateStore — onboarding page for merchants to create their first store.
- * Premium split-panel layout with geometric branding.
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -12,9 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CheckCircle2, XCircle, Store, Rocket } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
 import { NumuIcon } from "@/components/NumuLogo";
 import { getStoreDomainSuffix } from "@/lib/storefront";
 import { z } from "zod";
@@ -94,9 +92,9 @@ export default function CreateStore() {
     }
   };
 
-  const inputClass = (field: string) =>
-    `h-12 rounded-xl bg-muted/30 border-border/50 focus:border-primary focus:ring-primary/20 transition-all ${
-      fieldErrors[field] ? "border-destructive" : ""
+  const inputCls = (field: string) =>
+    `h-11 rounded-lg bg-transparent border-border/70 placeholder:text-muted-foreground/40 focus:border-foreground focus:ring-1 focus:ring-foreground/5 transition-colors ${
+      fieldErrors[field] ? "border-destructive focus:border-destructive" : ""
     }`;
 
   const subdomainIcon =
@@ -106,105 +104,147 @@ export default function CreateStore() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left decorative panel */}
-      <div className="hidden lg:flex lg:w-[45%] bg-primary relative overflow-hidden items-center justify-center">
-        <div className="absolute inset-0">
-          <div className="absolute top-16 -start-16 h-72 w-72 rounded-full bg-primary-foreground/10 blur-3xl" />
-          <div className="absolute bottom-16 end-8 h-96 w-96 rounded-full bg-primary-foreground/5 blur-3xl" />
+      {/* ── Brand panel ── */}
+      <div className="hidden lg:flex lg:w-[44%] xl:w-[42%] bg-primary relative overflow-hidden flex-col justify-between p-10 xl:p-14">
+        <div className="auth-dot-grid absolute inset-0" />
+
+        <div className="relative z-10">
+          <span className="text-base font-black tracking-[0.18em] text-primary-foreground/70">
+            NUMU
+          </span>
         </div>
-        <div className="relative z-10 text-center px-12 space-y-8 max-w-md">
-          <Rocket className="h-16 w-16 text-primary-foreground/80 mx-auto" />
-          <div className="space-y-3">
-            <h2 className="text-3xl font-bold text-primary-foreground">{t("createStore.title")}</h2>
-            <p className="text-primary-foreground/60 text-sm leading-relaxed">{t("createStore.subtitle")}</p>
-          </div>
+
+        <div className="relative z-10 max-w-[280px]">
+          <h2 className="text-[1.85rem] font-semibold text-primary-foreground leading-[1.25] tracking-tight">
+            Launch your<br />store today.
+          </h2>
+          <div className="w-8 h-px bg-primary-foreground/20 mt-6 mb-5" />
+          <p className="text-primary-foreground/40 text-[13px] leading-relaxed">
+            {t("createStore.subtitle")}
+          </p>
         </div>
+
+        <p className="relative z-10 text-primary-foreground/20 text-[11px]">
+          &copy; 2026 NUMU
+        </p>
       </div>
 
-      {/* Right form panel */}
-      <div className="flex-1 flex items-center justify-center bg-background p-6 sm:p-8">
-        <div className="w-full max-w-lg space-y-8">
-          <div className="lg:hidden flex justify-center">
-            <NumuIcon size={44} />
+      {/* ── Form panel ── */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-background">
+        <div className="w-full max-w-[440px] auth-enter">
+          <div className="lg:hidden mb-10 flex justify-center">
+            <NumuIcon size={36} />
           </div>
 
-          <Card className="border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06),0_24px_64px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.3)] rounded-2xl">
-            <CardHeader className="text-center space-y-1 pb-1 pt-8">
-              <div className="mx-auto w-12 h-12 rounded-2xl bg-primary/8 flex items-center justify-center mb-2">
-                <Store className="h-6 w-6 text-primary" />
-              </div>
-              <CardTitle className="text-2xl font-bold tracking-tight">{t("createStore.title")}</CardTitle>
-              <CardDescription>{t("createStore.subtitle")}</CardDescription>
-            </CardHeader>
+          <h1 className="text-xl font-semibold tracking-tight">
+            {t("createStore.title")}
+          </h1>
+          <p className="mt-1.5 text-sm text-muted-foreground mb-7">
+            {t("createStore.subtitle")}
+          </p>
 
-            <CardContent className="px-6 pb-8">
-              <form noValidate onSubmit={handleSubmit} className="space-y-5 mt-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createStore.storeName")}</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("createStore.storeNamePlaceholder")} className={inputClass("name")} />
-                  {fieldErrors.name && <p className="text-[11px] text-destructive">{fieldErrors.name}</p>}
-                </div>
+          <form noValidate onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">{t("createStore.storeName")}</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t("createStore.storeNamePlaceholder")}
+                className={inputCls("name")}
+                autoFocus
+              />
+              {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
+            </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createStore.subdomain")}</Label>
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <Input value={subdomain} onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="mystore" className={`${inputClass("subdomain")} pe-9`} />
-                      {subdomainIcon && <div className="absolute inset-y-0 end-3 flex items-center">{subdomainIcon}</div>}
-                    </div>
-                    {getStoreDomainSuffix() && (
-                      <span className="text-sm text-muted-foreground whitespace-nowrap font-mono">{getStoreDomainSuffix()}</span>
-                    )}
-                  </div>
-                  {subdomainStatus !== "idle" && subdomainStatus !== "checking" && (
-                    <p className={`text-[11px] ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>{subdomainMsg}</p>
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">{t("createStore.subdomain")}</Label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    value={subdomain}
+                    onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                    placeholder="mystore"
+                    className={`${inputCls("subdomain")} pe-9`}
+                  />
+                  {subdomainIcon && (
+                    <div className="absolute inset-y-0 end-3 flex items-center">{subdomainIcon}</div>
                   )}
-                  {fieldErrors.subdomain && <p className="text-[11px] text-destructive">{fieldErrors.subdomain}</p>}
                 </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createStore.description")}</Label>
-                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("createStore.descriptionPlaceholder")} rows={3} className={`rounded-xl bg-muted/30 border-border/50 ${fieldErrors.description ? "border-destructive" : ""}`} />
-                  {fieldErrors.description && <p className="text-[11px] text-destructive">{fieldErrors.description}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createStore.language")}</Label>
-                    <Select value={language} onValueChange={setLanguage}>
-                      <SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ar">العربية</SelectItem>
-                        <SelectItem value="en">English</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createStore.currency")}</Label>
-                    <Select value={currency} onValueChange={setCurrency}>
-                      <SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="EGP">EGP (ج.م)</SelectItem>
-                        <SelectItem value="USD">USD ($)</SelectItem>
-                        <SelectItem value="SAR">SAR (ر.س)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="text-sm text-destructive text-center bg-destructive/8 rounded-xl p-3 border border-destructive/15">
-                    {error}
-                  </div>
+                {getStoreDomainSuffix() && (
+                  <span className="text-sm text-muted-foreground whitespace-nowrap font-mono">
+                    {getStoreDomainSuffix()}
+                  </span>
                 )}
+              </div>
+              {subdomainStatus !== "idle" && subdomainStatus !== "checking" && (
+                <p className={`text-xs ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>
+                  {subdomainMsg}
+                </p>
+              )}
+              {fieldErrors.subdomain && <p className="text-xs text-destructive">{fieldErrors.subdomain}</p>}
+            </div>
 
-                <Button type="submit" className="w-full h-12 text-sm font-bold gap-2 rounded-xl" disabled={loading || subdomainStatus !== "available"}>
-                  {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">{t("createStore.description")}</Label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t("createStore.descriptionPlaceholder")}
+                rows={3}
+                className={`rounded-lg bg-transparent border-border/70 placeholder:text-muted-foreground/40 focus:border-foreground focus:ring-1 focus:ring-foreground/5 transition-colors ${fieldErrors.description ? "border-destructive" : ""}`}
+              />
+              {fieldErrors.description && <p className="text-xs text-destructive">{fieldErrors.description}</p>}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-[13px] font-medium">{t("createStore.language")}</Label>
+                <Select value={language} onValueChange={setLanguage}>
+                  <SelectTrigger className="h-11 rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ar">العربية</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[13px] font-medium">{t("createStore.currency")}</Label>
+                <Select value={currency} onValueChange={setCurrency}>
+                  <SelectTrigger className="h-11 rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="EGP">EGP (ج.م)</SelectItem>
+                    <SelectItem value="USD">USD ($)</SelectItem>
+                    <SelectItem value="SAR">SAR (ر.س)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-sm text-destructive bg-destructive/[0.04] border border-destructive/10 rounded-lg px-3 py-2.5">
+                {error}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full h-11 text-sm font-semibold gap-2 rounded-lg mt-1"
+              disabled={loading || subdomainStatus !== "available"}
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
                   {t("createStore.create")}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </form>
+
+          <p className="lg:hidden text-center text-[11px] text-muted-foreground/40 mt-10">
+            &copy; 2026 NUMU
+          </p>
         </div>
       </div>
     </div>

@@ -1,7 +1,6 @@
 /**
  * Email verification page — shown after registration.
  * Supports 6-digit code entry and token-based verification from email link.
- * Includes "go back to change email" option.
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -12,7 +11,6 @@ import {
   verifyEmailByCode, verifyEmailByToken, resendVerificationEmail,
 } from "@/services/authApi";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, CheckCircle2, Mail, RefreshCw, ArrowLeft } from "lucide-react";
 import { NumuIcon } from "@/components/NumuLogo";
 
@@ -75,7 +73,6 @@ export default function VerifyEmail() {
       setTimeout(() => navigate("/", { replace: true }), 1500);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Invalid or expired code");
-      // Clear code on error
       setCode(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } finally {
@@ -129,117 +126,117 @@ export default function VerifyEmail() {
     if (pasted.length === 6) setTimeout(() => handleCodeSubmit(newCode), 100);
   }
 
+  /* ── Success ── */
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <Card className="w-full max-w-md border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06),0_24px_64px_rgba(0,0,0,0.04)] rounded-2xl">
-          <CardContent className="pt-10 pb-10 text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
-              <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+        <div className="auth-enter text-center">
+          <div className="flex justify-center mb-4">
+            <div className="h-11 w-11 rounded-full bg-emerald-500/[0.08] flex items-center justify-center">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
             </div>
-            <h2 className="text-xl font-bold text-foreground">{t("auth.emailVerified")}</h2>
-            <p className="text-sm text-muted-foreground">{t("auth.verifiedRedirect")}</p>
-          </CardContent>
-        </Card>
+          </div>
+          <h1 className="text-xl font-semibold tracking-tight">{t("auth.emailVerified")}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{t("auth.verifiedRedirect")}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <div className="w-full max-w-md space-y-8">
-        <div className="flex justify-center">
-          <NumuIcon size={44} />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+      <div className="w-full max-w-[380px] auth-enter">
+        <div className="flex justify-center mb-10">
+          <NumuIcon size={36} />
         </div>
 
-        <Card className="border-0 shadow-[0_2px_16px_rgba(0,0,0,0.06),0_24px_64px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.3)] rounded-2xl">
-          <CardHeader className="text-center space-y-3 pb-2 pt-8">
-            <div className="mx-auto w-14 h-14 bg-primary/8 rounded-2xl flex items-center justify-center">
-              <Mail className="h-7 w-7 text-primary" />
-            </div>
-            <CardTitle className="text-2xl font-bold tracking-tight">{t("auth.verifyEmail")}</CardTitle>
-            <CardDescription className="text-sm">
-              {t("auth.verifyEmailDesc")}
-              {user?.email && (
-                <span className="block font-semibold text-foreground mt-1">{user.email}</span>
-              )}
-            </CardDescription>
-          </CardHeader>
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-1.5">
+          <div className="h-9 w-9 rounded-full bg-primary/[0.07] flex items-center justify-center">
+            <Mail className="h-[18px] w-[18px] text-primary" />
+          </div>
+          <h1 className="text-xl font-semibold tracking-tight">
+            {t("auth.verifyEmail")}
+          </h1>
+        </div>
+        <p className="text-sm text-muted-foreground mb-7 ms-12">
+          {t("auth.verifyEmailDesc")}
+          {user?.email && (
+            <span className="block font-medium text-foreground mt-1">{user.email}</span>
+          )}
+        </p>
 
-          <CardContent className="space-y-6 px-6 pb-8">
-            {/* Code inputs */}
-            <div className="flex justify-center gap-2.5" dir="ltr" onPaste={handlePaste}>
-              {code.map((digit, i) => (
-                <input
-                  key={i}
-                  ref={(el) => { inputRefs.current[i] = el; }}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={digit}
-                  onChange={(e) => handleCodeChange(i, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(i, e)}
-                  className="w-12 h-14 text-center text-2xl font-bold rounded-xl
-                    bg-muted/30 text-foreground
-                    border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20
-                    outline-none transition-all"
-                  disabled={loading}
-                  autoFocus={i === 0}
-                />
-              ))}
-            </div>
+        {/* Code inputs */}
+        <div className="flex justify-center gap-2.5 mb-5" dir="ltr" onPaste={handlePaste}>
+          {code.map((digit, i) => (
+            <input
+              key={i}
+              ref={(el) => { inputRefs.current[i] = el; }}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
+              value={digit}
+              onChange={(e) => handleCodeChange(i, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(i, e)}
+              className="w-11 h-12 text-center text-xl font-semibold rounded-lg
+                bg-transparent text-foreground
+                border border-border/70 focus:border-foreground focus:ring-1 focus:ring-foreground/5
+                outline-none transition-colors"
+              disabled={loading}
+              autoFocus={i === 0}
+            />
+          ))}
+        </div>
 
-            {error && (
-              <div className="text-sm text-destructive text-center bg-destructive/8 rounded-xl p-3 border border-destructive/15">
-                {error}
-              </div>
-            )}
+        {error && (
+          <p className="text-sm text-destructive bg-destructive/[0.04] border border-destructive/10 rounded-lg px-3 py-2.5 mb-4">
+            {error}
+          </p>
+        )}
 
-            <Button
-              onClick={() => handleCodeSubmit()}
-              className="w-full h-12 text-sm font-bold rounded-xl"
-              disabled={loading || code.some((d) => d === "")}
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("auth.verifyButton")}
-            </Button>
+        <Button
+          onClick={() => handleCodeSubmit()}
+          className="w-full h-11 text-sm font-semibold rounded-lg"
+          disabled={loading || code.some((d) => d === "")}
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("auth.verifyButton")}
+        </Button>
 
-            {/* Resend */}
-            <div className="text-center space-y-2">
-              <p className="text-sm text-muted-foreground">{t("auth.didntReceive")}</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleResend}
-                disabled={resending || cooldown > 0}
-                className="text-primary font-semibold gap-1.5"
-              >
-                {resending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                {cooldown > 0 ? `${t("auth.resendIn")} ${cooldown}s` : t("auth.resendCode")}
-              </Button>
-            </div>
+        {/* Resend */}
+        <div className="text-center mt-6 space-y-2">
+          <p className="text-sm text-muted-foreground">{t("auth.didntReceive")}</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleResend}
+            disabled={resending || cooldown > 0}
+            className="text-foreground font-semibold gap-1.5"
+          >
+            {resending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            {cooldown > 0 ? `${t("auth.resendIn")} ${cooldown}s` : t("auth.resendCode")}
+          </Button>
+        </div>
 
-            {/* Go back to change email */}
-            <div className="pt-2 border-t border-border/50">
-              <button
-                type="button"
-                onClick={handleGoBack}
-                className="w-full flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                {t("auth.goBackChangeEmail")}
-              </button>
-            </div>
+        {/* Go back */}
+        <div className="mt-6 pt-5 border-t border-border/40">
+          <button
+            type="button"
+            onClick={handleGoBack}
+            className="w-full flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            {t("auth.goBackChangeEmail")}
+          </button>
+        </div>
 
-            <p className="text-xs text-center text-muted-foreground/60">
-              {t("auth.orClickLink")}
-            </p>
-          </CardContent>
-        </Card>
-
-        <p className="text-center text-[11px] text-muted-foreground/60 font-medium tracking-wide">
-          NUMU © 2026
+        <p className="text-xs text-center text-muted-foreground/50 mt-5">
+          {t("auth.orClickLink")}
         </p>
       </div>
+
+      <p className="mt-auto pt-10 text-[11px] text-muted-foreground/40">
+        &copy; 2026 NUMU
+      </p>
     </div>
   );
 }
