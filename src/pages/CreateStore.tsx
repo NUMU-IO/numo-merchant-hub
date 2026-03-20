@@ -40,6 +40,7 @@ export default function CreateStore() {
   const [language, setLanguage] = useState("ar");
   const [currency, setCurrency] = useState("EGP");
   const [betaCode, setBetaCode] = useState("");
+  const [showBetaCode, setShowBetaCode] = useState(false);
   const [subdomainStatus, setSubdomainStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
   const [subdomainMsg, setSubdomainMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -187,19 +188,34 @@ export default function CreateStore() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-[13px] font-medium flex items-center gap-1.5">
-                <Ticket className="h-3.5 w-3.5 text-amber-500" />
-                {language === "ar" ? "كود الدعوة (بيتا)" : "Beta Invite Code"}
-              </Label>
-              <Input
-                value={betaCode}
-                onChange={(e) => setBetaCode(e.target.value.toUpperCase().trim())}
-                placeholder={language === "ar" ? "أدخل كود الدعوة" : "Enter your invite code"}
-                className={`${inputCls("invite_code")} font-mono tracking-widest`}
-              />
-              {fieldErrors.invite_code && <p className="text-xs text-destructive">{fieldErrors.invite_code}</p>}
-            </div>
+            {!showBetaCode ? (
+              <button
+                type="button"
+                onClick={() => setShowBetaCode(true)}
+                className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Ticket className="h-3.5 w-3.5" />
+                {language === "ar" ? "هل لديك كود دعوة؟" : "Have an invite code?"}
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <Label className="text-[13px] font-medium flex items-center gap-1.5">
+                  <Ticket className="h-3.5 w-3.5 text-amber-500" />
+                  {language === "ar" ? "كود الدعوة (بيتا)" : "Beta Invite Code"}
+                </Label>
+                <Input
+                  value={betaCode}
+                  onChange={(e) => setBetaCode(e.target.value.toUpperCase().trim())}
+                  placeholder={language === "ar" ? "أدخل كود الدعوة" : "Enter your invite code"}
+                  className={`${inputCls("invite_code")} font-mono tracking-widest`}
+                  autoFocus
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {language === "ar" ? "اختياري — يتيح لك الوصول الفوري للمنصة" : "Optional — gives you instant access to the platform"}
+                </p>
+                {fieldErrors.invite_code && <p className="text-xs text-destructive">{fieldErrors.invite_code}</p>}
+              </div>
+            )}
 
             {error && (
               <p className="text-sm text-destructive bg-destructive/[0.04] border border-destructive/10 rounded-lg px-3 py-2.5">{error}</p>

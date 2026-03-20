@@ -192,6 +192,19 @@ export async function resendVerificationEmail(): Promise<void> {
   });
 }
 
+/** Update current user's profile. */
+export async function updateProfile(data: {
+  first_name?: string;
+  last_name?: string;
+  phone?: string | null;
+  avatar_url?: string | null;
+}): Promise<User> {
+  return apiClient<User>("/auth/me", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
 /** Change password (requires current password). Revokes all other sessions. */
 export async function changePassword(
   currentPassword: string,

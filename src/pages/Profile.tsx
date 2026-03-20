@@ -14,13 +14,17 @@ import {
   User, Mail, Phone, Shield, Calendar, Key,
   Loader2, Camera, CheckCircle2, AlertCircle,
 } from "lucide-react";
-import { changePassword } from "@/services/authApi";
+import { changePassword, updateProfile } from "@/services/authApi";
+import { useDashboardStore } from "@/contexts/StoreContext";
+import { uploadStoreAsset } from "@/services/storeApi";
 
 export default function Profile() {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const { user, refreshUser } = useAuth();
+  const { currentStore } = useDashboardStore();
   const isAr = language === "ar";
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [firstName, setFirstName] = useState(user?.first_name || "");
   const [lastName, setLastName] = useState(user?.last_name || "");
@@ -35,13 +39,32 @@ export default function Profile() {
   const handleSaveProfile = async () => {
     setIsSaving(true);
     try {
-      // API call would go here
-      await new Promise(r => setTimeout(r, 800));
+      await updateProfile({
+        first_name: firstName,
+        last_name: lastName,
+        phone: phone || null,
+      });
+      if (refreshUser) await refreshUser();
       toast.success(isAr ? "تم حفظ الملف الشخصي" : "Profile saved successfully");
     } catch (err: unknown) {
       showError(err, language);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleAvatarUpload = async (file: File) => {
+    if (!currentStore?.id) return;
+    setUploadingAvatar(true);
+    try {
+      const result = await uploadStoreAsset(currentStore.id, file, "profile_picture");
+      await updateProfile({ avatar_url: result.url });
+      if (refreshUser) await refreshUser();
+      toast.success(isAr ? "تم تحديث الصورة" : "Avatar updated");
+    } catch (err: unknown) {
+      showError(err, language);
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -86,14 +109,32 @@ export default function Profile() {
       <Card className="border-border/60">
         <CardContent className="p-6">
           <div className="flex items-start gap-5">
-            <div className="relative group">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground">
-                {initials}
+            <label className="relative group cursor-pointer">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleAvatarUpload(file);
+                  e.target.value = "";
+                }}
+              />
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="" className="h-20 w-20 rounded-2xl object-cover" />
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground">
+                  {initials}
+                </div>
+              )}
+              <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity">
+                {uploadingAvatar ? (
+                  <Loader2 className="h-5 w-5 text-background animate-spin" />
+                ) : (
+                  <Camera className="h-5 w-5 text-background" />
+                )}
               </div>
-              <button className="absolute inset-0 flex items-center justify-center rounded-2xl bg-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                <Camera className="h-5 w-5 text-background" />
-              </button>
-            </div>
+            </label>
             <div className="flex-1 space-y-1">
               <h2 className="text-lg font-semibold">
                 {user?.first_name} {user?.last_name}
