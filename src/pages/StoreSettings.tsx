@@ -55,7 +55,7 @@ import {
   ThemeMarketplace,
 } from "@/components/theme-editor";
 import type { SettingValue } from "@/components/theme-editor/SettingControl";
-import { updateStore } from "@/services/storeApi";
+import { updateStore, uploadStoreAsset } from "@/services/storeApi";
 import { getStoreUrl, getStoreDomainSuffix } from "@/lib/storefront";
 import {
   fetchShippingSettings,
@@ -930,12 +930,34 @@ const StoreSettings = () => {
                   </div>
                 )}
                 <div className="flex-1">
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Upload className="h-3.5 w-3.5" />
-                    {t("store.uploadLogo")}
-                  </Button>
+                  <label>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file || !currentStore?.id) return;
+                        try {
+                          const result = await uploadStoreAsset(currentStore.id, file, "logo");
+                          await updateStore(currentStore.id, { logo_url: result.url });
+                          await refetchStores();
+                          toast.success(language === "ar" ? "تم رفع الشعار" : "Logo uploaded");
+                        } catch {
+                          toast.error(language === "ar" ? "فشل رفع الشعار" : "Failed to upload logo");
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                    <Button variant="outline" size="sm" className="gap-2 cursor-pointer" asChild>
+                      <span>
+                        <Upload className="h-3.5 w-3.5" />
+                        {t("store.uploadLogo")}
+                      </span>
+                    </Button>
+                  </label>
                   <p className="text-xs text-muted-foreground mt-1.5">
-                    {language === "ar" ? "PNG أو JPG، ٥١٢×٥١٢ بكسل كحد أقصى" : "PNG or JPG, max 512×512px"}
+                    {language === "ar" ? "PNG أو JPG أو WebP، ٥ ميجا كحد أقصى" : "PNG, JPG, or WebP, max 5MB"}
                   </p>
                 </div>
               </div>

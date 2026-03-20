@@ -101,6 +101,29 @@ export async function updateStore(
   });
 }
 
+// ─── Asset Upload ────────────────────────────────────────────────────────────
+
+export interface UploadAssetResult {
+  url: string;
+  asset_type: string;
+  filename: string;
+}
+
+export async function uploadStoreAsset(
+  storeId: string,
+  file: File,
+  assetType: "logo" | "favicon" | "hero_image" | "profile_picture",
+): Promise<UploadAssetResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("asset_type", assetType);
+
+  return apiClient<UploadAssetResult>(`/stores/${storeId}/customization/assets`, {
+    method: "POST",
+    body: formData,
+  });
+}
+
 // ─── Shipping Settings ────────────────────────────────────────────────────────
 
 export interface ShippingZone {
