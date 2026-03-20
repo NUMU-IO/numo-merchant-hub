@@ -118,7 +118,7 @@ export async function uploadStoreAsset(
   formData.append("file", file);
   formData.append("asset_type", assetType);
 
-  return apiClient<UploadAssetResult>(`/stores/${storeId}/customization/assets`, {
+  return apiClient<UploadAssetResult>(`/stores/${storeId}/settings/customization/assets`, {
     method: "POST",
     body: formData,
   });
