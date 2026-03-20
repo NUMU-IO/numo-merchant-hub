@@ -6,6 +6,7 @@
 
 import { apiClient } from "./api";
 import { initCSRF, clearCSRFToken, getCSRFToken } from "./csrf";
+import { apiErrorFromResponse, apiErrorFromNetwork } from "@/lib/api-error";
 
 if (!import.meta.env.VITE_API_URL) {
   throw new Error(
@@ -70,8 +71,7 @@ export async function login(
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail || `Login failed (${res.status})`);
+    throw await apiErrorFromResponse(res);
   }
 
   const json = await res.json();
@@ -107,8 +107,7 @@ export async function complete2FALogin(
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail || `2FA verification failed (${res.status})`);
+    throw await apiErrorFromResponse(res);
   }
 
   const json = await res.json();
@@ -128,8 +127,7 @@ export async function register(data: RegisterData): Promise<AuthResponse> {
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail || `Registration failed (${res.status})`);
+    throw await apiErrorFromResponse(res);
   }
 
   const json = await res.json();
@@ -183,8 +181,7 @@ export async function verifyEmailByToken(token: string): Promise<void> {
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail || `Verification failed (${res.status})`);
+    throw await apiErrorFromResponse(res);
   }
 }
 
@@ -214,8 +211,7 @@ export async function forgotPassword(email: string): Promise<void> {
     body: JSON.stringify({ email }),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail || "Request failed");
+    throw await apiErrorFromResponse(res);
   }
 }
 
@@ -230,7 +226,6 @@ export async function resetPassword(
     body: JSON.stringify({ token, new_password: newPassword }),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail || "Reset failed");
+    throw await apiErrorFromResponse(res);
   }
 }

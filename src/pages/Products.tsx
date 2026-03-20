@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Plus, Search, MoreHorizontal, Pencil, Trash2, ImagePlus, X, Tag, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { showError } from "@/lib/show-error";
 import { z } from "zod";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -177,7 +178,7 @@ const Products = () => {
       setTotalProducts(result.total);
       setTotalPages(result.total_pages);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load products");
+      showError(err, language);
     } finally {
       setIsLoading(false);
     }
@@ -305,7 +306,7 @@ const Products = () => {
       setDialogOpen(false);
       resetForm();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save product");
+      showError(err, language);
     } finally {
       setIsSaving(false);
     }
@@ -320,7 +321,7 @@ const Products = () => {
       setTotalProducts(prev => prev - 1);
       toast.success(t("products.productDeleted"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete product");
+      showError(err, language);
     } finally {
       setIsDeleting(false);
       setDeleteTarget(null);
@@ -372,7 +373,7 @@ const Products = () => {
         ));
         toast.success(language === "ar" ? "الصورة اترفعت!" : "Image uploaded!");
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Upload failed");
+        showError(err, language);
       } finally {
         setUploadingImage(false);
       }
@@ -390,7 +391,7 @@ const Products = () => {
       setFormImages(prev => prev.filter(url => url !== imageUrl));
       toast.success(language === "ar" ? "الصورة اتمسحت" : "Image removed");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to remove image");
+      showError(err, language);
     }
   };
 

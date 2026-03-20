@@ -44,6 +44,7 @@ export interface CreateStoreData {
   default_language?: string;
   contact_email?: string;
   contact_phone?: string;
+  beta_invite_code?: string;
 }
 
 export interface CheckSubdomainResult {

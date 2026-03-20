@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { showError } from "@/lib/show-error";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Settings2, Globe, CreditCard, Shield, Zap, Monitor, User,
@@ -424,7 +425,7 @@ export default function Settings() {
       setShowDisableDialog(false);
       setDisablePassword("");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : (isAr ? "فشل إلغاء 2FA" : "Failed to disable 2FA"));
+      showError(err, language);
     } finally {
       setDisabling2FA(false);
     }
@@ -885,7 +886,7 @@ export default function Settings() {
                             setRevokePassword("");
                             setRevokeNewPassword("");
                           } catch (err: unknown) {
-                            toast.error(err instanceof Error ? err.message : (isAr ? "فشلت العملية" : "Operation failed"));
+                            showError(err, language);
                           } finally {
                             setRevokingAll(false);
                           }

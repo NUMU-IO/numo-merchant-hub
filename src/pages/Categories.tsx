@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { toast } from "sonner";
+import { showError } from "@/lib/show-error";
 import {
   FolderOpen, Plus, Loader2, Pencil, Trash2, Package, ToggleLeft, ToggleRight,
 } from "lucide-react";
@@ -87,7 +88,7 @@ export default function Categories() {
       }
       setDialogOpen(false); resetForm(); fetchCategories();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : (isAr ? "حدث خطأ" : "Something went wrong"));
+      showError(err, language);
     } finally {
       setIsSaving(false);
     }
@@ -101,7 +102,7 @@ export default function Categories() {
       toast.success(isAr ? "تم حذف الفئة" : "Category deleted");
       setDeleteTarget(null); fetchCategories();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : (isAr ? "حدث خطأ" : "Something went wrong"));
+      showError(err, language);
     } finally {
       setIsDeleting(false);
     }
@@ -114,7 +115,7 @@ export default function Categories() {
       toast.success(cat.is_active ? (isAr ? "تم إلغاء تفعيل الفئة" : "Category deactivated") : (isAr ? "تم تفعيل الفئة" : "Category activated"));
       fetchCategories();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : (isAr ? "حدث خطأ" : "Something went wrong"));
+      showError(err, language);
     }
   };
 

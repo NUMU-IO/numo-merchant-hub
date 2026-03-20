@@ -32,6 +32,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { showError } from "@/lib/show-error";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
 
 type FulfillmentStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
@@ -99,7 +100,7 @@ const Orders = () => {
       setSelectedOrderDetail(order);
       setOrderTimeline(timeline.events || []);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to load order");
+      showError(err, language);
     } finally {
       setDetailLoading(false);
     }
@@ -170,7 +171,7 @@ const Orders = () => {
             : "Can't skip steps. Follow the order: Pending → Processing → Shipped → Delivered"
         );
       } else {
-        toast.error(msg || (language === "ar" ? "فشل تحديث الحالة" : "Failed to update status"));
+        showError(err, language);
       }
     }
   };
@@ -187,7 +188,7 @@ const Orders = () => {
       }
       invalidateOrders();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to mark as paid");
+      showError(err, language);
     }
   };
 
@@ -218,7 +219,7 @@ const Orders = () => {
       setRefundAmount("");
       await loadRefunds(selectedOrderDetail.id);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : (language === "ar" ? "فشل إنشاء الاسترداد" : "Failed to create refund"));
+      showError(err, language);
     } finally {
       setRefundLoading(false);
     }
@@ -231,7 +232,7 @@ const Orders = () => {
       toast.success(language === "ar" ? "تمت الموافقة على الاسترداد" : "Refund approved");
       await loadRefunds(selectedOrderDetail.id);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to approve refund");
+      showError(err, language);
     }
   };
 
@@ -242,7 +243,7 @@ const Orders = () => {
       toast.success(language === "ar" ? "تم رفض الاسترداد" : "Refund rejected");
       await loadRefunds(selectedOrderDetail.id);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to reject refund");
+      showError(err, language);
     }
   };
 
@@ -261,7 +262,7 @@ const Orders = () => {
       setSelectedOrderDetail(updated);
       invalidateOrders();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to process refund");
+      showError(err, language);
     }
   };
 
@@ -284,7 +285,7 @@ const Orders = () => {
       setSelected(new Set());
       invalidateOrders();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Bulk update failed");
+      showError(err, language);
     }
   };
 

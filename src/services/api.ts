@@ -8,6 +8,7 @@
  */
 
 import { getCSRFToken, initCSRF } from "./csrf";
+import { ApiError, apiErrorFromResponse, apiErrorFromNetwork } from "@/lib/api-error";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -43,16 +44,25 @@ export async function apiClient<T>(
   endpoint: string,
   options?: RequestInit,
 ): Promise<T> {
-  let res = await rawFetch(endpoint, options);
+  let res: Response;
+  try {
+    res = await rawFetch(endpoint, options);
+  } catch (err) {
+    throw apiErrorFromNetwork(err);
+  }
 
   // Handle CSRF token expiry: refresh token and retry once
   if (res.status === 403) {
     const body = await res.json().catch(() => null);
     if (body?.detail === "CSRF validation failed") {
       await initCSRF();
-      res = await rawFetch(endpoint, options);
+      try {
+        res = await rawFetch(endpoint, options);
+      } catch (err) {
+        throw apiErrorFromNetwork(err);
+      }
     } else {
-      throw new Error(body?.detail || `API error: ${res.status}`);
+      throw new ApiError(403, body?.detail || null);
     }
   }
 
@@ -60,12 +70,11 @@ export async function apiClient<T>(
     if (window.location.pathname !== "/login") {
       window.location.href = "/login";
     }
-    throw new Error("Session expired. Please log in again.");
+    throw new ApiError(401, null);
   }
 
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.detail || `API error: ${res.status}`);
+    throw await apiErrorFromResponse(res);
   }
 
   if (res.status === 204) {

@@ -12,8 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ArrowRight, Ticket } from "lucide-react";
 import { getStoreDomainSuffix } from "@/lib/storefront";
+import { ApiError } from "@/lib/api-error";
 import { z } from "zod";
 
 const createStoreSchema = z.object({
@@ -38,6 +39,7 @@ export default function CreateStore() {
   const [description, setDescription] = useState("");
   const [language, setLanguage] = useState("ar");
   const [currency, setCurrency] = useState("EGP");
+  const [betaCode, setBetaCode] = useState("");
   const [subdomainStatus, setSubdomainStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
   const [subdomainMsg, setSubdomainMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -81,11 +83,16 @@ export default function CreateStore() {
     setError(null);
     setLoading(true);
     try {
-      await createStore({ name, subdomain, description: description || undefined, default_language: language, default_currency: currency });
+      await createStore({ name, subdomain, description: description || undefined, default_language: language, default_currency: currency, beta_invite_code: betaCode || undefined });
       await refetchStores();
       navigate("/", { replace: true });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : t("common.error"));
+      if (err instanceof ApiError) {
+        setError(err.toUserMessage(language));
+        if (err.fieldErrors) setFieldErrors(err.fieldErrors);
+      } else {
+        setError(err instanceof Error ? err.message : t("common.error"));
+      }
     } finally {
       setLoading(false);
     }
@@ -178,6 +185,20 @@ export default function CreateStore() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium flex items-center gap-1.5">
+                <Ticket className="h-3.5 w-3.5 text-amber-500" />
+                {language === "ar" ? "كود الدعوة (بيتا)" : "Beta Invite Code"}
+              </Label>
+              <Input
+                value={betaCode}
+                onChange={(e) => setBetaCode(e.target.value.toUpperCase().trim())}
+                placeholder={language === "ar" ? "أدخل كود الدعوة" : "Enter your invite code"}
+                className={`${inputCls("beta_invite_code")} font-mono tracking-widest`}
+              />
+              {fieldErrors.beta_invite_code && <p className="text-xs text-destructive">{fieldErrors.beta_invite_code}</p>}
             </div>
 
             {error && (

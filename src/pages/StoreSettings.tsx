@@ -9,22 +9,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
+import { showError } from "@/lib/show-error";
 import {
   Globe, Lock, Palette, ScrollText, Settings2, Truck, Upload, Sparkles,
-  Check, Store, Type, ImageIcon, ShoppingBag, MessageSquare, Eye, EyeOff,
+  Check, Store, Type, ShoppingBag, MessageSquare, Eye, EyeOff,
   Trash2, Plus, Loader2, ExternalLink, Phone, Compass, Tag, LayoutGrid,
-  ChevronUp, ChevronDown, GripVertical,
+  ChevronUp, ChevronDown,
 } from "lucide-react";
 import { ThemePreview } from "@/components/ThemePreview";
 import {
   identitySettings,
   headerSettings,
-  heroSettings,
   productsSettings,
   footerSettings,
   navigationSettings,
@@ -43,7 +42,6 @@ import {
   type AvailableTheme,
   type ThemeSchemaBundle,
   type TemplateConfigData,
-  type SectionInstanceData,
   type SectionSettingDefinition,
   type CustomizationData,
 } from "@/services/themeApi";
@@ -346,59 +344,6 @@ function NavLinksEditor({
   );
 }
 
-// ─── Home Section Reorder ────────────────────────────────────────────────────
-
-function HomeSectionReorder({
-  sections,
-  onChange,
-  language,
-}: {
-  sections: Array<{ id: string; label: string; enabled: boolean }>;
-  onChange: (sections: Array<{ id: string; label: string; enabled: boolean }>) => void;
-  language: string;
-}) {
-  const toggle = (i: number) =>
-    onChange(sections.map((s, idx) => (idx === i ? { ...s, enabled: !s.enabled } : s)));
-  const move = (i: number, dir: -1 | 1) => {
-    const next = [...sections];
-    const j = i + dir;
-    if (j < 0 || j >= next.length) return;
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange(next);
-  };
-
-  return (
-    <div className="space-y-3 pt-2">
-      <Label className="text-sm font-semibold">
-        {language === "ar" ? "ترتيب أقسام الصفحة الرئيسية" : "Home Page Section Order"}
-      </Label>
-      {sections.map((section, i) => (
-        <div
-          key={section.id}
-          className={`flex items-center gap-2 rounded-lg border p-2.5 transition-colors ${
-            section.enabled ? "bg-card" : "bg-muted/50 opacity-60"
-          }`}
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-          <div className="flex flex-col gap-0.5">
-            <button onClick={() => move(i, -1)} className="p-0.5 hover:bg-muted rounded" disabled={i === 0}>
-              <ChevronUp className="h-3 w-3" />
-            </button>
-            <button onClick={() => move(i, 1)} className="p-0.5 hover:bg-muted rounded" disabled={i === sections.length - 1}>
-              <ChevronDown className="h-3 w-3" />
-            </button>
-          </div>
-          <span className="flex-1 text-sm font-medium">{section.label}</span>
-          <Switch
-            checked={section.enabled}
-            onCheckedChange={() => toggle(i)}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const SECTION_CONFIG = [
@@ -442,7 +387,7 @@ const StoreSettings = () => {
   const [isDirty, setIsDirty] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [policyTab, setPolicyTab] = useState("return");
-  const [walkthroughDone, resetWalkthrough] = useWalkthroughStatus();
+  const [, resetWalkthrough] = useWalkthroughStatus();
   const [showWalkthrough, setShowWalkthrough] = useState(false);
 
   // ─── Profile state ──────────────────────────────────────────────────────
@@ -773,7 +718,7 @@ const StoreSettings = () => {
     let heroPayload: Record<string, string | number | boolean> = extractNonEmpty(heroState);
     if (templateConfig) {
       const heroSection = Object.values(templateConfig.sections).find((s) => s.type === "hero");
-      if (heroSection) heroPayload = { ...heroPayload, ...extractNonEmpty(heroSection.settings) };
+      if (heroSection) heroPayload = { ...heroPayload, ...extractNonEmpty(heroSection.settings as Record<string, string | number | boolean>) };
     }
 
     // Derive home_sections from v2 template order
@@ -832,8 +777,8 @@ const StoreSettings = () => {
       });
       await refetchStores();
       toast.success(t("store.saved"));
-    } catch {
-      toast.error(language === "ar" ? "فشل الحفظ" : "Failed to save");
+    } catch (err) {
+      showError(err, language);
     } finally {
       setIsSaving(false);
     }
@@ -846,8 +791,8 @@ const StoreSettings = () => {
       await updateCustomization(currentStore.id, buildFullPayload());
       setIsDirty(false);
       toast.success(language === "ar" ? "تم حفظ المسودة" : "Draft saved");
-    } catch {
-      toast.error(language === "ar" ? "فشل الحفظ" : "Failed to save");
+    } catch (err) {
+      showError(err, language);
     } finally {
       setIsSaving(false);
     }
@@ -861,8 +806,8 @@ const StoreSettings = () => {
       await publishCustomization(currentStore.id);
       setIsDirty(false);
       toast.success(language === "ar" ? "تم النشر بنجاح!" : "Published successfully!");
-    } catch {
-      toast.error(language === "ar" ? "فشل النشر" : "Failed to publish");
+    } catch (err) {
+      showError(err, language);
     } finally {
       setIsSaving(false);
     }
@@ -878,8 +823,8 @@ const StoreSettings = () => {
       setNewZone({ zone: "", governorates: "", rate: 0, estimated_days: "" });
       setShowAddZone(false);
       toast.success(language === "ar" ? "تمت الإضافة" : "Zone added");
-    } catch {
-      toast.error(language === "ar" ? "فشلت الإضافة" : "Failed to add zone");
+    } catch (err) {
+      showError(err, language);
     }
   }, [currentStore?.id, newZone, language]);
 
@@ -892,8 +837,8 @@ const StoreSettings = () => {
           prev ? { ...prev, zones: prev.zones.filter((z) => z.id !== zoneId) } : prev
         );
         toast.success(language === "ar" ? "تم الحذف" : "Zone deleted");
-      } catch {
-        toast.error(language === "ar" ? "فشل الحذف" : "Failed to delete");
+      } catch (err) {
+        showError(err, language);
       }
     },
     [currentStore?.id, language]
@@ -907,21 +852,33 @@ const StoreSettings = () => {
       });
       setShippingData(result);
       toast.success(t("store.saved"));
-    } catch {
-      toast.error(language === "ar" ? "فشل الحفظ" : "Failed to save");
+    } catch (err) {
+      showError(err, language);
     }
   }, [currentStore?.id, freeThreshold, language, t]);
 
   // ─── Tab config ─────────────────────────────────────────────────────────
 
-  const tabs = [
-    { value: "profile", label: t("store.profile"), icon: Settings2 },
-    { value: "themes", label: language === "ar" ? "سوق الثيمات" : "Themes", icon: Sparkles },
-    { value: "customization", label: t("store.customization"), icon: Palette },
-    { value: "domain", label: t("store.domain"), icon: Globe },
-    { value: "policies", label: t("store.policies"), icon: ScrollText },
-    { value: "status", label: t("store.status"), icon: Lock },
-    { value: "shipping", label: t("store.shipping"), icon: Truck },
+  const [activeSection, setActiveSection] = useState("profile");
+
+  const navGroups = [
+    {
+      label: language === "ar" ? "إعداد المتجر" : "Store Setup",
+      items: [
+        { value: "profile", label: t("store.profile"), icon: Settings2 },
+        { value: "domain", label: t("store.domain"), icon: Globe },
+        { value: "shipping", label: t("store.shipping"), icon: Truck },
+        { value: "policies", label: t("store.policies"), icon: ScrollText },
+        { value: "status", label: t("store.status"), icon: Lock },
+      ],
+    },
+    {
+      label: language === "ar" ? "المظهر" : "Appearance",
+      items: [
+        { value: "themes", label: language === "ar" ? "سوق الثيمات" : "Themes", icon: Sparkles },
+        { value: "customization", label: t("store.customization"), icon: Palette },
+      ],
+    },
   ];
 
   // Current theme settings schema
@@ -929,76 +886,109 @@ const StoreSettings = () => {
   const groupedThemeSettings = groupSettings(currentThemeSettings);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">{t("store.title")}</h1>
+    <div className="settings-layout">
+      {/* ═══ Sidebar Navigation ═══ */}
+      <nav className="settings-nav scrollbar-none">
+        {navGroups.map((group) => (
+          <div key={group.label} className="settings-nav-group">
+            <div className="settings-nav-group-label">{group.label}</div>
+            {group.items.map((item) => (
+              <div
+                key={item.value}
+                className="settings-nav-item"
+                data-active={activeSection === item.value}
+                onClick={() => setActiveSection(item.value)}
+              >
+                <item.icon />
+                {item.label}
+              </div>
+            ))}
+          </div>
+        ))}
+      </nav>
 
-      <Tabs defaultValue="profile">
-        <TabsList className="flex-wrap h-auto gap-1 bg-transparent p-0">
-          {tabs.map((tab) => (
-            <TabsTrigger
-              key={tab.value}
-              value={tab.value}
-              className="gap-2 data-[state=active]:bg-muted"
-            >
-              <tab.icon className="h-4 w-4" />
-              <span className="hidden sm:inline">{tab.label}</span>
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      {/* ═══ Content Area ═══ */}
+      <div className="settings-content" data-narrow={activeSection !== "customization"}>
 
-        {/* ═══ Profile ═══ */}
-        <TabsContent value="profile">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("store.profile")}</CardTitle>
-              <CardDescription>
-                {language === "ar" ? "معلومات متجرك الأساسية" : "Basic store information"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
+        {/* ─── Profile ─── */}
+        {activeSection === "profile" && (
+          <div key="profile" className="settings-section-enter">
+            <div className="settings-section-header">
+              <h2>{t("store.profile")}</h2>
+              <p>{language === "ar" ? "معلومات متجرك الأساسية والتواصل" : "Basic store information and contact details"}</p>
+            </div>
+
+            {/* Logo */}
+            <div className="settings-field-group">
+              <div className="settings-field-group-label">{t("store.logo")}</div>
+              <div className="flex items-center gap-5 rounded-xl border border-dashed border-border/50 bg-muted/5 p-4 transition-colors hover:border-border/80 hover:bg-muted/10">
                 {currentStore?.logo_url ? (
-                  <img
-                    src={currentStore.logo_url}
-                    alt="Logo"
-                    className="h-20 w-20 rounded-xl object-cover border"
-                  />
+                  <img src={currentStore.logo_url} alt="Logo" className="h-16 w-16 rounded-xl object-cover ring-2 ring-border/20" />
                 ) : (
-                  <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted text-2xl">
-                    🏪
+                  <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-muted/30 text-muted-foreground">
+                    <Store className="h-6 w-6" />
                   </div>
                 )}
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Upload className="h-4 w-4" />
-                  {t("store.uploadLogo")}
-                </Button>
+                <div className="flex-1">
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Upload className="h-3.5 w-3.5" />
+                    {t("store.uploadLogo")}
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    {language === "ar" ? "PNG أو JPG، ٥١٢×٥١٢ بكسل كحد أقصى" : "PNG or JPG, max 512×512px"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* General info */}
+            <div className="settings-field-group">
+              <div className="settings-field-group-label">
+                {language === "ar" ? "معلومات عامة" : "General"}
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label>{t("store.storeName")}</Label>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">{t("store.storeName")}</Label>
                   <Input
                     value={profileState.name}
                     onChange={(e) => setProfileState((p) => ({ ...p, name: e.target.value }))}
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label>{t("store.contactEmail")}</Label>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">{t("store.contactEmail")}</Label>
                   <Input
                     value={profileState.contact_email}
                     onChange={(e) => setProfileState((p) => ({ ...p, contact_email: e.target.value }))}
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label>{t("store.contactPhone")}</Label>
+              </div>
+              <div className="grid gap-1.5 mt-4">
+                <Label className="text-xs font-medium text-muted-foreground">{t("store.storeDescription")}</Label>
+                <Textarea
+                  value={profileState.description}
+                  onChange={(e) => setProfileState((p) => ({ ...p, description: e.target.value }))}
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            {/* Contact */}
+            <div className="settings-field-group">
+              <div className="settings-field-group-label">
+                {language === "ar" ? "معلومات التواصل" : "Contact"}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">{t("store.contactPhone")}</Label>
                   <Input
                     value={profileState.contact_phone}
                     onChange={(e) => setProfileState((p) => ({ ...p, contact_phone: e.target.value }))}
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-green-600" />
-                    {language === "ar" ? "رقم الواتساب" : "WhatsApp Number"}
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5 text-green-600" />
+                    {language === "ar" ? "رقم الواتساب" : "WhatsApp"}
                   </Label>
                   <Input
                     value={profileState.whatsapp_phone}
@@ -1006,40 +996,32 @@ const StoreSettings = () => {
                     placeholder="+201012345678"
                     dir="ltr"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    {language === "ar"
-                      ? "هيظهر في المتجر كزرار واتساب للعملاء"
-                      : "Shown as a WhatsApp button for customers on your store"}
-                  </p>
                 </div>
               </div>
-              <div className="grid gap-2">
-                <Label>{t("store.storeDescription")}</Label>
-                <Textarea
-                  value={profileState.description}
-                  onChange={(e) => setProfileState((p) => ({ ...p, description: e.target.value }))}
-                  rows={3}
-                />
-              </div>
+            </div>
+
+            {/* Social */}
+            <div className="settings-field-group">
+              <div className="settings-field-group-label">{t("store.socialLinks")}</div>
               <div className="grid gap-4 sm:grid-cols-3">
-                <div className="grid gap-2">
-                  <Label>{t("store.facebook")}</Label>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">{t("store.facebook")}</Label>
                   <Input
                     value={profileState.facebook}
                     onChange={(e) => setProfileState((p) => ({ ...p, facebook: e.target.value }))}
                     placeholder="facebook.com/..."
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label>{t("store.instagram")}</Label>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">{t("store.instagram")}</Label>
                   <Input
                     value={profileState.instagram}
                     onChange={(e) => setProfileState((p) => ({ ...p, instagram: e.target.value }))}
                     placeholder="instagram.com/..."
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label>{t("store.twitter")}</Label>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">{t("store.twitter")}</Label>
                   <Input
                     value={profileState.twitter}
                     onChange={(e) => setProfileState((p) => ({ ...p, twitter: e.target.value }))}
@@ -1047,494 +1029,146 @@ const StoreSettings = () => {
                   />
                 </div>
               </div>
-              <Button onClick={saveProfile} disabled={isSaving}>
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : null}
-                {t("store.save")}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ═══ Themes Marketplace ═══ */}
-        <TabsContent value="themes">
-          <ThemeMarketplace
-            activeTheme={activeTheme}
-            availableThemes={availableThemes}
-            onSelectTheme={(id) => {
-              setActiveTheme(id);
-              setIsDirty(true);
-            }}
-          />
-        </TabsContent>
-
-        {/* ═══ Customization ═══ */}
-        <TabsContent value="customization">
-          {/* Onboarding walkthrough */}
-          <CustomizationWalkthrough
-            language={language}
-            forceShow={showWalkthrough}
-            onDismiss={() => setShowWalkthrough(false)}
-          />
-
-          {/* ── Action bar ── */}
-          <div data-tour="action-bar" className="flex items-center gap-2 mb-5 rounded-2xl border bg-card p-3 shadow-sm">
-            <div className="flex items-center gap-2 me-auto">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10">
-                <Palette className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold tracking-tight">
-                  {language === "ar" ? "تخصيص المتجر" : "Store Customization"}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {language === "ar"
-                    ? `ثيم: ${availableThemes.find((t) => t.id === activeTheme)?.nameAr || activeTheme}`
-                    : `Theme: ${availableThemes.find((t) => t.id === activeTheme)?.name || activeTheme}`}
-                </p>
-              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {isDirty && (
-                <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 text-[10px]">
-                  {language === "ar" ? "تغييرات غير محفوظة" : "Unsaved"}
-                </Badge>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { resetWalkthrough(); setShowWalkthrough(true); }}
-                className="gap-1.5 text-muted-foreground h-8"
-                title={language === "ar" ? "دليل الاستخدام" : "Show guide"}
-              >
-                <Compass className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                data-tour="preview-toggle"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowPreview((v) => !v)}
-                className="gap-2 h-8 rounded-xl"
-              >
-                {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                {showPreview
-                  ? (language === "ar" ? "إخفاء المعاينة" : "Hide Preview")
-                  : (language === "ar" ? "معاينة مباشرة" : "Live Preview")}
-              </Button>
-              <Button onClick={saveDraft} disabled={isSaving} variant="outline" size="sm" className="gap-2 h-8 rounded-xl">
-                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Settings2 className="h-3.5 w-3.5" />}
-                {language === "ar" ? "حفظ" : "Save Draft"}
-              </Button>
-              <Button onClick={publish} disabled={isSaving} size="sm" className="gap-2 h-8 rounded-xl">
-                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                {language === "ar" ? "نشر" : "Publish"}
+
+            <div className="pt-2">
+              <Button onClick={saveProfile} disabled={isSaving} className="gap-2">
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                {t("store.save")}
               </Button>
             </div>
           </div>
+        )}
 
-          {/* ── Side-by-side layout: settings + resizable preview ── */}
-          <div ref={splitRef} className="flex" style={{ gap: 0 }}>
-            {/* Left: settings panel */}
-            <div
-              className="space-y-5 overflow-y-auto pe-3"
-              style={{
-                width: showPreview ? `${100 - previewPct}%` : "100%",
-                maxHeight: showPreview ? "calc(100vh - 10rem)" : undefined,
-              }}
-            >
-              {/* Active theme indicator */}
-              <div className="flex items-center gap-3 rounded-2xl border bg-card p-4">
-                <div
-                  className="h-12 w-12 rounded-xl flex items-center justify-center shadow-sm"
-                  style={{
-                    backgroundColor: (THEME_PREVIEWS[activeTheme] || THEME_PREVIEWS.modern).bg,
-                  }}
-                >
-                  <span className="text-lg">{(THEME_PREVIEWS[activeTheme] || THEME_PREVIEWS.modern).icon}</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold tracking-tight">
-                    {language === "ar"
-                      ? availableThemes.find((t) => t.id === activeTheme)?.nameAr || activeTheme
-                      : availableThemes.find((t) => t.id === activeTheme)?.name || activeTheme}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {language === "ar" ? "الثيم المفعّل حالياً" : "Currently active theme"}
-                  </p>
-                </div>
-                {/* Quick color swatches */}
-                <div className="flex gap-1">
-                  {["primary_color", "secondary_color", "accent_color"].map((key) => (
-                    <div
-                      key={key}
-                      className="h-6 w-6 rounded-full border-2 border-background shadow-sm"
-                      style={{ backgroundColor: String(themeState[key] || "#ccc") }}
-                      title={key.replace(/_/g, " ")}
-                    />
-                  ))}
-                </div>
-              </div>
+        {/* ─── Domain ─── */}
+        {activeSection === "domain" && (
+          <div key="domain" className="settings-section-enter">
+            <div className="settings-section-header">
+              <h2>{t("store.domain")}</h2>
+              <p>{language === "ar" ? "رابط متجرك والدومين المخصص" : "Your store URL and custom domain"}</p>
+            </div>
 
-              {/* Theme-specific settings (colors, fonts, layout) */}
-              <Card data-tour="colors-typography" className="rounded-2xl shadow-sm">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-                      <Palette className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm tracking-tight">
-                        {language === "ar" ? "الألوان والخطوط" : "Colors & Typography"}
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        {language === "ar"
-                          ? "خصّص ألوان وخطوط متجرك"
-                          : "Customize your store's colors and fonts"}
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {themeSchemaBundle?.global_settings ? (
-                    <SchemaForm
-                      settings={ensureFontSettings(themeSchemaBundle.global_settings)}
-                      values={themeState}
-                      onChange={handleThemeSettingChange}
-                    />
-                  ) : (
-                    <div className="space-y-5">
-                      {Array.from(groupedThemeSettings).map(([group, settings]) => (
-                        <div key={group} className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <div className="h-px flex-1 bg-border" />
-                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-2">
-                              {language === "ar" ? settings[0].groupAr : group}
-                            </span>
-                            <div className="h-px flex-1 bg-border" />
-                          </div>
-                          <div className={`grid gap-3 ${showPreview ? "grid-cols-1" : "sm:grid-cols-2"}`}>
-                            {settings.map((setting) => (
-                              <SettingField
-                                key={setting.key}
-                                setting={setting}
-                                value={themeState[setting.key]}
-                                onChange={handleThemeSettingChange}
-                                language={language}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* V2: Home Page Sections */}
-              {templateConfig && themeSchemaBundle && (
-                <Card data-tour="home-sections" className="rounded-2xl shadow-sm">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-                        <LayoutGrid className="h-4 w-4 text-primary" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-sm tracking-tight">
-                          {language === "ar" ? "أقسام الصفحة الرئيسية" : "Home Page Sections"}
-                        </CardTitle>
-                        <CardDescription className="text-xs">
-                          {language === "ar"
-                            ? "أضف وأزل ورتب أقسام الصفحة"
-                            : "Add, remove, and reorder page sections"}
-                        </CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {selectedSectionId && templateConfig.sections[selectedSectionId] ? (() => {
-                      const section = templateConfig.sections[selectedSectionId];
-                      const schema = themeSchemaBundle.sections.find((s) => s.type === section.type);
-                      if (!schema) return null;
-                      return (
-                        <SectionEditor
-                          section={section}
-                          schema={schema}
-                          onChange={handleSectionSettingChange}
-                          onBack={() => setSelectedSectionId(null)}
-                        />
-                      );
-                    })() : (
-                      <SectionList
-                        template={templateConfig}
-                        sectionSchemas={themeSchemaBundle.sections}
-                        selectedSectionId={selectedSectionId}
-                        onSelectSection={setSelectedSectionId}
-                        onReorder={handleSectionReorder}
-                        onToggleSection={handleToggleSection}
-                        onAddSection={handleAddSection}
-                        onRemoveSection={handleRemoveSection}
-                      />
+            <div className="settings-field-group">
+              <div className="settings-field-group-label">{t("store.subdomain")}</div>
+              <div className="flex items-center gap-3 rounded-xl border bg-muted/10 p-4">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+                  <Globe className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-mono text-sm font-semibold">{currentStore?.subdomain || "—"}</span>
+                    {getStoreDomainSuffix() && (
+                      <span className="text-xs text-muted-foreground">{getStoreDomainSuffix()}</span>
                     )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Store-wide settings (identity, header, navigation, etc.) */}
-              <div>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-                    <ScrollText className="h-4 w-4 text-primary" />
                   </div>
-                  <div>
-                    <h3 className="text-sm font-semibold tracking-tight">
-                      {language === "ar" ? "إعدادات المتجر" : "Store Settings"}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      {language === "ar" ? "الهوية والهيدر والفوتر والتنقل" : "Identity, header, footer & navigation"}
-                    </p>
-                  </div>
+                  {currentStore?.subdomain && (
+                    <a
+                      href={getStoreUrl(currentStore.subdomain)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary/70 flex items-center gap-1 hover:text-primary transition-colors mt-0.5"
+                    >
+                      {getStoreUrl(currentStore.subdomain)}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
                 </div>
-                <Accordion type="multiple" className="space-y-2">
-                  {SECTION_CONFIG.map((section) => (
-                    <AccordionItem key={section.key} value={section.key} className="border rounded-2xl px-4 bg-card shadow-sm">
-                      <AccordionTrigger className="hover:no-underline gap-3 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10">
-                            <section.icon className="h-3.5 w-3.5 text-primary" />
-                          </div>
-                          <span className="text-sm font-medium tracking-tight">
-                            {language === "ar" ? section.labelAr : section.label}
-                          </span>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="space-y-4 pb-4 pt-1">
-                        {section.settings.map((setting) => (
-                          <SettingField
-                            key={setting.key}
-                            setting={setting}
-                            value={sectionStates[section.key]?.[setting.key]}
-                            onChange={handleSectionChange(section.key)}
-                            language={language}
-                          />
-                        ))}
-                        {section.key === "navigation" && (
-                          <NavLinksEditor
-                            links={navLinks}
-                            onChange={(links) => { setNavLinks(links); setIsDirty(true); }}
-                            language={language}
-                          />
-                        )}
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
               </div>
             </div>
 
-            {/* Drag handle */}
-            {showPreview && (
-              <div
-                className="w-2 shrink-0 cursor-col-resize group flex items-center justify-center hover:bg-primary/10 rounded transition-colors"
-                onMouseDown={startResize}
-              >
-                <div className="w-0.5 h-12 rounded-full bg-border group-hover:bg-primary/40 transition-colors" />
-              </div>
-            )}
-
-            {/* Right: live preview (sticky) */}
-            {showPreview && (
-              <div className="sticky top-4 self-start" style={{ width: `${previewPct}%` }}>
-                <Card className="overflow-hidden h-[calc(100vh-10rem)] border-2 border-primary/10 rounded-2xl">
-                  <CardContent className="p-0 h-full">
-                    <ThemePreview
-                      storeSubdomain={currentStore?.subdomain}
-                      settings={buildFullPayload()}
-                    />
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-          </div>
-
-          {/* Add Section Sheet */}
-          {themeSchemaBundle && (
-            <AddSectionSheet
-              open={showAddSheet}
-              onOpenChange={setShowAddSheet}
-              sectionSchemas={themeSchemaBundle.sections}
-              onAddSection={handleAddSection}
-            />
-          )}
-        </TabsContent>
-
-        {/* ═══ Domain ═══ */}
-        <TabsContent value="domain">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("store.domain")}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-2">
-                <Label>{t("store.subdomain")}</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={currentStore?.subdomain || ""}
-                    disabled
-                    className="max-w-[200px] bg-muted"
-                  />
-                  {getStoreDomainSuffix() && (
-                    <span className="text-sm text-muted-foreground">{getStoreDomainSuffix()}</span>
-                  )}
-                </div>
-                {currentStore?.subdomain && (
-                  <a
-                    href={getStoreUrl(currentStore.subdomain)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary flex items-center gap-1 hover:underline"
-                  >
-                    {getStoreUrl(currentStore.subdomain)}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </div>
-              <div className="grid gap-2">
-                <Label>{t("store.customDomain")}</Label>
-                <Input
-                  value={currentStore?.custom_domain || ""}
-                  placeholder={t("store.customDomainPlaceholder")}
-                  disabled
-                  className="max-w-sm bg-muted"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {language === "ar"
-                    ? "الدومينات المخصصة قريبا..."
-                    : "Custom domains coming soon..."}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Label>{t("store.sslStatus")}</Label>
-                <Badge variant="secondary" className="bg-primary/10 text-primary">
-                  {t("store.sslActive")}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ═══ Policies ═══ */}
-        <TabsContent value="policies">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("store.policies")}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Tabs value={policyTab} onValueChange={setPolicyTab}>
-                <TabsList>
-                  <TabsTrigger value="return">{t("store.returnPolicy")}</TabsTrigger>
-                  <TabsTrigger value="shipping">{t("store.shippingPolicy")}</TabsTrigger>
-                  <TabsTrigger value="privacy">{t("store.privacyPolicy")}</TabsTrigger>
-                  <TabsTrigger value="terms">{t("store.termsOfService")}</TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <Textarea
-                rows={8}
-                placeholder={language === "ar" ? "اكتب السياسة هنا..." : "Write your policy here..."}
+            <div className="settings-field-group">
+              <div className="settings-field-group-label">{t("store.customDomain")}</div>
+              <Input
+                value={currentStore?.custom_domain || ""}
+                placeholder={t("store.customDomainPlaceholder")}
+                disabled
+                className="max-w-sm bg-muted/30"
               />
-              <Button onClick={() => toast.success(t("store.saved"))}>
-                {t("store.save")}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <p className="text-xs text-muted-foreground mt-2">
+                {language === "ar" ? "الدومينات المخصصة قريبا..." : "Custom domains coming soon..."}
+              </p>
+            </div>
 
-        {/* ═══ Status ═══ */}
-        <TabsContent value="status">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("store.status")}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div>
-                  <p className="font-medium">{t("store.storeStatus")}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {storeOnline ? t("store.online") : t("store.offline")}
-                  </p>
+            <div className="settings-field-group">
+              <div className="settings-field-group-label">{t("store.sslStatus")}</div>
+              <div className="flex items-center gap-3 rounded-xl border border-green-500/15 bg-green-500/5 px-4 py-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-green-500/15">
+                  <Lock className="h-3.5 w-3.5 text-green-500" />
                 </div>
-                <Switch checked={storeOnline} onCheckedChange={setStoreOnline} />
+                <span className="text-sm font-medium">{t("store.sslActive")}</span>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-lg border p-4">
-                  <p className="text-sm text-muted-foreground">{t("store.createdAt")}</p>
-                  <p className="font-medium mt-1">
-                    {currentStore?.created_at
-                      ? new Date(currentStore.created_at).toLocaleDateString(
-                          language === "ar" ? "ar-EG" : "en-US",
-                          { year: "numeric", month: "long", day: "numeric" }
-                        )
-                      : "—"}
-                  </p>
-                </div>
-                <div className="rounded-lg border p-4">
-                  <p className="text-sm text-muted-foreground">{t("store.plan")}</p>
-                  <Badge className="mt-1">
-                    {currentStore?.default_currency === "EGP" ? "Starter" : "Free"}
-                  </Badge>
-                </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Shipping ─── */}
+        {activeSection === "shipping" && (
+          <div key="shipping" className="settings-section-enter">
+            <div className="settings-section-header">
+              <h2>{t("store.shipping")}</h2>
+              <p>{language === "ar" ? "مناطق الشحن وأسعار التوصيل" : "Shipping zones and delivery rates"}</p>
+            </div>
+
+            {!shippingData ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            ) : (
+              <>
+                {/* Zones */}
+                <div className="settings-field-group">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="settings-field-group-label mb-0">{t("store.shippingZones")}</div>
+                    {!showAddZone && (
+                      <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" onClick={() => setShowAddZone(true)}>
+                        <Plus className="h-3 w-3" />
+                        {t("store.addZone")}
+                      </Button>
+                    )}
+                  </div>
 
-        {/* ═══ Shipping ═══ */}
-        <TabsContent value="shipping">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("store.shipping")}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!shippingData ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <>
-                  {/* Zones table */}
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t("store.zone")}</TableHead>
-                        <TableHead>{language === "ar" ? "المحافظات" : "Governorates"}</TableHead>
-                        <TableHead>{t("store.rate")} ({t("common.currency")})</TableHead>
-                        <TableHead>{t("store.estimatedDays")}</TableHead>
-                        <TableHead className="w-12" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {shippingData.zones.map((z) => (
-                        <TableRow key={z.id}>
-                          <TableCell className="font-medium">{z.zone}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{z.governorates}</TableCell>
-                          <TableCell>{z.rate}</TableCell>
-                          <TableCell>{z.estimated_days}</TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteZone(z.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  {shippingData.zones.length > 0 ? (
+                    <div className="rounded-xl border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted/30">
+                            <TableHead className="text-xs">{t("store.zone")}</TableHead>
+                            <TableHead className="text-xs">{language === "ar" ? "المحافظات" : "Governorates"}</TableHead>
+                            <TableHead className="text-xs">{t("store.rate")} ({t("common.currency")})</TableHead>
+                            <TableHead className="text-xs">{t("store.estimatedDays")}</TableHead>
+                            <TableHead className="w-10" />
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {shippingData.zones.map((z) => (
+                            <TableRow key={z.id}>
+                              <TableCell className="font-medium text-sm">{z.zone}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{z.governorates}</TableCell>
+                              <TableCell className="text-sm">{z.rate}</TableCell>
+                              <TableCell className="text-sm">{z.estimated_days}</TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                                  onClick={() => handleDeleteZone(z.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      {language === "ar" ? "لا توجد مناطق شحن بعد" : "No shipping zones yet"}
+                    </div>
+                  )}
 
-                  {/* Add zone */}
-                  {showAddZone ? (
-                    <div className="rounded-lg border p-4 space-y-3">
+                  {showAddZone && (
+                    <div className="rounded-lg border bg-muted/20 p-4 space-y-3 mt-3">
                       <h4 className="text-sm font-medium">
                         {language === "ar" ? "إضافة منطقة جديدة" : "Add New Zone"}
                       </h4>
@@ -1581,34 +1215,424 @@ const StoreSettings = () => {
                         </Button>
                       </div>
                     </div>
-                  ) : (
-                    <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowAddZone(true)}>
-                      <Plus className="h-4 w-4" />
-                      {t("store.addZone")}
-                    </Button>
                   )}
+                </div>
 
-                  {/* Free shipping threshold */}
-                  <div className="rounded-lg border p-4 space-y-3">
-                    <Label>{t("store.freeThreshold")} ({t("common.currency")})</Label>
-                    <div className="flex items-center gap-3">
-                      <Input
-                        type="number"
-                        value={freeThreshold}
-                        onChange={(e) => setFreeThreshold(Number(e.target.value))}
-                        className="w-32"
+                {/* Free threshold */}
+                <div className="settings-field-group">
+                  <div className="settings-field-group-label">
+                    {t("store.freeThreshold")}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      type="number"
+                      value={freeThreshold}
+                      onChange={(e) => setFreeThreshold(Number(e.target.value))}
+                      className="w-36"
+                    />
+                    <span className="text-sm text-muted-foreground">{t("common.currency")}</span>
+                    <Button size="sm" onClick={saveFreeThreshold}>
+                      {t("store.save")}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ─── Policies ─── */}
+        {activeSection === "policies" && (
+          <div key="policies" className="settings-section-enter">
+            <div className="settings-section-header">
+              <h2>{t("store.policies")}</h2>
+              <p>{language === "ar" ? "سياسات المتجر والشروط القانونية" : "Store policies and legal terms"}</p>
+            </div>
+
+            <div className="flex gap-1.5 mb-5 flex-wrap p-1 rounded-xl bg-muted/20 border border-border/20 w-fit">
+              {[
+                { key: "return", label: t("store.returnPolicy") },
+                { key: "shipping", label: t("store.shippingPolicy") },
+                { key: "privacy", label: t("store.privacyPolicy") },
+                { key: "terms", label: t("store.termsOfService") },
+              ].map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setPolicyTab(p.key)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    policyTab === p.key
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <Textarea
+              rows={10}
+              placeholder={language === "ar" ? "اكتب السياسة هنا..." : "Write your policy here..."}
+              className="font-mono text-sm"
+            />
+            <div className="pt-4">
+              <Button onClick={() => toast.success(t("store.saved"))}>
+                {t("store.save")}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Status ─── */}
+        {activeSection === "status" && (
+          <div key="status" className="settings-section-enter">
+            <div className="settings-section-header">
+              <h2>{t("store.status")}</h2>
+              <p>{language === "ar" ? "حالة المتجر والخطة الحالية" : "Store availability and current plan"}</p>
+            </div>
+
+            <div className="settings-field-group">
+              <div className="settings-field-group-label">{t("store.storeStatus")}</div>
+              <div className={`flex items-center justify-between rounded-xl border p-4 transition-colors ${storeOnline ? "border-green-500/20 bg-green-500/5" : "border-border/30 bg-muted/5"}`}>
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className={`h-2.5 w-2.5 rounded-full ${storeOnline ? "bg-green-500" : "bg-muted-foreground"}`} />
+                    {storeOnline && <div className="absolute inset-0 h-2.5 w-2.5 rounded-full bg-green-500 animate-ping opacity-40" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">{storeOnline ? t("store.online") : t("store.offline")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {storeOnline
+                        ? (language === "ar" ? "متجرك مباشر ويستقبل الطلبات" : "Your store is live and accepting orders")
+                        : (language === "ar" ? "متجرك في وضع الصيانة" : "Your store is in maintenance mode")}
+                    </p>
+                  </div>
+                </div>
+                <Switch checked={storeOnline} onCheckedChange={setStoreOnline} />
+              </div>
+            </div>
+
+            <div className="settings-field-group">
+              <div className="settings-field-group-label">
+                {language === "ar" ? "تفاصيل" : "Details"}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border bg-muted/5 p-4">
+                  <p className="text-[0.6875rem] font-medium text-muted-foreground/60 uppercase tracking-wider mb-1.5">{t("store.createdAt")}</p>
+                  <p className="text-sm font-semibold">
+                    {currentStore?.created_at
+                      ? new Date(currentStore.created_at).toLocaleDateString(
+                          language === "ar" ? "ar-EG" : "en-US",
+                          { year: "numeric", month: "long", day: "numeric" }
+                        )
+                      : "—"}
+                  </p>
+                </div>
+                <div className="rounded-xl border bg-muted/5 p-4">
+                  <p className="text-[0.6875rem] font-medium text-muted-foreground/60 uppercase tracking-wider mb-1.5">{t("store.plan")}</p>
+                  <Badge className="mt-0.5">
+                    {currentStore?.default_currency === "EGP" ? "Starter" : "Free"}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Themes Marketplace ─── */}
+        {activeSection === "themes" && (
+          <div key="themes" className="settings-section-enter">
+            <div className="settings-section-header">
+              <h2>{language === "ar" ? "سوق الثيمات" : "Themes"}</h2>
+              <p>{language === "ar" ? "اختر ثيم يناسب متجرك" : "Browse and apply themes to your storefront"}</p>
+            </div>
+            <ThemeMarketplace
+              activeTheme={activeTheme}
+              availableThemes={availableThemes}
+              onSelectTheme={(id) => {
+                setActiveTheme(id);
+                setTemplateConfig(null);
+                setSelectedSectionId(null);
+                setIsDirty(true);
+                setActiveSection("customization");
+              }}
+            />
+          </div>
+        )}
+
+        {/* ─── Customization ─── */}
+        {activeSection === "customization" && (
+          <div key="customization" className="settings-section-enter">
+            {/* Onboarding walkthrough */}
+            <CustomizationWalkthrough
+              language={language}
+              forceShow={showWalkthrough}
+              onDismiss={() => setShowWalkthrough(false)}
+            />
+
+            <div className="settings-section-header">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2>{t("store.customization")}</h2>
+                  <p>
+                    {language === "ar"
+                      ? `ثيم: ${availableThemes.find((t) => t.id === activeTheme)?.nameAr || activeTheme}`
+                      : `Theme: ${availableThemes.find((t) => t.id === activeTheme)?.name || activeTheme}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { resetWalkthrough(); setShowWalkthrough(true); }}
+                    className="gap-1.5 text-muted-foreground h-8"
+                    title={language === "ar" ? "دليل الاستخدام" : "Show guide"}
+                  >
+                    <Compass className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    data-tour="preview-toggle"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowPreview((v) => !v)}
+                    className="gap-2 h-8"
+                  >
+                    {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    <span className="hidden sm:inline">
+                      {showPreview
+                        ? (language === "ar" ? "إخفاء" : "Hide")
+                        : (language === "ar" ? "معاينة" : "Preview")}
+                    </span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Side-by-side: settings + resizable preview */}
+            <div ref={splitRef} className="flex" style={{ gap: 0 }}>
+              {/* Settings panel */}
+              <div
+                className="space-y-5 overflow-y-auto"
+                style={{
+                  width: showPreview ? `${100 - previewPct}%` : "100%",
+                  maxHeight: showPreview ? "calc(100vh - 10rem)" : undefined,
+                  paddingInlineEnd: showPreview ? "0.75rem" : 0,
+                }}
+              >
+                {/* Active theme indicator */}
+                <div className="flex items-center gap-4 rounded-xl border bg-gradient-to-r from-muted/15 to-transparent p-4">
+                  <div
+                    className="h-11 w-11 rounded-xl flex items-center justify-center shadow-sm ring-1 ring-border/20"
+                    style={{ backgroundColor: (THEME_PREVIEWS[activeTheme] || THEME_PREVIEWS.modern).bg }}
+                  >
+                    <span className="text-lg">{(THEME_PREVIEWS[activeTheme] || THEME_PREVIEWS.modern).icon}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold tracking-tight truncate">
+                      {language === "ar"
+                        ? availableThemes.find((t) => t.id === activeTheme)?.nameAr || activeTheme
+                        : availableThemes.find((t) => t.id === activeTheme)?.name || activeTheme}
+                    </p>
+                    <p className="text-xs text-muted-foreground/70">
+                      {language === "ar" ? "الثيم المفعّل حالياً" : "Currently active theme"}
+                    </p>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {["primary_color", "secondary_color", "accent_color"].map((key) => (
+                      <div
+                        key={key}
+                        className="h-5 w-5 rounded-full ring-2 ring-background shadow-sm transition-transform hover:scale-110"
+                        style={{ backgroundColor: String(themeState[key] || "#ccc") }}
+                        title={key.replace(/_/g, " ")}
                       />
-                      <Button size="sm" onClick={saveFreeThreshold}>
-                        {t("store.save")}
-                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Colors & Typography */}
+                <div data-tour="colors-typography" className="rounded-xl border bg-muted/5 p-5">
+                  <div className="flex items-center gap-2.5 mb-5 pb-3 border-b border-border/20">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+                      <Palette className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    <h3 className="text-sm font-bold tracking-tight">
+                      {language === "ar" ? "الألوان والخطوط" : "Colors & Typography"}
+                    </h3>
+                  </div>
+                  {themeSchemaBundle?.global_settings ? (
+                    <SchemaForm
+                      settings={ensureFontSettings(themeSchemaBundle.global_settings)}
+                      values={themeState}
+                      onChange={handleThemeSettingChange}
+                    />
+                  ) : (
+                    <div className="space-y-5">
+                      {Array.from(groupedThemeSettings).map(([group, settings]) => (
+                        <div key={group} className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 bg-border" />
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-2">
+                              {language === "ar" ? settings[0].groupAr : group}
+                            </span>
+                            <div className="h-px flex-1 bg-border" />
+                          </div>
+                          <div className={`grid gap-3 ${showPreview ? "grid-cols-1" : "sm:grid-cols-2"}`}>
+                            {settings.map((setting) => (
+                              <SettingField
+                                key={setting.key}
+                                setting={setting}
+                                value={themeState[setting.key]}
+                                onChange={handleThemeSettingChange}
+                                language={language}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* V2: Home Page Sections */}
+                {templateConfig && themeSchemaBundle && (
+                  <div data-tour="home-sections" className="rounded-xl border bg-muted/5 p-5">
+                    <div className="flex items-center gap-2.5 mb-5 pb-3 border-b border-border/20">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+                        <LayoutGrid className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                      <h3 className="text-sm font-bold tracking-tight">
+                        {language === "ar" ? "أقسام الصفحة الرئيسية" : "Home Page Sections"}
+                      </h3>
+                    </div>
+                    <div className="space-y-4">
+                      {selectedSectionId && templateConfig.sections[selectedSectionId] ? (() => {
+                        const section = templateConfig.sections[selectedSectionId];
+                        const schema = themeSchemaBundle.sections.find((s) => s.type === section.type);
+                        if (!schema) return null;
+                        return (
+                          <SectionEditor
+                            section={section}
+                            schema={schema}
+                            onChange={handleSectionSettingChange}
+                            onBack={() => setSelectedSectionId(null)}
+                          />
+                        );
+                      })() : (
+                        <SectionList
+                          template={templateConfig}
+                          sectionSchemas={themeSchemaBundle.sections}
+                          selectedSectionId={selectedSectionId}
+                          onSelectSection={setSelectedSectionId}
+                          onReorder={handleSectionReorder}
+                          onToggleSection={handleToggleSection}
+                          onAddSection={handleAddSection}
+                          onRemoveSection={handleRemoveSection}
+                        />
+                      )}
                     </div>
                   </div>
-                </>
+                )}
+
+                {/* Store-wide settings accordion */}
+                <div>
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted/30">
+                      <ScrollText className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-sm font-bold tracking-tight">
+                      {language === "ar" ? "إعدادات المتجر" : "Store Settings"}
+                    </h3>
+                  </div>
+                  <Accordion type="multiple" className="space-y-2">
+                    {SECTION_CONFIG.map((section) => (
+                      <AccordionItem key={section.key} value={section.key} className="border rounded-xl px-4">
+                        <AccordionTrigger className="hover:no-underline gap-3 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <section.icon className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-sm font-medium">
+                              {language === "ar" ? section.labelAr : section.label}
+                            </span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="space-y-4 pb-4 pt-1">
+                          {section.settings.map((setting) => (
+                            <SettingField
+                              key={setting.key}
+                              setting={setting}
+                              value={sectionStates[section.key]?.[setting.key]}
+                              onChange={handleSectionChange(section.key)}
+                              language={language}
+                            />
+                          ))}
+                          {section.key === "navigation" && (
+                            <NavLinksEditor
+                              links={navLinks}
+                              onChange={(links) => { setNavLinks(links); setIsDirty(true); }}
+                              language={language}
+                            />
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </div>
+              </div>
+
+              {/* Drag handle */}
+              {showPreview && (
+                <div
+                  className="w-2 shrink-0 cursor-col-resize group flex items-center justify-center hover:bg-primary/10 rounded transition-colors"
+                  onMouseDown={startResize}
+                >
+                  <div className="w-0.5 h-12 rounded-full bg-border group-hover:bg-primary/40 transition-colors" />
+                </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+
+              {/* Live preview */}
+              {showPreview && (
+                <div className="sticky top-4 self-start" style={{ width: `${previewPct}%` }}>
+                  <div className="overflow-hidden h-[calc(100vh-10rem)] border-2 border-primary/10 rounded-xl">
+                    <ThemePreview
+                      key={activeTheme}
+                      storeSubdomain={currentStore?.subdomain}
+                      settings={buildFullPayload()}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Add Section Sheet */}
+            {themeSchemaBundle && (
+              <AddSectionSheet
+                open={showAddSheet}
+                onOpenChange={setShowAddSheet}
+                sectionSchemas={themeSchemaBundle.sections}
+                onAddSection={handleAddSection}
+              />
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ═══ Sticky Save Bar (for customization) ═══ */}
+      {activeSection === "customization" && (
+        <div className="settings-save-bar" data-visible={isDirty}>
+          {isDirty && (
+            <Badge variant="outline" className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-[10px]">
+              {language === "ar" ? "تغييرات غير محفوظة" : "Unsaved changes"}
+            </Badge>
+          )}
+          <Button onClick={saveDraft} disabled={isSaving} variant="outline" size="sm" className="gap-2 h-8">
+            {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Settings2 className="h-3.5 w-3.5" />}
+            {language === "ar" ? "حفظ مسودة" : "Save Draft"}
+          </Button>
+          <Button onClick={publish} disabled={isSaving} size="sm" className="gap-2 h-8">
+            {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            {language === "ar" ? "نشر" : "Publish"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

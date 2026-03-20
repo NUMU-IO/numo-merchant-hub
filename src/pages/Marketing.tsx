@@ -29,6 +29,7 @@ import type { Coupon, CreateCouponData, UpdateCouponData } from "@/services/coup
 import { listProducts } from "@/services/productApi";
 import type { ApiProductResponse } from "@/services/productApi";
 import { toast } from "sonner";
+import { showError } from "@/lib/show-error";
 
 const PAGE_SIZE = 20;
 
@@ -256,7 +257,7 @@ export default function Marketing() {
       resetForm();
       fetchCoupons();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : (isAr ? "حصل خطأ" : "Something went wrong"));
+      showError(err, language);
     } finally {
       setIsSaving(false);
     }
@@ -271,7 +272,7 @@ export default function Marketing() {
       setDeleteTarget(null);
       fetchCoupons();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : (isAr ? "حصل خطأ" : "Something went wrong"));
+      showError(err, language);
     } finally {
       setIsDeleting(false);
     }
@@ -286,7 +287,7 @@ export default function Marketing() {
         : (coupon.is_active ? "Coupon deactivated" : "Coupon activated"));
       fetchCoupons();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : (isAr ? "حصل خطأ" : "Something went wrong"));
+      showError(err, language);
     }
   };
 

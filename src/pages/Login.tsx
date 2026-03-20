@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, ArrowRight, ArrowLeft, Eye, EyeOff, ShieldCheck, Globe } from "lucide-react";
 import { TwoFactorRequiredError } from "@/services/authApi";
+import { showError } from "@/lib/show-error";
+import { ApiError } from "@/lib/api-error";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -101,6 +103,8 @@ export default function Login() {
     } catch (err: unknown) {
       if (err instanceof TwoFactorRequiredError) {
         setChallengeToken(err.challengeToken);
+      } else if (err instanceof ApiError) {
+        setError(err.toUserMessage(language));
       } else {
         setError(err instanceof Error ? err.message : t("common.error"));
       }
@@ -118,7 +122,11 @@ export default function Login() {
       await complete2FALogin(challengeToken, twoFACode);
       navigate("/", { replace: true });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : t("common.error"));
+      if (err instanceof ApiError) {
+        setError(err.toUserMessage(language));
+      } else {
+        setError(err instanceof Error ? err.message : t("common.error"));
+      }
     } finally {
       setLoading(false);
     }

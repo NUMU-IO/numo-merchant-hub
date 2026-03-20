@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { showError } from "@/lib/show-error";
 import {
   User, Mail, Phone, Shield, Calendar, Key,
   Loader2, Camera, CheckCircle2, AlertCircle,
@@ -37,8 +38,8 @@ export default function Profile() {
       // API call would go here
       await new Promise(r => setTimeout(r, 800));
       toast.success(isAr ? "تم حفظ الملف الشخصي" : "Profile saved successfully");
-    } catch {
-      toast.error(isAr ? "فشل الحفظ" : "Failed to save");
+    } catch (err: unknown) {
+      showError(err, language);
     } finally {
       setIsSaving(false);
     }
@@ -61,7 +62,7 @@ export default function Profile() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : (isAr ? "فشل تغيير كلمة المرور" : "Failed to change password"));
+      showError(err, language);
     } finally {
       setChangingPassword(false);
     }
