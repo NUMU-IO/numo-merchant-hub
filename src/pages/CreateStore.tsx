@@ -83,7 +83,7 @@ export default function CreateStore() {
     setError(null);
     setLoading(true);
     try {
-      await createStore({ name, subdomain, description: description || undefined, default_language: language, default_currency: currency, beta_invite_code: betaCode || undefined });
+      await createStore({ name, subdomain, description: description || undefined, default_language: language, default_currency: currency, invite_code: betaCode || undefined });
       await refetchStores();
       navigate("/", { replace: true });
     } catch (err: unknown) {
@@ -196,9 +196,9 @@ export default function CreateStore() {
                 value={betaCode}
                 onChange={(e) => setBetaCode(e.target.value.toUpperCase().trim())}
                 placeholder={language === "ar" ? "أدخل كود الدعوة" : "Enter your invite code"}
-                className={`${inputCls("beta_invite_code")} font-mono tracking-widest`}
+                className={`${inputCls("invite_code")} font-mono tracking-widest`}
               />
-              {fieldErrors.beta_invite_code && <p className="text-xs text-destructive">{fieldErrors.beta_invite_code}</p>}
+              {fieldErrors.invite_code && <p className="text-xs text-destructive">{fieldErrors.invite_code}</p>}
             </div>
 
             {error && (
