@@ -88,9 +88,13 @@ const AppHeader = () => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-2 max-w-[160px] h-8 rounded-lg px-2.5">
-                <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary text-[9px] font-bold text-primary-foreground shrink-0">
-                  {currentStore?.name?.charAt(0)?.toUpperCase() || "S"}
-                </div>
+                {currentStore?.logo_url ? (
+                  <img src={currentStore.logo_url} alt="" className="h-5 w-5 rounded-md object-cover shrink-0" />
+                ) : (
+                  <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary text-[9px] font-bold text-primary-foreground shrink-0">
+                    {currentStore?.name?.charAt(0)?.toUpperCase() || "S"}
+                  </div>
+                )}
                 <span className="hidden text-xs font-medium sm:inline truncate">
                   {currentStore?.name || "Store"}
                 </span>
@@ -129,9 +133,13 @@ const AppHeader = () => {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-2 h-8 rounded-lg ps-1.5 pe-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-                {user?.first_name?.charAt(0)?.toUpperCase() || "N"}
-              </div>
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover" />
+              ) : (
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                  {user?.first_name?.charAt(0)?.toUpperCase() || "N"}
+                </div>
+              )}
               <ChevronDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
             </Button>
           </DropdownMenuTrigger>
