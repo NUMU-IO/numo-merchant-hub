@@ -47,7 +47,7 @@ export async function listCategories(
   includeInactive = true
 ): Promise<Category[]> {
   return apiClient<Category[]>(
-    `/stores/${storeId}/categories?include_inactive=${includeInactive}`
+    `/stores/${storeId}/categories/?include_inactive=${includeInactive}`
   );
 }
 
@@ -55,7 +55,7 @@ export async function createCategory(
   storeId: string,
   data: CreateCategoryData
 ): Promise<Category> {
-  return apiClient<Category>(`/stores/${storeId}/categories`, {
+  return apiClient<Category>(`/stores/${storeId}/categories/`, {
     method: "POST",
     body: JSON.stringify(data),
   });
