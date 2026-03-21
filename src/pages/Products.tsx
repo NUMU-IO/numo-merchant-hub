@@ -1,15 +1,16 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { type Product, type ProductStatus, type ProductVariant } from "@/data/mock-products";
+import { type Product, type ProductStatus } from "@/data/mock-products";
 import { listCategories, type Category } from "@/services/categoryApi";
 import {
-  listProducts, createProduct as apiCreateProduct, updateProduct as apiUpdateProduct,
-  deleteProduct as apiDeleteProduct, uploadProductImage, deleteProductImage,
-  apiToProduct, productToApiCreate, productToApiUpdate,
-  type PaginatedProducts,
+  listProducts, deleteProduct as apiDeleteProduct,
+  apiToProduct, exportProductsToCSV, bulkProductAction, duplicateProduct,
+  type BulkAction,
 } from "@/services/productApi";
+import { ImportDialog } from "@/components/products/ImportDialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -17,150 +18,99 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
-} from "@/components/ui/dialog";
-import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, ImagePlus, X, Tag, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Plus, Search, MoreHorizontal, Pencil, Trash2, Tag, Loader2,
+  ChevronLeft, ChevronRight, Upload, Download, Archive, Eye, Copy,
+  Package, TrendingUp, AlertTriangle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
-import { z } from "zod";
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
-const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-
-async function validateImageMagicBytes(file: File): Promise<boolean> {
-  const buffer = await file.slice(0, 12).arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-
-  // JPEG: FF D8 FF
-  const isJPEG = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-
-  // PNG: 89 50 4E 47
-  const isPNG =
-    bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47;
-
-  // WebP: 52 49 46 46 ?? ?? ?? ?? 57 45 42 50
-  const isWebP =
-    bytes[0] === 0x52 &&
-    bytes[1] === 0x49 &&
-    bytes[2] === 0x46 &&
-    bytes[3] === 0x46 &&
-    bytes[8] === 0x57 &&
-    bytes[9] === 0x45 &&
-    bytes[10] === 0x42 &&
-    bytes[11] === 0x50;
-
-  return isJPEG || isPNG || isWebP;
-}
-
-const productSchema = z.object({
-  name: z.string()
-    .min(3, "اسم المنتج يجب أن يكون 3 أحرف على الأقل")
-    .max(120, "اسم المنتج يجب ألا يتجاوز 120 حرفًا"),
-  price: z.string()
-    .min(1, "السعر مطلوب")
-    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, "السعر يجب أن يكون رقمًا موجبًا")
-    .refine((v) => /^\d+(\.\d{1,2})?$/.test(v), "السعر يجب ألا يتجاوز خانتين عشريتين"),
-  comparePrice: z.string()
-    .refine((v) => v === "" || (!isNaN(Number(v)) && Number(v) >= 0), "سعر المقارنة يجب أن يكون رقمًا صحيحًا"),
-  stock: z.string()
-    .refine((v) => v === "" || (!isNaN(Number(v)) && Number.isInteger(Number(v)) && Number(v) >= 0), "الكمية يجب أن تكون عددًا صحيحًا غير سالب"),
-  description: z.string().max(2000, "الوصف يجب ألا يتجاوز 2000 حرف").optional().or(z.literal("")),
-});
-
-type FieldErrors = Record<string, string>;
 
 const PAGE_SIZE = 20;
 
 const Products = () => {
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
 
-  // Categories from API
   const [apiCategories, setApiCategories] = useState<Category[]>([]);
-
-  // Product list state (API-driven)
   const [productsList, setProductsList] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalProducts, setTotalProducts] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
-
-  // Filters
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ProductStatus>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
-
-  // Dialog state
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkActionInProgress, setBulkActionInProgress] = useState(false);
 
-  // Validation errors
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
-  // Image upload
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [validatingImage, setValidatingImage] = useState(false);
-  const [imageError, setImageError] = useState<string | null>(null);
-  const [formImages, setFormImages] = useState<string[]>([]);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(p => p.id)));
+    }
+  };
 
-  // Stable object URLs for pending file previews — revoked on cleanup
-  const pendingPreviews = useMemo(() => pendingFiles.map(f => URL.createObjectURL(f)), [pendingFiles]);
-  useEffect(() => {
-    return () => { pendingPreviews.forEach(url => URL.revokeObjectURL(url)); };
-  }, [pendingPreviews]);
+  const handleBulkAction = async (action: BulkAction) => {
+    if (!storeId || selectedIds.size === 0) return;
+    setBulkActionInProgress(true);
+    try {
+      const result = await bulkProductAction(storeId, action, Array.from(selectedIds));
+      const actionLabel = action === "publish" ? (language === "ar" ? "نشر" : "published")
+        : action === "archive" ? (language === "ar" ? "أرشفة" : "archived")
+        : (language === "ar" ? "حذف" : "deleted");
+      toast.success(`${result.succeeded} ${language === "ar" ? "منتج تم" : "products"} ${actionLabel}`);
+      if (result.failed > 0) {
+        toast.error(`${result.failed} ${language === "ar" ? "فشل" : "failed"}`);
+      }
+      setSelectedIds(new Set());
+      fetchProducts();
+    } catch (err) {
+      showError(err, language);
+    } finally {
+      setBulkActionInProgress(false);
+    }
+  };
 
-  // Form state
-  const [formName, setFormName] = useState("");
-  const [formNameAr, setFormNameAr] = useState("");
-  const [formDesc, setFormDesc] = useState("");
-  const [formDescAr, setFormDescAr] = useState("");
-  const [formPrice, setFormPrice] = useState("");
-  const [formComparePrice, setFormComparePrice] = useState("");
-  const [formStock, setFormStock] = useState("");
-  const [formStatus, setFormStatus] = useState<ProductStatus>("draft");
-  const [formCategory, setFormCategory] = useState("Clothing");
-  const [formVariants, setFormVariants] = useState<{ name: string; nameAr: string; options: string; optionsAr: string }[]>([]);
-
-  // Fetch categories from API
   useEffect(() => {
     if (!storeId) return;
     listCategories(storeId).then(setApiCategories).catch(() => {});
   }, [storeId]);
 
-  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, statusFilter]);
 
-  // Fetch products from API
   const fetchProducts = useCallback(async () => {
     if (!storeId) return;
     setIsLoading(true);
@@ -188,7 +138,6 @@ const Products = () => {
     fetchProducts();
   }, [fetchProducts]);
 
-  // Client-side category filter by category ID
   const filtered = categoryFilter === "all"
     ? productsList
     : productsList.filter((p) => p.categoryId === categoryFilter);
@@ -196,120 +145,10 @@ const Products = () => {
   const formatCurrency = (val: number) =>
     language === "ar" ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
 
-  const statusColor: Record<ProductStatus, string> = {
-    published: "bg-primary/10 text-primary",
-    draft: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    archived: "bg-muted text-muted-foreground",
-  };
-
-  const resetForm = () => {
-    setFormName(""); setFormNameAr(""); setFormDesc(""); setFormDescAr("");
-    setFormPrice(""); setFormComparePrice(""); setFormStock("");
-    setFormStatus("draft"); setFormCategory(""); setFormVariants([]);
-    setFormImages([]); setPendingFiles([]);
-    setEditingProduct(null); setFieldErrors({}); setImageError(null);
-  };
-
-  const openAddDialog = () => {
-    resetForm();
-    setDialogOpen(true);
-  };
-
-  const openEditDialog = (p: Product) => {
-    setEditingProduct(p);
-    setFormName(p.name); setFormNameAr(p.nameAr);
-    setFormDesc(p.description); setFormDescAr(p.descriptionAr);
-    setFormPrice(String(p.price)); setFormComparePrice(p.compareAtPrice ? String(p.compareAtPrice) : "");
-    setFormStock(String(p.stock)); setFormStatus(p.status); setFormCategory(p.categoryId || "");
-    setFormImages(p.images.filter(img => img !== "📦"));
-    setFormVariants(p.variants.map(v => ({
-      name: v.name, nameAr: v.nameAr,
-      options: v.options.join(", "), optionsAr: v.optionsAr.join(", "),
-    })));
-    setDialogOpen(true);
-  };
-
-  const handleSave = async () => {
-    if (!storeId || isSaving) return;
-    setFieldErrors({});
-
-    const result = productSchema.safeParse({
-      name: formName,
-      price: formPrice,
-      comparePrice: formComparePrice,
-      stock: formStock,
-      description: formDesc,
-    });
-
-    if (!result.success) {
-      const errs: FieldErrors = {};
-      for (const issue of result.error.issues) {
-        const key = String(issue.path[0]);
-        if (!errs[key]) errs[key] = issue.message;
-      }
-      setFieldErrors(errs);
-      return;
-    }
-
-    setIsSaving(true);
-
-    const variants: ProductVariant[] = formVariants
-      .filter(v => v.name && v.options)
-      .map((v, i) => ({
-        id: `v-${Date.now()}-${i}`,
-        name: v.name, nameAr: v.nameAr,
-        options: v.options.split(",").map(o => o.trim()).filter(Boolean),
-        optionsAr: v.optionsAr.split(",").map(o => o.trim()).filter(Boolean),
-      }));
-
-    const cat = apiCategories.find(c => c.id === formCategory);
-
-    try {
-      if (editingProduct) {
-        const payload = productToApiUpdate({
-          name: formName, nameAr: formNameAr,
-          description: formDesc, descriptionAr: formDescAr,
-          price: Number(formPrice),
-          compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
-          stock: Number(formStock),
-          status: formStatus,
-          categoryId: formCategory || undefined,
-          category: cat?.name || "", categoryAr: cat?.name || "",
-          variants,
-          images: formImages.length > 0 ? formImages : undefined,
-        });
-        const updated = await apiUpdateProduct(storeId, editingProduct.id, payload);
-        setProductsList(prev => prev.map(p => p.id === editingProduct.id ? apiToProduct(updated) : p));
-        toast.success(t("products.productUpdated"));
-      } else {
-        const payload = productToApiCreate({
-          name: formName, nameAr: formNameAr,
-          description: formDesc, descriptionAr: formDescAr,
-          price: Number(formPrice),
-          compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
-          stock: Number(formStock),
-          status: formStatus,
-          categoryId: formCategory || undefined,
-          category: cat?.name || "", categoryAr: cat?.name || "",
-          variants,
-        });
-        const created = await apiCreateProduct(storeId, payload);
-        // Upload pending images for the newly created product
-        for (const file of pendingFiles) {
-          try {
-            await uploadProductImage(storeId, created.id, file);
-          } catch { /* image upload failure is non-blocking */ }
-        }
-        fetchProducts();
-        toast.success(language === "ar" ? "المنتج اتضاف!" : "Product added successfully!");
-      }
-      setDialogOpen(false);
-      resetForm();
-    } catch (err) {
-      showError(err, language);
-    } finally {
-      setIsSaving(false);
-    }
+  const statusConfig: Record<ProductStatus, { bg: string; dot: string }> = {
+    published: { bg: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-800/40", dot: "bg-emerald-500" },
+    draft: { bg: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200/60 dark:border-amber-800/40", dot: "bg-amber-500" },
+    archived: { bg: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-700/40", dot: "bg-zinc-400" },
   };
 
   const handleDelete = async () => {
@@ -328,108 +167,87 @@ const Products = () => {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !storeId) return;
-    setImageError(null);
-
-    // Size check (synchronous)
-    if (file.size > MAX_FILE_SIZE) {
-      setImageError("حجم الصورة يجب أن لا يتجاوز 5 ميجابايت");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
-    // MIME type check (basic)
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
-      setImageError("نوع الملف غير مدعوم. يرجى رفع صورة بصيغة JPG أو PNG أو WebP فقط");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
-    // Magic bytes check (async — reads first 12 bytes of the file)
-    setValidatingImage(true);
-    try {
-      const isValidImage = await validateImageMagicBytes(file);
-      if (!isValidImage) {
-        setImageError("نوع الملف غير مدعوم. يرجى رفع صورة بصيغة JPG أو PNG أو WebP فقط");
-        if (fileInputRef.current) fileInputRef.current.value = "";
-        return;
-      }
-    } finally {
-      setValidatingImage(false);
-    }
-
-    if (editingProduct) {
-      // Upload directly for existing products
-      setUploadingImage(true);
-      try {
-        const result = await uploadProductImage(storeId, editingProduct.id, file);
-        setFormImages(prev => [...prev, result.url]);
-        setProductsList(prev => prev.map(p =>
-          p.id === editingProduct.id
-            ? { ...p, images: [...p.images.filter(img => img !== "📦"), result.url], image: result.url }
-            : p
-        ));
-        toast.success(language === "ar" ? "الصورة اترفعت!" : "Image uploaded!");
-      } catch (err) {
-        showError(err, language);
-      } finally {
-        setUploadingImage(false);
-      }
-    } else {
-      // Queue files for new products — will upload after creation
-      setPendingFiles(prev => [...prev, file]);
-    }
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleImageDelete = async (imageUrl: string) => {
-    if (!storeId || !editingProduct) return;
-    try {
-      await deleteProductImage(storeId, editingProduct.id, imageUrl);
-      setFormImages(prev => prev.filter(url => url !== imageUrl));
-      toast.success(language === "ar" ? "الصورة اتمسحت" : "Image removed");
-    } catch (err) {
-      showError(err, language);
-    }
-  };
-
-  const addVariantRow = () => {
-    setFormVariants(prev => [...prev, { name: "", nameAr: "", options: "", optionsAr: "" }]);
-  };
-
-  const updateVariant = (idx: number, field: string, value: string) => {
-    setFormVariants(prev => prev.map((v, i) => i === idx ? { ...v, [field]: value } : v));
-  };
-
-  const removeVariant = (idx: number) => {
-    setFormVariants(prev => prev.filter((_, i) => i !== idx));
-  };
+  const publishedCount = productsList.filter(p => p.status === "published").length;
+  const lowStockCount = productsList.filter(p => p.stock < 20 && p.stock > 0).length;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("products.title")}</h1>
-          <p className="text-sm text-muted-foreground">{totalProducts} {language === "ar" ? "منتج" : "products"}</p>
+      {/* Hero header */}
+      <div className="relative overflow-hidden rounded-xl border border-border/60 bg-gradient-to-br from-card via-card to-primary/[0.03] p-6">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/[0.04] rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold tracking-tight">{t("products.title")}</h1>
+            <p className="text-[13px] text-muted-foreground">
+              {language === "ar" ? "أدر منتجاتك ومخزونك" : "Manage your products and inventory"}
+            </p>
+          </div>
+
+          {/* Quick stats pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 rounded-full border border-border/80 bg-background/80 backdrop-blur-sm px-3 py-1.5">
+              <Package className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold tabular-nums">{totalProducts}</span>
+              <span className="text-[11px] text-muted-foreground">{language === "ar" ? "منتج" : "total"}</span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-500/5 px-3 py-1.5">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{publishedCount}</span>
+              <span className="text-[11px] text-emerald-600/70 dark:text-emerald-400/70">{language === "ar" ? "منشور" : "live"}</span>
+            </div>
+            {lowStockCount > 0 && (
+              <div className="flex items-center gap-1.5 rounded-full border border-amber-200/60 dark:border-amber-800/40 bg-amber-500/5 px-3 py-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                <span className="text-xs font-semibold tabular-nums text-amber-700 dark:text-amber-400">{lowStockCount}</span>
+                <span className="text-[11px] text-amber-600/70 dark:text-amber-400/70">{language === "ar" ? "مخزون منخفض" : "low stock"}</span>
+              </div>
+            )}
+          </div>
         </div>
-        <Button onClick={openAddDialog} className="gap-2">
-          <Plus className="h-4 w-4" />
-          {t("products.addProduct")}
-        </Button>
+
+        {/* Action buttons row */}
+        <div className="relative flex items-center gap-2 mt-5 pt-5 border-t border-border/40">
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1.5 h-8 text-xs rounded-lg border-dashed">
+            <Upload className="h-3.5 w-3.5" />
+            {language === "ar" ? "استيراد" : "Import"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            const csv = exportProductsToCSV(productsList);
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "products_export.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+          }} className="gap-1.5 h-8 text-xs rounded-lg border-dashed">
+            <Download className="h-3.5 w-3.5" />
+            {language === "ar" ? "تصدير" : "Export"}
+          </Button>
+          <div className="flex-1" />
+          <Button onClick={() => navigate("/products/new")} size="sm" className="gap-1.5 h-8 rounded-lg shadow-sm">
+            <Plus className="h-3.5 w-3.5" />
+            {t("products.addProduct")}
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
+      {/* Filters + Table */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-0 pt-4 px-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="relative w-full sm:max-w-xs">
                 <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder={t("products.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="ps-9" />
+                <Input
+                  placeholder={t("products.search")}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="ps-9 h-9 rounded-lg bg-muted/40 border-transparent focus:bg-background focus:border-border transition-colors"
+                />
               </div>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-full sm:w-[160px]">
+                <SelectTrigger className="w-full sm:w-[160px] h-9 rounded-lg bg-muted/40 border-transparent">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -441,110 +259,199 @@ const Products = () => {
               </Select>
             </div>
             <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as "all" | ProductStatus)}>
-              <TabsList>
-                <TabsTrigger value="all">{t("products.all")}</TabsTrigger>
-                <TabsTrigger value="published">{t("products.published")}</TabsTrigger>
-                <TabsTrigger value="draft">{t("products.draft")}</TabsTrigger>
-                <TabsTrigger value="archived">{t("products.archived")}</TabsTrigger>
+              <TabsList className="h-9 p-0.5 bg-muted/60">
+                <TabsTrigger value="all" className="text-xs h-8 rounded-md px-3">{t("products.all")}</TabsTrigger>
+                <TabsTrigger value="published" className="text-xs h-8 rounded-md px-3">{t("products.published")}</TabsTrigger>
+                <TabsTrigger value="draft" className="text-xs h-8 rounded-md px-3">{t("products.draft")}</TabsTrigger>
+                <TabsTrigger value="archived" className="text-xs h-8 rounded-md px-3">{t("products.archived")}</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="px-0 pt-4 pb-0">
+          {/* Bulk action bar */}
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-3 px-4 py-2.5 mx-4 mb-3 rounded-lg bg-primary/[0.04] border border-primary/15 backdrop-blur-sm">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10">
+                <span className="text-[11px] font-bold text-primary">{selectedIds.size}</span>
+              </div>
+              <span className="text-[13px] font-medium text-primary/80">
+                {language === "ar" ? "محدد" : "selected"}
+              </span>
+              <div className="flex items-center gap-1.5 ms-auto">
+                <Button variant="ghost" size="sm" disabled={bulkActionInProgress} onClick={() => handleBulkAction("publish")} className="gap-1.5 h-7 text-xs hover:bg-emerald-500/10 hover:text-emerald-700">
+                  <Eye className="h-3.5 w-3.5" />
+                  {language === "ar" ? "نشر" : "Publish"}
+                </Button>
+                <Button variant="ghost" size="sm" disabled={bulkActionInProgress} onClick={() => handleBulkAction("archive")} className="gap-1.5 h-7 text-xs hover:bg-amber-500/10 hover:text-amber-700">
+                  <Archive className="h-3.5 w-3.5" />
+                  {language === "ar" ? "أرشفة" : "Archive"}
+                </Button>
+                <div className="w-px h-4 bg-border/60" />
+                <Button variant="ghost" size="sm" disabled={bulkActionInProgress} onClick={() => handleBulkAction("delete")} className="gap-1.5 h-7 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive">
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {language === "ar" ? "حذف" : "Delete"}
+                </Button>
+                {bulkActionInProgress && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className="relative">
+                <div className="h-10 w-10 rounded-full border-2 border-muted" />
+                <div className="absolute inset-0 h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              </div>
+              <p className="text-xs text-muted-foreground">{language === "ar" ? "جارٍ التحميل..." : "Loading products..."}</p>
             </div>
           ) : filtered.length === 0 ? (
-            <p className="py-8 text-center text-muted-foreground">{t("products.noProducts")}</p>
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60">
+                <Package className="h-7 w-7 text-muted-foreground/60" />
+              </div>
+              <div className="text-center space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">{t("products.noProducts")}</p>
+                <p className="text-xs text-muted-foreground/70">{language === "ar" ? "ابدأ بإضافة أول منتج" : "Get started by adding your first product"}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => navigate("/products/new")} className="gap-1.5 mt-1 rounded-lg">
+                <Plus className="h-3.5 w-3.5" />
+                {t("products.addProduct")}
+              </Button>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("products.image")}</TableHead>
-                    <TableHead>{t("products.name")}</TableHead>
-                    <TableHead>{t("products.category")}</TableHead>
-                    <TableHead>{t("products.price")}</TableHead>
-                    <TableHead>{t("products.stock")}</TableHead>
-                    <TableHead>{t("products.sold")}</TableHead>
-                    <TableHead>{t("products.variants")}</TableHead>
-                    <TableHead>{t("products.status")}</TableHead>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30 border-y border-border/40">
+                    <TableHead className="w-12 ps-4">
+                      <Checkbox
+                        checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70 w-14">{t("products.image")}</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70">{t("products.name")}</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70">{t("products.category")}</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70">{t("products.price")}</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70">{t("products.stock")}</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70">{t("products.sold")}</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70">{t("products.variants")}</TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70">{t("products.status")}</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((p) => (
-                    <TableRow key={p.id}>
+                  {filtered.map((p, i) => (
+                    <TableRow
+                      key={p.id}
+                      className="cursor-pointer group/row transition-colors hover:bg-primary/[0.02]"
+                      style={{ animationDelay: `${i * 20}ms` }}
+                      onClick={() => navigate(`/products/${p.id}/edit`)}
+                    >
+                      <TableCell className="ps-4" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(p.id)}
+                          onCheckedChange={() => toggleSelect(p.id)}
+                        />
+                      </TableCell>
                       <TableCell>
                         {p.image.startsWith("http") ? (
-                          <img src={p.image} alt="" className="h-10 w-10 rounded-lg object-cover bg-muted" />
+                          <img src={p.image} alt="" className="h-11 w-11 rounded-xl object-cover bg-muted ring-1 ring-border/30 transition-transform group-hover/row:scale-105" />
                         ) : (
-                          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-xl">{p.image}</span>
+                          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-muted to-muted/60 text-lg ring-1 ring-border/20">{p.image}</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <div>
-                          <p className="font-medium">{language === "ar" ? p.nameAr : p.name}</p>
-                          <p className="text-xs text-muted-foreground">{p.sku}</p>
+                        <div className="min-w-[140px]">
+                          <p className="font-semibold text-[13px] leading-tight">{language === "ar" ? p.nameAr : p.name}</p>
+                          <p className="text-[11px] text-muted-foreground/60 mt-0.5 font-mono">{p.sku}</p>
                         </div>
                       </TableCell>
                       <TableCell>
                         {p.categoryId ? (
-                          <Badge variant="outline" className="gap-1 font-normal">
-                            <Tag className="h-3 w-3" />
+                          <Badge variant="outline" className="gap-1 font-normal text-[11px] py-0.5 rounded-md border-border/50 bg-muted/30">
+                            <Tag className="h-2.5 w-2.5" />
                             {apiCategories.find(c => c.id === p.categoryId)?.name || p.category || "—"}
                           </Badge>
                         ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-[11px] text-muted-foreground/40">—</span>
                         )}
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{formatCurrency(p.price)}</p>
+                          <p className="font-semibold text-[13px] tabular-nums">{formatCurrency(p.price)}</p>
                           {p.compareAtPrice && (
-                            <p className="text-xs text-muted-foreground line-through">{formatCurrency(p.compareAtPrice)}</p>
+                            <p className="text-[11px] text-muted-foreground/50 line-through tabular-nums">{formatCurrency(p.compareAtPrice)}</p>
                           )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className={p.stock < 20 ? "text-destructive font-medium" : ""}>
-                          {p.stock}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {p.stock < 20 && p.stock > 0 && (
+                            <div className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          )}
+                          {p.stock === 0 && (
+                            <div className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                          )}
+                          <span className={`text-[13px] tabular-nums font-medium ${p.stock === 0 ? "text-destructive" : p.stock < 20 ? "text-amber-600 dark:text-amber-400" : ""}`}>
+                            {p.stock}
+                          </span>
+                        </div>
                       </TableCell>
-                      <TableCell>{p.sold}</TableCell>
+                      <TableCell>
+                        <span className="text-[13px] tabular-nums text-muted-foreground">{p.sold}</span>
+                      </TableCell>
                       <TableCell>
                         {p.variants.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {p.variants.map(v => (
-                              <Badge key={v.id} variant="secondary" className="text-xs font-normal">
-                                {language === "ar" ? v.nameAr : v.name}: {v.options.length}
-                              </Badge>
+                              <span key={v.id} className="inline-flex items-center gap-0.5 text-[10px] font-medium bg-muted/60 text-muted-foreground rounded-md px-1.5 py-0.5">
+                                {language === "ar" ? v.nameAr : v.name}
+                                <span className="text-foreground/70 font-semibold">{v.options.length}</span>
+                              </span>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-[11px] text-muted-foreground/40">—</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className={statusColor[p.status]}>
+                        <Badge variant="outline" className={`text-[10px] font-medium gap-1.5 rounded-md py-0.5 ${statusConfig[p.status].bg}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${statusConfig[p.status].dot}`} />
                           {t(`products.${p.status}`)}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover/row:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEditDialog(p)}>
-                              <Pencil className="me-2 h-4 w-4" />
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/products/${p.id}/edit`); }}>
+                              <Pencil className="me-2 h-3.5 w-3.5" />
                               {t("products.edit")}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setDeleteTarget(p)} className="text-destructive">
-                              <Trash2 className="me-2 h-4 w-4" />
+                            <DropdownMenuItem onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!storeId) return;
+                              try {
+                                const dup = await duplicateProduct(storeId, p.id);
+                                toast.success(language === "ar" ? "تم نسخ المنتج" : "Product duplicated");
+                                navigate(`/products/${dup.id}/edit`);
+                              } catch (err) {
+                                showError(err, language);
+                              }
+                            }}>
+                              <Copy className="me-2 h-3.5 w-3.5" />
+                              {language === "ar" ? "نسخ" : "Duplicate"}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }} className="text-destructive focus:text-destructive">
+                              <Trash2 className="me-2 h-3.5 w-3.5" />
                               {t("products.delete")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -559,237 +466,59 @@ const Products = () => {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-4">
-              <Button variant="outline" size="sm" disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => p - 1)} className="gap-1">
-                <ChevronLeft className="h-4 w-4" />
-                {language === "ar" ? "السابق" : "Previous"}
-              </Button>
-              <span className="text-sm text-muted-foreground px-2">
-                {language === "ar" ? `صفحة ${currentPage} من ${totalPages}` : `Page ${currentPage} of ${totalPages}`}
-              </span>
-              <Button variant="outline" size="sm" disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage(p => p + 1)} className="gap-1">
-                {language === "ar" ? "التالي" : "Next"}
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border/40">
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {language === "ar"
+                  ? `عرض ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, totalProducts)} من ${totalProducts}`
+                  : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, totalProducts)} of ${totalProducts}`}
+              </p>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => p - 1)}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  const page = i + 1;
+                  return (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "ghost"}
+                      size="icon"
+                      className={`h-8 w-8 rounded-lg text-xs ${currentPage === page ? "shadow-sm" : ""}`}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </Button>
+                  );
+                })}
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => p + 1)}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Add / Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <DialogHeader>
-            <DialogTitle>{editingProduct ? t("products.editProductTitle") : t("products.addProductTitle")}</DialogTitle>
-            <DialogDescription>
-              {language === "ar" ? "أدخل تفاصيل المنتج" : "Enter product details"}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-5 py-2">
-            {/* Image Upload */}
-            <div className="grid gap-2">
-              <Label>{t("products.images")}</Label>
-              <div className="flex gap-3 flex-wrap">
-                {/* Existing uploaded images (edit mode) */}
-                {formImages.map((url) => (
-                  <div key={url} className="relative group">
-                    <img src={url} alt="" className="h-24 w-24 rounded-lg object-cover bg-muted" />
-                    {editingProduct && (
-                      <button
-                        type="button"
-                        onClick={() => handleImageDelete(url)}
-                        className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {/* Pending file previews (new product) */}
-                {!editingProduct && pendingPreviews.map((previewUrl, i) => (
-                  <div key={i} className="relative group">
-                    <img src={previewUrl} alt="" className="h-24 w-24 rounded-lg object-cover bg-muted" />
-                    <button
-                      type="button"
-                      onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))}
-                      className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-                {/* Upload button — always visible */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingImage || validatingImage}
-                  className="flex h-24 w-24 flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
-                >
-                  {(uploadingImage || validatingImage) ? (
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  ) : (
-                    <>
-                      <ImagePlus className="h-6 w-6 mb-1" />
-                      <span className="text-[10px]">{t("products.uploadImages")}</span>
-                    </>
-                  )}
-                </button>
-              </div>
-              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImageUpload} />
-              {validatingImage && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  {language === "ar" ? "جارٍ التحقق من الصورة..." : "Validating image..."}
-                </div>
-              )}
-              {imageError && <p className="text-xs text-destructive">{imageError}</p>}
-              {!editingProduct && pendingFiles.length === 0 && !imageError && (
-                <p className="text-xs text-muted-foreground">{t("products.uploadHint")}</p>
-              )}
-            </div>
-
-            <Separator />
-
-            {/* Name */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label>{t("products.productName")} (EN)</Label>
-                <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Product name" className={fieldErrors.name ? "border-destructive" : ""} />
-                {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
-              </div>
-              <div className="grid gap-2">
-                <Label>{t("products.productName")} (AR)</Label>
-                <Input value={formNameAr} onChange={e => setFormNameAr(e.target.value)} placeholder="اسم المنتج" dir="rtl" />
-              </div>
-            </div>
-
-            {/* Description */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label>{t("products.description")} (EN)</Label>
-                <Textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Description" rows={2} className={fieldErrors.description ? "border-destructive" : ""} />
-                {fieldErrors.description && <p className="text-xs text-destructive">{fieldErrors.description}</p>}
-              </div>
-              <div className="grid gap-2">
-                <Label>{t("products.description")} (AR)</Label>
-                <Textarea value={formDescAr} onChange={e => setFormDescAr(e.target.value)} placeholder="الوصف" rows={2} dir="rtl" />
-              </div>
-            </div>
-
-            {/* Pricing */}
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <div className="grid gap-2">
-                <Label>{t("products.price")}</Label>
-                <Input type="number" value={formPrice} onChange={e => setFormPrice(e.target.value)} placeholder="0" className={fieldErrors.price ? "border-destructive" : ""} />
-                {fieldErrors.price && <p className="text-xs text-destructive">{fieldErrors.price}</p>}
-              </div>
-              <div className="grid gap-2">
-                <Label>{t("products.compareAtPrice")}</Label>
-                <Input type="number" value={formComparePrice} onChange={e => setFormComparePrice(e.target.value)} placeholder="0" className={fieldErrors.comparePrice ? "border-destructive" : ""} />
-                {fieldErrors.comparePrice && <p className="text-xs text-destructive">{fieldErrors.comparePrice}</p>}
-              </div>
-              <div className="grid gap-2">
-                <Label>{t("products.stock")}</Label>
-                <Input type="number" value={formStock} onChange={e => setFormStock(e.target.value)} placeholder="0" className={fieldErrors.stock ? "border-destructive" : ""} />
-                {fieldErrors.stock && <p className="text-xs text-destructive">{fieldErrors.stock}</p>}
-              </div>
-            </div>
-
-            {/* Category & Status */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label>{t("products.category")}</Label>
-                <Select value={formCategory} onValueChange={setFormCategory}>
-                  <SelectTrigger><SelectValue placeholder={language === "ar" ? "اختر فئة" : "Select category"} /></SelectTrigger>
-                  <SelectContent>
-                    {apiCategories.filter(c => c.is_active).map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>{t("products.status")}</Label>
-                <Select value={formStatus} onValueChange={(v) => setFormStatus(v as ProductStatus)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">{t("products.draft")}</SelectItem>
-                    <SelectItem value="published">{t("products.published")}</SelectItem>
-                    <SelectItem value="archived">{t("products.archived")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Variants */}
-            <div className="grid gap-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-base font-semibold">{t("products.variants")}</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addVariantRow} className="gap-1">
-                  <Plus className="h-3 w-3" />
-                  {t("products.addVariant")}
-                </Button>
-              </div>
-              {formVariants.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {language === "ar" ? "مفيش متغيرات — زي المقاس أو اللون" : "No variants — e.g. Size, Color"}
-                </p>
-              )}
-              {formVariants.map((v, idx) => (
-                <div key={idx} className="grid gap-2 rounded-lg border border-border p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{language === "ar" ? "متغير" : "Variant"} {idx + 1}</span>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => removeVariant(idx)} className="h-7 text-destructive">
-                      <X className="h-3 w-3 me-1" />
-                      {t("products.removeVariant")}
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input placeholder={language === "ar" ? "مثلاً: المقاس" : "e.g. Size"} value={v.name} onChange={e => updateVariant(idx, "name", e.target.value)} />
-                    <Input placeholder={language === "ar" ? "مثلاً: المقاس" : "e.g. المقاس"} value={v.nameAr} onChange={e => updateVariant(idx, "nameAr", e.target.value)} dir="rtl" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input placeholder="S, M, L, XL" value={v.options} onChange={e => updateVariant(idx, "options", e.target.value)} />
-                    <Input placeholder="S, M, L, XL" value={v.optionsAr} onChange={e => updateVariant(idx, "optionsAr", e.target.value)} dir="rtl" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
-              {t("products.cancel")}
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-              {t("products.save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("products.confirmDelete")}</AlertDialogTitle>
             <AlertDialogDescription>{t("products.confirmDeleteDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("products.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogCancel className="rounded-lg">{t("products.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg">
               {isDeleting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               {t("products.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImportComplete={fetchProducts} />
     </div>
   );
 };

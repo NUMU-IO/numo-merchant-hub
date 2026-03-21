@@ -14,6 +14,8 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { getDashboardStats } from "@/services/analyticsApi";
 
 const AppHeader = () => {
   const { t } = useTranslation();
@@ -21,9 +23,20 @@ const AppHeader = () => {
   const { user, logout } = useAuth();
   const { currentStore, stores, switchStore } = useDashboardStore();
   const navigate = useNavigate();
+  const storeId = currentStore?.id;
   const [isDark, setIsDark] = useState(() =>
     document.documentElement.classList.contains("dark"),
   );
+
+  // Pending orders count for notification badge
+  const statsQuery = useQuery({
+    queryKey: ["header-stats", storeId],
+    queryFn: () => getDashboardStats(storeId!, 7),
+    enabled: !!storeId,
+    refetchInterval: 60_000, // refresh every minute
+    staleTime: 30_000,
+  });
+  const pendingCount = (statsQuery.data?.pending_orders ?? 0) + (statsQuery.data?.processing_orders ?? 0);
 
   const toggleDark = () => {
     const next = !isDark;
@@ -126,7 +139,11 @@ const AppHeader = () => {
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-lg" onClick={() => navigate("/notifications")}>
           <Bell className="h-3.5 w-3.5" />
-          <span className="absolute top-1 end-1 h-1.5 w-1.5 rounded-full bg-destructive" />
+          {pendingCount > 0 && (
+            <span className="absolute -top-0.5 -end-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground px-1">
+              {pendingCount > 9 ? "9+" : pendingCount}
+            </span>
+          )}
         </Button>
 
         {/* Profile */}

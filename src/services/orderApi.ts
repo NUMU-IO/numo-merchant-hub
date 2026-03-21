@@ -116,6 +116,7 @@ export interface ListOrdersParams {
   date_from?: string;
   date_to?: string;
   search?: string;
+  customer_id?: string;
 }
 
 // ── API calls ──
@@ -144,6 +145,25 @@ export async function getOrder(
   orderId: string,
 ): Promise<Order> {
   return apiClient<Order>(`/stores/${storeId}/orders/${orderId}`);
+}
+
+export interface UpdateOrderData {
+  tracking_number?: string;
+  tracking_url?: string;
+  shipping_method?: string;
+  notes?: string;
+  customer_notes?: string;
+}
+
+export async function updateOrder(
+  storeId: string,
+  orderId: string,
+  data: UpdateOrderData,
+): Promise<Order> {
+  return apiClient<Order>(`/stores/${storeId}/orders/${orderId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 }
 
 export async function updateOrderStatus(

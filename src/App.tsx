@@ -14,6 +14,7 @@ import { lazy, Suspense } from "react";
 // Lazy-loaded pages for code splitting
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Products = lazy(() => import("@/pages/Products"));
+const ProductEditor = lazy(() => import("@/pages/ProductEditor"));
 const Orders = lazy(() => import("@/pages/Orders"));
 const StoreSettings = lazy(() => import("@/pages/StoreSettings"));
 const CODReconciliation = lazy(() => import("@/pages/CODReconciliation"));
@@ -22,6 +23,7 @@ const Customers = lazy(() => import("@/pages/Customers"));
 const Analytics = lazy(() => import("@/pages/Analytics"));
 const Marketing = lazy(() => import("@/pages/Marketing"));
 const Categories = lazy(() => import("@/pages/Categories"));
+const Invoices = lazy(() => import("@/pages/Invoices"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Notifications = lazy(() => import("@/pages/Notifications"));
@@ -130,6 +132,8 @@ const App = () => (
                   >
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/products" element={<Products />} />
+                    <Route path="/products/new" element={<ProductEditor />} />
+                    <Route path="/products/:productId/edit" element={<ProductEditor />} />
                     <Route path="/orders" element={<Orders />} />
                     <Route path="/store" element={<StoreSettings />} />
                     <Route path="/cod" element={<CODReconciliation />} />
@@ -138,6 +142,7 @@ const App = () => (
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/marketing" element={<Marketing />} />
                     <Route path="/categories" element={<Categories />} />
+                    <Route path="/invoices" element={<Invoices />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/notifications" element={<Notifications />} />

@@ -15,6 +15,7 @@ export interface Category {
   position: number;
   is_active: boolean;
   product_count: number;
+  extra_data: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +28,7 @@ export interface CreateCategoryData {
   parent_id?: string | null;
   position?: number;
   is_active?: boolean;
+  extra_data?: Record<string, unknown>;
 }
 
 export interface UpdateCategoryData {
@@ -37,6 +39,7 @@ export interface UpdateCategoryData {
   parent_id?: string | null;
   position?: number;
   is_active?: boolean;
+  extra_data?: Record<string, unknown>;
 }
 
 export async function listCategories(
@@ -79,5 +82,18 @@ export async function deleteCategory(
   return apiClient<void>(
     `/stores/${storeId}/categories/${categoryId}`,
     { method: "DELETE" }
+  );
+}
+
+export async function uploadCategoryImage(
+  storeId: string,
+  categoryId: string,
+  file: File
+): Promise<Category> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiClient<Category>(
+    `/stores/${storeId}/categories/${categoryId}/image`,
+    { method: "POST", body: formData }
   );
 }

@@ -11,6 +11,7 @@ export default {
     marketing: "التسويق",
     categories: "الفئات",
     storefront: "المتجر الإلكتروني",
+    invoices: "الفواتير",
   },
   header: {
     storeName: "متجر نُمو",

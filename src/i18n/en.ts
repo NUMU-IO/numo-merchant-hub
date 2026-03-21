@@ -11,6 +11,7 @@ export default {
     marketing: "Marketing",
     categories: "Categories",
     storefront: "Online Store",
+    invoices: "Invoices",
   },
   header: {
     storeName: "NUMU Store",

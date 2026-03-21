@@ -5,7 +5,7 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   listOrders, getOrder, updateOrderStatus as apiUpdateStatus,
-  bulkUpdateStatus, getOrderTimeline, markOrderPaid,
+  bulkUpdateStatus, getOrderTimeline, markOrderPaid, updateOrder,
   type OrderListItem, type Order as ApiOrder, type TimelineEvent,
 } from "@/services/orderApi";
 import {
@@ -62,6 +62,10 @@ const Orders = () => {
   const [refundNote, setRefundNote] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
   const [refundLoading, setRefundLoading] = useState(false);
+
+  // Tracking
+  const [trackingInput, setTrackingInput] = useState("");
+  const [savingTracking, setSavingTracking] = useState(false);
 
   // React Query hook for orders list
   const ordersQuery = useQuery({
@@ -419,16 +423,91 @@ const Orders = () => {
                   {t(`orders.${o.payment_status}`)}
                 </Badge>
                 {o.payment_method && <p className="text-sm text-muted-foreground">{o.payment_method}</p>}
-                {o.tracking_number && (
-                  <p className="text-sm text-muted-foreground">
-                    {language === "ar" ? "رقم التتبع:" : "Tracking:"} {o.tracking_number}
-                  </p>
-                )}
                 {o.payment_status !== "paid" && (
                   <Button size="sm" variant="outline" className="w-full mt-2 gap-1.5" onClick={() => handleMarkPaid(o.id)}>
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     {language === "ar" ? "تأكيد الدفع" : "Mark as Paid"}
                   </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Shipping & Tracking */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">{language === "ar" ? "الشحن والتتبع" : "Shipping & Tracking"}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {o.shipping_method && (
+                  <p className="text-sm text-muted-foreground">{o.shipping_method}</p>
+                )}
+                {o.tracking_number ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                      {language === "ar" ? "رقم التتبع" : "Tracking Number"}
+                    </p>
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/40 border border-border/40">
+                      <Truck className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm font-mono font-medium flex-1">{o.tracking_number}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => {
+                          navigator.clipboard.writeText(o.tracking_number!);
+                          toast.success(language === "ar" ? "تم النسخ" : "Copied");
+                        }}
+                      >
+                        {language === "ar" ? "نسخ" : "Copy"}
+                      </Button>
+                    </div>
+                    {o.tracking_url && (
+                      <a href={o.tracking_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+                        {language === "ar" ? "تتبع الشحنة ←" : "Track shipment →"}
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                      {language === "ar" ? "إضافة رقم تتبع" : "Add Tracking Number"}
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        value={trackingInput}
+                        onChange={(e) => setTrackingInput(e.target.value)}
+                        placeholder={language === "ar" ? "مثلاً: EG123456789" : "e.g. EG123456789"}
+                        className="h-9 text-sm rounded-lg flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        className="h-9 rounded-lg gap-1.5"
+                        disabled={!trackingInput.trim() || savingTracking}
+                        onClick={async () => {
+                          if (!storeId || !trackingInput.trim()) return;
+                          setSavingTracking(true);
+                          try {
+                            const updated = await updateOrder(storeId, o.id, {
+                              tracking_number: trackingInput.trim(),
+                            });
+                            setSelectedOrderDetail(updated);
+                            setTrackingInput("");
+                            toast.success(language === "ar" ? "تم حفظ رقم التتبع" : "Tracking number saved");
+                          } catch (err) {
+                            showError(err, language);
+                          } finally {
+                            setSavingTracking(false);
+                          }
+                        }}
+                      >
+                        {savingTracking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />}
+                        {language === "ar" ? "حفظ" : "Save"}
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {language === "ar" ? "أضف رقم التتبع قبل تحديث الحالة لشحن" : "Add tracking before marking as shipped"}
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>

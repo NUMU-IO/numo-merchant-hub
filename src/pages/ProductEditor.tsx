@@ -1,0 +1,777 @@
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useDashboardStore } from "@/contexts/StoreContext";
+import { type ProductStatus, type ProductVariant } from "@/data/mock-products";
+import { listCategories, type Category } from "@/services/categoryApi";
+import {
+  getProduct,
+  createProduct as apiCreateProduct,
+  updateProduct as apiUpdateProduct,
+  uploadProductImage,
+  deleteProductImage,
+  apiToProduct,
+  productToApiCreate,
+  productToApiUpdate,
+} from "@/services/productApi";
+import { validateImageFile } from "@/lib/image-validation";
+import { VariantMatrix, type VariantCombination } from "@/components/products/VariantMatrix";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import {
+  ArrowLeft, Plus, X, ImagePlus, Loader2, Save, Undo2, Layers, Hash,
+  Minus, ShoppingCart, Eye,
+} from "lucide-react";
+import { toast } from "sonner";
+import { showError } from "@/lib/show-error";
+import { z } from "zod";
+
+const productSchema = z.object({
+  name: z.string()
+    .min(3, "اسم المنتج يجب أن يكون 3 أحرف على الأقل")
+    .max(120, "اسم المنتج يجب ألا يتجاوز 120 حرفًا"),
+  price: z.string()
+    .min(1, "السعر مطلوب")
+    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, "السعر يجب أن يكون رقمًا موجبًا")
+    .refine((v) => /^\d+(\.\d{1,2})?$/.test(v), "السعر يجب ألا يتجاوز خانتين عشريتين"),
+  comparePrice: z.string()
+    .refine((v) => v === "" || (!isNaN(Number(v)) && Number(v) >= 0), "سعر المقارنة يجب أن يكون رقمًا صحيحًا"),
+  stock: z.string()
+    .refine((v) => v === "" || (!isNaN(Number(v)) && Number.isInteger(Number(v)) && Number(v) >= 0), "الكمية يجب أن تكون عددًا صحيحًا غير سالب"),
+  description: z.string().max(2000, "الوصف يجب ألا يتجاوز 2000 حرف").optional().or(z.literal("")),
+});
+
+type FieldErrors = Record<string, string>;
+
+const ProductEditor = () => {
+  const { productId } = useParams<{ productId: string }>();
+  const navigate = useNavigate();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const { currentStore } = useDashboardStore();
+  const storeId = currentStore?.id;
+  const isEditMode = !!productId;
+
+  const [isLoadingProduct, setIsLoadingProduct] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [apiCategories, setApiCategories] = useState<Category[]>([]);
+  const [formName, setFormName] = useState("");
+  const [formNameAr, setFormNameAr] = useState("");
+  const [formDesc, setFormDesc] = useState("");
+  const [formDescAr, setFormDescAr] = useState("");
+  const [formPrice, setFormPrice] = useState("");
+  const [formComparePrice, setFormComparePrice] = useState("");
+  const [formStock, setFormStock] = useState("");
+  const [formStatus, setFormStatus] = useState<ProductStatus>("draft");
+  const [formCategory, setFormCategory] = useState("");
+  const [formVariants, setFormVariants] = useState<{ name: string; nameAr: string; options: string; optionsAr: string }[]>([]);
+  const [variantCombinations, setVariantCombinations] = useState<VariantCombination[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [formImages, setFormImages] = useState<string[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [validatingImage, setValidatingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [previewIdx, setPreviewIdx] = useState(0);
+
+  const pendingPreviews = useMemo(() => pendingFiles.map(f => URL.createObjectURL(f)), [pendingFiles]);
+  useEffect(() => {
+    return () => { pendingPreviews.forEach(url => URL.revokeObjectURL(url)); };
+  }, [pendingPreviews]);
+
+  useEffect(() => {
+    if (!storeId) return;
+    listCategories(storeId).then(setApiCategories).catch(() => {});
+  }, [storeId]);
+
+  useEffect(() => {
+    if (!storeId || !productId) return;
+    setIsLoadingProduct(true);
+    getProduct(storeId, productId)
+      .then((api) => {
+        const p = apiToProduct(api);
+        setFormName(p.name);
+        setFormNameAr(p.nameAr);
+        setFormDesc(p.description);
+        setFormDescAr(p.descriptionAr);
+        setFormPrice(String(p.price));
+        setFormComparePrice(p.compareAtPrice ? String(p.compareAtPrice) : "");
+        setFormStock(String(p.stock));
+        setFormStatus(p.status);
+        setFormCategory(p.categoryId || "");
+        setFormImages(p.images.filter(img => img !== "📦"));
+        setFormVariants(p.variants.map(v => ({
+          name: v.name, nameAr: v.nameAr,
+          options: v.options.join(", "), optionsAr: v.optionsAr.join(", "),
+        })));
+        const rawCombos = (api.attributes as Record<string, unknown>)?.variant_combinations;
+        if (Array.isArray(rawCombos)) {
+          setVariantCombinations(rawCombos as VariantCombination[]);
+        }
+      })
+      .catch((err) => {
+        showError(err, language);
+        navigate("/products");
+      })
+      .finally(() => setIsLoadingProduct(false));
+  }, [storeId, productId]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !storeId) return;
+    setImageError(null);
+    setValidatingImage(true);
+    try {
+      const error = await validateImageFile(file);
+      if (error) {
+        setImageError(error);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+    } finally {
+      setValidatingImage(false);
+    }
+    if (isEditMode && productId) {
+      setUploadingImage(true);
+      try {
+        const result = await uploadProductImage(storeId, productId, file);
+        setFormImages(prev => [...prev, result.url]);
+        toast.success(language === "ar" ? "الصورة اترفعت!" : "Image uploaded!");
+      } catch (err) {
+        showError(err, language);
+      } finally {
+        setUploadingImage(false);
+      }
+    } else {
+      setPendingFiles(prev => [...prev, file]);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleImageDelete = async (imageUrl: string) => {
+    if (!storeId || !productId) return;
+    try {
+      await deleteProductImage(storeId, productId, imageUrl);
+      setFormImages(prev => prev.filter(url => url !== imageUrl));
+      toast.success(language === "ar" ? "الصورة اتمسحت" : "Image removed");
+    } catch (err) {
+      showError(err, language);
+    }
+  };
+
+  const addVariantRow = () => {
+    setFormVariants(prev => [...prev, { name: "", nameAr: "", options: "", optionsAr: "" }]);
+  };
+
+  const updateVariant = (idx: number, field: string, value: string) => {
+    setFormVariants(prev => prev.map((v, i) => i === idx ? { ...v, [field]: value } : v));
+  };
+
+  const removeVariant = (idx: number) => {
+    setFormVariants(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSave = useCallback(async () => {
+    if (!storeId || isSaving) return;
+    setFieldErrors({});
+
+    const result = productSchema.safeParse({
+      name: formName,
+      price: formPrice,
+      comparePrice: formComparePrice,
+      stock: formStock,
+      description: formDesc,
+    });
+
+    if (!result.success) {
+      const errs: FieldErrors = {};
+      for (const issue of result.error.issues) {
+        const key = String(issue.path[0]);
+        if (!errs[key]) errs[key] = issue.message;
+      }
+      setFieldErrors(errs);
+      return;
+    }
+
+    setIsSaving(true);
+    const variants: ProductVariant[] = formVariants
+      .filter(v => v.name && v.options)
+      .map((v, i) => ({
+        id: `v-${Date.now()}-${i}`,
+        name: v.name, nameAr: v.nameAr,
+        options: v.options.split(",").map(o => o.trim()).filter(Boolean),
+        optionsAr: v.optionsAr.split(",").map(o => o.trim()).filter(Boolean),
+      }));
+
+    const cat = apiCategories.find(c => c.id === formCategory);
+
+    try {
+      if (isEditMode && productId) {
+        const payload = productToApiUpdate({
+          name: formName, nameAr: formNameAr,
+          description: formDesc, descriptionAr: formDescAr,
+          price: Number(formPrice),
+          compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
+          stock: Number(formStock),
+          status: formStatus,
+          categoryId: formCategory || undefined,
+          category: cat?.name || "", categoryAr: cat?.name || "",
+          variants,
+          images: formImages.length > 0 ? formImages : undefined,
+        });
+        if (variantCombinations.length > 0 && payload.attributes) {
+          (payload.attributes as Record<string, unknown>).variant_combinations = variantCombinations;
+        }
+        await apiUpdateProduct(storeId, productId, payload);
+        toast.success(t("products.productUpdated"));
+      } else {
+        const payload = productToApiCreate({
+          name: formName, nameAr: formNameAr,
+          description: formDesc, descriptionAr: formDescAr,
+          price: Number(formPrice),
+          compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
+          stock: Number(formStock),
+          status: formStatus,
+          categoryId: formCategory || undefined,
+          category: cat?.name || "", categoryAr: cat?.name || "",
+          variants,
+        });
+        if (variantCombinations.length > 0 && payload.attributes) {
+          (payload.attributes as Record<string, unknown>).variant_combinations = variantCombinations;
+        }
+        const created = await apiCreateProduct(storeId, payload);
+        for (const file of pendingFiles) {
+          try {
+            await uploadProductImage(storeId, created.id, file);
+          } catch { /* image upload failure is non-blocking */ }
+        }
+        toast.success(language === "ar" ? "المنتج اتضاف!" : "Product added successfully!");
+      }
+      navigate("/products");
+    } catch (err) {
+      showError(err, language);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t]);
+
+  if (isLoadingProduct) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-3">
+        <div className="relative">
+          <div className="h-10 w-10 rounded-full border-2 border-muted" />
+          <div className="absolute inset-0 h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        </div>
+        <p className="text-xs text-muted-foreground">{language === "ar" ? "جارٍ تحميل المنتج..." : "Loading product..."}</p>
+      </div>
+    );
+  }
+
+  const totalImages = formImages.length + pendingPreviews.length;
+
+  // Preview data
+  const allPreviewImages = [...formImages, ...pendingPreviews];
+  const previewImage = allPreviewImages[previewIdx] || allPreviewImages[0] || null;
+  const previewName = (language === "ar" ? formNameAr : formName) || (language === "ar" ? "اسم المنتج" : "Product name");
+  const previewDesc = (language === "ar" ? formDescAr : formDesc) || "";
+  const previewPrice = formPrice ? Number(formPrice) : 0;
+  const previewCompare = formComparePrice ? Number(formComparePrice) : 0;
+  const previewCat = apiCategories.find(c => c.id === formCategory);
+  const previewVariants = formVariants.filter(v => v.name.trim() && v.options.trim());
+  const formatPreviewPrice = (val: number) =>
+    language === "ar" ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
+
+  return (
+    <div className="flex gap-6 pb-24">
+      {/* Left: Form */}
+      <div className="flex-1 min-w-0 space-y-5 max-w-3xl">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/products")} className="h-9 w-9 rounded-xl hover:bg-muted/80">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-bold tracking-tight truncate">
+            {isEditMode
+              ? (formName || t("products.editProductTitle"))
+              : t("products.addProductTitle")}
+          </h1>
+          <p className="text-[13px] text-muted-foreground">
+            {isEditMode
+              ? (language === "ar" ? "تعديل بيانات المنتج" : "Edit product details")
+              : (language === "ar" ? "أدخل تفاصيل المنتج الجديد" : "Enter new product details")}
+          </p>
+        </div>
+        {/* Status badge in header */}
+        <Badge variant="outline" className={`text-xs rounded-lg py-1 px-2.5 ${
+          formStatus === "published" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200/60"
+          : formStatus === "draft" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200/60"
+          : "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-200/60"
+        }`}>
+          {t(`products.${formStatus}`)}
+        </Badge>
+      </div>
+
+      {/* Basic Info */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-[15px]">{language === "ar" ? "المعلومات الأساسية" : "Basic Information"}</CardTitle>
+          <CardDescription className="text-xs">{language === "ar" ? "اسم المنتج ووصفه بالعربي والإنجليزي" : "Product name and description in both languages"}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.productName")} (EN) *</Label>
+              <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Product name" className={`h-10 rounded-lg ${fieldErrors.name ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+              {fieldErrors.name && <p className="text-[11px] text-destructive flex items-center gap-1"><span className="h-1 w-1 rounded-full bg-destructive" />{fieldErrors.name}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.productName")} (AR)</Label>
+              <Input value={formNameAr} onChange={e => setFormNameAr(e.target.value)} placeholder="اسم المنتج" dir="rtl" className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.description")} (EN)</Label>
+              <Textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Describe your product..." rows={4} className={`rounded-lg resize-none ${fieldErrors.description ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+              {fieldErrors.description && <p className="text-[11px] text-destructive">{fieldErrors.description}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.description")} (AR)</Label>
+              <Textarea value={formDescAr} onChange={e => setFormDescAr(e.target.value)} placeholder="وصف المنتج..." rows={4} dir="rtl" className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Media */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-[15px]">{t("products.images")}</CardTitle>
+              <CardDescription className="text-xs">{language === "ar" ? "JPG, PNG, WebP — حد أقصى 5 ميجا لكل صورة" : "JPG, PNG, WebP — max 5MB each"}</CardDescription>
+            </div>
+            {totalImages > 0 && (
+              <Badge variant="secondary" className="text-[10px] rounded-md">{totalImages} {language === "ar" ? "صورة" : "images"}</Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+            {formImages.map((url) => (
+              <div key={url} className="relative group aspect-square">
+                <img src={url} alt="" className="h-full w-full rounded-xl object-cover bg-muted ring-1 ring-border/20" />
+                {isEditMode && (
+                  <button
+                    type="button"
+                    onClick={() => handleImageDelete(url)}
+                    className="absolute top-1.5 right-1.5 h-6 w-6 rounded-lg bg-black/60 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-black/80"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+            {!isEditMode && pendingPreviews.map((previewUrl, i) => (
+              <div key={i} className="relative group aspect-square">
+                <img src={previewUrl} alt="" className="h-full w-full rounded-xl object-cover bg-muted ring-1 ring-border/20" />
+                <button
+                  type="button"
+                  onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))}
+                  className="absolute top-1.5 right-1.5 h-6 w-6 rounded-lg bg-black/60 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-black/80"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+            {/* Upload button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingImage || validatingImage}
+              className="aspect-square flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-border/60 bg-muted/20 text-muted-foreground transition-all hover:bg-muted/40 hover:border-border disabled:opacity-50 cursor-pointer"
+            >
+              {(uploadingImage || validatingImage) ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  <ImagePlus className="h-5 w-5" />
+                  <span className="text-[9px] font-medium">{language === "ar" ? "إضافة" : "Add"}</span>
+                </>
+              )}
+            </button>
+          </div>
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImageUpload} />
+          {validatingImage && (
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-3">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {language === "ar" ? "جارٍ التحقق من الصورة..." : "Validating image..."}
+            </div>
+          )}
+          {imageError && (
+            <div className="flex items-center gap-1.5 mt-3 text-[11px] text-destructive">
+              <span className="h-1 w-1 rounded-full bg-destructive" />
+              {imageError}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Pricing & Inventory */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-[15px]">{language === "ar" ? "التسعير والمخزون" : "Pricing & Inventory"}</CardTitle>
+          <CardDescription className="text-xs">{language === "ar" ? "حدد السعر والكمية المتاحة" : "Set your pricing and stock levels"}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.price")} (EGP) *</Label>
+              <div className="relative">
+                <Input type="number" value={formPrice} onChange={e => setFormPrice(e.target.value)} placeholder="0.00" className={`h-10 rounded-lg ps-8 ${fieldErrors.price ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">$</span>
+              </div>
+              {fieldErrors.price && <p className="text-[11px] text-destructive">{fieldErrors.price}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.compareAtPrice")}</Label>
+              <div className="relative">
+                <Input type="number" value={formComparePrice} onChange={e => setFormComparePrice(e.target.value)} placeholder="0.00" className={`h-10 rounded-lg ps-8 ${fieldErrors.comparePrice ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">$</span>
+              </div>
+              {fieldErrors.comparePrice && <p className="text-[11px] text-destructive">{fieldErrors.comparePrice}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.stock")}</Label>
+              <div className="relative">
+                <Input type="number" value={formStock} onChange={e => setFormStock(e.target.value)} placeholder="0" className={`h-10 rounded-lg ps-8 ${fieldErrors.stock ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <Hash className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40" />
+              </div>
+              {fieldErrors.stock && <p className="text-[11px] text-destructive">{fieldErrors.stock}</p>}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Organization */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-[15px]">{language === "ar" ? "التنظيم" : "Organization"}</CardTitle>
+          <CardDescription className="text-xs">{language === "ar" ? "الفئة وحالة المنتج" : "Category and product visibility"}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.category")}</Label>
+              <Select value={formCategory} onValueChange={setFormCategory}>
+                <SelectTrigger className="h-10 rounded-lg bg-muted/30 border-transparent"><SelectValue placeholder={language === "ar" ? "اختر فئة" : "Select category"} /></SelectTrigger>
+                <SelectContent>
+                  {apiCategories.filter(c => c.is_active).map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.status")}</Label>
+              <Select value={formStatus} onValueChange={(v) => setFormStatus(v as ProductStatus)}>
+                <SelectTrigger className="h-10 rounded-lg bg-muted/30 border-transparent"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">
+                    <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" />{t("products.draft")}</span>
+                  </SelectItem>
+                  <SelectItem value="published">
+                    <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{t("products.published")}</span>
+                  </SelectItem>
+                  <SelectItem value="archived">
+                    <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />{t("products.archived")}</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Variants */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-[15px]">{t("products.variants")}</CardTitle>
+              <CardDescription className="text-xs">{language === "ar" ? "مثل المقاس أو اللون" : "e.g. Size, Color"}</CardDescription>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={addVariantRow} className="gap-1 h-8 text-xs rounded-lg">
+              <Plus className="h-3 w-3" />
+              {t("products.addVariant")}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {formVariants.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 gap-2">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted/60">
+                <Layers className="h-5 w-5 text-muted-foreground/50" />
+              </div>
+              <p className="text-[13px] text-muted-foreground/70 text-center">
+                {language === "ar" ? "مفيش متغيرات لسه" : "No variants yet"}
+              </p>
+              <p className="text-[11px] text-muted-foreground/50 text-center">
+                {language === "ar" ? "اضغط \"إضافة متغير\" لإضافة مقاس أو لون" : "Add variants like Size or Color"}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {formVariants.map((v, idx) => (
+                <div key={idx} className="rounded-xl border border-border/60 bg-muted/[0.03] overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border/40">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">{idx + 1}</span>
+                      <span className="text-xs font-medium">{v.name || (language === "ar" ? "متغير جديد" : "New variant")}</span>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeVariant(idx)} className="h-7 text-xs text-destructive/70 hover:text-destructive hover:bg-destructive/10">
+                      <X className="h-3 w-3 me-1" />
+                      {language === "ar" ? "حذف" : "Remove"}
+                    </Button>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground/70">{language === "ar" ? "الاسم (EN)" : "Name (EN)"}</Label>
+                        <Input placeholder="e.g. Size" value={v.name} onChange={e => updateVariant(idx, "name", e.target.value)} className="h-9 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground/70">{language === "ar" ? "الاسم (AR)" : "Name (AR)"}</Label>
+                        <Input placeholder="المقاس" value={v.nameAr} onChange={e => updateVariant(idx, "nameAr", e.target.value)} dir="rtl" className="h-9 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border text-sm" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground/70">{language === "ar" ? "الخيارات (EN)" : "Options (EN)"}</Label>
+                        <Input placeholder="S, M, L, XL" value={v.options} onChange={e => updateVariant(idx, "options", e.target.value)} className="h-9 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground/70">{language === "ar" ? "الخيارات (AR)" : "Options (AR)"}</Label>
+                        <Input placeholder="S, M, L, XL" value={v.optionsAr} onChange={e => updateVariant(idx, "optionsAr", e.target.value)} dir="rtl" className="h-9 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border text-sm" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Variant Matrix */}
+          {formVariants.some(v => v.name.trim() && v.options.trim()) && (
+            <>
+              <Separator className="my-5" />
+              <VariantMatrix
+                variants={formVariants}
+                combinations={variantCombinations}
+                onCombinationsChange={setVariantCombinations}
+                defaultPrice={formPrice}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      </div>
+
+      {/* Right: Live Preview */}
+      <div className="hidden lg:block w-[360px] shrink-0">
+        <div className="sticky top-20">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="text-[12px] font-medium text-muted-foreground">{language === "ar" ? "معاينة المنتج" : "Storefront Preview"}</p>
+            </div>
+            <Badge variant="outline" className="text-[9px] text-muted-foreground border-border/50">LIVE</Badge>
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
+            {/* Image area */}
+            <div className="aspect-[4/3] bg-muted/20 relative overflow-hidden">
+              {previewImage ? (
+                <img src={previewImage} alt="" className="h-full w-full object-cover transition-all duration-300" />
+              ) : (
+                <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-muted-foreground/20">
+                  <ImagePlus className="h-12 w-12" />
+                  <span className="text-[11px]">{language === "ar" ? "أضف صورة للمنتج" : "Add product images"}</span>
+                </div>
+              )}
+
+              {/* Overlays */}
+              {formStatus !== "published" && (
+                <Badge variant="secondary" className="absolute top-2.5 start-2.5 text-[9px] bg-background/80 backdrop-blur-sm shadow-sm">
+                  {t(`products.${formStatus}`)}
+                </Badge>
+              )}
+              {previewCompare > 0 && previewPrice > 0 && previewCompare > previewPrice && (
+                <Badge className="absolute top-2.5 end-2.5 text-[10px] bg-red-500 text-white border-0 shadow-sm">
+                  {language === "ar" ? "خصم" : "SALE"} {Math.round(((previewCompare - previewPrice) / previewCompare) * 100)}%
+                </Badge>
+              )}
+            </div>
+
+            {/* Thumbnails */}
+            {allPreviewImages.length > 1 && (
+              <div className="flex gap-1.5 px-3 py-2 border-b border-border/30 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {allPreviewImages.map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setPreviewIdx(i)}
+                    className={`h-10 w-10 rounded-md overflow-hidden shrink-0 ring-1 transition-all ${
+                      i === previewIdx ? "ring-foreground ring-2" : "ring-border/40 opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    <img src={img} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Content */}
+            <div className="p-4 space-y-3">
+              {/* Category breadcrumb */}
+              {previewCat && (
+                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">{previewCat.name}</p>
+              )}
+
+              {/* Name */}
+              <h3 className="text-[16px] font-bold leading-snug tracking-tight">{previewName}</h3>
+
+              {/* Rating mock */}
+              <div className="flex items-center gap-1.5">
+                <div className="flex">
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <svg key={s} className={`h-3 w-3 ${s <= 4 ? "text-amber-400 fill-amber-400" : "text-muted/60 fill-muted/60"}`} viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+                <span className="text-[10px] text-muted-foreground">(0 {language === "ar" ? "تقييم" : "reviews"})</span>
+              </div>
+
+              {/* Price */}
+              <div className="flex items-baseline gap-2.5 pt-1">
+                {previewPrice > 0 ? (
+                  <>
+                    <span className="text-xl font-bold tabular-nums tracking-tight">{formatPreviewPrice(previewPrice)}</span>
+                    {previewCompare > 0 && previewCompare > previewPrice && (
+                      <span className="text-[13px] text-muted-foreground/50 line-through tabular-nums">{formatPreviewPrice(previewCompare)}</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-xl font-bold text-muted-foreground/25 tabular-nums">{formatPreviewPrice(0)}</span>
+                )}
+              </div>
+
+              {/* Description */}
+              {previewDesc && (
+                <p className="text-[12px] text-muted-foreground/70 leading-relaxed line-clamp-2">{previewDesc}</p>
+              )}
+
+              {/* Variants */}
+              {previewVariants.length > 0 && (
+                <div className="space-y-3 pt-1 border-t border-border/30">
+                  {previewVariants.map((v, i) => {
+                    const opts = v.options.split(",").map(o => o.trim()).filter(Boolean);
+                    return (
+                      <div key={i} className="pt-2">
+                        <p className="text-[11px] font-medium mb-2">{language === "ar" ? v.nameAr || v.name : v.name}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {opts.map((opt, j) => (
+                            <button
+                              key={j}
+                              className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${
+                                j === 0
+                                  ? "border-foreground bg-foreground text-background shadow-sm"
+                                  : "border-border/60 hover:border-foreground/40"
+                              }`}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Quantity + Cart */}
+              <div className="flex items-center gap-2 pt-3">
+                <div className="flex items-center border border-border/60 rounded-lg">
+                  <button className="h-10 w-10 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="w-8 text-center text-[13px] font-semibold tabular-nums">1</span>
+                  <button className="h-10 w-10 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <button className="flex-1 h-10 rounded-lg bg-foreground text-background flex items-center justify-center gap-2 text-[13px] font-semibold shadow-sm">
+                  <ShoppingCart className="h-4 w-4" />
+                  {language === "ar" ? "أضف للسلة" : "Add to Cart"}
+                </button>
+              </div>
+
+              {/* Stock + shipping info */}
+              <div className="space-y-1.5 pt-2 border-t border-border/30">
+                {formStock && Number(formStock) > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className={`h-1.5 w-1.5 rounded-full ${Number(formStock) < 20 ? "bg-amber-500" : "bg-emerald-500"}`} />
+                    <span className={`text-[11px] ${Number(formStock) < 20 ? "text-amber-600" : "text-emerald-600"}`}>
+                      {Number(formStock) < 20
+                        ? (language === "ar" ? `باقي ${formStock} فقط!` : `Only ${formStock} left!`)
+                        : (language === "ar" ? "متوفر" : "In stock")}
+                    </span>
+                  </div>
+                )}
+                {formStock && Number(formStock) === 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                    <span className="text-[11px] text-red-600">{language === "ar" ? "نفذت الكمية" : "Out of stock"}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sticky Footer */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/90 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
+        <div className="flex items-center justify-between px-6 py-3 max-w-screen-xl mx-auto">
+          <p className="text-[11px] text-muted-foreground hidden sm:block">
+            {language === "ar" ? "سيتم حفظ التغييرات تلقائياً" : "Changes will be saved when you click Save"}
+          </p>
+          <div className="flex items-center gap-2 ms-auto">
+            <Button variant="ghost" onClick={() => navigate("/products")} className="h-9 rounded-lg text-xs gap-1.5">
+              <Undo2 className="h-3.5 w-3.5" />
+              {language === "ar" ? "إلغاء" : "Discard"}
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving} className="h-9 rounded-lg text-xs gap-1.5 min-w-[120px] shadow-sm">
+              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              {isSaving
+                ? (language === "ar" ? "جارٍ الحفظ..." : "Saving...")
+                : (language === "ar" ? "حفظ المنتج" : "Save Product")}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ProductEditor;
