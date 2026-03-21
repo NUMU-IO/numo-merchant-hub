@@ -113,7 +113,7 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
   };
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange}>
+    <CommandDialog open={open} onOpenChange={onOpenChange} shouldFilter={false}>
       <CommandInput
         placeholder={
           scope === "products" ? (isAr ? "ابحث في المنتجات..." : "Search products...")
