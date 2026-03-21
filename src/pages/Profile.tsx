@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import {
   User, Mail, Phone, Shield, Calendar, Key,
-  Loader2, Camera, CheckCircle2, AlertCircle,
+  Loader2, Camera, CheckCircle2, AlertCircle, Trash2, Upload as UploadIcon,
 } from "lucide-react";
 import { changePassword, updateProfile } from "@/services/authApi";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -28,6 +29,7 @@ export default function Profile() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [showCropDialog, setShowCropDialog] = useState(false);
+  const [showAvatarPreview, setShowAvatarPreview] = useState(false);
 
   const [firstName, setFirstName] = useState(user?.first_name || "");
   const [lastName, setLastName] = useState(user?.last_name || "");
@@ -63,6 +65,20 @@ export default function Profile() {
       setShowCropDialog(true);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAvatar = async () => {
+    setUploadingAvatar(true);
+    try {
+      await updateProfile({ avatar_url: null });
+      if (refreshUser) await refreshUser();
+      toast.success(isAr ? "تم إزالة الصورة" : "Avatar removed");
+      setShowAvatarPreview(false);
+    } catch (err: unknown) {
+      showError(err, language);
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const handleCroppedUpload = async (blob: Blob) => {
@@ -124,8 +140,29 @@ export default function Profile() {
       <Card className="border-border/60">
         <CardContent className="p-6">
           <div className="flex items-start gap-5">
-            <label className="relative group cursor-pointer">
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={() => user?.avatar_url ? setShowAvatarPreview(true) : document.getElementById("avatar-input")?.click()}
+                className="relative cursor-pointer"
+              >
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt="" className="h-20 w-20 rounded-2xl object-cover" />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground">
+                    {initials}
+                  </div>
+                )}
+                <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {uploadingAvatar ? (
+                    <Loader2 className="h-5 w-5 text-background animate-spin" />
+                  ) : (
+                    <Camera className="h-5 w-5 text-background" />
+                  )}
+                </div>
+              </button>
               <input
+                id="avatar-input"
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
                 className="hidden"
@@ -135,21 +172,7 @@ export default function Profile() {
                   e.target.value = "";
                 }}
               />
-              {user?.avatar_url ? (
-                <img src={user.avatar_url} alt="" className="h-20 w-20 rounded-2xl object-cover" />
-              ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground">
-                  {initials}
-                </div>
-              )}
-              <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity">
-                {uploadingAvatar ? (
-                  <Loader2 className="h-5 w-5 text-background animate-spin" />
-                ) : (
-                  <Camera className="h-5 w-5 text-background" />
-                )}
-              </div>
-            </label>
+            </div>
             <div className="flex-1 space-y-1">
               <h2 className="text-lg font-semibold">
                 {user?.first_name} {user?.last_name}
@@ -297,6 +320,36 @@ export default function Profile() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Avatar Preview Dialog */}
+      <Dialog open={showAvatarPreview} onOpenChange={setShowAvatarPreview}>
+        <DialogContent className="sm:max-w-sm p-0 gap-0 overflow-hidden">
+          {user?.avatar_url && (
+            <img src={user.avatar_url} alt="" className="w-full aspect-square object-cover" />
+          )}
+          <div className="flex border-t border-border">
+            <button
+              onClick={() => {
+                setShowAvatarPreview(false);
+                document.getElementById("avatar-input")?.click();
+              }}
+              className="flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors"
+            >
+              <UploadIcon className="h-3.5 w-3.5" />
+              {isAr ? "تغيير" : "Change"}
+            </button>
+            <div className="w-px bg-border" />
+            <button
+              onClick={handleRemoveAvatar}
+              disabled={uploadingAvatar}
+              className="flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-50"
+            >
+              {uploadingAvatar ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              {isAr ? "إزالة" : "Remove"}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Image Crop Dialog */}
       {cropImageSrc && (
