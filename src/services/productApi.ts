@@ -262,6 +262,7 @@ export function productToApiCreate(form: ProductFormData): CreateProductData {
     name: form.name,
     sku: form.sku || undefined,
     description: form.description,
+    status: form.status === "published" ? "active" : form.status,
     price: form.price.toFixed(2),
     compare_at_price: form.compareAtPrice
       ? form.compareAtPrice.toFixed(2)
