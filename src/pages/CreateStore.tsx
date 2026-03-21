@@ -30,9 +30,8 @@ export default function CreateStore() {
   const navigate = useNavigate();
   const { refetchStores, hasStores, isLoading: storesLoading } = useDashboardStore();
 
-  useEffect(() => {
-    if (!storesLoading && hasStores) navigate("/", { replace: true });
-  }, [storesLoading, hasStores, navigate]);
+  // Only redirect if user has stores AND didn't intentionally navigate here
+  // (e.g. from RequireStore guard, not from "New store" button)
 
   const [name, setName] = useState("");
   const [subdomain, setSubdomain] = useState("");
