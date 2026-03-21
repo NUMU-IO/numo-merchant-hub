@@ -132,6 +132,16 @@ export default function CreateStore() {
             <span className="text-base font-black tracking-[0.18em] text-white/70">NUMU</span>
           </div>
 
+          {hasStores && (
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+            >
+              ← {language === "ar" ? "رجوع" : "Back"}
+            </button>
+          )}
+
           <h1 className="text-xl font-semibold tracking-tight">{t("createStore.title")}</h1>
           <p className="mt-1.5 text-sm text-muted-foreground mb-7">{t("createStore.subtitle")}</p>
 
