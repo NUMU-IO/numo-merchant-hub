@@ -21,6 +21,7 @@ import {
   ChevronUp, ChevronDown,
 } from "lucide-react";
 import { ThemePreview } from "@/components/ThemePreview";
+import { ImageCropDialog } from "@/components/ImageCropDialog";
 import {
   identitySettings,
   headerSettings,
@@ -386,6 +387,9 @@ const StoreSettings = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [logoCropSrc, setLogoCropSrc] = useState<string | null>(null);
+  const [showLogoCrop, setShowLogoCrop] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [policyTab, setPolicyTab] = useState("return");
   const [, resetWalkthrough] = useWalkthroughStatus();
   const [showWalkthrough, setShowWalkthrough] = useState(false);
@@ -935,17 +939,15 @@ const StoreSettings = () => {
                       type="file"
                       accept="image/png,image/jpeg,image/webp,image/svg+xml"
                       className="hidden"
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (!file || !currentStore?.id) return;
-                        try {
-                          const result = await uploadStoreAsset(currentStore.id, file, "logo");
-                          await updateStore(currentStore.id, { logo_url: result.url });
-                          await refetchStores();
-                          toast.success(language === "ar" ? "تم رفع الشعار" : "Logo uploaded");
-                        } catch {
-                          toast.error(language === "ar" ? "فشل رفع الشعار" : "Failed to upload logo");
-                        }
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          setLogoCropSrc(reader.result as string);
+                          setShowLogoCrop(true);
+                        };
+                        reader.readAsDataURL(file);
                         e.target.value = "";
                       }}
                     />
@@ -1654,6 +1656,36 @@ const StoreSettings = () => {
             {language === "ar" ? "نشر" : "Publish"}
           </Button>
         </div>
+      )}
+
+      {/* Logo Crop Dialog */}
+      {logoCropSrc && (
+        <ImageCropDialog
+          open={showLogoCrop}
+          onClose={() => { setShowLogoCrop(false); setLogoCropSrc(null); }}
+          imageSrc={logoCropSrc}
+          cropShape="rect"
+          aspect={1}
+          title={language === "ar" ? "تعديل شعار المتجر" : "Edit Store Logo"}
+          loading={uploadingLogo}
+          onCropComplete={async (blob) => {
+            if (!currentStore?.id) return;
+            setUploadingLogo(true);
+            try {
+              const file = new File([blob], "logo.jpg", { type: "image/jpeg" });
+              const result = await uploadStoreAsset(currentStore.id, file, "logo");
+              await updateStore(currentStore.id, { logo_url: result.url });
+              await refetchStores();
+              toast.success(language === "ar" ? "تم رفع الشعار" : "Logo uploaded");
+              setShowLogoCrop(false);
+              setLogoCropSrc(null);
+            } catch {
+              toast.error(language === "ar" ? "فشل رفع الشعار" : "Failed to upload logo");
+            } finally {
+              setUploadingLogo(false);
+            }
+          }}
+        />
       )}
     </div>
   );

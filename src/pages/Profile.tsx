@@ -17,6 +17,7 @@ import {
 import { changePassword, updateProfile } from "@/services/authApi";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { uploadStoreAsset } from "@/services/storeApi";
+import { ImageCropDialog } from "@/components/ImageCropDialog";
 
 export default function Profile() {
   const { t } = useTranslation();
@@ -25,6 +26,8 @@ export default function Profile() {
   const { currentStore } = useDashboardStore();
   const isAr = language === "ar";
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [showCropDialog, setShowCropDialog] = useState(false);
 
   const [firstName, setFirstName] = useState(user?.first_name || "");
   const [lastName, setLastName] = useState(user?.last_name || "");
@@ -53,14 +56,26 @@ export default function Profile() {
     }
   };
 
-  const handleAvatarUpload = async (file: File) => {
+  const handleFileSelect = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImageSrc(reader.result as string);
+      setShowCropDialog(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCroppedUpload = async (blob: Blob) => {
     if (!currentStore?.id) return;
     setUploadingAvatar(true);
     try {
+      const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
       const result = await uploadStoreAsset(currentStore.id, file, "profile_picture");
       await updateProfile({ avatar_url: result.url });
       if (refreshUser) await refreshUser();
       toast.success(isAr ? "تم تحديث الصورة" : "Avatar updated");
+      setShowCropDialog(false);
+      setCropImageSrc(null);
     } catch (err: unknown) {
       showError(err, language);
     } finally {
@@ -116,7 +131,7 @@ export default function Profile() {
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) handleAvatarUpload(file);
+                  if (file) handleFileSelect(file);
                   e.target.value = "";
                 }}
               />
@@ -282,6 +297,20 @@ export default function Profile() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Image Crop Dialog */}
+      {cropImageSrc && (
+        <ImageCropDialog
+          open={showCropDialog}
+          onClose={() => { setShowCropDialog(false); setCropImageSrc(null); }}
+          imageSrc={cropImageSrc}
+          onCropComplete={handleCroppedUpload}
+          cropShape="round"
+          aspect={1}
+          title={isAr ? "تعديل صورة الملف الشخصي" : "Edit Profile Picture"}
+          loading={uploadingAvatar}
+        />
+      )}
     </div>
   );
 }
