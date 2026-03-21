@@ -206,6 +206,13 @@ function extractVariants(attributes: ProductAttributes): ProductVariant[] {
   }));
 }
 
+/** Strip currency prefix/suffix to get raw number. "EGP 12.00" → 12, "12.00 EGP" → 12 */
+function parsePrice(val: string | null | undefined): number {
+  if (!val) return 0;
+  const cleaned = val.replace(/[^0-9.\-]/g, "");
+  return parseFloat(cleaned) || 0;
+}
+
 export function apiToProduct(api: ApiProductResponse): Product {
   const attrs = (api.attributes || {}) as ProductAttributes;
   return {
@@ -214,9 +221,9 @@ export function apiToProduct(api: ApiProductResponse): Product {
     nameAr: attrs.nameAr || api.name,
     description: api.description || "",
     descriptionAr: attrs.descriptionAr || api.description || "",
-    price: parseFloat(api.price) || 0,
+    price: parsePrice(api.price),
     compareAtPrice: api.compare_at_price
-      ? parseFloat(api.compare_at_price)
+      ? parsePrice(api.compare_at_price)
       : undefined,
     stock: api.quantity,
     status: toDisplayStatus(api.status),
