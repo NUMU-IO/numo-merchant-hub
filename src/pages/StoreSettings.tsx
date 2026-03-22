@@ -112,8 +112,12 @@ import {
   fetchPaymobCredentials,
   savePaymobCredentials,
   deletePaymobCredentials,
+  fetchKashierCredentials,
+  saveKashierCredentials,
+  deleteKashierCredentials,
   type ShippingSettings,
   type PaymobCredentialsResponse,
+  type KashierCredentialsResponse,
 } from "@/services/storeApi";
 
 // ─── Preload Google Fonts for font picker ────────────────────────────────────
@@ -675,6 +679,7 @@ const StoreSettings = () => {
   const [showAddZone, setShowAddZone] = useState(false);
 
   // ─── Payment gateway state ──────────────────────────────────────────────
+  const [activeGateway, setActiveGateway] = useState<"paymob" | "kashier" | null>(null);
   const [paymobCreds, setPaymobCreds] = useState<PaymobCredentialsResponse | null>(null);
   const [paymobForm, setPaymobForm] = useState({
     secret_key: "",
@@ -685,6 +690,13 @@ const StoreSettings = () => {
   });
   const [paymobSaving, setPaymobSaving] = useState(false);
   const [paymobShowKeys, setPaymobShowKeys] = useState(false);
+  const [paymobEditing, setPaymobEditing] = useState(false);
+
+  const [kashierCreds, setKashierCreds] = useState<KashierCredentialsResponse | null>(null);
+  const [kashierForm, setKashierForm] = useState({ merchant_id: "", api_key: "" });
+  const [kashierSaving, setKashierSaving] = useState(false);
+  const [kashierShowKeys, setKashierShowKeys] = useState(false);
+  const [kashierEditing, setKashierEditing] = useState(false);
 
   // ─── Status state ───────────────────────────────────────────────────────
   const [storeOnline, setStoreOnline] = useState(true);
@@ -888,12 +900,18 @@ const StoreSettings = () => {
       .catch(() => {});
   }, [currentStore?.id]);
 
-  // Fetch Paymob credentials status
+  // Fetch payment gateway credentials
   useEffect(() => {
     if (!currentStore?.id) return;
-    fetchPaymobCredentials(currentStore.id)
-      .then(setPaymobCreds)
-      .catch(() => {});
+    Promise.all([
+      fetchPaymobCredentials(currentStore.id).catch(() => null),
+      fetchKashierCredentials(currentStore.id).catch(() => null),
+    ]).then(([paymob, kashier]) => {
+      setPaymobCreds(paymob);
+      setKashierCreds(kashier);
+      if (paymob?.is_configured) setActiveGateway("paymob");
+      else if (kashier?.is_configured) setActiveGateway("kashier");
+    });
   }, [currentStore?.id]);
 
   // ─── V2 Template Handlers ───────────────────────────────────────────────
@@ -1623,194 +1641,300 @@ const StoreSettings = () => {
               <h2>{language === "ar" ? "بوابة الدفع" : "Payment Gateway"}</h2>
               <p>
                 {language === "ar"
-                  ? "اربط حساب Paymob الخاص بك لاستقبال مدفوعات البطاقات والمحافظ الإلكترونية"
-                  : "Connect your Paymob account to accept card and wallet payments"}
+                  ? "اختر بوابة الدفع واربط حسابك لاستقبال المدفوعات الإلكترونية"
+                  : "Choose a payment gateway and connect your account to accept online payments"}
               </p>
             </div>
 
-            {/* Status */}
-            <div className="settings-field-group">
-              <div className="flex items-center justify-between">
-                <div className="settings-field-group-label">
-                  Paymob
-                </div>
-                <Badge variant={paymobCreds?.is_configured ? "default" : "secondary"}>
-                  {paymobCreds?.is_configured
-                    ? language === "ar" ? "مفعّل" : "Configured"
-                    : language === "ar" ? "غير مفعّل" : "Not Configured"}
-                </Badge>
-              </div>
-
-              {paymobCreds?.is_configured && (
-                <div className="space-y-2 text-sm text-muted-foreground mt-3">
-                  <div className="flex justify-between">
-                    <span>Secret Key</span>
-                    <span className="font-mono">{paymobCreds.secret_key_masked}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Public Key</span>
-                    <span className="font-mono">{paymobCreds.public_key_masked}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>HMAC Secret</span>
-                    <span className="font-mono">{paymobCreds.hmac_secret_masked}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Card Integration ID</span>
-                    <span className="font-mono">{paymobCreds.card_integration_id}</span>
-                  </div>
-                  {paymobCreds.wallet_integration_id && (
-                    <div className="flex justify-between">
-                      <span>Wallet Integration ID</span>
-                      <span className="font-mono">{paymobCreds.wallet_integration_id}</span>
-                    </div>
-                  )}
-                  {paymobCreds.last_configured && (
-                    <p className="text-xs pt-1">
-                      {language === "ar" ? "آخر تحديث: " : "Last updated: "}
-                      {new Date(paymobCreds.last_configured).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Credential Form */}
-            <div className="settings-field-group">
-              <div className="settings-field-group-label">
-                {paymobCreds?.is_configured
-                  ? language === "ar" ? "تحديث البيانات" : "Update Credentials"
-                  : language === "ar" ? "إعداد Paymob" : "Setup Paymob"}
-              </div>
-              <p className="text-xs text-muted-foreground mb-3">
-                {language === "ar"
-                  ? "تجد هذه البيانات في لوحة تحكم Paymob → إعدادات الحساب"
-                  : "Find these in your Paymob Dashboard → Account Settings"}
-              </p>
-
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Secret Key</Label>
-                  <Input
-                    type={paymobShowKeys ? "text" : "password"}
-                    placeholder="egy_sk_live_..."
-                    value={paymobForm.secret_key}
-                    onChange={(e) => setPaymobForm((f) => ({ ...f, secret_key: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Public Key</Label>
-                  <Input
-                    type={paymobShowKeys ? "text" : "password"}
-                    placeholder="egy_pk_live_..."
-                    value={paymobForm.public_key}
-                    onChange={(e) => setPaymobForm((f) => ({ ...f, public_key: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">HMAC Secret</Label>
-                  <Input
-                    type={paymobShowKeys ? "text" : "password"}
-                    placeholder="HMAC secret from Paymob dashboard"
-                    value={paymobForm.hmac_secret}
-                    onChange={(e) => setPaymobForm((f) => ({ ...f, hmac_secret: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Card Integration ID</Label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 123456"
-                    value={paymobForm.card_integration_id}
-                    onChange={(e) => setPaymobForm((f) => ({ ...f, card_integration_id: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">
-                    Wallet Integration ID{" "}
-                    <span className="text-muted-foreground">
-                      ({language === "ar" ? "اختياري" : "optional"})
-                    </span>
-                  </Label>
-                  <Input
-                    type="text"
-                    placeholder="e.g. 789012"
-                    value={paymobForm.wallet_integration_id}
-                    onChange={(e) => setPaymobForm((f) => ({ ...f, wallet_integration_id: e.target.value }))}
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setPaymobShowKeys(!paymobShowKeys)}
-                  >
-                    {paymobShowKeys ? (
-                      <span className="flex items-center gap-1"><EyeOff className="h-3 w-3" /> {language === "ar" ? "إخفاء" : "Hide"}</span>
-                    ) : (
-                      <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {language === "ar" ? "إظهار" : "Show"}</span>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-4">
-                <Button
+            {/* ── Gateway Selector ── */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {([
+                { id: "paymob" as const, name: "Paymob", logo: "/paymob-logo.png", desc: language === "ar" ? "بطاقات ومحافظ إلكترونية" : "Cards & mobile wallets", configured: paymobCreds?.is_configured },
+                { id: "kashier" as const, name: "Kashier", logo: "/kashier-logo.png", desc: language === "ar" ? "بطاقات بنكية" : "Credit & debit cards", configured: kashierCreds?.is_configured },
+              ]).map((gw) => (
+                <button
+                  key={gw.id}
                   type="button"
-                  disabled={
-                    paymobSaving ||
-                    !paymobForm.secret_key ||
-                    !paymobForm.public_key ||
-                    !paymobForm.hmac_secret ||
-                    !paymobForm.card_integration_id
-                  }
-                  onClick={async () => {
-                    if (!currentStore?.id) return;
-                    setPaymobSaving(true);
-                    try {
-                      const result = await savePaymobCredentials(currentStore.id, {
-                        secret_key: paymobForm.secret_key,
-                        public_key: paymobForm.public_key,
-                        hmac_secret: paymobForm.hmac_secret,
-                        card_integration_id: paymobForm.card_integration_id,
-                        wallet_integration_id: paymobForm.wallet_integration_id || undefined,
-                      });
-                      setPaymobCreds(result);
-                      setPaymobForm({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" });
-                      toast.success(language === "ar" ? "تم حفظ بيانات Paymob بنجاح" : "Paymob credentials saved");
-                    } catch (err) {
-                      showError(err);
-                    } finally {
-                      setPaymobSaving(false);
-                    }
-                  }}
+                  onClick={() => setActiveGateway(gw.id)}
+                  className={`relative text-start rounded-xl border-2 p-4 transition-all duration-200 ${
+                    activeGateway === gw.id
+                      ? "border-primary bg-primary/[0.03] ring-1 ring-primary/20"
+                      : "border-border/40 hover:border-border/80 bg-transparent"
+                  }`}
                 >
-                  {paymobSaving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
-                  {language === "ar" ? "حفظ" : "Save Credentials"}
-                </Button>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-3">
+                      <img src={gw.logo} alt={gw.name} className="h-8 w-8 rounded-md object-contain flex-shrink-0" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold">{gw.name}</span>
+                          {gw.configured && (
+                            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600">
+                              <Check className="h-2.5 w-2.5" />
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{gw.desc}</p>
+                      </div>
+                    </div>
+                    <div className={`mt-0.5 h-4 w-4 rounded-full border-2 transition-colors flex items-center justify-center flex-shrink-0 ${
+                      activeGateway === gw.id ? "border-primary bg-primary" : "border-muted-foreground/30"
+                    }`}>
+                      {activeGateway === gw.id && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
 
-                {paymobCreds?.is_configured && (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={async () => {
-                      if (!currentStore?.id) return;
-                      try {
-                        await deletePaymobCredentials(currentStore.id);
-                        setPaymobCreds({ is_configured: false, public_key_masked: null, secret_key_masked: null, hmac_secret_masked: null, card_integration_id: null, wallet_integration_id: null, last_configured: null });
-                        toast.success(language === "ar" ? "تم حذف بيانات Paymob" : "Paymob credentials removed");
-                      } catch (err) {
-                        showError(err);
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                    {language === "ar" ? "حذف" : "Remove"}
-                  </Button>
+            {/* ── Paymob Configuration ── */}
+            {activeGateway === "paymob" && (
+              <div className="settings-field-group">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="settings-field-group-label !mb-0">Paymob</div>
+                  <div className="flex items-center gap-2">
+                    {paymobCreds?.is_configured && (
+                      <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-600 bg-emerald-500/5">
+                        {language === "ar" ? "مربوط" : "CONNECTED"}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {/* Configured: show masked values with inline edit */}
+                {paymobCreds?.is_configured && !paymobEditing ? (
+                  <div className="space-y-0 divide-y divide-border/30">
+                    {[
+                      { label: "Secret Key", value: paymobCreds.secret_key_masked },
+                      { label: "Public Key", value: paymobCreds.public_key_masked },
+                      { label: "HMAC Secret", value: paymobCreds.hmac_secret_masked },
+                      { label: "Card Integration ID", value: paymobCreds.card_integration_id },
+                      ...(paymobCreds.wallet_integration_id ? [{ label: "Wallet Integration ID", value: paymobCreds.wallet_integration_id }] : []),
+                    ].map((field) => (
+                      <div key={field.label} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                        <span className="text-xs text-muted-foreground">{field.label}</span>
+                        <span className="text-xs font-mono text-foreground/70">{field.value || "—"}</span>
+                      </div>
+                    ))}
+                    {paymobCreds.last_configured && (
+                      <div className="pt-2.5">
+                        <span className="text-[10px] text-muted-foreground/60">
+                          {language === "ar" ? "آخر تحديث" : "Last updated"}: {new Date(paymobCreds.last_configured).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex gap-2 pt-3">
+                      <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPaymobEditing(true)}>
+                        {language === "ar" ? "تعديل" : "Edit"}
+                      </Button>
+                      <Button
+                        type="button" variant="ghost" size="sm"
+                        className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={async () => {
+                          if (!currentStore?.id) return;
+                          try {
+                            await deletePaymobCredentials(currentStore.id);
+                            setPaymobCreds({ is_configured: false, public_key_masked: null, secret_key_masked: null, hmac_secret_masked: null, card_integration_id: null, wallet_integration_id: null, last_configured: null });
+                            setActiveGateway(kashierCreds?.is_configured ? "kashier" : null);
+                            toast.success(language === "ar" ? "تم حذف بيانات Paymob" : "Paymob credentials removed");
+                          } catch (err) { showError(err); }
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        {language === "ar" ? "حذف" : "Remove"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Form: new setup or editing */
+                  <div>
+                    <p className="text-[11px] text-muted-foreground mb-3">
+                      {language === "ar"
+                        ? "تجد هذه البيانات في لوحة تحكم Paymob ← Developers ← Settings"
+                        : "Find these in Paymob Dashboard → Developers → Settings"}
+                    </p>
+                    <div className="space-y-2.5">
+                      {[
+                        { key: "secret_key" as const, label: "Secret Key", placeholder: "egy_sk_live_...", secret: true },
+                        { key: "public_key" as const, label: "Public Key", placeholder: "egy_pk_live_...", secret: true },
+                        { key: "hmac_secret" as const, label: "HMAC Secret", placeholder: "HMAC secret", secret: true },
+                        { key: "card_integration_id" as const, label: "Card Integration ID", placeholder: "e.g. 123456", secret: false },
+                        { key: "wallet_integration_id" as const, label: `Wallet Integration ID (${language === "ar" ? "اختياري" : "optional"})`, placeholder: "e.g. 789012", secret: false },
+                      ].map((field) => (
+                        <div key={field.key} className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">{field.label}</Label>
+                          <Input
+                            type={field.secret && !paymobShowKeys ? "password" : "text"}
+                            placeholder={field.placeholder}
+                            className="h-9 text-xs"
+                            value={paymobForm[field.key]}
+                            onChange={(e) => setPaymobForm((f) => ({ ...f, [field.key]: e.target.value }))}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between pt-3">
+                      <button type="button" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1" onClick={() => setPaymobShowKeys(!paymobShowKeys)}>
+                        {paymobShowKeys ? <><EyeOff className="h-3 w-3" /> {language === "ar" ? "إخفاء" : "Hide"}</> : <><Eye className="h-3 w-3" /> {language === "ar" ? "إظهار" : "Show"}</>}
+                      </button>
+                      <div className="flex gap-2">
+                        {paymobEditing && (
+                          <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setPaymobEditing(false); setPaymobForm({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" }); }}>
+                            {language === "ar" ? "إلغاء" : "Cancel"}
+                          </Button>
+                        )}
+                        <Button
+                          type="button" size="sm" className="h-8 text-xs"
+                          disabled={paymobSaving || !paymobForm.secret_key || !paymobForm.public_key || !paymobForm.hmac_secret || !paymobForm.card_integration_id}
+                          onClick={async () => {
+                            if (!currentStore?.id) return;
+                            setPaymobSaving(true);
+                            try {
+                              const result = await savePaymobCredentials(currentStore.id, {
+                                secret_key: paymobForm.secret_key, public_key: paymobForm.public_key,
+                                hmac_secret: paymobForm.hmac_secret, card_integration_id: paymobForm.card_integration_id,
+                                wallet_integration_id: paymobForm.wallet_integration_id || undefined,
+                              });
+                              setPaymobCreds(result);
+                              setPaymobForm({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" });
+                              setPaymobEditing(false);
+                              setActiveGateway("paymob");
+                              toast.success(language === "ar" ? "تم حفظ بيانات Paymob" : "Paymob credentials saved");
+                            } catch (err) { showError(err); } finally { setPaymobSaving(false); }
+                          }}
+                        >
+                          {paymobSaving && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                          {language === "ar" ? "حفظ" : "Save"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
+            )}
+
+            {/* ── Kashier Configuration ── */}
+            {activeGateway === "kashier" && (
+              <div className="settings-field-group">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="settings-field-group-label !mb-0">Kashier</div>
+                  <div className="flex items-center gap-2">
+                    {kashierCreds?.is_configured && (
+                      <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-600 bg-emerald-500/5">
+                        {language === "ar" ? "مربوط" : "CONNECTED"}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {kashierCreds?.is_configured && !kashierEditing ? (
+                  <div className="space-y-0 divide-y divide-border/30">
+                    {[
+                      { label: "Merchant ID", value: kashierCreds.merchant_id },
+                      { label: "API Key", value: kashierCreds.api_key_masked },
+                    ].map((field) => (
+                      <div key={field.label} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                        <span className="text-xs text-muted-foreground">{field.label}</span>
+                        <span className="text-xs font-mono text-foreground/70">{field.value || "—"}</span>
+                      </div>
+                    ))}
+                    {kashierCreds.last_configured && (
+                      <div className="pt-2.5">
+                        <span className="text-[10px] text-muted-foreground/60">
+                          {language === "ar" ? "آخر تحديث" : "Last updated"}: {new Date(kashierCreds.last_configured).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex gap-2 pt-3">
+                      <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => setKashierEditing(true)}>
+                        {language === "ar" ? "تعديل" : "Edit"}
+                      </Button>
+                      <Button
+                        type="button" variant="ghost" size="sm"
+                        className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={async () => {
+                          if (!currentStore?.id) return;
+                          try {
+                            await deleteKashierCredentials(currentStore.id);
+                            setKashierCreds({ is_configured: false, merchant_id: null, api_key_masked: null, last_configured: null });
+                            setActiveGateway(paymobCreds?.is_configured ? "paymob" : null);
+                            toast.success(language === "ar" ? "تم حذف بيانات Kashier" : "Kashier credentials removed");
+                          } catch (err) { showError(err); }
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        {language === "ar" ? "حذف" : "Remove"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-[11px] text-muted-foreground mb-3">
+                      {language === "ar"
+                        ? "تجد هذه البيانات في لوحة تحكم Kashier ← Settings"
+                        : "Find these in Kashier Dashboard → Settings"}
+                    </p>
+                    <div className="space-y-2.5">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Merchant ID</Label>
+                        <Input type="text" placeholder="MID-xxx-xxx" className="h-9 text-xs" value={kashierForm.merchant_id} onChange={(e) => setKashierForm((f) => ({ ...f, merchant_id: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">API Key</Label>
+                        <Input type={kashierShowKeys ? "text" : "password"} placeholder="API key from Kashier" className="h-9 text-xs" value={kashierForm.api_key} onChange={(e) => setKashierForm((f) => ({ ...f, api_key: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-3">
+                      <button type="button" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1" onClick={() => setKashierShowKeys(!kashierShowKeys)}>
+                        {kashierShowKeys ? <><EyeOff className="h-3 w-3" /> {language === "ar" ? "إخفاء" : "Hide"}</> : <><Eye className="h-3 w-3" /> {language === "ar" ? "إظهار" : "Show"}</>}
+                      </button>
+                      <div className="flex gap-2">
+                        {kashierEditing && (
+                          <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setKashierEditing(false); setKashierForm({ merchant_id: "", api_key: "" }); }}>
+                            {language === "ar" ? "إلغاء" : "Cancel"}
+                          </Button>
+                        )}
+                        <Button
+                          type="button" size="sm" className="h-8 text-xs"
+                          disabled={kashierSaving || !kashierForm.merchant_id || !kashierForm.api_key}
+                          onClick={async () => {
+                            if (!currentStore?.id) return;
+                            setKashierSaving(true);
+                            try {
+                              const result = await saveKashierCredentials(currentStore.id, {
+                                merchant_id: kashierForm.merchant_id, api_key: kashierForm.api_key,
+                              });
+                              setKashierCreds(result);
+                              setKashierForm({ merchant_id: "", api_key: "" });
+                              setKashierEditing(false);
+                              setActiveGateway("kashier");
+                              toast.success(language === "ar" ? "تم حفظ بيانات Kashier" : "Kashier credentials saved");
+                            } catch (err) { showError(err); } finally { setKashierSaving(false); }
+                          }}
+                        >
+                          {kashierSaving && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                          {language === "ar" ? "حفظ" : "Save"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* No gateway selected prompt */}
+            {!activeGateway && (
+              <div className="settings-field-group">
+                <div className="text-center py-6">
+                  <CreditCard className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    {language === "ar"
+                      ? "اختر بوابة دفع من الأعلى للبدء"
+                      : "Select a payment gateway above to get started"}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

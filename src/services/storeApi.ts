@@ -229,3 +229,38 @@ export async function deletePaymobCredentials(
     method: "DELETE",
   });
 }
+
+// ─── Kashier Credentials ─────────────────────────────────────────────────────
+
+export interface KashierCredentialsResponse {
+  is_configured: boolean;
+  merchant_id: string | null;
+  api_key_masked: string | null;
+  last_configured: string | null;
+}
+
+export async function fetchKashierCredentials(
+  storeId: string
+): Promise<KashierCredentialsResponse> {
+  return apiClient<KashierCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/kashier/credentials`
+  );
+}
+
+export async function saveKashierCredentials(
+  storeId: string,
+  data: { merchant_id: string; api_key: string }
+): Promise<KashierCredentialsResponse> {
+  return apiClient<KashierCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/kashier/credentials`,
+    { method: "PUT", body: JSON.stringify(data) }
+  );
+}
+
+export async function deleteKashierCredentials(
+  storeId: string
+): Promise<void> {
+  await apiClient(`/stores/${storeId}/settings/payment/kashier/credentials`, {
+    method: "DELETE",
+  });
+}
