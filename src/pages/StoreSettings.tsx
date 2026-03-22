@@ -438,6 +438,11 @@ const StoreSettings = () => {
 
   // ─── Status state ───────────────────────────────────────────────────────
   const [storeOnline, setStoreOnline] = useState(true);
+  const [closureMessage, setClosureMessage] = useState("");
+  const [closureMessageAr, setClosureMessageAr] = useState("");
+  const [reopenDate, setReopenDate] = useState("");
+  const [showCountdown, setShowCountdown] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
 
   // ─── Resizable preview ─────────────────────────────────────────────────
   const [previewPct, setPreviewPct] = useState(50);
@@ -515,6 +520,11 @@ const StoreSettings = () => {
       twitter: currentStore.social_links?.twitter || "",
     });
     setStoreOnline(currentStore.status === "active");
+    const s = (currentStore.settings || {}) as Record<string, string>;
+    setClosureMessage(s.closure_message || "");
+    setClosureMessageAr(s.closure_message_ar || "");
+    setReopenDate(s.reopen_at || "");
+    setShowCountdown(s.show_countdown === "true");
   }, [currentStore?.id]);
 
   // Fetch available themes
@@ -1317,23 +1327,154 @@ const StoreSettings = () => {
 
             <div className="settings-field-group">
               <div className="settings-field-group-label">{t("store.storeStatus")}</div>
-              <div className={`flex items-center justify-between rounded-xl border p-4 transition-colors ${storeOnline ? "border-green-500/20 bg-green-500/5" : "border-border/30 bg-muted/5"}`}>
+              <div className={`flex items-center justify-between rounded-xl border p-4 transition-colors ${storeOnline ? "border-green-500/20 bg-green-500/5" : "border-amber-500/20 bg-amber-500/5"}`}>
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className={`h-2.5 w-2.5 rounded-full ${storeOnline ? "bg-green-500" : "bg-muted-foreground"}`} />
+                    <div className={`h-2.5 w-2.5 rounded-full ${storeOnline ? "bg-green-500" : "bg-amber-500"}`} />
                     {storeOnline && <div className="absolute inset-0 h-2.5 w-2.5 rounded-full bg-green-500 animate-ping opacity-40" />}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold">{storeOnline ? t("store.online") : t("store.offline")}</p>
+                    <p className="text-sm font-semibold">{storeOnline ? t("store.online") : (language === "ar" ? "مغلق" : "Closed")}</p>
                     <p className="text-xs text-muted-foreground">
                       {storeOnline
                         ? (language === "ar" ? "متجرك مباشر ويستقبل الطلبات" : "Your store is live and accepting orders")
-                        : (language === "ar" ? "متجرك في وضع الصيانة" : "Your store is in maintenance mode")}
+                        : (language === "ar" ? "المتجر مغلق مؤقتاً — العملاء يشوفون رسالة الإغلاق" : "Store is temporarily closed — customers see your closure message")}
                     </p>
                   </div>
                 </div>
                 <Switch checked={storeOnline} onCheckedChange={setStoreOnline} />
               </div>
+
+              {/* Closure settings — visible when store is closed */}
+              {!storeOnline && (
+                <div className="mt-4 space-y-4 rounded-xl border border-amber-200/40 dark:border-amber-800/30 bg-amber-500/[0.02] p-4">
+                  <p className="text-sm font-semibold">{language === "ar" ? "إعدادات الإغلاق" : "Closure Settings"}</p>
+
+                  {/* Closure message */}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">{language === "ar" ? "رسالة الإغلاق (EN)" : "Closure Message (EN)"}</Label>
+                      <Textarea
+                        value={closureMessage}
+                        onChange={(e) => setClosureMessage(e.target.value)}
+                        placeholder="We're currently closed. We'll be back soon!"
+                        rows={3}
+                        className="rounded-lg text-sm resize-none"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">{language === "ar" ? "رسالة الإغلاق (AR)" : "Closure Message (AR)"}</Label>
+                      <Textarea
+                        value={closureMessageAr}
+                        onChange={(e) => setClosureMessageAr(e.target.value)}
+                        placeholder="المتجر مغلق حالياً. هنرجع قريب!"
+                        dir="rtl"
+                        rows={3}
+                        className="rounded-lg text-sm resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Reopen date & time */}
+                  <div className="space-y-3">
+                    <Label className="text-xs">{language === "ar" ? "تاريخ ووقت إعادة الفتح" : "Reopen Date & Time"}</Label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Input
+                        type="date"
+                        value={reopenDate.split("T")[0] || ""}
+                        onChange={(e) => {
+                          const time = reopenDate.split("T")[1] || "09:00";
+                          setReopenDate(e.target.value ? `${e.target.value}T${time}` : "");
+                        }}
+                        className="rounded-lg text-sm"
+                        dir="ltr"
+                      />
+                      <Input
+                        type="time"
+                        value={reopenDate.split("T")[1] || ""}
+                        onChange={(e) => {
+                          const date = reopenDate.split("T")[0] || new Date().toISOString().split("T")[0];
+                          setReopenDate(e.target.value ? `${date}T${e.target.value}` : reopenDate.split("T")[0] || "");
+                        }}
+                        className="rounded-lg text-sm"
+                        dir="ltr"
+                        disabled={!reopenDate}
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {language === "ar" ? "اختياري — اتركه فارغ إذا مش عارف" : "Optional — leave empty if unsure"}
+                    </p>
+
+                    {/* Countdown toggle */}
+                    <div className="flex items-center gap-3">
+                      <Switch checked={showCountdown} onCheckedChange={setShowCountdown} disabled={!reopenDate} />
+                      <div>
+                        <p className="text-xs font-medium">{language === "ar" ? "عرض عداد تنازلي" : "Show Countdown Timer"}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {language === "ar" ? "العملاء يشوفون الوقت المتبقي لإعادة الفتح" : "Customers see time remaining until reopening"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Save closure settings */}
+                  <Button
+                    size="sm"
+                    className="rounded-lg"
+                    disabled={savingStatus}
+                    onClick={async () => {
+                      if (!currentStore?.id) return;
+                      setSavingStatus(true);
+                      try {
+                        await updateStore(currentStore.id, {
+                          status: "inactive",
+                          settings: {
+                            closure_message: closureMessage,
+                            closure_message_ar: closureMessageAr,
+                            reopen_at: reopenDate || null,
+                            show_countdown: showCountdown ? "true" : "false",
+                          },
+                        });
+                        toast.success(language === "ar" ? "تم حفظ إعدادات الإغلاق" : "Closure settings saved");
+                        refetchStores();
+                      } catch (err) {
+                        showError(err, language);
+                      } finally {
+                        setSavingStatus(false);
+                      }
+                    }}
+                  >
+                    {savingStatus ? <Loader2 className="h-3.5 w-3.5 animate-spin me-1.5" /> : null}
+                    {language === "ar" ? "حفظ وإغلاق المتجر" : "Save & Close Store"}
+                  </Button>
+                </div>
+              )}
+
+              {/* Reopen button when closed */}
+              {!storeOnline && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 rounded-lg gap-1.5"
+                  disabled={savingStatus}
+                  onClick={async () => {
+                    if (!currentStore?.id) return;
+                    setSavingStatus(true);
+                    try {
+                      await updateStore(currentStore.id, { status: "active" });
+                      setStoreOnline(true);
+                      toast.success(language === "ar" ? "المتجر أصبح مباشر!" : "Store is now live!");
+                      refetchStores();
+                    } catch (err) {
+                      showError(err, language);
+                    } finally {
+                      setSavingStatus(false);
+                    }
+                  }}
+                >
+                  {language === "ar" ? "إعادة فتح المتجر الآن" : "Reopen Store Now"}
+                </Button>
+              )}
             </div>
 
             <div className="settings-field-group">
