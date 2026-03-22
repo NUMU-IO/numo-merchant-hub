@@ -185,3 +185,47 @@ export async function deleteShippingZone(
     method: "DELETE",
   });
 }
+
+// ─── Paymob Credentials ──────────────────────────────────────────────────────
+
+export interface PaymobCredentialsResponse {
+  is_configured: boolean;
+  public_key_masked: string | null;
+  secret_key_masked: string | null;
+  hmac_secret_masked: string | null;
+  card_integration_id: string | null;
+  wallet_integration_id: string | null;
+  last_configured: string | null;
+}
+
+export async function fetchPaymobCredentials(
+  storeId: string
+): Promise<PaymobCredentialsResponse> {
+  return apiClient<PaymobCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/paymob/credentials`
+  );
+}
+
+export async function savePaymobCredentials(
+  storeId: string,
+  data: {
+    secret_key: string;
+    public_key: string;
+    hmac_secret: string;
+    card_integration_id: string;
+    wallet_integration_id?: string;
+  }
+): Promise<PaymobCredentialsResponse> {
+  return apiClient<PaymobCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/paymob/credentials`,
+    { method: "PUT", body: JSON.stringify(data) }
+  );
+}
+
+export async function deletePaymobCredentials(
+  storeId: string
+): Promise<void> {
+  await apiClient(`/stores/${storeId}/settings/payment/paymob/credentials`, {
+    method: "DELETE",
+  });
+}
