@@ -249,7 +249,7 @@ export async function fetchKashierCredentials(
 
 export async function saveKashierCredentials(
   storeId: string,
-  data: { merchant_id: string; api_key: string }
+  data: { merchant_id: string; api_key: string; secret_key?: string }
 ): Promise<KashierCredentialsResponse> {
   return apiClient<KashierCredentialsResponse>(
     `/stores/${storeId}/settings/payment/kashier/credentials`,

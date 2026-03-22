@@ -693,7 +693,7 @@ const StoreSettings = () => {
   const [paymobEditing, setPaymobEditing] = useState(false);
 
   const [kashierCreds, setKashierCreds] = useState<KashierCredentialsResponse | null>(null);
-  const [kashierForm, setKashierForm] = useState({ merchant_id: "", api_key: "" });
+  const [kashierForm, setKashierForm] = useState({ merchant_id: "", api_key: "", secret_key: "" });
   const [kashierSaving, setKashierSaving] = useState(false);
   const [kashierShowKeys, setKashierShowKeys] = useState(false);
   const [kashierEditing, setKashierEditing] = useState(false);
@@ -1880,8 +1880,12 @@ const StoreSettings = () => {
                         <Input type="text" placeholder="MID-xxx-xxx" className="h-9 text-xs" value={kashierForm.merchant_id} onChange={(e) => setKashierForm((f) => ({ ...f, merchant_id: e.target.value }))} />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">API Key</Label>
-                        <Input type={kashierShowKeys ? "text" : "password"} placeholder="API key from Kashier" className="h-9 text-xs" value={kashierForm.api_key} onChange={(e) => setKashierForm((f) => ({ ...f, api_key: e.target.value }))} />
+                        <Label className="text-[11px] text-muted-foreground">Payment API Key</Label>
+                        <Input type={kashierShowKeys ? "text" : "password"} placeholder="Payment API key from Kashier" className="h-9 text-xs" value={kashierForm.api_key} onChange={(e) => setKashierForm((f) => ({ ...f, api_key: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Secret Key</Label>
+                        <Input type={kashierShowKeys ? "text" : "password"} placeholder="Secret key from Kashier" className="h-9 text-xs" value={kashierForm.secret_key} onChange={(e) => setKashierForm((f) => ({ ...f, secret_key: e.target.value }))} />
                       </div>
                     </div>
                     <div className="flex items-center justify-between pt-3">
@@ -1890,7 +1894,7 @@ const StoreSettings = () => {
                       </button>
                       <div className="flex gap-2">
                         {kashierEditing && (
-                          <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setKashierEditing(false); setKashierForm({ merchant_id: "", api_key: "" }); }}>
+                          <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setKashierEditing(false); setKashierForm({ merchant_id: "", api_key: "", secret_key: "" }); }}>
                             {language === "ar" ? "إلغاء" : "Cancel"}
                           </Button>
                         )}
@@ -1903,9 +1907,10 @@ const StoreSettings = () => {
                             try {
                               const result = await saveKashierCredentials(currentStore.id, {
                                 merchant_id: kashierForm.merchant_id, api_key: kashierForm.api_key,
+                                secret_key: kashierForm.secret_key || undefined,
                               });
                               setKashierCreds(result);
-                              setKashierForm({ merchant_id: "", api_key: "" });
+                              setKashierForm({ merchant_id: "", api_key: "", secret_key: "" });
                               setKashierEditing(false);
                               setActiveGateway("kashier");
                               toast.success(language === "ar" ? "تم حفظ بيانات Kashier" : "Kashier credentials saved");
