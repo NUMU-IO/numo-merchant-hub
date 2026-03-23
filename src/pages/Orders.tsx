@@ -27,11 +27,13 @@ import {
 import {
   ArrowLeft, CheckCircle2, Circle, Clock, Package, Truck, XCircle,
   MoreHorizontal, Printer, FileDown, ChevronRight, ArrowRightCircle, Loader2,
-  RotateCcw, AlertCircle,
+  RotateCcw, AlertCircle, FileText,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { downloadInvoicePdf } from "@/services/invoiceApi";
+import { apiClient } from "@/services/api";
 import { showError } from "@/lib/show-error";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
 
@@ -427,6 +429,32 @@ const Orders = () => {
                   <Button size="sm" variant="outline" className="w-full mt-2 gap-1.5" onClick={() => handleMarkPaid(o.id)}>
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     {language === "ar" ? "تأكيد الدفع" : "Mark as Paid"}
+                  </Button>
+                )}
+                {o.payment_status === "paid" && currentStore?.id && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full mt-2 gap-1.5"
+                    onClick={async () => {
+                      try {
+                        // Fetch invoices and find by order
+                        const data = await apiClient<{ items: Array<{ id: string; order_id?: string }> }>(
+                          `/stores/${currentStore.id}/invoices/?page=1&page_size=50`
+                        );
+                        const orderInvoice = data.items?.find((inv) => inv.order_id === o.id);
+                        if (orderInvoice) {
+                          await downloadInvoicePdf(currentStore.id, orderInvoice.id);
+                        } else {
+                          toast.error(language === "ar" ? "لا توجد فاتورة لهذا الطلب بعد" : "No invoice found for this order yet");
+                        }
+                      } catch {
+                        toast.error(language === "ar" ? "فشل تحميل الفاتورة" : "Failed to download invoice");
+                      }
+                    }}
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    {language === "ar" ? "تحميل الفاتورة" : "Download Invoice"}
                   </Button>
                 )}
               </CardContent>
