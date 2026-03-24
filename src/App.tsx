@@ -9,6 +9,7 @@ import { StoreProvider, useDashboardStore } from "@/contexts/StoreContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { NumuLoadingScreen } from "@/components/NumuLoader";
+import { PageLoader } from "@/components/PageLoader";
 import { lazy, Suspense } from "react";
 
 // Lazy-loaded pages for code splitting
@@ -16,7 +17,11 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Products = lazy(() => import("@/pages/Products"));
 const ProductEditor = lazy(() => import("@/pages/ProductEditor"));
 const Orders = lazy(() => import("@/pages/Orders"));
+const CreateOrder = lazy(() => import("@/pages/CreateOrder"));
 const StoreSettings = lazy(() => import("@/pages/StoreSettings"));
+const Payments = lazy(() => import("@/pages/Payments"));
+const PaymentSetup = lazy(() => import("@/pages/PaymentSetup"));
+const Logistics = lazy(() => import("@/pages/Logistics"));
 const CODReconciliation = lazy(() => import("@/pages/CODReconciliation"));
 const SocialImport = lazy(() => import("@/pages/SocialImport"));
 const Customers = lazy(() => import("@/pages/Customers"));
@@ -45,16 +50,7 @@ const queryClient = new QueryClient({
   },
 });
 
-function PageLoader() {
-  return (
-    <div className="flex items-center justify-center min-h-[50vh]">
-      <div className="flex flex-col items-center gap-3">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
-        <p className="text-sm text-muted-foreground">Loading...</p>
-      </div>
-    </div>
-  );
-}
+
 
 /** Redirects unauthenticated users to /login */
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -135,8 +131,11 @@ const App = () => (
                     <Route path="/products/new" element={<ProductEditor />} />
                     <Route path="/products/:productId/edit" element={<ProductEditor />} />
                     <Route path="/orders" element={<Orders />} />
+                    <Route path="/orders/create" element={<CreateOrder />} />
+                    <Route path="/payments" element={<Payments />} />
+                    <Route path="/payment-setup" element={<PaymentSetup />} />
+                    <Route path="/logistics" element={<Logistics />} />
                     <Route path="/store" element={<StoreSettings />} />
-                    <Route path="/cod" element={<CODReconciliation />} />
                     <Route path="/social" element={<SocialImport />} />
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/analytics" element={<Analytics />} />
@@ -146,6 +145,9 @@ const App = () => (
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/notifications" element={<Notifications />} />
+                    <Route path="/cod" element={<CODReconciliation />} />
+                    {/* Redirect old route */}
+                    <Route path="/shipments" element={<Navigate to="/logistics" replace />} />
                   </Route>
 
                   <Route path="*" element={<NotFound />} />

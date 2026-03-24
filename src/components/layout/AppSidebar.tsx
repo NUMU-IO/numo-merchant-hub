@@ -1,8 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, Package, ShoppingCart, Store, Banknote, Share2,
-  Users, BarChart3, Megaphone, Settings, FolderOpen, User, Bell, Receipt,
+  LayoutDashboard, Package, ShoppingCart, Store, CreditCard, Share2, Banknote,
+  Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { NavLink } from "@/components/NavLink";
@@ -26,16 +26,18 @@ const AppSidebar = () => {
     { title: t("nav.customers"), url: "/customers", icon: Users },
   ];
 
-  const channelsNav = [
-    { title: t("nav.marketing"), url: "/marketing", icon: Megaphone },
-    { title: t("nav.storefront"), url: "/store", icon: Store },
-    { title: t("nav.social"), url: "/social", icon: Share2 },
-  ];
-
-  const insightsNav = [
-    { title: t("nav.analytics"), url: "/analytics", icon: BarChart3 },
+  const operationsNav = [
+    { title: isRTL ? "المالية" : "Finance", url: "/payments", icon: CreditCard },
+    { title: isRTL ? "إعداد الدفع" : "Payment Setup", url: "/payment-setup", icon: Wallet },
+    { title: isRTL ? "الشحن والتوصيل" : "Logistics", url: "/logistics", icon: Truck },
     { title: t("nav.cod"), url: "/cod", icon: Banknote },
     { title: t("nav.invoices"), url: "/invoices", icon: Receipt },
+  ];
+
+  const growthNav = [
+    { title: t("nav.marketing"), url: "/marketing", icon: Megaphone },
+    { title: t("nav.analytics"), url: "/analytics", icon: BarChart3 },
+    { title: t("nav.social"), url: "/social", icon: Share2 },
   ];
 
   const isActive = (url: string) =>
@@ -73,7 +75,7 @@ const AppSidebar = () => {
       <SidebarContent>
         {/* Brand */}
         <div className="flex h-14 items-center gap-2.5 px-4 group-data-[collapsible=icon]:justify-center border-b border-sidebar-border/60">
-          <NumuIcon size={22} />
+          <img src="/numu-symbol-navy-transparent.png" alt="NUMU" className="h-7 w-7 object-contain shrink-0" />
           <div className="group-data-[collapsible=icon]:hidden">
             <span className="text-[13px] font-extrabold tracking-[0.1em]">NUMU</span>
             <span className="text-[9px] text-muted-foreground/35 block -mt-0.5 font-medium tracking-wide">
@@ -85,14 +87,22 @@ const AppSidebar = () => {
         <div className="py-1.5">
           {renderGroup(isRTL ? "الرئيسية" : "Main", mainNav)}
           <SidebarSeparator className="my-1.5 opacity-50" />
-          {renderGroup(isRTL ? "القنوات" : "Channels", channelsNav)}
+          {renderGroup(isRTL ? "العمليات" : "Operations", operationsNav)}
           <SidebarSeparator className="my-1.5 opacity-50" />
-          {renderGroup(isRTL ? "التقارير" : "Insights", insightsNav)}
+          {renderGroup(isRTL ? "النمو" : "Growth", growthNav)}
         </div>
       </SidebarContent>
 
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip={isRTL ? "المتجر" : "Storefront"} className="h-8 rounded-lg" isActive={isActive("/store")}>
+              <NavLink to="/store">
+                <Store className="h-[15px] w-[15px]" />
+                <span className="text-[13px] font-medium">{isRTL ? "المتجر" : "Storefront"}</span>
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip={isRTL ? "الإشعارات" : "Notifications"} className="h-8 rounded-lg" isActive={isActive("/notifications")}>
               <NavLink to="/notifications">

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -27,7 +28,7 @@ import {
 import {
   ArrowLeft, CheckCircle2, Circle, Clock, Package, Truck, XCircle,
   MoreHorizontal, Printer, FileDown, ChevronRight, ArrowRightCircle, Loader2,
-  RotateCcw, AlertCircle, FileText,
+  RotateCcw, AlertCircle, FileText, ArrowUpDown, ListFilter, LayoutList, Search,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ const Orders = () => {
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<"all" | FulfillmentStatus>("all");
@@ -732,168 +734,220 @@ const Orders = () => {
     );
   }
 
-  // === List View ===
+  // === List View — Zid-style ===
+  const isAr = language === "ar";
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" });
+  const fmtTime = (d: string) => new Date(d).toLocaleTimeString(isAr ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" });
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="p-6 max-w-[1200px] mx-auto space-y-4">
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("orders.title")}</h1>
-          <p className="text-sm text-muted-foreground">{totalOrders} {language === "ar" ? "طلب" : "orders"}</p>
+          <h1 className="text-xl font-bold">{isAr ? "قائمة الطلبات" : "Orders"}</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">{isAr ? "جميع طلبات متجرك هنا" : "All your store orders in one place"}</p>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCSV}>
-          <FileDown className="h-3.5 w-3.5" />
-          {t("orders.export")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg"><MoreHorizontal className="h-4 w-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportCSV}><FileDown className="me-2 h-3.5 w-3.5" />{isAr ? "تصدير الطلبات" : "Export Orders"}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={handleExportCSV}>
+            <FileDown className="h-3 w-3" />{isAr ? "تصدير الطلبات" : "Export"}
+          </Button>
+          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => navigate("/orders/create")}>
+            <Package className="h-3 w-3" />{isAr ? "إنشاء" : "Create"}
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v as "all" | FulfillmentStatus); setPage(1); }}>
-            <TabsList className="flex-wrap">
-              <TabsTrigger value="all">{t("orders.all")}</TabsTrigger>
-              <TabsTrigger value="pending">{t("orders.pending")}</TabsTrigger>
-              <TabsTrigger value="processing">{t("orders.processing")}</TabsTrigger>
-              <TabsTrigger value="shipped">{t("orders.shipped")}</TabsTrigger>
-              <TabsTrigger value="delivered">{t("orders.delivered")}</TabsTrigger>
-              <TabsTrigger value="cancelled">{t("orders.cancelled")}</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardHeader>
-        <CardContent>
-          {/* Bulk actions bar */}
-          {selected.size > 0 && (
-            <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-muted/50 border border-border animate-in fade-in slide-in-from-top-2 duration-200">
-              <span className="text-sm font-medium">
-                {selected.size} {language === "ar" ? "محدد" : "selected"}
-              </span>
-              <div className="flex items-center gap-2 ms-auto">
-                <Select onValueChange={(v) => handleBulkStatus(v)}>
-                  <SelectTrigger className="w-[160px] h-8 text-xs">
-                    <SelectValue placeholder={t("orders.bulkStatus")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(["processing", "shipped", "delivered", "cancelled"] as const).map(s => (
-                      <SelectItem key={s} value={s}>{t(`orders.${s}`)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
-                  {language === "ar" ? "إلغاء" : "Clear"}
-                </Button>
-              </div>
-            </div>
-          )}
+      {/* Main card */}
+      <div className="rounded-xl border bg-card">
+        {/* Status tabs — horizontal scrollable pills */}
+        <div className="px-5 pt-4 pb-3 border-b overflow-x-auto">
+          <div className="flex gap-1.5 min-w-max">
+            {([
+              { v: "all", l: isAr ? "الكل" : "All", count: totalOrders },
+              { v: "pending", l: isAr ? "جديد" : "New" },
+              { v: "processing", l: isAr ? "جاري التجهيز" : "Processing" },
+              { v: "shipped", l: isAr ? "جاري التوصيل" : "Shipped" },
+              { v: "delivered", l: isAr ? "مُكتمل" : "Delivered" },
+              { v: "cancelled", l: isAr ? "مُلغى" : "Cancelled" },
+            ] as { v: "all" | FulfillmentStatus; l: string; count?: number }[]).map(f => {
+              const active = statusFilter === f.v;
+              return (
+                <button
+                  key={f.v}
+                  onClick={() => { setStatusFilter(f.v); setPage(1); setSelected(new Set()); }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border whitespace-nowrap cursor-pointer ${
+                    active
+                      ? "border-foreground/20 bg-foreground text-background shadow-sm"
+                      : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  {f.l}
+                  {f.v === "all" && totalOrders > 0 && (
+                    <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold tabular-nums ms-1.5 ${active ? "bg-background/20 text-background" : "bg-primary text-primary-foreground"}`}>
+                      {totalOrders > 99 ? "99+" : totalOrders}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-          {orders.length === 0 && !ordersQuery.isLoading ? (
-            <div className="py-12 text-center">
-              <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground">{t("orders.noOrders")}</p>
+        {/* Search + Sort + Filter bar */}
+        <div className="flex items-center gap-2 px-5 py-3 border-b">
+          <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0"><ArrowUpDown className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0"><ListFilter className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0"><LayoutList className="h-4 w-4" /></Button>
+          <div className="relative flex-1 max-w-sm ms-auto">
+            <Search className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input placeholder={isAr ? "بحث" : "Search"} className="pe-9 h-9 rounded-lg bg-muted/40 border-transparent focus:bg-background focus:border-border" />
+          </div>
+        </div>
+
+        {/* Bulk actions bar */}
+        {selected.size > 0 && (
+          <div className="flex items-center gap-3 px-5 py-2.5 bg-muted/30 border-b animate-in fade-in slide-in-from-top-2 duration-200">
+            <span className="text-xs font-medium">{selected.size} {isAr ? "محدد" : "selected"}</span>
+            <div className="flex items-center gap-2 ms-auto">
+              <Select onValueChange={(v) => handleBulkStatus(v)}>
+                <SelectTrigger className="w-[140px] h-7 text-[11px]"><SelectValue placeholder={t("orders.bulkStatus")} /></SelectTrigger>
+                <SelectContent>{(["processing", "shipped", "delivered", "cancelled"] as const).map(s => <SelectItem key={s} value={s}>{t(`orders.${s}`)}</SelectItem>)}</SelectContent>
+              </Select>
+              <Button variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => setSelected(new Set())}>{isAr ? "إلغاء" : "Clear"}</Button>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">
-                      <Checkbox
-                        checked={orders.length > 0 && selected.size === orders.length}
-                        onCheckedChange={() => {
-                          if (selected.size === orders.length) setSelected(new Set());
-                          else setSelected(new Set(orders.map(o => o.id)));
-                        }}
-                      />
-                    </TableHead>
-                    <TableHead>{t("orders.orderNumber")}</TableHead>
-                    <TableHead>{t("orders.customer")}</TableHead>
-                    <TableHead>{t("orders.date")}</TableHead>
-                    <TableHead>{t("orders.total")}</TableHead>
-                    <TableHead>{t("orders.payment")}</TableHead>
-                    <TableHead>{t("orders.fulfillment")}</TableHead>
-                    <TableHead className="w-10" />
+          </div>
+        )}
+
+        {/* Table */}
+        {orders.length === 0 && !ordersQuery.isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-muted-foreground/20">
+                <rect x="8" y="6" width="32" height="36" rx="4" stroke="currentColor" strokeWidth="2" />
+                <path d="M16 16h16M16 22h10M16 28h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="36" cy="36" r="8" fill="hsl(var(--background))" stroke="currentColor" strokeWidth="2" />
+                <path d="M34 36h4M36 34v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <p className="text-base font-semibold text-muted-foreground mb-1">{isAr ? "طلباتك ستظهر هنا" : "Your orders will appear here"}</p>
+            <p className="text-xs text-muted-foreground/60 max-w-sm mb-5">
+              {isAr ? "ألقِ نظرة سريعة على كل طلب - من اشترى؟ وكم مرة؟ وما الذي يفضله عملائك؟" : "Quick overview of each order — who bought, how much, and what your customers prefer"}
+            </p>
+            <div className="flex items-center gap-3">
+              <Button size="sm" className="h-9 text-xs rounded-lg gap-1.5 px-4">
+                <Package className="h-3.5 w-3.5" />{isAr ? "إنشاء طلبك الأول الآن" : "Create your first order"}
+              </Button>
+              <Button variant="outline" size="sm" className="h-9 text-xs rounded-lg gap-1.5 px-4">
+                {isAr ? "كيف تحصل على أول 10 عملاء 🚀" : "How to get your first 10 customers 🚀"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/20 hover:bg-muted/20">
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={orders.length > 0 && selected.size === orders.length}
+                      onCheckedChange={() => { if (selected.size === orders.length) setSelected(new Set()); else setSelected(new Set(orders.map(o => o.id))); }}
+                    />
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    <div>{isAr ? "رقم الطلب" : "Order #"}</div>
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    <div>{isAr ? "العميل" : "Customer"}</div>
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "الدفع" : "Payment"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "حالة الدفع" : "Pay Status"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "الشحن" : "Shipping"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    <div>{isAr ? "المجموع" : "Total"}</div>
+                    <div className="text-[10px] font-normal text-muted-foreground">{isAr ? "العملة" : "Currency"}</div>
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "الحالة" : "Status"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    <div>{isAr ? "تاريخ الإنشاء" : "Created"}</div>
+                    <div className="text-[10px] font-normal text-muted-foreground">{isAr ? "تاريخ التحديث" : "Updated"}</div>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orders.map((o) => (
+                  <TableRow key={o.id} className="group cursor-pointer" onClick={() => openOrderDetail(o.id)}>
+                    <TableCell onClick={e => e.stopPropagation()}>
+                      <Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggleSelect(o.id)} />
+                    </TableCell>
+                    <TableCell className="font-mono text-xs font-medium">{o.order_number}</TableCell>
+                    <TableCell>
+                      <div className="text-xs font-medium truncate max-w-[120px]">{o.customer_name || "—"}</div>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{o.payment_method || "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 ${
+                        o.payment_status === "paid" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
+                        o.payment_status === "pending" || o.payment_status === "cod" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
+                        o.payment_status === "refunded" ? "bg-blue-500/10 text-blue-600 border-blue-200/50" :
+                        "bg-red-500/10 text-red-600 border-red-200/50"
+                      }`}>
+                        {t(`orders.${o.payment_status}`)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">—</TableCell>
+                    <TableCell>
+                      <div className="text-xs font-semibold tabular-nums">{formatCurrency(o.total)}</div>
+                      <div className="text-[10px] text-muted-foreground">EGP</div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 gap-1 ${
+                        o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
+                        o.status === "shipped" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50" :
+                        o.status === "processing" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
+                        o.status === "cancelled" ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50" :
+                        "bg-muted text-muted-foreground border-border"
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500" :
+                          o.status === "shipped" ? "bg-blue-500" :
+                          o.status === "processing" ? "bg-amber-500" :
+                          o.status === "cancelled" ? "bg-red-500" : "bg-muted-foreground/40"
+                        }`} />
+                        {t(`orders.${o.status}`)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs">{fmtDate(o.created_at)}</div>
+                      <div className="text-[10px] text-muted-foreground">{fmtTime(o.created_at)}</div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orders.map((o) => (
-                    <TableRow key={o.id} className="group">
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggleSelect(o.id)} />
-                      </TableCell>
-                      <TableCell className="font-medium cursor-pointer" onClick={() => openOrderDetail(o.id)}>
-                        <span className="hover:underline">{o.order_number}</span>
-                      </TableCell>
-                      <TableCell className="cursor-pointer" onClick={() => openOrderDetail(o.id)}>
-                        {o.customer_name || "-"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground cursor-pointer" onClick={() => openOrderDetail(o.id)}>
-                        {new Date(o.created_at).toLocaleDateString(language === "ar" ? "ar-EG" : "en-US")}
-                      </TableCell>
-                      <TableCell className="font-medium cursor-pointer" onClick={() => openOrderDetail(o.id)}>
-                        {formatCurrency(o.total)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={paymentColor[o.payment_status] || ""}>
-                          {t(`orders.${o.payment_status}`)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={statusColor[o.status] || ""}>
-                          {t(`orders.${o.status}`)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openOrderDetail(o.id)}>
-                              <ChevronRight className="me-2 h-4 w-4" />
-                              {t("orders.viewDetails")}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            {getNextStatus(o.status) && o.status !== "cancelled" && (
-                              <DropdownMenuItem onClick={() => handleUpdateStatus(o.id, getNextStatus(o.status)!)}>
-                                <ArrowRightCircle className="me-2 h-4 w-4" />
-                                {t("orders.moveTo")} {t(`orders.${getNextStatus(o.status)}`)}
-                              </DropdownMenuItem>
-                            )}
-                            {o.status !== "cancelled" && (
-                              <DropdownMenuItem
-                                onClick={() => handleUpdateStatus(o.id, "cancelled")}
-                                className="text-destructive"
-                              >
-                                <XCircle className="me-2 h-4 w-4" />
-                                {t("orders.cancel")}
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
-          {/* Pagination */}
-          {totalOrders > 20 && (
-            <div className="flex items-center justify-center gap-2 pt-4">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
-                {language === "ar" ? "السابق" : "Previous"}
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                {language === "ar" ? `صفحة ${page}` : `Page ${page}`}
-              </span>
-              <Button variant="outline" size="sm" disabled={page * 20 >= totalOrders} onClick={() => setPage(p => p + 1)}>
-                {language === "ar" ? "التالي" : "Next"}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {/* Pagination */}
+        {totalOrders > 20 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t">
+            <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              {isAr ? "السابق" : "Previous"}
+            </Button>
+            <span className="text-[10px] text-muted-foreground tabular-nums">{isAr ? `صفحة ${page}` : `Page ${page}`}</span>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={page * 20 >= totalOrders} onClick={() => setPage(p => p + 1)}>
+              {isAr ? "التالي" : "Next"}
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

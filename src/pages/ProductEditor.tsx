@@ -266,10 +266,7 @@ const ProductEditor = () => {
   if (isLoadingProduct) {
     return (
       <div className="flex flex-col items-center justify-center py-32 gap-3">
-        <div className="relative">
-          <div className="h-10 w-10 rounded-full border-2 border-muted" />
-          <div className="absolute inset-0 h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-        </div>
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <p className="text-xs text-muted-foreground">{language === "ar" ? "جارٍ تحميل المنتج..." : "Loading product..."}</p>
       </div>
     );
@@ -290,41 +287,33 @@ const ProductEditor = () => {
     language === "ar" ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
 
   return (
-    <div className="flex gap-6 pb-24">
+    <div className="p-6 max-w-[1100px] mx-auto pb-24">
+      {/* Header — Zid style */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/products")} className="h-8 w-8 rounded-lg">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-xl font-bold">
+            {isEditMode
+              ? (language === "ar" ? "تعديل المنتج" : "Edit Product")
+              : (language === "ar" ? "منتج فردي" : "New Product")}
+          </h1>
+        </div>
+        <Button onClick={handleSave} disabled={isSaving} size="sm" className="h-8 text-xs rounded-lg gap-1.5">
+          {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+          {language === "ar" ? "حفظ المنتج" : "Save Product"}
+        </Button>
+      </div>
+
+      <div className="flex gap-6">
       {/* Left: Form */}
       <div className="flex-1 min-w-0 space-y-5 max-w-3xl">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/products")} className="h-9 w-9 rounded-xl hover:bg-muted/80">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold tracking-tight truncate">
-            {isEditMode
-              ? (formName || t("products.editProductTitle"))
-              : t("products.addProductTitle")}
-          </h1>
-          <p className="text-[13px] text-muted-foreground">
-            {isEditMode
-              ? (language === "ar" ? "تعديل بيانات المنتج" : "Edit product details")
-              : (language === "ar" ? "أدخل تفاصيل المنتج الجديد" : "Enter new product details")}
-          </p>
-        </div>
-        {/* Status badge in header */}
-        <Badge variant="outline" className={`text-xs rounded-lg py-1 px-2.5 ${
-          formStatus === "published" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200/60"
-          : formStatus === "draft" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200/60"
-          : "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-200/60"
-        }`}>
-          {t(`products.${formStatus}`)}
-        </Badge>
-      </div>
 
       {/* Basic Info */}
       <Card className="overflow-hidden">
         <CardHeader className="pb-4">
-          <CardTitle className="text-[15px]">{language === "ar" ? "المعلومات الأساسية" : "Basic Information"}</CardTitle>
-          <CardDescription className="text-xs">{language === "ar" ? "اسم المنتج ووصفه بالعربي والإنجليزي" : "Product name and description in both languages"}</CardDescription>
+          <CardTitle className="text-base font-bold">{language === "ar" ? "معلومات المنتج" : "Product Information"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -357,8 +346,7 @@ const ProductEditor = () => {
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-[15px]">{t("products.images")}</CardTitle>
-              <CardDescription className="text-xs">{language === "ar" ? "JPG, PNG, WebP — حد أقصى 5 ميجا لكل صورة" : "JPG, PNG, WebP — max 5MB each"}</CardDescription>
+              <CardTitle className="text-base font-bold">{language === "ar" ? "رفع صور المنتجات" : "Product Images"}</CardTitle>
             </div>
             {totalImages > 0 && (
               <Badge variant="secondary" className="text-[10px] rounded-md">{totalImages} {language === "ar" ? "صورة" : "images"}</Badge>
@@ -429,8 +417,7 @@ const ProductEditor = () => {
       {/* Pricing & Inventory */}
       <Card className="overflow-hidden">
         <CardHeader className="pb-4">
-          <CardTitle className="text-[15px]">{language === "ar" ? "التسعير والمخزون" : "Pricing & Inventory"}</CardTitle>
-          <CardDescription className="text-xs">{language === "ar" ? "حدد السعر والكمية المتاحة" : "Set your pricing and stock levels"}</CardDescription>
+          <CardTitle className="text-base font-bold">{language === "ar" ? "الكميات في المخزون" : "Pricing & Inventory"}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -465,8 +452,7 @@ const ProductEditor = () => {
       {/* Organization */}
       <Card className="overflow-hidden">
         <CardHeader className="pb-4">
-          <CardTitle className="text-[15px]">{language === "ar" ? "التنظيم" : "Organization"}</CardTitle>
-          <CardDescription className="text-xs">{language === "ar" ? "الفئة وحالة المنتج" : "Category and product visibility"}</CardDescription>
+          <CardTitle className="text-base font-bold">{language === "ar" ? "تصنيفات المنتجات" : "Organization"}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -502,12 +488,92 @@ const ProductEditor = () => {
         </CardContent>
       </Card>
 
+      {/* ── Product Label (ملصق المنتج) ── */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base font-bold">{language === "ar" ? "ملصق المنتج" : "Product Label"}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2">
+            <Select>
+              <SelectTrigger className="h-10 rounded-lg bg-muted/30 border-transparent flex-1"><SelectValue placeholder={language === "ar" ? "اختر..." : "Choose..."} /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="new">{language === "ar" ? "جديد" : "New"}</SelectItem>
+                <SelectItem value="sale">{language === "ar" ? "تخفيض" : "Sale"}</SelectItem>
+                <SelectItem value="bestseller">{language === "ar" ? "الأكثر مبيعاً" : "Bestseller"}</SelectItem>
+                <SelectItem value="limited">{language === "ar" ? "كمية محدودة" : "Limited"}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" className="h-10 rounded-lg px-4 text-xs shrink-0">{language === "ar" ? "إنشاء" : "Create"}</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Product Display (عرض المنتج) ── */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-bold">{language === "ar" ? "عرض المنتج" : "Product Display"}</CardTitle>
+          <CardDescription className="text-xs">{language === "ar" ? "عرض المنتج على المتجر" : "Show product on storefront"}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Select value={formStatus} onValueChange={(v) => setFormStatus(v as ProductStatus)}>
+            <SelectTrigger className="h-10 rounded-lg bg-muted/30 border-transparent">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="published"><span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{language === "ar" ? "ظاهر" : "Visible"}</span></SelectItem>
+              <SelectItem value="draft"><span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" />{language === "ar" ? "إخفاء" : "Hidden"}</span></SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      {/* ── Similar Products (تخصيص المنتجات المشابهة) ── */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-bold">{language === "ar" ? "تخصيص المنتجات المشابهة" : "Similar Products"}</CardTitle>
+          <CardDescription className="text-xs">{language === "ar" ? "يتم توليد المنتجات المشابهة تلقائياً، ولكن يمكنك تخصيصها حسب رغبتك." : "Similar products are auto-generated, but you can customize them."}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs">{language === "ar" ? "اختيار المنتجات" : "Choose products"}</span>
+            <Button variant="outline" size="sm" className="h-7 text-[11px] rounded-lg">{language === "ar" ? "اختيار المنتجات" : "Select"}</Button>
+          </div>
+          <div className="rounded-lg border border-primary/20 bg-primary/[0.02] p-3 flex items-start gap-2">
+            <span className="text-primary text-sm mt-0.5">ⓘ</span>
+            <p className="text-[11px] text-muted-foreground">{language === "ar" ? "يمكنك إدارة إعدادات المنتجات المشابهة من خلال خصائص المنتج" : "Manage similar products settings from product properties"}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── SEO (تحسين محركات البحث) ── */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-bold">{language === "ar" ? "تحسين محركات البحث" : "SEO Optimization"}</CardTitle>
+          <CardDescription className="text-xs">{language === "ar" ? "سيساعد هذا منتجاتك في الوصول إلى المزيد من العملاء عبر محركات البحث المختلفة والذكاء الاصطناعي." : "Help your products reach more customers through search engines and AI."}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "عنوان الصفحة" : "Page Title"}</Label>
+            <Input placeholder={formName || (language === "ar" ? "عنوان المنتج" : "Product title")} className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "وصف الصفحة" : "Meta Description"}</Label>
+            <Textarea placeholder={language === "ar" ? "وصف قصير يظهر في نتائج البحث" : "Short description for search results"} rows={2} className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "رابط المنتج" : "URL Slug"}</Label>
+            <Input placeholder={language === "ar" ? "رابط-المنتج" : "product-slug"} dir="ltr" className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border font-mono text-xs" />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Variants */}
       <Card className="overflow-hidden">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-[15px]">{t("products.variants")}</CardTitle>
+              <CardTitle className="text-base font-bold">{language === "ar" ? "خيارات المنتج" : "Product Options"}</CardTitle>
               <CardDescription className="text-xs">{language === "ar" ? "مثل المقاس أو اللون" : "e.g. Size, Color"}</CardDescription>
             </div>
             <Button type="button" variant="outline" size="sm" onClick={addVariantRow} className="gap-1 h-8 text-xs rounded-lg">
@@ -751,25 +817,7 @@ const ProductEditor = () => {
       </div>
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/90 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
-        <div className="flex items-center justify-between px-6 py-3 max-w-screen-xl mx-auto">
-          <p className="text-[11px] text-muted-foreground hidden sm:block">
-            {language === "ar" ? "سيتم حفظ التغييرات تلقائياً" : "Changes will be saved when you click Save"}
-          </p>
-          <div className="flex items-center gap-2 ms-auto">
-            <Button variant="ghost" onClick={() => navigate("/products")} className="h-9 rounded-lg text-xs gap-1.5">
-              <Undo2 className="h-3.5 w-3.5" />
-              {language === "ar" ? "إلغاء" : "Discard"}
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving} className="h-9 rounded-lg text-xs gap-1.5 min-w-[120px] shadow-sm">
-              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              {isSaving
-                ? (language === "ar" ? "جارٍ الحفظ..." : "Saving...")
-                : (language === "ar" ? "حفظ المنتج" : "Save Product")}
-            </Button>
-          </div>
-        </div>
-      </div>
+      </div>{/* end flex gap-6 */}
     </div>
   );
 };

@@ -221,3 +221,51 @@ export async function markOrderPaid(
     method: "POST",
   });
 }
+
+// ── Manual Order Creation ──
+
+export interface CreateOrderLineItem {
+  product_id: string;
+  product_name: string;
+  variant_id?: string;
+  variant_name?: string;
+  sku?: string;
+  quantity: number;
+  unit_price: number; // cents
+}
+
+export interface CreateOrderAddress {
+  first_name: string;
+  last_name: string;
+  address_line1: string;
+  address_line2?: string;
+  city: string;
+  state?: string;
+  postal_code?: string;
+  country: string;
+  phone?: string;
+}
+
+export interface CreateOrderData {
+  customer_id: string;
+  line_items: CreateOrderLineItem[];
+  shipping_address: CreateOrderAddress;
+  billing_address?: CreateOrderAddress;
+  shipping_cost?: number;
+  tax_amount?: number;
+  discount_amount?: number;
+  currency?: string;
+  payment_method?: string;
+  shipping_method?: string;
+  customer_notes?: string;
+}
+
+export async function createManualOrder(
+  storeId: string,
+  data: CreateOrderData,
+): Promise<Order> {
+  return apiClient<Order>(`/stores/${storeId}/orders/`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
