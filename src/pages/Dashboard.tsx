@@ -72,6 +72,16 @@ const Dashboard = () => {
     enabled: !!storeId,
   });
 
+  const healthScoreQuery = useQuery({
+    queryKey: ["dashboard", "healthScore", storeId],
+    queryFn: () => getHealthScore(storeId!),
+    enabled: !!storeId,
+    staleTime: 1000 * 60 * 60, // 1 hour — Celery refreshes daily
+    retry: false,
+  });
+
+  const healthScore: HealthScoreData | null = healthScoreQuery.data ?? null;
+
   const stats = statsQuery.data ?? null;
   const chartData = chartQuery.data ?? [];
   const topProducts = topProductsQuery.data ?? [];

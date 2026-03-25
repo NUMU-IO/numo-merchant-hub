@@ -310,9 +310,9 @@ export default function Customers() {
                         </div>
                       </TableCell>
                       <TableCell className="text-[13px] text-muted-foreground py-3">{c.email}</TableCell>
-                      <TableCell className="text-[13px] text-muted-foreground py-3" dir="ltr">{c.phone || "—"}</TableCell>
+                      <TableCell className="text-[13px] text-muted-foreground py-3"><span dir="ltr">{c.phone || "—"}</span></TableCell>
                       <TableCell className="text-[13px] py-3 text-center tabular-nums font-medium">{c.total_orders}</TableCell>
-                      <TableCell className="text-[13px] tabular-nums font-medium py-3">{formatCurrency(c.total_spent)}</TableCell>
+                      <TableCell className="text-[13px] tabular-nums font-medium py-3"><span dir="ltr">{formatCurrency(c.total_spent)}</span></TableCell>
                       <TableCell className="py-3 text-center">
                         <Badge variant="outline" className={`text-[10px] font-medium px-1.5 py-0 border ${c.is_verified ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" : "bg-muted text-muted-foreground border-border"}`}>
                           {c.is_verified ? (
