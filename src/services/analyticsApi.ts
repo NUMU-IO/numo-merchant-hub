@@ -235,9 +235,10 @@ export interface HealthScoreData {
 
 export async function getHealthScore(
   storeId: string,
-  live = false
+  live = false,
+  lang = "ar"
 ): Promise<HealthScoreData> {
   return apiClient<HealthScoreData>(
-    `/stores/${storeId}/analytics/health-score?live=${live}`
+    `/stores/${storeId}/analytics/health-score?live=${live}&lang=${lang}`
   );
 }

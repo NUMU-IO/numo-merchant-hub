@@ -75,7 +75,7 @@ const Dashboard = () => {
 
   const healthScoreQuery = useQuery({
     queryKey: ["dashboard", "healthScore", storeId],
-    queryFn: () => getHealthScore(storeId!),
+    queryFn: () => getHealthScore(storeId!, false, language),
     enabled: !!storeId,
     staleTime: 1000 * 60 * 60, // 1 hour — cached daily by Celery
   });
@@ -274,8 +274,7 @@ const Dashboard = () => {
             </Button>
           )}
           <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg border-border/60" onClick={() => {
-            const url = getStoreUrl(currentStore!);
-            if (url) window.open(url, "_blank");
+            if (currentStore?.subdomain) window.open(getStoreUrl(currentStore.subdomain), "_blank");
           }}>
             <ExternalLink className="h-3 w-3" />
             {t("dashboard.viewStore")}
@@ -706,82 +705,98 @@ const Dashboard = () => {
             </Card>
 
             {/* Store Health Score */}
+            {/* Store Health Score */}
             <div className="rounded-xl overflow-hidden text-white" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }}>
-              <div className="relative p-5 h-full flex flex-col min-h-[250px]">
+              <div className="relative">
                 <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('/numu_v3.png')", backgroundSize: "100px", backgroundRepeat: "repeat" }} />
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Activity className="h-4 w-4 text-white/60" />
-                    <h3 className="text-sm font-semibold text-white">{isAr ? "صحة المتجر" : "Store Health"}</h3>
-                    {healthScore && (
-                      <span className={`ms-auto text-xs font-bold px-2 py-0.5 rounded-full ${
-                        healthScore.grade === "A" ? "bg-emerald-500/20 text-emerald-300" :
-                        healthScore.grade === "B" ? "bg-blue-500/20 text-blue-300" :
-                        healthScore.grade === "C" ? "bg-amber-500/20 text-amber-300" :
-                        healthScore.grade === "D" ? "bg-orange-500/20 text-orange-300" :
-                        "bg-red-500/20 text-red-300"
-                      }`}>
-                        {healthScore.grade}
-                      </span>
-                    )}
+
+                {/* Header */}
+                <div className="relative z-10 px-5 pt-5 pb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-white/50" />
+                    <h3 className="text-sm font-bold text-white">{t("dashboard.healthTitle")}</h3>
                   </div>
+                  {healthScore && (
+                    <span className={`text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-md ${
+                      healthScore.grade === "A" ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/20" :
+                      healthScore.grade === "B" ? "bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/20" :
+                      healthScore.grade === "C" ? "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/20" :
+                      healthScore.grade === "D" ? "bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/20" :
+                      "bg-red-500/15 text-red-300 ring-1 ring-red-500/20"
+                    }`}>
+                      {t("dashboard.healthGrade")} {healthScore.grade}
+                    </span>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="relative z-10 px-5 pb-5">
                   {healthScoreQuery.isLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="h-5 w-5 rounded-full border-2 border-white/40 border-t-transparent animate-spin" />
+                    <div className="rounded-xl bg-white/[0.05] border border-white/[0.06] flex items-center justify-center py-12">
+                      <div className="h-5 w-5 rounded-full border-2 border-white/30 border-t-transparent animate-spin" />
                     </div>
                   ) : healthScore ? (
-                    <>
-                      <div className="flex flex-col sm:flex-row gap-5">
-                        <div className="flex flex-col items-center gap-1">
-                          <div className="relative w-20 h-20">
-                            <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                              <circle cx="50" cy="50" r="42" fill="none" strokeWidth="8" className="stroke-white/10" />
-                              <circle
-                                cx="50" cy="50" r="42" fill="none" strokeWidth="8" strokeLinecap="round"
-                                strokeDasharray={`${healthScore.score * 2.64} 264`}
-                                className={
-                                  healthScore.grade === "A" ? "stroke-emerald-400" :
-                                  healthScore.grade === "B" ? "stroke-blue-400" :
-                                  healthScore.grade === "C" ? "stroke-amber-400" :
-                                  healthScore.grade === "D" ? "stroke-orange-400" :
-                                  "stroke-red-400"
-                                }
-                              />
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <span className="text-2xl font-bold tabular-nums text-white">{healthScore.score}</span>
-                            </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {/* Score Ring */}
+                      <div className="rounded-xl bg-white/[0.07] backdrop-blur-sm border border-white/[0.08] p-5 flex flex-col items-center justify-center">
+                        <div className="relative w-24 h-24">
+                          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                            <circle cx="50" cy="50" r="40" fill="none" strokeWidth="6" className="stroke-white/[0.06]" />
+                            <circle
+                              cx="50" cy="50" r="40" fill="none" strokeWidth="6" strokeLinecap="round"
+                              strokeDasharray={`${healthScore.score * 2.51} 251`}
+                              className={
+                                healthScore.grade === "A" ? "stroke-emerald-400" :
+                                healthScore.grade === "B" ? "stroke-blue-400" :
+                                healthScore.grade === "C" ? "stroke-amber-400" :
+                                healthScore.grade === "D" ? "stroke-orange-400" :
+                                "stroke-red-400"
+                              }
+                              style={{ transition: "stroke-dasharray 1s ease-out" }}
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-3xl font-bold tabular-nums text-white leading-none">{healthScore.score}</span>
+                            <span className="text-[9px] text-white/30 mt-0.5">{t("dashboard.healthOf100")}</span>
                           </div>
-                          <p className="text-[10px] text-white/40 text-center">
-                            {isAr ? `${healthScore.orders_analyzed} طلب` : `${healthScore.orders_analyzed} orders`}
-                          </p>
                         </div>
-                        <div className="flex-1 space-y-2">
+                        <p className="text-[10px] text-white/35 mt-3">
+                          {t("dashboard.healthPeriod")} · {healthScore.orders_analyzed} {t("dashboard.healthOrders")}
+                        </p>
+                      </div>
+
+                      {/* Metrics */}
+                      <div className="rounded-xl bg-white/[0.07] backdrop-blur-sm border border-white/[0.08] p-4 flex flex-col justify-center">
+                        <div className="space-y-3">
                           {[
-                            { label: isAr ? "التوصيل" : "Delivery", value: healthScore.metrics.delivery_success_rate, sub: healthScore.sub_scores.delivery_success },
-                            { label: "COD", value: healthScore.metrics.cod_acceptance_rate, sub: healthScore.sub_scores.cod_acceptance },
-                            { label: isAr ? "الطلبات" : "Orders", value: healthScore.metrics.order_completion_rate, sub: healthScore.sub_scores.order_completion },
-                            { label: isAr ? "المرتجع" : "Returns", value: healthScore.metrics.return_rate, sub: healthScore.sub_scores.low_return, isReturn: true },
-                            { label: isAr ? "السرعة" : "Speed", value: healthScore.metrics.avg_response_hours, sub: healthScore.sub_scores.response_time, isHours: true },
+                            { label: t("dashboard.healthDelivery"), value: healthScore.metrics.delivery_success_rate, sub: healthScore.sub_scores.delivery_success },
+                            { label: t("dashboard.healthCodAccept"), value: healthScore.metrics.cod_acceptance_rate, sub: healthScore.sub_scores.cod_acceptance },
+                            { label: t("dashboard.healthCompletion"), value: healthScore.metrics.order_completion_rate, sub: healthScore.sub_scores.order_completion },
+                            { label: t("dashboard.healthReturns"), value: healthScore.metrics.return_rate, sub: healthScore.sub_scores.low_return, isReturn: true },
+                            { label: t("dashboard.healthFulfillment"), value: healthScore.metrics.avg_response_hours, sub: healthScore.sub_scores.response_time, isHours: true },
                           ].map((m) => (
-                            <div key={m.label} className="flex items-center gap-3">
-                              <span className="text-[11px] font-medium w-14 shrink-0 truncate text-white/70">{m.label}</span>
-                              <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div key={m.label}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px] text-white/60">{m.label}</span>
+                                <span className="text-[11px] font-semibold tabular-nums text-white/80">
+                                  {m.isHours ? `${m.value}${t("dashboard.healthHours")}` : `${m.value}%`}
+                                </span>
+                              </div>
+                              <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full ${m.sub >= 75 ? "bg-emerald-400" : m.sub >= 50 ? "bg-amber-400" : "bg-red-400"}`}
+                                  className={`h-full rounded-full transition-all duration-700 ${m.sub >= 75 ? "bg-emerald-400/80" : m.sub >= 50 ? "bg-amber-400/80" : "bg-red-400/80"}`}
                                   style={{ width: `${Math.min(100, m.sub)}%` }}
                                 />
                               </div>
-                              <span className="text-[10px] tabular-nums text-white/40 w-10 text-end">
-                                {m.isHours ? `${m.value}h` : `${m.value}%`}
-                              </span>
                             </div>
                           ))}
                         </div>
                       </div>
+
+                      {/* Recommendations */}
                       {healthScore.recommendations.length > 0 && (
-                        <div className="mt-4 pt-3 border-t border-white/10 space-y-1.5">
-                          {healthScore.recommendations.slice(0, 2).map((rec, i) => (
+                        <div className="sm:col-span-2 rounded-xl bg-white/[0.07] backdrop-blur-sm border border-white/[0.08] px-4 py-3 space-y-1.5">
+                          {healthScore.recommendations.slice(0, 2).map((rec: string, i: number) => (
                             <div key={i} className="flex items-start gap-2">
                               <Lightbulb className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
                               <p className="text-[11px] text-white/50 leading-relaxed">{rec}</p>
@@ -789,12 +804,12 @@ const Dashboard = () => {
                           ))}
                         </div>
                       )}
-                    </>
+                    </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                       <Activity className="h-8 w-8 text-white/20 mb-2" />
-                      <p className="text-xs text-white/50">{isAr ? "لا توجد بيانات كافية بعد" : "Not enough data yet"}</p>
-                      <p className="text-[10px] text-white/30 mt-0.5">{isAr ? "سيظهر تقييم متجرك مع أول شحنة" : "Score appears after your first shipment"}</p>
+                      <p className="text-xs text-white/50">{t("dashboard.healthNoData")}</p>
+                      <p className="text-[10px] text-white/30 mt-0.5">{t("dashboard.healthNoDataSub")}</p>
                     </div>
                   )}
                 </div>
