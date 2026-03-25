@@ -117,9 +117,13 @@ import {
   fetchKashierCredentials,
   saveKashierCredentials,
   deleteKashierCredentials,
+  fetchFawryCredentials,
+  saveFawryCredentials,
+  deleteFawryCredentials,
   type ShippingSettings,
   type PaymobCredentialsResponse,
   type KashierCredentialsResponse,
+  type FawryCredentialsResponse,
 } from "@/services/storeApi";
 
 // ─── Preload Google Fonts for font picker ────────────────────────────────────
@@ -720,6 +724,15 @@ const StoreSettings = () => {
   const [kashierShowKeys, setKashierShowKeys] = useState(false);
   const [kashierEditing, setKashierEditing] = useState(false);
 
+  // ─── Fawry gateway state ─────────────────────────────────────────────────
+  const [fawryCreds, setFawryCreds] = useState<FawryCredentialsResponse | null>(null);
+  const [fawryForm, setFawryForm] = useState({
+    merchant_code: "",
+    security_key: "",
+  });
+  const [fawrySaving, setFawrySaving] = useState(false);
+  const [fawryShowKeys, setFawryShowKeys] = useState(false);
+
   // ─── Status state ───────────────────────────────────────────────────────
   const [storeOnline, setStoreOnline] = useState(true);
   const [closureMessage, setClosureMessage] = useState("");
@@ -947,6 +960,14 @@ const StoreSettings = () => {
         setEnabledGateway("kashier");
       }
     });
+  }, [currentStore?.id]);
+
+  // Fetch Fawry credentials status
+  useEffect(() => {
+    if (!currentStore?.id) return;
+    fetchFawryCredentials(currentStore.id)
+      .then(setFawryCreds)
+      .catch(() => {});
   }, [currentStore?.id]);
 
   // ─── V2 Template Handlers ───────────────────────────────────────────────
@@ -1671,11 +1692,11 @@ const StoreSettings = () => {
         {activeSection === "payment" && (
           <div key="payment" className="settings-section-enter">
             <div className="settings-section-header">
-              <h2>{language === "ar" ? "بوابة الدفع" : "Payment Gateway"}</h2>
+              <h2>{language === "ar" ? "بوابات الدفع" : "Payment Gateways"}</h2>
               <p>
                 {language === "ar"
-                  ? "اربط بوابة دفع لاستقبال المدفوعات الإلكترونية. يمكنك تفعيل بوابة واحدة فقط"
-                  : "Connect a payment gateway to accept online payments. Only one can be active"}
+                  ? "اربط حسابات الدفع الخاصة بك لاستقبال المدفوعات"
+                  : "Connect your payment accounts to accept payments"}
               </p>
             </div>
 
@@ -1853,6 +1874,141 @@ const StoreSettings = () => {
                     )}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* ─── Fawry Section ─── */}
+            <div className="border-t pt-6 mt-6">
+              <div className="settings-field-group">
+                <div className="flex items-center justify-between">
+                  <div className="settings-field-group-label">
+                    Fawry
+                  </div>
+                  <Badge variant={fawryCreds?.is_configured ? "default" : "secondary"}>
+                    {fawryCreds?.is_configured
+                      ? language === "ar" ? "مفعّل" : "Configured"
+                      : language === "ar" ? "غير مفعّل" : "Not Configured"}
+                  </Badge>
+                </div>
+
+                {fawryCreds?.is_configured && (
+                  <div className="space-y-2 text-sm text-muted-foreground mt-3">
+                    <div className="flex justify-between">
+                      <span>Merchant Code</span>
+                      <span className="font-mono">{fawryCreds.merchant_code}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Security Key</span>
+                      <span className="font-mono">{fawryCreds.security_key_masked}</span>
+                    </div>
+                    {fawryCreds.last_configured && (
+                      <p className="text-xs pt-1">
+                        {language === "ar" ? "آخر تحديث: " : "Last updated: "}
+                        {new Date(fawryCreds.last_configured).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Fawry Credential Form */}
+              <div className="settings-field-group">
+                <div className="settings-field-group-label">
+                  {fawryCreds?.is_configured
+                    ? language === "ar" ? "تحديث بيانات Fawry" : "Update Fawry Credentials"
+                    : language === "ar" ? "إعداد Fawry" : "Setup Fawry"}
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {language === "ar"
+                    ? "تجد هذه البيانات في لوحة تحكم FawryPay → إعدادات التاجر"
+                    : "Find these in your FawryPay Dashboard → Merchant Settings"}
+                </p>
+
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Merchant Code</Label>
+                    <Input
+                      type="text"
+                      placeholder={language === "ar" ? "كود التاجر" : "e.g. +/IAKAN..."}
+                      value={fawryForm.merchant_code}
+                      onChange={(e) => setFawryForm((f) => ({ ...f, merchant_code: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Security Key</Label>
+                    <Input
+                      type={fawryShowKeys ? "text" : "password"}
+                      placeholder={language === "ar" ? "مفتاح الأمان" : "Security key from Fawry dashboard"}
+                      value={fawryForm.security_key}
+                      onChange={(e) => setFawryForm((f) => ({ ...f, security_key: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => setFawryShowKeys(!fawryShowKeys)}
+                    >
+                      {fawryShowKeys ? (
+                        <span className="flex items-center gap-1"><EyeOff className="h-3 w-3" /> {language === "ar" ? "إخفاء" : "Hide"}</span>
+                      ) : (
+                        <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {language === "ar" ? "إظهار" : "Show"}</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    type="button"
+                    disabled={
+                      fawrySaving ||
+                      !fawryForm.merchant_code ||
+                      !fawryForm.security_key
+                    }
+                    onClick={async () => {
+                      if (!currentStore?.id) return;
+                      setFawrySaving(true);
+                      try {
+                        const result = await saveFawryCredentials(currentStore.id, {
+                          merchant_code: fawryForm.merchant_code,
+                          security_key: fawryForm.security_key,
+                        });
+                        setFawryCreds(result);
+                        setFawryForm({ merchant_code: "", security_key: "" });
+                        toast.success(language === "ar" ? "تم حفظ بيانات Fawry بنجاح" : "Fawry credentials saved");
+                      } catch (err) {
+                        showError(err);
+                      } finally {
+                        setFawrySaving(false);
+                      }
+                    }}
+                  >
+                    {fawrySaving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+                    {language === "ar" ? "حفظ" : "Save Credentials"}
+                  </Button>
+
+                  {fawryCreds?.is_configured && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={async () => {
+                        if (!currentStore?.id) return;
+                        try {
+                          await deleteFawryCredentials(currentStore.id);
+                          setFawryCreds({ is_configured: false, merchant_code: null, security_key_masked: null, last_configured: null });
+                          toast.success(language === "ar" ? "تم حذف بيانات Fawry" : "Fawry credentials removed");
+                        } catch (err) {
+                          showError(err);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                      {language === "ar" ? "حذف" : "Remove"}
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

@@ -7,7 +7,8 @@ import { toast } from "sonner";
 import {
   fetchPaymobCredentials, savePaymobCredentials, deletePaymobCredentials,
   fetchKashierCredentials, saveKashierCredentials, deleteKashierCredentials,
-  type PaymobCredentialsResponse, type KashierCredentialsResponse,
+  fetchFawryCredentials, saveFawryCredentials, deleteFawryCredentials,
+  type PaymobCredentialsResponse, type KashierCredentialsResponse, type FawryCredentialsResponse,
 } from "@/services/storeApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,9 +31,7 @@ const PaymobLogo = ({ height = 18 }: { height?: number }) => (
   <span style={{ color: "#1A8CFF", fontSize: height, fontWeight: 800, fontStyle: "italic", letterSpacing: "-0.02em", fontFamily: "system-ui, sans-serif" }}>paymob</span>
 );
 const PaymobIcon = ({ size = 32 }: { size?: number }) => (
-  <div className="rounded-lg flex items-center justify-center" style={{ width: size, height: size, background: "#1A8CFF12" }}>
-    <span style={{ color: "#1A8CFF", fontSize: size * 0.45, fontWeight: 900, fontStyle: "italic", fontFamily: "system-ui" }}>P</span>
-  </div>
+  <img src="/paymob-icon.jpeg" alt="Paymob" className="rounded-lg" style={{ width: size, height: size, objectFit: "cover" }} />
 );
 
 /* Kashier — teal wordmark (#2EC4B6) + orange subtitle (#F4845F) */
@@ -43,9 +42,15 @@ const KashierLogo = ({ height = 18 }: { height?: number }) => (
   </span>
 );
 const KashierIcon = ({ size = 32 }: { size?: number }) => (
-  <div className="rounded-lg flex items-center justify-center" style={{ width: size, height: size, background: "#2EC4B612" }}>
-    <span style={{ color: "#2EC4B6", fontSize: size * 0.5, fontWeight: 900, fontFamily: "system-ui" }}>K</span>
-  </div>
+  <img src="/kashier-icon.png" alt="Kashier" className="rounded-lg" style={{ width: size, height: size, objectFit: "cover" }} />
+);
+
+/* Fawry — official logo + icon images */
+const FawryLogo = ({ height = 18 }: { height?: number }) => (
+  <img src="/fawry-logo.png" alt="Fawry" style={{ height, objectFit: "contain" }} />
+);
+const FawryIcon = ({ size = 32 }: { size?: number }) => (
+  <img src="/fawry-icon.jpeg" alt="Fawry" className="rounded-lg" style={{ width: size, height: size, objectFit: "cover" }} />
 );
 
 /* Tamara — from official CDN SVG (black wordmark + circle dot) */
@@ -100,10 +105,11 @@ const NUMU_PRIMARY = "hsl(222.2, 47.4%, 11.2%)";
    CARRIER META
    ═══════════════════════════════════════════════════════════════════════ */
 
-interface GatewayMeta { key: "paymob" | "kashier"; color: string; description: string; descriptionAr: string; methods: string[]; }
+interface GatewayMeta { key: "paymob" | "kashier" | "fawry"; color: string; description: string; descriptionAr: string; methods: string[]; }
 const GATEWAYS: GatewayMeta[] = [
   { key: "paymob", color: "#1A8CFF", description: "Accept cards, wallets, and installments through Egypt's leading payment processor.", descriptionAr: "قبول البطاقات والمحافظ الإلكترونية والتقسيط عبر أكبر معالج مدفوعات في مصر.", methods: ["Visa", "Mastercard", "Meeza", "Wallets", "ValU"] },
   { key: "kashier", color: "#2EC4B6", description: "Simple card payments with quick integration. Accept Visa and Mastercard.", descriptionAr: "مدفوعات بطاقات بسيطة مع تكامل سريع. قبول فيزا وماستركارد.", methods: ["Visa", "Mastercard"] },
+  { key: "fawry", color: "#F7941D", description: "Accept payments at 250,000+ Fawry retail points across Egypt.", descriptionAr: "قبول المدفوعات عبر أكثر من 250,000 نقطة فوري في مصر.", methods: ["Fawry Pay", "Reference Code"] },
 ];
 
 interface BnplMeta { key: string; color: string; description: string; descriptionAr: string; }
@@ -117,7 +123,7 @@ const BNPL: BnplMeta[] = [
    COMPONENT — Hub + Gateway sub-views
    ═══════════════════════════════════════════════════════════════════════ */
 
-type PageView = "hub" | "paymob" | "kashier";
+type PageView = "hub" | "paymob" | "kashier" | "fawry";
 
 const PaymentSetup = () => {
   const { language } = useLanguage();
@@ -129,24 +135,28 @@ const PaymentSetup = () => {
   const [view, setView] = useState<PageView>("hub");
   const [paymobCreds, setPaymobCreds] = useState<PaymobCredentialsResponse | null>(null);
   const [kashierCreds, setKashierCreds] = useState<KashierCredentialsResponse | null>(null);
-  const [enabledGateway, setEnabledGateway] = useState<"paymob" | "kashier" | null>(null);
+  const [fawryCreds, setFawryCreds] = useState<FawryCredentialsResponse | null>(null);
+  const [enabledGateway, setEnabledGateway] = useState<"paymob" | "kashier" | "fawry" | null>(null);
   const [codEnabled, setCodEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!storeId) return;
     setLoading(true);
-    Promise.all([fetchPaymobCredentials(storeId).catch(() => null), fetchKashierCredentials(storeId).catch(() => null)])
-      .then(([p, k]) => {
-        setPaymobCreds(p); setKashierCreds(k);
-        if (p?.is_configured && k?.is_configured) { const pD = p.last_configured ? new Date(p.last_configured).getTime() : 0; const kD = k.last_configured ? new Date(k.last_configured).getTime() : 0; setEnabledGateway(pD >= kD ? "paymob" : "kashier"); }
-        else if (p?.is_configured) setEnabledGateway("paymob");
-        else if (k?.is_configured) setEnabledGateway("kashier");
+    Promise.all([fetchPaymobCredentials(storeId).catch(() => null), fetchKashierCredentials(storeId).catch(() => null), fetchFawryCredentials(storeId).catch(() => null)])
+      .then(([p, k, f]) => {
+        setPaymobCreds(p); setKashierCreds(k); setFawryCreds(f);
+        const configured = [
+          p?.is_configured ? { key: "paymob" as const, time: p.last_configured ? new Date(p.last_configured).getTime() : 0 } : null,
+          k?.is_configured ? { key: "kashier" as const, time: k.last_configured ? new Date(k.last_configured).getTime() : 0 } : null,
+          f?.is_configured ? { key: "fawry" as const, time: f.last_configured ? new Date(f.last_configured).getTime() : 0 } : null,
+        ].filter(Boolean) as { key: "paymob" | "kashier" | "fawry"; time: number }[];
+        if (configured.length > 0) setEnabledGateway(configured.sort((a, b) => b.time - a.time)[0].key);
       }).finally(() => setLoading(false));
   }, [storeId]);
 
-  const getStatus = (key: "paymob" | "kashier") => {
-    const c = key === "paymob" ? paymobCreds : kashierCreds;
+  const getStatus = (key: "paymob" | "kashier" | "fawry") => {
+    const c = key === "paymob" ? paymobCreds : key === "kashier" ? kashierCreds : fawryCreds;
     if (!c?.is_configured) return "not_configured";
     return enabledGateway === key ? "live" : "ready";
   };
@@ -156,12 +166,12 @@ const PaymentSetup = () => {
   /* ═══════════════════════════════════════════════════════════════
      GATEWAY DETAIL VIEW (Bosta-style)
      ═══════════════════════════════════════════════════════════════ */
-  if (view === "paymob" || view === "kashier") {
+  if (view === "paymob" || view === "kashier" || view === "fawry") {
     return (
       <GatewayDetailView
         gatewayKey={view} storeId={storeId} isAr={isAr} language={language}
-        paymobCreds={paymobCreds} kashierCreds={kashierCreds}
-        setPaymobCreds={setPaymobCreds} setKashierCreds={setKashierCreds}
+        paymobCreds={paymobCreds} kashierCreds={kashierCreds} fawryCreds={fawryCreds}
+        setPaymobCreds={setPaymobCreds} setKashierCreds={setKashierCreds} setFawryCreds={setFawryCreds}
         enabledGateway={enabledGateway} setEnabledGateway={setEnabledGateway}
         onBack={() => setView("hub")}
       />
@@ -215,7 +225,7 @@ const PaymentSetup = () => {
           </div>
 
           {/* Gateway cards */}
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             {GATEWAYS.map(gw => {
               const status = getStatus(gw.key);
               return (
@@ -223,9 +233,9 @@ const PaymentSetup = () => {
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        {gw.key === "paymob" ? <PaymobIcon size={36} /> : <KashierIcon size={36} />}
+                        {gw.key === "paymob" ? <PaymobIcon size={36} /> : gw.key === "kashier" ? <KashierIcon size={36} /> : <FawryIcon size={36} />}
                         <div>
-                          {gw.key === "paymob" ? <PaymobLogo height={16} /> : <KashierLogo height={15} />}
+                          {gw.key === "paymob" ? <PaymobLogo height={16} /> : gw.key === "kashier" ? <KashierLogo height={15} /> : <FawryLogo height={15} />}
                           <div className="flex items-center gap-1.5 mt-0.5">
                             {status === "live" && <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-emerald-600"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />{isAr ? "نشط" : "LIVE"}</span>}
                             {status === "ready" && <Badge variant="secondary" className="text-[9px]">{isAr ? "مُعد" : "Ready"}</Badge>}
@@ -304,27 +314,31 @@ const PaymentSetup = () => {
    ═══════════════════════════════════════════════════════════════════════ */
 
 interface GatewayDetailProps {
-  gatewayKey: "paymob" | "kashier";
+  gatewayKey: "paymob" | "kashier" | "fawry";
   storeId: string | undefined;
   isAr: boolean;
   language: string;
   paymobCreds: PaymobCredentialsResponse | null;
   kashierCreds: KashierCredentialsResponse | null;
+  fawryCreds: FawryCredentialsResponse | null;
   setPaymobCreds: (c: PaymobCredentialsResponse) => void;
   setKashierCreds: (c: KashierCredentialsResponse) => void;
-  enabledGateway: "paymob" | "kashier" | null;
-  setEnabledGateway: (g: "paymob" | "kashier" | null) => void;
+  setFawryCreds: (c: FawryCredentialsResponse) => void;
+  enabledGateway: "paymob" | "kashier" | "fawry" | null;
+  setEnabledGateway: (g: "paymob" | "kashier" | "fawry" | null) => void;
   onBack: () => void;
 }
 
-const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, kashierCreds, setPaymobCreds, setKashierCreds, enabledGateway, setEnabledGateway, onBack }: GatewayDetailProps) => {
+const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, kashierCreds, fawryCreds, setPaymobCreds, setKashierCreds, setFawryCreds, enabledGateway, setEnabledGateway, onBack }: GatewayDetailProps) => {
   const isPaymob = gatewayKey === "paymob";
-  const creds = isPaymob ? paymobCreds : kashierCreds;
-  const color = isPaymob ? "#1A8CFF" : "#2EC4B6";
+  const isFawry = gatewayKey === "fawry";
+  const creds = isPaymob ? paymobCreds : isFawry ? fawryCreds : kashierCreds;
+  const color = isPaymob ? "#1A8CFF" : isFawry ? "#F7941D" : "#2EC4B6";
 
   const [editing, setEditing] = useState(!creds?.is_configured);
   const [paymobForm, setPaymobForm] = useState({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" });
   const [kashierForm, setKashierForm] = useState({ merchant_id: "", api_key: "", secret_key: "" });
+  const [fawryForm, setFawryForm] = useState({ merchant_code: "", security_key: "" });
   const [saving, setSaving] = useState(false);
   const [showKeys, setShowKeys] = useState(false);
   const [enablingSaving, setEnablingSaving] = useState(false);
@@ -335,6 +349,9 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
       if (isPaymob) {
         const r = await savePaymobCredentials(storeId, { secret_key: paymobForm.secret_key, public_key: paymobForm.public_key, hmac_secret: paymobForm.hmac_secret, card_integration_id: paymobForm.card_integration_id, wallet_integration_id: paymobForm.wallet_integration_id || undefined });
         setPaymobCreds(r); setPaymobForm({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" });
+      } else if (isFawry) {
+        const r = await saveFawryCredentials(storeId, { merchant_code: fawryForm.merchant_code, security_key: fawryForm.security_key });
+        setFawryCreds(r); setFawryForm({ merchant_code: "", security_key: "" });
       } else {
         const r = await saveKashierCredentials(storeId, { merchant_id: kashierForm.merchant_id, api_key: kashierForm.api_key, secret_key: kashierForm.secret_key || undefined });
         setKashierCreds(r); setKashierForm({ merchant_id: "", api_key: "", secret_key: "" });
@@ -348,6 +365,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
     if (!storeId) return;
     try {
       if (isPaymob) { await deletePaymobCredentials(storeId); setPaymobCreds({ is_configured: false, public_key_masked: null, secret_key_masked: null, hmac_secret_masked: null, card_integration_id: null, wallet_integration_id: null, last_configured: null }); }
+      else if (isFawry) { await deleteFawryCredentials(storeId); setFawryCreds({ is_configured: false, merchant_code: null, security_key_masked: null, last_configured: null }); }
       else { await deleteKashierCredentials(storeId); setKashierCreds({ is_configured: false, merchant_id: null, api_key_masked: null, last_configured: null }); }
       if (enabledGateway === gatewayKey) setEnabledGateway(null);
       toast.success(isAr ? "تم قطع الاتصال" : "Disconnected");
@@ -357,7 +375,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
   const handleToggle = async (checked: boolean) => {
     if (!storeId) return; setEnablingSaving(true);
     try {
-      await apiClient(`/stores/${storeId}/settings/payment`, { method: "PATCH", body: JSON.stringify({ paymob_enabled: isPaymob ? checked : false, kashier_enabled: !isPaymob ? checked : false }) });
+      await apiClient(`/stores/${storeId}/settings/payment`, { method: "PATCH", body: JSON.stringify({ paymob_enabled: isPaymob ? checked : false, kashier_enabled: gatewayKey === "kashier" ? checked : false, fawry_enabled: isFawry ? checked : false }) });
       setEnabledGateway(checked ? gatewayKey : null);
       toast.success(checked ? (isAr ? "تم التفعيل" : "Enabled") : (isAr ? "تم الإيقاف" : "Disabled"));
     } catch (e) { showError(e, language); } finally { setEnablingSaving(false); }
@@ -369,10 +387,10 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
-          {isPaymob ? <PaymobIcon size={36} /> : <KashierIcon size={36} />}
+          {isPaymob ? <PaymobIcon size={36} /> : isFawry ? <FawryIcon size={36} /> : <KashierIcon size={36} />}
           <div>
             <div className="flex items-center gap-2">
-              {isPaymob ? <PaymobLogo height={20} /> : <KashierLogo height={18} />}
+              {isPaymob ? <PaymobLogo height={20} /> : isFawry ? <FawryLogo height={18} /> : <KashierLogo height={18} />}
               {creds?.is_configured && enabledGateway === gatewayKey && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />{isAr ? "متصل" : "LIVE"}
@@ -380,7 +398,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
               )}
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              {isPaymob ? (isAr ? "بوابة الدفع الرائدة في مصر" : "Egypt's leading payment gateway") : (isAr ? "حلول الدفع البسيطة" : "Simple payment solutions")}
+              {isPaymob ? (isAr ? "بوابة الدفع الرائدة في مصر" : "Egypt's leading payment gateway") : isFawry ? (isAr ? "الدفع عبر نقاط فوري" : "Pay at Fawry retail points") : (isAr ? "حلول الدفع البسيطة" : "Simple payment solutions")}
             </p>
           </div>
         </div>
@@ -394,7 +412,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
         <div className="px-5 py-4 border-b" style={{ background: `linear-gradient(135deg, ${color}08, ${color}03)` }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {isPaymob ? <PaymobIcon size={28} /> : <KashierIcon size={28} />}
+              {isPaymob ? <PaymobIcon size={28} /> : isFawry ? <FawryIcon size={28} /> : <KashierIcon size={28} />}
               <div>
                 <p className="text-sm font-semibold">{isAr ? "إعدادات الاتصال" : "Connection Settings"}</p>
               </div>
@@ -422,6 +440,9 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
                   { l: "HMAC Secret", v: paymobCreds!.hmac_secret_masked },
                   { l: "Card Integration ID", v: paymobCreds!.card_integration_id },
                   ...(paymobCreds!.wallet_integration_id ? [{ l: "Wallet ID", v: paymobCreds!.wallet_integration_id }] : []),
+                ] : isFawry ? [
+                  { l: "Merchant Code", v: fawryCreds!.merchant_code },
+                  { l: "Security Key", v: fawryCreds!.security_key_masked },
                 ] : [
                   { l: "Merchant ID", v: kashierCreds!.merchant_id },
                   { l: "API Key", v: kashierCreds!.api_key_masked },
@@ -440,7 +461,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
           ) : (
             <div className="space-y-3">
               <p className="text-[11px] text-muted-foreground">
-                {isPaymob ? (isAr ? "تجد هذه البيانات في Paymob Dashboard → Developers → Settings" : "Find these in Paymob Dashboard → Developers → Settings") : (isAr ? "تجد هذه البيانات في Kashier Dashboard → Settings" : "Find in Kashier Dashboard → Settings")}
+                {isPaymob ? (isAr ? "تجد هذه البيانات في Paymob Dashboard → Developers → Settings" : "Find these in Paymob Dashboard → Developers → Settings") : isFawry ? (isAr ? "تجد هذه البيانات في Fawry Business Console → API Settings" : "Find these in Fawry Business Console → API Settings") : (isAr ? "تجد هذه البيانات في Kashier Dashboard → Settings" : "Find in Kashier Dashboard → Settings")}
               </p>
               {isPaymob ? (
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -460,6 +481,11 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
                     </div>
                   ))}
                 </div>
+              ) : isFawry ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5"><Label className="text-[11px] font-medium">Merchant Code</Label><Input placeholder="FWR-xxx" className="h-9 text-xs" value={fawryForm.merchant_code} onChange={e => setFawryForm(f => ({ ...f, merchant_code: e.target.value }))} /></div>
+                  <div className="space-y-1.5"><Label className="text-[11px] font-medium">Security Key</Label><div className="relative"><Input type={showKeys ? "text" : "password"} placeholder="Security key" className="h-9 text-xs pr-8" value={fawryForm.security_key} onChange={e => setFawryForm(f => ({ ...f, security_key: e.target.value }))} /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer" onClick={() => setShowKeys(!showKeys)}>{showKeys ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}</button></div></div>
+                </div>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5"><Label className="text-[11px] font-medium">Merchant ID</Label><Input placeholder="MID-xxx" className="h-9 text-xs" value={kashierForm.merchant_id} onChange={e => setKashierForm(f => ({ ...f, merchant_id: e.target.value }))} /></div>
@@ -468,7 +494,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
                 </div>
               )}
               <div className="flex gap-2 pt-2">
-                <Button size="sm" className="h-8 text-xs gap-1.5" style={{ background: color }} disabled={saving || (isPaymob ? (!paymobForm.secret_key || !paymobForm.public_key || !paymobForm.hmac_secret || !paymobForm.card_integration_id) : (!kashierForm.merchant_id || !kashierForm.api_key))} onClick={handleSave}>
+                <Button size="sm" className="h-8 text-xs gap-1.5" style={{ background: color }} disabled={saving || (isPaymob ? (!paymobForm.secret_key || !paymobForm.public_key || !paymobForm.hmac_secret || !paymobForm.card_integration_id) : isFawry ? (!fawryForm.merchant_code || !fawryForm.security_key) : (!kashierForm.merchant_id || !kashierForm.api_key))} onClick={handleSave}>
                   {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                   {creds?.is_configured ? (isAr ? "تحديث" : "Update") : (isAr ? "تفعيل" : "Activate")}
                 </Button>
@@ -485,6 +511,8 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
         <div className="grid gap-3 sm:grid-cols-3">
           {(isPaymob
             ? [{ icon: <CreditCard className="h-4 w-4" />, l: isAr ? "بطاقات" : "Cards", d: "Visa, Mastercard, Meeza" }, { icon: <Banknote className="h-4 w-4" />, l: isAr ? "محافظ" : "Wallets", d: "Vodafone Cash, Fawry" }, { icon: <CircleDollarSign className="h-4 w-4" />, l: isAr ? "تقسيط" : "Installments", d: "ValU, Souhoola" }]
+            : isFawry
+            ? [{ icon: <Banknote className="h-4 w-4" />, l: isAr ? "الدفع بالكود" : "Reference Code", d: isAr ? "كود مرجعي يُدفع في أي فرع فوري" : "Pay at any Fawry outlet" }, { icon: <CreditCard className="h-4 w-4" />, l: "Fawry Pay", d: isAr ? "الدفع أونلاين عبر فوري" : "Online Fawry payment" }]
             : [{ icon: <CreditCard className="h-4 w-4" />, l: isAr ? "بطاقات" : "Cards", d: "Visa, Mastercard" }]
           ).map((m, i) => (
             <div key={i} className="rounded-lg border bg-muted/10 p-3 flex items-center gap-3">

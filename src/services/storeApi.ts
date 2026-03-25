@@ -264,3 +264,41 @@ export async function deleteKashierCredentials(
     method: "DELETE",
   });
 }
+
+// ─── Fawry Credentials ─────────────────────────────────────────────────────
+
+export interface FawryCredentialsResponse {
+  is_configured: boolean;
+  merchant_code: string | null;
+  security_key_masked: string | null;
+  last_configured: string | null;
+}
+
+export async function fetchFawryCredentials(
+  storeId: string
+): Promise<FawryCredentialsResponse> {
+  return apiClient<FawryCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/fawry/credentials`
+  );
+}
+
+export async function saveFawryCredentials(
+  storeId: string,
+  data: {
+    merchant_code: string;
+    security_key: string;
+  }
+): Promise<FawryCredentialsResponse> {
+  return apiClient<FawryCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/fawry/credentials`,
+    { method: "PUT", body: JSON.stringify(data) }
+  );
+}
+
+export async function deleteFawryCredentials(
+  storeId: string
+): Promise<void> {
+  await apiClient(`/stores/${storeId}/settings/payment/fawry/credentials`, {
+    method: "DELETE",
+  });
+}
