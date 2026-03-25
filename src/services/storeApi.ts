@@ -302,3 +302,31 @@ export async function deleteFawryCredentials(
     method: "DELETE",
   });
 }
+
+// ─── Onboarding Wizard ────────────────────────────────────────────────────────
+
+export interface WizardConfig {
+  business_type: string;
+  country: string;
+  shipping_preference: string;
+  payment_methods: string[];
+  store_language: string;
+}
+
+export interface WizardConfigResult {
+  configured: boolean;
+  settings_applied: string[];
+}
+
+export async function configureFromWizard(
+  storeId: string,
+  config: WizardConfig
+): Promise<WizardConfigResult> {
+  return apiClient<WizardConfigResult>(
+    `/stores/${storeId}/onboarding/configure`,
+    {
+      method: "POST",
+      body: JSON.stringify(config),
+    }
+  );
+}

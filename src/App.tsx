@@ -37,6 +37,7 @@ const VerifyEmail = lazy(() => import("@/pages/VerifyEmail"));
 const CreateStore = lazy(() => import("@/pages/CreateStore"));
 const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+const OnboardingWizard = lazy(() => import("@/pages/OnboardingWizard"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -109,6 +110,20 @@ const App = () => (
                       <RequireAuth>
                         <RequireVerified>
                           <CreateStore />
+                        </RequireVerified>
+                      </RequireAuth>
+                    }
+                  />
+
+                  {/* Auth + verified + store required — onboarding wizard */}
+                  <Route
+                    path="/onboarding-wizard"
+                    element={
+                      <RequireAuth>
+                        <RequireVerified>
+                          <RequireStore>
+                            <OnboardingWizard />
+                          </RequireStore>
                         </RequireVerified>
                       </RequireAuth>
                     }
