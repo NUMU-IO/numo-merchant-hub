@@ -211,3 +211,33 @@ export async function getCodRejectionStats(
     `/stores/${storeId}/analytics/cod-rejections?days=${days}`
   );
 }
+
+// ── Health Score ──
+
+export interface HealthScoreMetrics {
+  delivery_success_rate: number;
+  cod_acceptance_rate: number;
+  order_completion_rate: number;
+  return_rate: number;
+  avg_response_hours: number;
+}
+
+export interface HealthScoreData {
+  score: number;
+  grade: string;
+  metrics: HealthScoreMetrics;
+  sub_scores: Record<string, number>;
+  recommendations: string[];
+  orders_analyzed: number;
+  shipments_analyzed: number;
+  calculated_at: string | null;
+}
+
+export async function getHealthScore(
+  storeId: string,
+  live = false
+): Promise<HealthScoreData> {
+  return apiClient<HealthScoreData>(
+    `/stores/${storeId}/analytics/health-score?live=${live}`
+  );
+}
