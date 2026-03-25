@@ -164,3 +164,50 @@ export async function getConversionStats(
     `/stores/${storeId}/analytics/conversion?days=${days}`
   );
 }
+
+// ── Traffic Sources ──
+
+export interface TrafficSourceData {
+  source: string;
+  orders: number;
+  revenue: number;
+  percentage: number;
+}
+
+export async function getTrafficSources(
+  storeId: string,
+  days = 30
+): Promise<TrafficSourceData[]> {
+  return apiClient<TrafficSourceData[]>(
+    `/stores/${storeId}/analytics/traffic-sources?days=${days}`
+  );
+}
+
+// ── COD Rejection stats ──
+
+export interface CodRejectionLocation {
+  location: string;
+  rejected: number;
+  total: number;
+  rate: number;
+}
+
+export interface CodRejectionStats {
+  total_cod_shipments: number;
+  delivered_count: number;
+  rejected_count: number;
+  returned_count: number;
+  rejection_rate: number;
+  total_cod_amount: number; // cents
+  rejected_amount: number; // cents
+  by_location: CodRejectionLocation[];
+}
+
+export async function getCodRejectionStats(
+  storeId: string,
+  days = 30
+): Promise<CodRejectionStats> {
+  return apiClient<CodRejectionStats>(
+    `/stores/${storeId}/analytics/cod-rejections?days=${days}`
+  );
+}

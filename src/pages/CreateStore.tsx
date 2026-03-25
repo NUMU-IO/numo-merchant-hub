@@ -85,7 +85,7 @@ export default function CreateStore() {
     try {
       await createStore({ name, subdomain, description: description || undefined, default_language: language, default_currency: currency, invite_code: betaCode || undefined });
       await refetchStores();
-      navigate("/", { replace: true });
+      navigate("/onboarding-wizard", { replace: true });
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         setError(err.toUserMessage(language));

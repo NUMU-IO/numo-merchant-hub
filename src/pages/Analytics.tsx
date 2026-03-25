@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   BarChart3, TrendingUp, ShoppingCart, Users, DollarSign,
-  MapPin, ArrowUpRight, ArrowDownRight, RefreshCw,
+  MapPin, ArrowUpRight, ArrowDownRight, RefreshCw, Package, AlertTriangle,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -17,10 +17,12 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   getSalesOverview, getSalesChart, getAnalyticsTopProducts,
   getSalesByLocation, getCustomerAnalytics, getConversionStats,
+  getCodRejectionStats,
 } from "@/services/analyticsApi";
 import type {
   SalesOverview, SalesDataPoint, TopProduct,
   LocationSales, CustomerAnalytics, ConversionStats,
+  CodRejectionStats,
 } from "@/services/analyticsApi";
 import { AnalyticsSkeleton } from "@/components/skeletons/AnalyticsSkeleton";
 
@@ -77,12 +79,20 @@ export default function Analytics() {
     placeholderData: keepPreviousData,
   });
 
+  const codRejectionQuery = useQuery({
+    queryKey: ["analytics", "codRejections", storeId, period],
+    queryFn: () => getCodRejectionStats(storeId!, period),
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+  });
+
   const overview = overviewQuery.data ?? null;
   const chartData = chartQuery.data ?? [];
   const topProducts = topProductsQuery.data ?? [];
   const locations = locationsQuery.data ?? [];
   const customerStats = customerStatsQuery.data ?? null;
   const conversion = conversionQuery.data ?? null;
+  const codRejection = codRejectionQuery.data ?? null;
 
   const isLoading = overviewQuery.isLoading;
   const isRefetching = overviewQuery.isFetching;
@@ -94,6 +104,7 @@ export default function Analytics() {
     locationsQuery.refetch();
     customerStatsQuery.refetch();
     conversionQuery.refetch();
+    codRejectionQuery.refetch();
   };
 
   const formatCurrency = (cents: number) => {
@@ -319,6 +330,120 @@ export default function Analytics() {
                   </div>
                 ) : (
                   <EmptyState icon={Users} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* COD Rejection Stats */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            {/* Rejection Rate KPI */}
+            <Card className="border-border/60">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 text-muted-foreground" />
+                  {isAr ? "رفض الدفع عند الاستلام" : "COD Rejection Rate"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {codRejection ? (
+                  <div className="space-y-4">
+                    <div className="text-center py-2">
+                      <p className={`text-4xl font-bold tabular-nums ${codRejection.rejection_rate > 20 ? "text-destructive" : codRejection.rejection_rate > 10 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                        {codRejection.rejection_rate.toFixed(1)}%
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {isAr ? "معدل الرفض" : "Rejection Rate"}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {[
+                        { label: isAr ? "إجمالي شحنات COD" : "Total COD Shipments", value: codRejection.total_cod_shipments.toLocaleString(isAr ? "ar-EG" : undefined) },
+                        { label: isAr ? "تم التسليم" : "Delivered", value: codRejection.delivered_count.toLocaleString(isAr ? "ar-EG" : undefined) },
+                        { label: isAr ? "مرفوض" : "Rejected", value: codRejection.rejected_count.toLocaleString(isAr ? "ar-EG" : undefined) },
+                        { label: isAr ? "مرتجع" : "Returned", value: codRejection.returned_count.toLocaleString(isAr ? "ar-EG" : undefined) },
+                      ].map((item) => (
+                        <div key={item.label} className="flex items-center justify-between rounded-lg p-2 -mx-2 hover:bg-muted/50 transition-colors">
+                          <span className="text-[13px] text-muted-foreground">{item.label}</span>
+                          <span className="text-[13px] font-semibold tabular-nums">{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <EmptyState icon={Package} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
+                )}
+              </CardContent>
+            </Card>
+
+            {/* COD Amount at Risk */}
+            <Card className="border-border/60">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                  <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                  {isAr ? "مبالغ COD" : "COD Amounts"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {codRejection ? (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                        {isAr ? "إجمالي مبلغ COD" : "Total COD Amount"}
+                      </p>
+                      <p className="text-2xl font-bold tabular-nums">{formatCurrency(codRejection.total_cod_amount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                        {isAr ? "المبلغ المعرض للخطر" : "Amount at Risk"}
+                      </p>
+                      <p className="text-2xl font-bold tabular-nums text-destructive">{formatCurrency(codRejection.rejected_amount)}</p>
+                    </div>
+                    {codRejection.total_cod_amount > 0 && (
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-destructive/70 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min((codRejection.rejected_amount / codRejection.total_cod_amount) * 100, 100)}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <EmptyState icon={DollarSign} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
+                )}
+              </CardContent>
+            </Card>
+
+            {/* COD Rejection by Location */}
+            <Card className="border-border/60">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                  {isAr ? "الرفض حسب الموقع" : "Rejections by Location"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {codRejection && codRejection.by_location.length > 0 ? (
+                  <div className="space-y-3">
+                    {codRejection.by_location.map((loc) => (
+                      <div key={loc.location}>
+                        <div className="flex items-center justify-between text-[13px] mb-1.5">
+                          <span className="font-medium">{loc.location}</span>
+                          <span className={`font-semibold tabular-nums ${loc.rate > 20 ? "text-destructive" : ""}`}>
+                            {loc.rejected}/{loc.total} ({loc.rate}%)
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${loc.rate > 20 ? "bg-destructive/70" : loc.rate > 10 ? "bg-amber-500/70" : "bg-emerald-500/70"}`}
+                            style={{ width: `${loc.rate}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState icon={MapPin} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
                 )}
               </CardContent>
             </Card>
