@@ -75,7 +75,7 @@ const AppSidebar = () => {
       <SidebarContent>
         {/* Brand */}
         <div className="flex h-14 items-center gap-2.5 px-4 group-data-[collapsible=icon]:justify-center border-b border-sidebar-border/60">
-          <img src="/numu-symbol-navy-transparent.png" alt="NUMU" className="h-7 w-7 object-contain shrink-0" />
+          <img src="/numu-symbol-navy-transparent.webp" alt="NUMU" className="h-7 w-7 object-contain shrink-0" />
           <div className="group-data-[collapsible=icon]:hidden">
             <span className="text-[13px] font-extrabold tracking-[0.1em]">NUMU</span>
             <span className="text-[9px] text-muted-foreground/35 block -mt-0.5 font-medium tracking-wide">

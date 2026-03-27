@@ -1706,7 +1706,7 @@ const StoreSettings = () => {
               <div>
                 <div className="flex items-center justify-between px-4 py-3.5 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setActiveGateway(activeGateway === "paymob" ? null : "paymob")}>
                   <div className="flex items-center gap-3">
-                    <img src="/paymob-logo.png" alt="Paymob" className="h-6 w-auto max-w-[72px] object-contain" />
+                    <img src="/paymob-logo.webp" alt="Paymob" className="h-6 w-auto max-w-[72px] object-contain" />
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold">Paymob</span>
@@ -1799,7 +1799,7 @@ const StoreSettings = () => {
               <div>
                 <div className="flex items-center justify-between px-4 py-3.5 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setActiveGateway(activeGateway === "kashier" ? null : "kashier")}>
                   <div className="flex items-center gap-3">
-                    <img src="/kashier-logo.png" alt="Kashier" className="h-6 w-auto max-w-[72px] object-contain" />
+                    <img src="/kashier-logo.webp" alt="Kashier" className="h-6 w-auto max-w-[72px] object-contain" />
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold">Kashier</span>

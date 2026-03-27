@@ -102,7 +102,7 @@ const Payments = () => {
       <div className="rounded-xl overflow-hidden text-white" style={{ background: NUMU_PRIMARY }}>
         {/* Subtle NUMU watermark */}
         <div className="relative">
-          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('/numu_v3.png')", backgroundSize: "100px", backgroundRepeat: "repeat" }} />
+          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "100px", backgroundRepeat: "repeat" }} />
           <div className="relative z-10 px-5 pt-5 pb-2">
             <h2 className="text-base font-bold text-white">{isAr ? "الأرصدة" : "Balances"}</h2>
           </div>

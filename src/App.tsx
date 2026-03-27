@@ -26,6 +26,7 @@ const CODReconciliation = lazy(() => import("@/pages/CODReconciliation"));
 const SocialImport = lazy(() => import("@/pages/SocialImport"));
 const Customers = lazy(() => import("@/pages/Customers"));
 const Analytics = lazy(() => import("@/pages/Analytics"));
+const HealthScore = lazy(() => import("@/pages/HealthScore"));
 const Marketing = lazy(() => import("@/pages/Marketing"));
 const Categories = lazy(() => import("@/pages/Categories"));
 const Invoices = lazy(() => import("@/pages/Invoices"));
@@ -154,6 +155,7 @@ const App = () => (
                     <Route path="/social" element={<SocialImport />} />
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/analytics" element={<Analytics />} />
+                    <Route path="/health-score" element={<HealthScore />} />
                     <Route path="/marketing" element={<Marketing />} />
                     <Route path="/categories" element={<Categories />} />
                     <Route path="/invoices" element={<Invoices />} />

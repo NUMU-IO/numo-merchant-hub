@@ -1,6 +1,6 @@
 /**
  * NUMU Logo components using the official brand symbol.
- * Symbol: /numu-symbol-navy-transparent.png
+ * Symbol: /numu-symbol-navy-transparent.webp
  * Full logo: /numu_v3.png
  */
 
@@ -22,7 +22,7 @@ export function NumuLogo({ size = "md", showText = true, className = "" }: NumuL
 
   return (
     <div className={`inline-flex flex-col items-center gap-1.5 ${className}`}>
-      <img src="/numu-symbol-navy-transparent.png" alt="NUMU" width={img} height={img} className="object-contain" />
+      <img src="/numu-symbol-navy-transparent.webp" alt="NUMU" width={img} height={img} className="object-contain" />
       {showText && (
         <div className="flex flex-col items-center -mt-0.5">
           <span className={`${text} font-black tracking-[0.12em] text-foreground leading-none`}>
@@ -38,7 +38,7 @@ export function NumuLogo({ size = "md", showText = true, className = "" }: NumuL
 export function NumuIcon({ size = 32, className = "" }: { size?: number; className?: string }) {
   return (
     <img
-      src="/numu-symbol-navy-transparent.png"
+      src="/numu-symbol-navy-transparent.webp"
       alt="NUMU"
       width={size}
       height={size}

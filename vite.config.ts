@@ -68,6 +68,7 @@ export default defineConfig(({ mode }) => ({
     dedupe: ["react", "react-dom", "react/jsx-runtime"],
   },
   build: {
+    target: ["es2020", "safari14"],
     rollupOptions: {
       output: {
         manualChunks: {
@@ -82,6 +83,8 @@ export default defineConfig(({ mode }) => ({
           ],
           "vendor-charts": ["recharts"],
           "vendor-query": ["@tanstack/react-query"],
+          "vendor-i18n": ["i18next", "react-i18next", "i18next-browser-languagedetector"],
+          "vendor-sentry": ["@sentry/react"],
         },
       },
     },

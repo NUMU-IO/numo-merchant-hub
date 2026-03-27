@@ -31,7 +31,7 @@ const PaymobLogo = ({ height = 18 }: { height?: number }) => (
   <span style={{ color: "#1A8CFF", fontSize: height, fontWeight: 800, fontStyle: "italic", letterSpacing: "-0.02em", fontFamily: "system-ui, sans-serif" }}>paymob</span>
 );
 const PaymobIcon = ({ size = 32 }: { size?: number }) => (
-  <img src="/paymob-icon.jpeg" alt="Paymob" className="rounded-lg" style={{ width: size, height: size, objectFit: "cover" }} />
+  <img src="/paymob-icon.webp" alt="Paymob" className="rounded-lg" style={{ width: size, height: size, objectFit: "cover" }} />
 );
 
 /* Kashier — teal wordmark (#2EC4B6) + orange subtitle (#F4845F) */
@@ -42,15 +42,15 @@ const KashierLogo = ({ height = 18 }: { height?: number }) => (
   </span>
 );
 const KashierIcon = ({ size = 32 }: { size?: number }) => (
-  <img src="/kashier-icon.png" alt="Kashier" className="rounded-lg" style={{ width: size, height: size, objectFit: "cover" }} />
+  <img src="/kashier-icon.webp" alt="Kashier" className="rounded-lg" style={{ width: size, height: size, objectFit: "cover" }} />
 );
 
 /* Fawry — official logo + icon images */
 const FawryLogo = ({ height = 18 }: { height?: number }) => (
-  <img src="/fawry-logo.png" alt="Fawry" style={{ height, objectFit: "contain" }} />
+  <img src="/fawry-logo.webp" alt="Fawry" style={{ height, objectFit: "contain" }} />
 );
 const FawryIcon = ({ size = 32 }: { size?: number }) => (
-  <img src="/fawry-icon.jpeg" alt="Fawry" className="rounded-lg" style={{ width: size, height: size, objectFit: "cover" }} />
+  <img src="/fawry-icon.webp" alt="Fawry" className="rounded-lg" style={{ width: size, height: size, objectFit: "cover" }} />
 );
 
 /* Tamara — from official CDN SVG (black wordmark + circle dot) */
@@ -205,7 +205,7 @@ const PaymentSetup = () => {
 
           {/* Hero banner */}
           <div className="rounded-xl p-6 mb-6 text-white relative overflow-hidden" style={{ background: NUMU_PRIMARY }}>
-            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('/numu_v3.png')", backgroundSize: "120px", backgroundRepeat: "repeat" }} />
+            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "120px", backgroundRepeat: "repeat" }} />
             <div className="relative z-10">
               <h3 className="text-lg font-bold mb-1">{isAr ? "ابدأ باستقبال المدفوعات الإلكترونية فوراً من خلال نمو!" : "Start accepting payments instantly with NUMU!"}</h3>
               <div className="grid gap-4 sm:grid-cols-3 mt-5">

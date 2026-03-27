@@ -304,7 +304,7 @@ const Dashboard = () => {
           <div className="space-y-4">
             {/* Reward banner — complete all steps to earn free premium */}
             <div className="relative rounded-xl overflow-hidden text-white" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }}>
-              <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "url('/numu_v3.png')", backgroundSize: "90px", backgroundRepeat: "repeat" }} />
+              <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "90px", backgroundRepeat: "repeat" }} />
               <div className="relative z-10 p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
@@ -620,7 +620,7 @@ const Dashboard = () => {
             {/* Store Health Score */}
             <div className="rounded-xl overflow-hidden text-white cursor-pointer transition-transform hover:scale-[1.01]" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }} onClick={() => navigate("/health-score")}>
               <div className="relative">
-                <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('/numu_v3.png')", backgroundSize: "100px", backgroundRepeat: "repeat" }} />
+                <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "100px", backgroundRepeat: "repeat" }} />
 
                 {/* Header */}
                 <div className="relative z-10 px-5 pt-5 pb-3 flex items-center justify-between">
