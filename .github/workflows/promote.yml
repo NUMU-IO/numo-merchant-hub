@@ -12,11 +12,35 @@ concurrency:
   group: promote-merchant-hub
   cancel-in-progress: false
 
+env:
+  NODE_VERSION: "20"
+
 jobs:
+  lint:
+    name: Lint Check
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'yes'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
   promote:
     name: Promote dev → prod
     runs-on: ubuntu-latest
-    if: github.event.inputs.confirm == 'yes'
+    needs: lint
     steps:
       - uses: actions/checkout@v4
         with:
