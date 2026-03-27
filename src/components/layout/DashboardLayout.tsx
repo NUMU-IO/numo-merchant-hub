@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
+import MobileBottomNav from "./MobileBottomNav";
 
 function PageFallback() {
   return (
@@ -88,10 +89,13 @@ const DashboardLayout = () => {
               <Suspense fallback={<PageFallback />}>
                 <Outlet />
               </Suspense>
+              {/* Spacer for mobile bottom nav */}
+              <div className="h-16 md:hidden" />
             </div>
           </main>
         </div>
       </div>
+      <MobileBottomNav />
     </SidebarProvider>
   );
 };

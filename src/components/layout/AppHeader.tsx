@@ -167,6 +167,9 @@ const AppHeader = () => {
                     <img
                       src={currentStore.logo_url}
                       alt=""
+                      width={20}
+                      height={20}
+                      loading="lazy"
                       className="h-5 w-5 rounded-md object-cover shrink-0"
                     />
                   ) : (
@@ -246,7 +249,7 @@ const AppHeader = () => {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-2 h-8 rounded-lg ps-1.5 pe-2">
                 {user?.avatar_url ? (
-                  <img src={user.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover ring-2 ring-border" />
+                  <img src={user.avatar_url} alt="" width={24} height={24} loading="lazy" className="h-6 w-6 rounded-full object-cover ring-2 ring-border" />
                 ) : (
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
                     {user?.first_name?.charAt(0)?.toUpperCase() || "N"}
@@ -260,7 +263,7 @@ const AppHeader = () => {
               <div className="p-4 bg-muted/30 border-b">
                 <div className="flex items-center gap-3 mb-3">
                   {currentStore?.logo_url ? (
-                    <img src={currentStore.logo_url} alt="" className="h-10 w-10 rounded-xl object-cover border shadow-sm" />
+                    <img src={currentStore.logo_url} alt="" width={40} height={40} loading="lazy" className="h-10 w-10 rounded-xl object-cover border shadow-sm" />
                   ) : (
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-sm">
                       {currentStore?.name?.charAt(0)?.toUpperCase() || "N"}
@@ -284,7 +287,7 @@ const AppHeader = () => {
               <div className="p-3 border-b">
                 <div className="flex items-center gap-2.5">
                   {user?.avatar_url ? (
-                    <img src={user.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
+                    <img src={user.avatar_url} alt="" width={32} height={32} loading="lazy" className="h-8 w-8 rounded-full object-cover" />
                   ) : (
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                       {user?.first_name?.charAt(0)?.toUpperCase() || "N"}

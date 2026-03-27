@@ -24,8 +24,10 @@ export function NuLogo() {
 
       <div className="relative animate-[numu-pulse-glow_3s_ease-in-out_infinite]">
         <img
-          src="/favicon-512x512.webp"
+          src="/numu-logo-320.webp"
           alt="NUMU Logo"
+          width={160}
+          height={160}
           className="w-32 h-32 md:w-40 md:h-40 object-contain rounded-3xl shadow-xl nu-logo-img"
         />
       </div>

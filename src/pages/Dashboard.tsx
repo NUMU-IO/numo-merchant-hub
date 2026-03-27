@@ -558,7 +558,7 @@ const Dashboard = () => {
         const scaleLabels = scaleSteps.map(n => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
         return (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2 min-h-[280px]">
             <Card>
               <CardContent className="p-5">
                 <h3 className="text-base font-bold mb-1">{isAr ? "تابع أهدافك" : "Track Your Goals"}</h3>
