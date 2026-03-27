@@ -1,0 +1,44 @@
+name: Promote to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type 'yes' to confirm promotion to production"
+        required: true
+        default: ""
+
+concurrency:
+  group: promote-merchant-hub
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote dev → prod
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'yes'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge dev into prod
+        run: |
+          git fetch origin prod
+          git checkout prod
+          git merge origin/dev --no-edit -m "promote: merge dev into prod"
+          git push origin prod
+
+      - name: Summary
+        run: |
+          echo "### ✅ Promoted dev → prod" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Merchant Hub production branch updated." >> $GITHUB_STEP_SUMMARY
+          echo "Commit: \`$(git rev-parse --short HEAD)\`" >> $GITHUB_STEP_SUMMARY
