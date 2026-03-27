@@ -117,7 +117,7 @@ const Dashboard = () => {
   // Sync dismissed state with localStorage when storeId is available
   useEffect(() => {
     if (!storeId) return;
-    try { setOnboardingDismissed(localStorage.getItem(`numu_onboarding_dismissed_${storeId}`) === "true"); } catch {}
+    try { setOnboardingDismissed(localStorage.getItem(`numu_onboarding_dismissed_${storeId}`) === "true"); } catch { /* localStorage unavailable */ }
   }, [storeId]);
 
   // Onboarding checks — fetch real status from actual endpoints
@@ -158,11 +158,11 @@ const Dashboard = () => {
 
   const dismissOnboarding = () => {
     setOnboardingDismissed(true);
-    if (storeId) try { localStorage.setItem(`numu_onboarding_dismissed_${storeId}`, "true"); } catch {}
+    if (storeId) try { localStorage.setItem(`numu_onboarding_dismissed_${storeId}`, "true"); } catch { /* ignore */ }
   };
   const showOnboarding = () => {
     setOnboardingDismissed(false);
-    if (storeId) try { localStorage.removeItem(`numu_onboarding_dismissed_${storeId}`); } catch {}
+    if (storeId) try { localStorage.removeItem(`numu_onboarding_dismissed_${storeId}`); } catch { /* ignore */ }
   };
 
   const showSetup = !!effectiveOnboarding && !onboardingDismissed && !Object.values(effectiveOnboarding).every(Boolean);
@@ -454,93 +454,6 @@ const Dashboard = () => {
         </button>
       </div>
 
-      {/* Health Score Card */}
-      {healthScore && (
-        <Card className="overflow-hidden">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">{isAr ? "صحة المتجر" : "Store Health"}</h3>
-              <span className={`ms-auto text-xs font-bold px-2 py-0.5 rounded-full ${
-                healthScore.grade === "A" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" :
-                healthScore.grade === "B" ? "bg-blue-500/10 text-blue-700 dark:text-blue-400" :
-                healthScore.grade === "C" ? "bg-amber-500/10 text-amber-700 dark:text-amber-400" :
-                healthScore.grade === "D" ? "bg-orange-500/10 text-orange-700 dark:text-orange-400" :
-                "bg-red-500/10 text-red-700 dark:text-red-400"
-              }`}>
-                {healthScore.grade}
-              </span>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-5">
-              {/* Score circle */}
-              <div className="flex flex-col items-center gap-2 shrink-0">
-                <div className="relative w-24 h-24">
-                  <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="42" fill="none" strokeWidth="8" className="stroke-muted/30" />
-                    <circle
-                      cx="50" cy="50" r="42" fill="none" strokeWidth="8" strokeLinecap="round"
-                      strokeDasharray={`${healthScore.score * 2.64} 264`}
-                      className={
-                        healthScore.grade === "A" ? "stroke-emerald-500" :
-                        healthScore.grade === "B" ? "stroke-blue-500" :
-                        healthScore.grade === "C" ? "stroke-amber-500" :
-                        healthScore.grade === "D" ? "stroke-orange-500" :
-                        "stroke-red-500"
-                      }
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-2xl font-bold tabular-nums">{healthScore.score}</span>
-                  </div>
-                </div>
-                <p className="text-[10px] text-muted-foreground">
-                  {isAr ? `${healthScore.orders_analyzed} طلب · ${healthScore.shipments_analyzed} شحنة` : `${healthScore.orders_analyzed} orders · ${healthScore.shipments_analyzed} shipments`}
-                </p>
-              </div>
-              {/* Metric bars */}
-              <div className="flex-1 space-y-2.5 min-w-0">
-                {[
-                  { key: "delivery_success", label: isAr ? "التوصيل" : "Delivery", value: healthScore.metrics.delivery_success_rate, sub: healthScore.sub_scores.delivery_success },
-                  { key: "cod_acceptance", label: "COD", value: healthScore.metrics.cod_acceptance_rate, sub: healthScore.sub_scores.cod_acceptance },
-                  { key: "order_completion", label: isAr ? "الطلبات" : "Orders", value: healthScore.metrics.order_completion_rate, sub: healthScore.sub_scores.order_completion },
-                  { key: "low_return", label: isAr ? "المرتجع" : "Returns", value: healthScore.metrics.return_rate, sub: healthScore.sub_scores.low_return },
-                  { key: "response_time", label: isAr ? "السرعة" : "Speed", value: healthScore.metrics.avg_response_hours, sub: healthScore.sub_scores.response_time, isHours: true },
-                ].map((m) => (
-                  <div key={m.key} className="flex items-center gap-3">
-                    <span className="text-[11px] font-medium w-16 shrink-0 truncate">{m.label}</span>
-                    <div className="flex-1 h-2 rounded-full bg-muted/40 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-700 ${
-                          m.sub >= 75 ? "bg-emerald-500" :
-                          m.sub >= 50 ? "bg-blue-500" :
-                          m.sub >= 30 ? "bg-amber-500" :
-                          "bg-red-500"
-                        }`}
-                        style={{ width: `${Math.max(3, m.sub)}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] font-semibold tabular-nums w-12 text-end shrink-0">
-                      {m.isHours ? `${m.value}h` : `${m.value}%`}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {/* Recommendations */}
-            {healthScore.recommendations.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-border/30 space-y-1.5">
-                {healthScore.recommendations.map((rec, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <Lightbulb className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">{rec}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {/* KPI Cards — live sparklines from chart data */}
       {(() => {
         const sparkData = revenueChartData.length > 0 ? revenueChartData : [];
@@ -691,7 +604,7 @@ const Dashboard = () => {
                     <Button size="sm" className="h-8 text-xs rounded-lg" onClick={() => {
                       const v = Math.max(1, Number(goalInput) || 50);
                       setGoalTarget(v); setEditingGoal(false);
-                      if (storeId) try { localStorage.setItem(`numu_goal_${storeId}`, String(v)); } catch {}
+                      if (storeId) try { localStorage.setItem(`numu_goal_${storeId}`, String(v)); } catch { /* ignore */ }
                     }}>{isAr ? "حفظ" : "Save"}</Button>
                     <Button variant="ghost" size="sm" className="h-8 text-xs rounded-lg" onClick={() => setEditingGoal(false)}>{isAr ? "إلغاء" : "Cancel"}</Button>
                   </div>
@@ -705,8 +618,7 @@ const Dashboard = () => {
             </Card>
 
             {/* Store Health Score */}
-            {/* Store Health Score */}
-            <div className="rounded-xl overflow-hidden text-white" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }}>
+            <div className="rounded-xl overflow-hidden text-white cursor-pointer transition-transform hover:scale-[1.01]" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }} onClick={() => navigate("/health-score")}>
               <div className="relative">
                 <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('/numu_v3.png')", backgroundSize: "100px", backgroundRepeat: "repeat" }} />
 

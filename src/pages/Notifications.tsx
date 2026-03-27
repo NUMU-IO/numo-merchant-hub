@@ -127,7 +127,7 @@ export default function Notifications() {
 
   const persistReadIds = (ids: Set<string>) => {
     setReadIds(ids);
-    try { localStorage.setItem("numu-read-notifications", JSON.stringify([...ids])); } catch {}
+    try { localStorage.setItem("numu-read-notifications", JSON.stringify([...ids])); } catch { /* ignore */ }
   };
 
   const markAllRead = () => {

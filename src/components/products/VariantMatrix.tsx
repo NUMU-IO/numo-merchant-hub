@@ -81,6 +81,9 @@ export function VariantMatrix({ variants, combinations, onCombinationsChange, de
     }
   }, [allCombos]);
 
+  const [bulkPrice, setBulkPrice] = useState("");
+  const [bulkStock, setBulkStock] = useState("");
+
   if (allCombos.length === 0) return null;
 
   const variantNames = parsedVariants.map(v => v.name);
@@ -94,9 +97,6 @@ export function VariantMatrix({ variants, combinations, onCombinationsChange, de
   const applyToAll = (field: "price" | "stock", value: string) => {
     onCombinationsChange(combinations.map(c => ({ ...c, [field]: value })));
   };
-
-  const [bulkPrice, setBulkPrice] = useState("");
-  const [bulkStock, setBulkStock] = useState("");
 
   const enabledCount = combinations.filter(c => c.enabled).length;
 
