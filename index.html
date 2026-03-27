@@ -13,12 +13,18 @@
     <meta property="og:type" content="website" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="preload" href="/numu_v3.webp" as="image" type="image/webp" />
-    <link rel="preload" href="/numu-symbol-navy-transparent.webp" as="image" type="image/webp" />
+    <link rel="preload" href="/numu-logo-320.webp" as="image" type="image/webp" />
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Inline loading screen for instant FCP — replaced by React on mount -->
+      <div id="numu-splash" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fafafa;flex-direction:column;gap:12px">
+        <img src="/numu-logo-320.webp" alt="" width="80" height="80" style="border-radius:20px;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+        <div style="width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#6366f1;border-radius:50%;animation:numu-s 0.7s linear infinite"></div>
+        <style>@keyframes numu-s{to{transform:rotate(360deg)}}@media(prefers-color-scheme:dark){#numu-splash{background:#0b1120}}</style>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

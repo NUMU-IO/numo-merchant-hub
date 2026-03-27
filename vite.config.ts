@@ -7,6 +7,24 @@ import { componentTagger } from "lovable-tagger";
  * Injects Content-Security-Policy meta tag only in production builds.
  * In dev mode, Vite's HMR requires inline scripts and cross-port API calls which CSP would block.
  */
+/**
+ * Remove modulepreload hints for chunks that aren't needed on first paint.
+ * They still load on-demand — we just don't eagerly prefetch them.
+ */
+function viteStripHeavyPreloads(): Plugin {
+  const heavy = ["vendor-charts", "vendor-sentry"];
+  return {
+    name: "numu-strip-heavy-preloads",
+    enforce: "post",
+    transformIndexHtml(html) {
+      return html.replace(
+        /\s*<link rel="modulepreload"[^>]*?(?:vendor-charts|vendor-sentry)[^>]*>\s*/g,
+        "\n"
+      );
+    },
+  };
+}
+
 function vitePluginCSP(): Plugin {
   return {
     name: "numu-csp",
@@ -60,6 +78,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     vitePluginCSP(),
+    viteStripHeavyPreloads(),
   ].filter(Boolean),
   resolve: {
     alias: {
