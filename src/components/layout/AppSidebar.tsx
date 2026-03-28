@@ -3,15 +3,19 @@ import { useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, CreditCard, Share2, Banknote,
   Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
+  Palette, FileText, Navigation2, SlidersHorizontal, ChevronRight,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { NavLink } from "@/components/NavLink";
-import { NumuIcon } from "@/components/NumuLogo";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
-  SidebarFooter, SidebarSeparator,
+  SidebarFooter, SidebarSeparator, SidebarMenuSub, SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 const AppSidebar = () => {
   const { t } = useTranslation();
@@ -42,6 +46,9 @@ const AppSidebar = () => {
 
   const isActive = (url: string) =>
     url === "/" ? location.pathname === "/" : location.pathname.startsWith(url);
+
+  const onlineStoreActive = isActive("/online-store") || isActive("/store");
+  const onlineStoreOpen = onlineStoreActive;
 
   const renderGroup = (label: string, items: typeof mainNav) => (
     <SidebarGroup>
@@ -90,19 +97,74 @@ const AppSidebar = () => {
           {renderGroup(isRTL ? "العمليات" : "Operations", operationsNav)}
           <SidebarSeparator className="my-1.5 opacity-50" />
           {renderGroup(isRTL ? "النمو" : "Growth", growthNav)}
+          <SidebarSeparator className="my-1.5 opacity-50" />
+
+          {/* Sales Channels */}
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/40 group-data-[collapsible=icon]:hidden px-3 mb-0.5">
+              {isRTL ? "قنوات البيع" : "Sales Channels"}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <Collapsible defaultOpen={onlineStoreOpen} className="group/collapsible">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip={isRTL ? "المتجر الإلكتروني" : "Online Store"}
+                        className="h-8 rounded-lg"
+                        isActive={onlineStoreActive}
+                      >
+                        <Store className="h-[15px] w-[15px]" />
+                        <span className="text-[13px] font-medium">{isRTL ? "المتجر الإلكتروني" : "Online Store"}</span>
+                        <ChevronRight className="ms-auto h-3.5 w-3.5 opacity-50 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/online-store/themes")}>
+                            <NavLink to="/online-store/themes">
+                              <Palette className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "الثيمات" : "Themes"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/online-store/pages")}>
+                            <NavLink to="/online-store/pages">
+                              <FileText className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "الصفحات" : "Pages"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/online-store/navigation")}>
+                            <NavLink to="/online-store/navigation">
+                              <Navigation2 className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "التنقل" : "Navigation"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/online-store/preferences")}>
+                            <NavLink to="/online-store/preferences">
+                              <SlidersHorizontal className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "التفضيلات" : "Preferences"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         </div>
       </SidebarContent>
 
       <SidebarFooter>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip={isRTL ? "المتجر" : "Storefront"} className="h-8 rounded-lg" isActive={isActive("/store")}>
-              <NavLink to="/store">
-                <Store className="h-[15px] w-[15px]" />
-                <span className="text-[13px] font-medium">{isRTL ? "المتجر" : "Storefront"}</span>
-              </NavLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip={isRTL ? "الإشعارات" : "Notifications"} className="h-8 rounded-lg" isActive={isActive("/notifications")}>
               <NavLink to="/notifications">

@@ -19,7 +19,7 @@ function viteStripHeavyPreloads(): Plugin {
     transformIndexHtml(html) {
       return html.replace(
         /\s*<link rel="modulepreload"[^>]*?(?:vendor-charts|vendor-sentry)[^>]*>\s*/g,
-        "\n"
+        "\n",
       );
     },
   };
@@ -67,7 +67,7 @@ export default defineConfig(({ mode }) => ({
     },
     proxy: {
       "/api": {
-        target: "https://numueg.app",
+        target: "http://localhost:8021",
         changeOrigin: true,
         cookieDomainRewrite: "",
         secure: false,
@@ -102,7 +102,11 @@ export default defineConfig(({ mode }) => ({
           ],
           "vendor-charts": ["recharts"],
           "vendor-query": ["@tanstack/react-query"],
-          "vendor-i18n": ["i18next", "react-i18next", "i18next-browser-languagedetector"],
+          "vendor-i18n": [
+            "i18next",
+            "react-i18next",
+            "i18next-browser-languagedetector",
+          ],
           "vendor-sentry": ["@sentry/react"],
         },
       },

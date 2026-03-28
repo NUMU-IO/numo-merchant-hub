@@ -19,6 +19,11 @@ const ProductEditor = lazy(() => import("@/pages/ProductEditor"));
 const Orders = lazy(() => import("@/pages/Orders"));
 const CreateOrder = lazy(() => import("@/pages/CreateOrder"));
 const StoreSettings = lazy(() => import("@/pages/StoreSettings"));
+const OnlineStoreThemes = lazy(() => import("@/pages/online-store/Themes"));
+const OnlineStorePages = lazy(() => import("@/pages/online-store/Pages"));
+const OnlineStoreNavigation = lazy(() => import("@/pages/online-store/Navigation"));
+const OnlineStorePreferences = lazy(() => import("@/pages/online-store/Preferences"));
+const ThemeEditor = lazy(() => import("@/pages/online-store/ThemeEditor"));
 const Payments = lazy(() => import("@/pages/Payments"));
 const PaymentSetup = lazy(() => import("@/pages/PaymentSetup"));
 const Logistics = lazy(() => import("@/pages/Logistics"));
@@ -130,6 +135,20 @@ const App = () => (
                     }
                   />
 
+                  {/* Full-screen theme editor — outside DashboardLayout */}
+                  <Route
+                    path="/online-store/themes/editor"
+                    element={
+                      <RequireAuth>
+                        <RequireVerified>
+                          <RequireStore>
+                            <ThemeEditor />
+                          </RequireStore>
+                        </RequireVerified>
+                      </RequireAuth>
+                    }
+                  />
+
                   {/* Auth + verified + store required — dashboard */}
                   <Route
                     element={
@@ -152,6 +171,11 @@ const App = () => (
                     <Route path="/payment-setup" element={<PaymentSetup />} />
                     <Route path="/logistics" element={<Logistics />} />
                     <Route path="/store" element={<StoreSettings />} />
+                    <Route path="/online-store" element={<Navigate to="/online-store/themes" replace />} />
+                    <Route path="/online-store/themes" element={<OnlineStoreThemes />} />
+                    <Route path="/online-store/pages" element={<OnlineStorePages />} />
+                    <Route path="/online-store/navigation" element={<OnlineStoreNavigation />} />
+                    <Route path="/online-store/preferences" element={<OnlineStorePreferences />} />
                     <Route path="/social" element={<SocialImport />} />
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/analytics" element={<Analytics />} />
