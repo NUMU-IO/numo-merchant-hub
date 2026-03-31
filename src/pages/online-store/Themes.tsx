@@ -7,6 +7,7 @@ import {
   fetchThemes,
   fetchCustomization,
   updateCustomization,
+  publishCustomization,
   type AvailableTheme,
   type CustomizationData,
 } from "@/services/themeApi";
@@ -38,20 +39,30 @@ import {
 
 // ─── Theme visual palettes ───────────────────────────────────────────────────
 const THEME_PALETTES: Record<string, { bg: string; accent: string; text: string; card: string }> = {
-  modern:          { bg: "#f8fafc", accent: "#6366f1", text: "#0f172a", card: "#ffffff" },
-  boutique:        { bg: "#fdf8f3", accent: "#c4956a", text: "#3d2b1a", card: "#fff9f4" },
-  elegant:         { bg: "#0f1117", accent: "#c9a96e", text: "#f5f0e8", card: "#1a1d27" },
-  skeuomorphic:    { bg: "#e8e0d8", accent: "#8b6f52", text: "#2c1f14", card: "#f2ece4" },
-  "neo-brutalism": { bg: "#f5f500", accent: "#000000", text: "#000000", card: "#ffffff" },
-  default:         { bg: "#f1f5f9", accent: "#3b82f6", text: "#1e293b", card: "#ffffff" },
+  modern:            { bg: "#f8fafc", accent: "#6366f1", text: "#0f172a", card: "#ffffff" },
+  boutique:          { bg: "#fdf8f3", accent: "#c4956a", text: "#3d2b1a", card: "#fff9f4" },
+  elegant:           { bg: "#0f1117", accent: "#c9a96e", text: "#f5f0e8", card: "#1a1d27" },
+  skeuomorphic:      { bg: "#e8e0d8", accent: "#8b6f52", text: "#2c1f14", card: "#f2ece4" },
+  "neo-brutalism":   { bg: "#f5f500", accent: "#000000", text: "#000000", card: "#ffffff" },
+  "tech-wave":       { bg: "#0a0e1a", accent: "#00f0ff", text: "#e0e8f0", card: "#111827" },
+  editorial:         { bg: "#f5f5f0", accent: "#1a3a2a", text: "#1a1a1a", card: "#ffffff" },
+  "luxury-minimal":  { bg: "#fafaf8", accent: "#8a7e6b", text: "#2c2c2c", card: "#ffffff" },
+  empire:            { bg: "#fafafa", accent: "#1a1a1a", text: "#0a0a0a", card: "#ffffff" },
+  "kick-game":       { bg: "#f5f0e8", accent: "#c8a87c", text: "#1a1510", card: "#faf8f4" },
+  street:            { bg: "#1a1a2e", accent: "#ffd600", text: "#f0f0f0", card: "#252540" },
+  default:           { bg: "#f1f5f9", accent: "#3b82f6", text: "#1e293b", card: "#ffffff" },
 };
 
 const LAYOUT_LABELS: Record<string, { en: string; ar: string }> = {
-  default:         { en: "Default",        ar: "افتراضي"       },
-  skeuomorphic:    { en: "Skeuomorphic",   ar: "واقعي"         },
-  "neo-brutalism": { en: "Neo-Brutalism",  ar: "نيو برتاليزم"  },
-  editorial:       { en: "Editorial",      ar: "تحريري"        },
-  "luxury-minimal":{ en: "Luxury Minimal", ar: "فاخر بسيط"     },
+  default:           { en: "Default",        ar: "افتراضي"       },
+  skeuomorphic:      { en: "Skeuomorphic",   ar: "واقعي"         },
+  "neo-brutalism":   { en: "Neo-Brutalism",  ar: "نيو برتاليزم"  },
+  editorial:         { en: "Editorial",      ar: "تحريري"        },
+  "luxury-minimal":  { en: "Luxury Minimal", ar: "فاخر بسيط"     },
+  empire:            { en: "Empire",         ar: "إمباير"        },
+  "kick-game":       { en: "Kick Game",      ar: "كيك جيم"      },
+  street:            { en: "Street Vibes",   ar: "ستريت"         },
+  "tech-wave":       { en: "Tech Wave",      ar: "موجة تقنية"    },
 };
 
 // ─── Mini theme preview SVG ───────────────────────────────────────────────────
@@ -127,11 +138,14 @@ export default function OnlineStoreThemes() {
   });
 
   const switchMutation = useMutation({
-    mutationFn: (themeId: string) =>
-      updateCustomization(storeId, { theme: { base_theme: themeId } }),
+    mutationFn: async (themeId: string) => {
+      // Save the theme to draft, then auto-publish so storefront picks it up
+      await updateCustomization(storeId, { theme: { base_theme: themeId } });
+      await publishCustomization(storeId);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customization", storeId] });
-      toast.success(isRTL ? "تم تغيير الثيم" : "Theme switched");
+      toast.success(isRTL ? "تم تغيير ونشر الثيم" : "Theme switched & published");
       setSwitchTarget(null);
     },
     onError: (err) => showError(err),
@@ -200,7 +214,7 @@ export default function OnlineStoreThemes() {
                     isRTL={isRTL}
                     isSwitching={switchMutation.isPending && switchTarget?.id === theme.id}
                     onActivate={() => setSwitchTarget(theme)}
-                    onCustomize={() => navigate("/online-store/themes/editor")}
+                    onCustomize={() => navigate(`/online-store/themes/editor?theme=${theme.id}`)}
                   />
                 ))}
           </div>
