@@ -50,6 +50,7 @@ const THEME_PALETTES: Record<string, { bg: string; accent: string; text: string;
   empire:            { bg: "#fafafa", accent: "#1a1a1a", text: "#0a0a0a", card: "#ffffff" },
   "kick-game":       { bg: "#f5f0e8", accent: "#c8a87c", text: "#1a1510", card: "#faf8f4" },
   street:            { bg: "#1a1a2e", accent: "#ffd600", text: "#f0f0f0", card: "#252540" },
+  rabbitsocks:       { bg: "#f9f9f7", accent: "#001f3f", text: "#000613", card: "#f4f4f2" },
   default:           { bg: "#f1f5f9", accent: "#3b82f6", text: "#1e293b", card: "#ffffff" },
 };
 
@@ -62,6 +63,7 @@ const LAYOUT_LABELS: Record<string, { en: string; ar: string }> = {
   empire:            { en: "Empire",         ar: "إمباير"        },
   "kick-game":       { en: "Kick Game",      ar: "كيك جيم"      },
   street:            { en: "Street Vibes",   ar: "ستريت"         },
+  rabbitsocks:       { en: "RabbitSocks",    ar: "رابيت سوكس"    },
   "tech-wave":       { en: "Tech Wave",      ar: "موجة تقنية"    },
 };
 
