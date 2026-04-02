@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useDashboardStore } from "@/contexts/StoreContext";
+import { getStore, updateStore } from "@/services/storeApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,11 +17,13 @@ import {
   DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { showError } from "@/lib/show-error";
 import {
   FileText, Plus, MoreHorizontal, Pencil, Trash2,
-  Eye, Search, Globe, EyeOff, Info,
+  Eye, Search, Globe, EyeOff, Loader2, Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HelpTip } from "@/components/ui/help-tip";
 
 interface StorePage {
   id: string;
@@ -30,21 +35,58 @@ interface StorePage {
   updatedAt: string;
 }
 
-const SEED_PAGES: StorePage[] = [
-  { id: "about",   title: "About Us", titleAr: "عن المتجر",   slug: "about",   body: "Welcome to our store. We offer quality products...", published: true,  updatedAt: new Date().toISOString() },
-  { id: "contact", title: "Contact",  titleAr: "تواصل معنا",  slug: "contact", body: "You can reach us at support@example.com...",         published: true,  updatedAt: new Date().toISOString() },
-];
-
 function makeSlug(title: string) {
   return title.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
 
 export default function OnlineStorePages() {
   const { isRTL } = useLanguage();
-  const [pages, setPages] = useState<StorePage[]>(SEED_PAGES);
+  const { currentStore } = useDashboardStore();
+  const queryClient = useQueryClient();
+  const storeId = currentStore?.id ?? "";
+
+  const [pages, setPages] = useState<StorePage[]>([]);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Partial<StorePage> | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StorePage | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const initializedRef = useRef(false);
+
+  // ── Fetch pages from store.settings.pages ──
+  const { data: storeData, isLoading } = useQuery({
+    queryKey: ["store", storeId],
+    queryFn: () => getStore(storeId),
+    enabled: !!storeId,
+  });
+
+  // Seed local state ONCE from API
+  useEffect(() => {
+    if (!storeData || initializedRef.current) return;
+    initializedRef.current = true;
+    const stored = ((storeData.settings ?? {}) as Record<string, unknown>).pages as StorePage[] | undefined;
+    if (stored && Array.isArray(stored) && stored.length > 0) {
+      setPages(stored);
+    } else {
+      // Seed defaults for new stores
+      setPages([
+        { id: "about",   title: "About Us", titleAr: "عن المتجر",   slug: "about",   body: "", published: true,  updatedAt: new Date().toISOString() },
+        { id: "contact", title: "Contact",  titleAr: "تواصل معنا",  slug: "contact", body: "", published: true,  updatedAt: new Date().toISOString() },
+      ]);
+      setIsDirty(true); // mark dirty so user saves the defaults
+    }
+  }, [storeData]);
+
+  // ── Save pages to store.settings.pages ──
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      updateStore(storeId, { settings: { pages } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["store", storeId] });
+      toast.success(isRTL ? "تم حفظ الصفحات" : "Pages saved");
+      setIsDirty(false);
+    },
+    onError: (err) => showError(err),
+  });
 
   const filtered = pages.filter((p) => {
     const q = search.toLowerCase();
@@ -82,6 +124,7 @@ export default function OnlineStorePages() {
       toast.success(isRTL ? "تم إنشاء الصفحة" : "Page created");
     }
     setEditing(null);
+    setIsDirty(true);
   }
 
   function handleDelete() {
@@ -89,14 +132,16 @@ export default function OnlineStorePages() {
     setPages((prev) => prev.filter((p) => p.id !== deleteTarget.id));
     toast.success(isRTL ? "تم حذف الصفحة" : "Page deleted");
     setDeleteTarget(null);
+    setIsDirty(true);
   }
 
   function togglePublish(id: string) {
     setPages((prev) => prev.map((p) => p.id === id ? { ...p, published: !p.published } : p));
+    setIsDirty(true);
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -105,21 +150,40 @@ export default function OnlineStorePages() {
             {isRTL ? "إدارة صفحات المحتوى الثابت في متجرك" : "Manage static content pages for your store"}
           </p>
         </div>
-        <Button size="sm" onClick={openNew}>
-          <Plus className="h-3.5 w-3.5 me-1.5" />
-          {isRTL ? "صفحة جديدة" : "Add page"}
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {isDirty && (
+            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 dark:border-amber-700 dark:text-amber-400">
+              {isRTL ? "تغييرات غير محفوظة" : "Unsaved changes"}
+            </Badge>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending || isLoading || !isDirty}
+          >
+            {saveMutation.isPending
+              ? <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />
+              : <Save className="h-3.5 w-3.5 me-1.5" />}
+            {isRTL ? "حفظ" : "Save"}
+          </Button>
+          <Button size="sm" onClick={openNew}>
+            <Plus className="h-3.5 w-3.5 me-1.5" />
+            {isRTL ? "صفحة جديدة" : "Add page"}
+          </Button>
+        </div>
       </div>
 
-      {/* Coming soon notice */}
-      <div className="flex items-start gap-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/40 px-3.5 py-3">
-        <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-        <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-          {isRTL
-            ? "ستتوفر مزامنة الصفحات مع المتجر قريبًا. التغييرات محفوظة محليًا الآن."
-            : "Page sync to storefront is coming soon. Changes are saved locally for now."}
-        </p>
-      </div>
+      {/* Help tip */}
+      <HelpTip title={isRTL ? "كيف تدير صفحات متجرك؟" : "How to manage your pages"}>
+        <ul className="list-disc list-inside space-y-1">
+          <li>{isRTL ? "أنشئ صفحات ثابتة مثل «عن المتجر» و«سياسة الاسترجاع» و«تواصل معنا» لبناء ثقة عملائك." : "Create static pages like About Us, Return Policy, and Contact to build customer trust."}</li>
+          <li>{isRTL ? "كل صفحة تدعم عنوان إنجليزي وعربي — يظهر العنوان المناسب حسب لغة الزائر." : "Each page supports English and Arabic titles — the correct one displays based on visitor language."}</li>
+          <li>{isRTL ? "استخدم زر النشر/الإخفاء للتحكم في ظهور الصفحة للزوار دون حذفها." : "Use the Show/Hide toggle to control page visibility without deleting it."}</li>
+          <li>{isRTL ? "رابط الصفحة يُنشأ تلقائيًا من العنوان الإنجليزي — مثلاً: /pages/about-us." : "Page URL slug is auto-generated from the English title — e.g., /pages/about-us."}</li>
+          <li>{isRTL ? "اضغط «حفظ» في الأعلى لحفظ جميع التغييرات (إنشاء/تعديل/حذف) دفعة واحدة." : "Click Save at the top to persist all changes (create/edit/delete) in one go."}</li>
+        </ul>
+      </HelpTip>
 
       {/* Search bar */}
       <div className="relative">
@@ -133,12 +197,21 @@ export default function OnlineStorePages() {
       </div>
 
       {/* Pages list */}
-      {filtered.length === 0 ? (
-        <EmptyState
-          isRTL={isRTL}
-          hasSearch={!!search}
-          onAdd={openNew}
-        />
+      {isLoading ? (
+        <div className="rounded-2xl border bg-card overflow-hidden divide-y">
+          {[1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3.5 animate-pulse">
+              <div className="h-8 w-8 rounded-lg bg-muted" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3.5 w-32 rounded bg-muted" />
+                <div className="h-2.5 w-20 rounded bg-muted" />
+              </div>
+              <div className="h-3 w-12 rounded bg-muted" />
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState isRTL={isRTL} hasSearch={!!search} onAdd={openNew} />
       ) : (
         <div className="rounded-2xl border bg-card overflow-hidden divide-y">
           {filtered.map((page, i) => (
@@ -197,7 +270,7 @@ export default function OnlineStorePages() {
             {editing?.title && (
               <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                 <Globe className="h-3 w-3" />
-                <span className="opacity-60">yourstore.com/pages/</span>
+                <span className="opacity-60">{currentStore?.subdomain ?? "yourstore"}.numueg.app/pages/</span>
                 <span className="font-medium text-foreground/70">{makeSlug(editing.title) || "—"}</span>
               </p>
             )}
@@ -212,9 +285,6 @@ export default function OnlineStorePages() {
                 rows={6}
                 className="resize-none text-sm"
               />
-              <p className="text-[11px] text-muted-foreground">
-                {isRTL ? "يدعم النص العادي. دعم Markdown قريبًا." : "Plain text supported. Markdown support coming soon."}
-              </p>
             </div>
           </div>
 

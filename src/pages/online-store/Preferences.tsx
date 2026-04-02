@@ -16,6 +16,7 @@ import {
   Eye, EyeOff, ShieldCheck, ShieldOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HelpTip } from "@/components/ui/help-tip";
 
 interface PrefsState {
   seo_title: string;
@@ -122,8 +123,30 @@ export default function OnlineStorePreferences() {
   const pwStrength     = passwordStrength(form.password);
   const pwMeta         = STRENGTH_LABEL[pwStrength];
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6 max-w-3xl mx-auto">
+        <div>
+          <div className="h-6 w-32 rounded bg-muted animate-pulse" />
+          <div className="h-4 w-56 rounded bg-muted animate-pulse mt-2" />
+        </div>
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-2xl border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b bg-muted/20">
+              <div className="h-4 w-40 rounded bg-muted animate-pulse" />
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="h-9 rounded bg-muted animate-pulse" />
+              <div className="h-20 rounded bg-muted animate-pulse" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
@@ -150,6 +173,17 @@ export default function OnlineStorePreferences() {
           </Button>
         </div>
       </div>
+
+      {/* Help tip */}
+      <HelpTip title={isRTL ? "كيف تستخدم التفضيلات؟" : "How to use Preferences"}>
+        <ul className="list-disc list-inside space-y-1">
+          <li>{isRTL ? "عنوان الصفحة الرئيسية ووصف الميتا يظهران في نتائج بحث Google — اجعلهما واضحين ومختصرين." : "Homepage title and meta description appear in Google search results — keep them clear and concise."}</li>
+          <li>{isRTL ? "صورة المشاركة الاجتماعية تظهر عند مشاركة رابط متجرك على فيسبوك وواتساب — يُفضل صورة بحجم 1200×630 بكسل." : "Social sharing image appears when your store link is shared on Facebook/WhatsApp — recommended size is 1200×630px."}</li>
+          <li>{isRTL ? "أضف Google Analytics و Meta Pixel لتتبع زيارات وتحويلات متجرك." : "Add Google Analytics and Meta Pixel to track your store visits and conversions."}</li>
+          <li>{isRTL ? "حماية المتجر بكلمة مرور تمنع الوصول حتى يُدخل الزائر كلمة المرور — مفيدة قبل الإطلاق الرسمي." : "Password protection blocks access until visitors enter the password — useful before your official launch."}</li>
+          <li>{isRTL ? "اضغط «حفظ» بعد أي تغيير لحفظه نهائيًا." : "Click Save after any change to persist it."}</li>
+        </ul>
+      </HelpTip>
 
       {/* ── SEO ─────────────────────────────────────────────────────────────── */}
       <Section icon={<Search className="h-4 w-4" />} title={isRTL ? "تحسين محركات البحث" : "Search engine optimization"}>

@@ -336,6 +336,12 @@ export async function dismissOnboarding(storeId: string): Promise<OnboardingData
   });
 }
 
+export async function undismissOnboarding(storeId: string): Promise<OnboardingData> {
+  return apiClient<OnboardingData>(`/stores/${storeId}/onboarding/undismiss`, {
+    method: "POST",
+  });
+}
+
 export async function completeOnboardingStep(
   storeId: string,
   step: string

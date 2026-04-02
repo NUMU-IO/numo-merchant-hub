@@ -18,6 +18,7 @@ import {
   LayoutGrid, Loader2, Save, ArrowUp, ArrowDown, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HelpTip } from "@/components/ui/help-tip";
 
 interface NavLink { label: string; labelAr?: string; to: string }
 interface EditState extends NavLink { index?: number }
@@ -113,7 +114,7 @@ export default function OnlineStoreNavigation() {
   function handleDragEnd() { setDragIndex(null); setDragOverIndex(null); }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
@@ -142,6 +143,17 @@ export default function OnlineStoreNavigation() {
           </Button>
         </div>
       </div>
+
+      {/* Help tip */}
+      <HelpTip title={isRTL ? "كيف تبني قائمة التنقل؟" : "How to build your navigation"}>
+        <ul className="list-disc list-inside space-y-1">
+          <li>{isRTL ? "أضف روابط لصفحات متجرك مثل «الأقسام» و«تواصل معنا» — يمكنك استخدام مسارات نسبية مثل /products أو روابط كاملة." : "Add links to your store pages like Collections and Contact — use relative paths like /products or full URLs."}</li>
+          <li>{isRTL ? "اسحب وأفلت الروابط لإعادة ترتيبها أو استخدم أسهم الترتيب." : "Drag and drop links to reorder them, or use the arrow buttons."}</li>
+          <li>{isRTL ? "فعّل «عرض الأقسام في القائمة» لإضافة أقسام المنتجات تلقائيًا بجانب الروابط المخصصة." : "Enable 'Show categories in menu' to auto-append product category links alongside your custom links."}</li>
+          <li>{isRTL ? "كل رابط يدعم عنوان إنجليزي وعربي — يظهر العنوان المناسب حسب لغة الزائر." : "Each link supports English and Arabic labels — the correct one displays based on visitor language."}</li>
+          <li>{isRTL ? "اضغط «حفظ» لتطبيق التغييرات على واجهة متجرك." : "Click Save to apply changes to your storefront."}</li>
+        </ul>
+      </HelpTip>
 
       {/* Main menu card */}
       <div className="rounded-2xl border bg-card overflow-hidden">

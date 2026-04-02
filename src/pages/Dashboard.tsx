@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import {
@@ -15,7 +15,7 @@ import {
 } from "@/services/analyticsApi";
 import type { HealthScoreData } from "@/services/analyticsApi";
 import { listOrders } from "@/services/orderApi";
-import { getOnboarding, dismissOnboarding } from "@/services/storeApi";
+import { getOnboarding, dismissOnboarding, undismissOnboarding } from "@/services/storeApi";
 import type { OnboardingData } from "@/services/storeApi";
 import { getStoreUrl } from "@/lib/storefront";
 import { apiClient } from "@/services/api";
@@ -125,6 +125,7 @@ const Dashboard = () => {
   });
 
   const onboardingData: OnboardingData | null = onboardingQuery.data ?? null;
+  const canDismissOnboarding = !!onboardingData?.is_completed || (stats ? stats.total_orders > 0 : false);
   const showSetup = !!onboardingData && !onboardingData.is_completed && !onboardingData.is_dismissed;
 
   const handleDismissOnboarding = async () => {
@@ -134,9 +135,12 @@ const Dashboard = () => {
       onboardingQuery.refetch();
     } catch { /* ignore */ }
   };
-  const handleShowOnboarding = () => {
-    // Re-fetch to get latest state (dismiss can be undone via API if needed)
-    onboardingQuery.refetch();
+  const handleShowOnboarding = async () => {
+    if (!storeId) return;
+    try {
+      await undismissOnboarding(storeId);
+      onboardingQuery.refetch();
+    } catch { /* ignore */ }
   };
 
   // Milestones — gamification for early merchants
@@ -595,22 +599,39 @@ const Dashboard = () => {
 
       {/* Onboarding checklist — single unified block */}
       {showSetup && onboardingData && (() => {
+        /* Illustrations from /onboarding/ folder */
+        const stepIllustrations: Record<string, string> = {
+          add_product: "", // no illustration — uses icon
+          set_identity: "/onboarding/identity.svg",
+          confirm_support: "/onboarding/support.svg",
+          add_shipping: "/onboarding/shipping.svg",
+          configure_payment: "/onboarding/verify.svg",
+          first_order: "",
+        };
+        const stepColors: Record<string, { bg: string; badge: string; badgeText: string; border: string }> = {
+          add_product:       { bg: "bg-green-50 dark:bg-green-950/30",   badge: "bg-emerald-500", badgeText: "text-white", border: "border-green-200/50 dark:border-green-800/40" },
+          set_identity:      { bg: "bg-amber-50 dark:bg-amber-950/30",  badge: "bg-amber-500",   badgeText: "text-white", border: "border-amber-200/50 dark:border-amber-800/40" },
+          confirm_support:   { bg: "bg-fuchsia-50 dark:bg-fuchsia-950/30", badge: "bg-fuchsia-500", badgeText: "text-white", border: "border-fuchsia-200/50 dark:border-fuchsia-800/40" },
+          add_shipping:      { bg: "bg-rose-50 dark:bg-rose-950/30",    badge: "bg-rose-500",    badgeText: "text-white", border: "border-rose-200/50 dark:border-rose-800/40" },
+          configure_payment: { bg: "bg-cyan-50 dark:bg-cyan-950/30",    badge: "bg-teal-500",    badgeText: "text-white", border: "border-cyan-200/50 dark:border-cyan-800/40" },
+          first_order:       { bg: "bg-sky-50 dark:bg-sky-950/30",      badge: "bg-sky-500",     badgeText: "text-white", border: "border-sky-200/50 dark:border-sky-800/40" },
+        };
         const STEP_UI: Record<string, { label: string; labelAr: string; desc: string; descAr: string; action: () => void; cta: string; ctaAr: string; icon: React.ReactNode; time: string; timeAr: string }> = {
-          add_product: { label: "Add a Product", labelAr: "أضف منتج", desc: "Add your first product to start selling online", descAr: "أضف أول منتج لبدء البيع أونلاين", action: () => navigate("/products/new"), cta: "Add Product", ctaAr: "أضف منتج", icon: <Package className="h-4 w-4" />, time: "2 min", timeAr: "دقيقتان" },
-          set_identity: { label: "Add Store Identity", labelAr: "أضف هوية متجرك", desc: "Upload logo and add store description", descAr: "ارفع اللوجو وأضف وصف المتجر", action: () => navigate("/store"), cta: "Customize", ctaAr: "تخصيص", icon: <Palette className="h-4 w-4" />, time: "3 min", timeAr: "3 دقائق" },
-          confirm_support: { label: "Add Support Number", labelAr: "أضف رقم الدعم", desc: "Add a phone number so customers can reach you", descAr: "أضف رقم هاتف للتواصل", action: () => navigate("/store"), cta: "Add", ctaAr: "أضف", icon: <CheckCircle2 className="h-4 w-4" />, time: "1 min", timeAr: "دقيقة" },
-          add_shipping: { label: "Set Up Shipping", labelAr: "إعداد الشحن", desc: "Configure shipping zones or connect a carrier", descAr: "اضبط مناطق الشحن أو اربط شركة شحن", action: () => navigate("/logistics"), cta: "Set Up", ctaAr: "إعداد", icon: <Truck className="h-4 w-4" />, time: "3 min", timeAr: "3 دقائق" },
-          configure_payment: { label: "Activate Payments", labelAr: "فعّل المدفوعات", desc: "Connect a payment gateway to accept money", descAr: "فعّل بوابة دفع لاستقبال الأموال", action: () => navigate("/payment-setup"), cta: "Activate", ctaAr: "تفعيل", icon: <CreditCard className="h-4 w-4" />, time: "5 min", timeAr: "5 دقائق" },
-          first_order: { label: "Get Your First Order", labelAr: "أول طلب", desc: "Share your store link and start receiving orders", descAr: "شارك رابط متجرك وابدأ استقبال الطلبات", action: () => { if (currentStore?.subdomain) window.open(getStoreUrl(currentStore.subdomain), "_blank"); }, cta: "Share", ctaAr: "مشاركة", icon: <Zap className="h-4 w-4" />, time: "1 min", timeAr: "دقيقة" },
+          add_product: { label: "Add a Product", labelAr: "أضف منتج", desc: "Add your first product to start selling online", descAr: "أضف أول منتج لبدء البيع أونلاين", action: () => navigate("/products/new"), cta: "Add Product", ctaAr: "أضف منتج", icon: <Package className="h-5 w-5" />, time: "2 min", timeAr: "دقيقتان" },
+          set_identity: { label: "Add Store Identity", labelAr: "أضف هوية متجرك", desc: "Upload logo and add store description", descAr: "اعكس هويتك البصرية على متجرك من ألوان وشعار وأيقونة", action: () => navigate("/store"), cta: "Add Details", ctaAr: "أضف تفاصيل هويتك", icon: <Palette className="h-5 w-5" />, time: "3 min", timeAr: "3 دقائق" },
+          confirm_support: { label: "Add Support Number", labelAr: "أكد رقم الدعم الفني لمتجرك", desc: "Add a phone number so customers can reach you", descAr: "أضف رقم للدعم الفني لعملاؤك", action: () => navigate("/store"), cta: "Confirm Number", ctaAr: "أكد الرقم المسجل", icon: <CheckCircle2 className="h-5 w-5" />, time: "30 sec", timeAr: "30 ثانية" },
+          add_shipping: { label: "Set Up Shipping", labelAr: "حدد موقع تسليم الشحنات", desc: "Configure shipping zones or connect a carrier", descAr: "اضبط مناطق الشحن أو اربط شركة شحن", action: () => navigate("/logistics"), cta: "Set Up", ctaAr: "إعداد", icon: <Truck className="h-5 w-5" />, time: "3 min", timeAr: "3 دقائق" },
+          configure_payment: { label: "Activate Payments", labelAr: "فعّل المدفوعات", desc: "Connect a payment gateway to accept money", descAr: "أكمل عملية تحقق سريعة وآمنة لفتح جميع الميزات وبدء البيع", action: () => navigate("/payment-setup"), cta: "Start Verification", ctaAr: "ابدأ إجراءات التحقق", icon: <CreditCard className="h-5 w-5" />, time: "5 min", timeAr: "5 دقائق" },
+          first_order: { label: "Get Your First Order", labelAr: "احصل على أول طلب", desc: "Share your store link and start receiving orders", descAr: "شارك رابط متجرك وابدأ استقبال الطلبات", action: () => { if (currentStore?.subdomain) window.open(getStoreUrl(currentStore.subdomain), "_blank"); }, cta: "Share", ctaAr: "مشاركة", icon: <Zap className="h-5 w-5" />, time: "1 min", timeAr: "دقيقة" },
         };
         const steps = onboardingData.steps
           .filter(s => s.key !== "create_store" && STEP_UI[s.key])
-          .map((s, i) => ({ ...STEP_UI[s.key], key: s.key, num: i + 1, done: s.status === "completed" || s.status === "skipped" }));
+          .map((s, i) => ({ ...STEP_UI[s.key], key: s.key, num: i + 1, done: s.status === "completed" || s.status === "skipped", colors: stepColors[s.key], illustration: stepIllustrations[s.key] }));
         const doneCount = steps.filter(s => s.done).length;
 
         return (
           <div className="rounded-xl border border-border/60 overflow-hidden">
-            {/* Header */}
+            {/* Dark banner header */}
             <div className="relative text-white" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }}>
               <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "80px", backgroundRepeat: "repeat" }} />
               <div className="relative z-10 px-5 py-4 sm:px-6 sm:py-5">
@@ -624,7 +645,9 @@ const Dashboard = () => {
                       <p className="text-[11px] text-white/40 mt-0.5">{doneCount}/{steps.length} {isAr ? "مكتمل" : "completed"}</p>
                     </div>
                   </div>
-                  <button type="button" onClick={handleDismissOnboarding} className="text-[10px] text-white/30 hover:text-white/60 transition-colors shrink-0">{isAr ? "إخفاء" : "Hide"}</button>
+                  {canDismissOnboarding && (
+                    <button type="button" onClick={handleDismissOnboarding} className="text-[10px] text-white/30 hover:text-white/60 transition-colors shrink-0">{isAr ? "إخفاء" : "Hide"}</button>
+                  )}
                 </div>
                 <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                   <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-700" style={{ width: `${onboardingData.completion_percentage}%` }} />
@@ -632,48 +655,99 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Steps list */}
-            <div className="divide-y divide-border/40">
-              {steps.map((step) => (
-                <div
-                  key={step.key}
-                  className={`flex items-center gap-4 px-5 py-3.5 sm:px-6 transition-colors ${step.done ? "opacity-50" : "hover:bg-muted/30 cursor-pointer"}`}
-                  onClick={() => !step.done && step.action()}
-                >
-                  {/* Status indicator */}
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
-                    step.done
-                      ? "bg-emerald-500/10 text-emerald-500"
-                      : "bg-muted text-muted-foreground"
-                  }`}>
-                    {step.done ? <Check className="h-3.5 w-3.5" /> : step.num}
-                  </div>
+            {/* Zid-style cards grid */}
+            <div className="p-3 sm:p-4 bg-background">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 
-                  {/* Icon */}
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                    step.done ? "bg-muted/50 text-muted-foreground" : "bg-primary/5 text-primary"
-                  }`}>
-                    {step.icon}
+                {/* ── Reward card (left, tall — spans 2 rows) ── */}
+                <div className="relative overflow-hidden rounded-2xl sm:row-span-2 min-h-[220px] flex flex-col items-center justify-center text-center p-6" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }}>
+                  <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "60px", backgroundRepeat: "repeat" }} />
+                  <div className="relative z-10 flex flex-col items-center">
+                  <div className="absolute top-0 ltr:right-0 rtl:left-0 text-xs font-bold text-white/30 tabular-nums">{doneCount} / {steps.length}</div>
+                  <img src="/onboarding/reward.svg" alt="" className="w-28 h-28 mb-4 object-contain" />
+                  <p className="text-base font-bold text-white leading-snug">
+                    {isAr ? "اكسب شهر Premium مجاناً" : "Earn 1 month Premium free"}
+                  </p>
+                  <p className="text-xs text-white/50 mt-1.5 max-w-[220px] leading-relaxed">
+                    {isAr ? "إذا أكملت كل خطوات تجهيز متجرك" : "Complete all setup steps to unlock your reward"}
+                  </p>
                   </div>
-
-                  {/* Text */}
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-semibold ${step.done ? "line-through text-muted-foreground" : ""}`}>
-                      {isAr ? step.labelAr : step.label}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground truncate">{isAr ? step.descAr : step.desc}</p>
-                  </div>
-
-                  {/* Action */}
-                  {step.done ? (
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium shrink-0">{isAr ? "تم" : "Done"}</span>
-                  ) : (
-                    <Button size="sm" variant="outline" className="h-7 text-xs rounded-lg shrink-0" onClick={(e) => { e.stopPropagation(); step.action(); }}>
-                      {isAr ? step.ctaAr : step.cta}
-                    </Button>
-                  )}
                 </div>
-              ))}
+
+                {/* ── Step cards ── */}
+                {steps.map((step) => {
+                  const c = step.colors;
+                  return (
+                    <div
+                      key={step.key}
+                      className={`group relative rounded-2xl overflow-hidden flex flex-col transition-all duration-200 ${
+                        step.done
+                          ? "bg-muted/20 dark:bg-muted/10 border border-border/30"
+                          : `${c.bg} border ${c.border} hover:shadow-lg hover:-translate-y-0.5 cursor-pointer`
+                      }`}
+                      onClick={() => !step.done && step.action()}
+                    >
+                      {/* Top area: step badge + time + illustration */}
+                      <div className="relative px-5 pt-4 pb-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                            step.done ? "bg-emerald-500 text-white" : `${c.badge} ${c.badgeText}`
+                          }`}>
+                            {step.done ? <Check className="h-4 w-4" /> : String(step.num).padStart(2, "0")}
+                          </div>
+                          {!step.done && (
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground/70 bg-white/70 dark:bg-white/10 rounded-full px-2.5 py-1 border border-black/5 dark:border-white/10">
+                              <Clock className="h-3 w-3" />
+                              {isAr ? step.timeAr : step.time}
+                            </div>
+                          )}
+                          {step.done && (
+                            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-full px-2.5 py-1">
+                              {isAr ? "أكملت الخطوة بنجاح ✓" : "Completed ✓"}
+                            </span>
+                          )}
+                        </div>
+                        {/* Illustration */}
+                        {step.illustration ? (
+                          <div className="flex justify-center py-2">
+                            <img src={step.illustration} alt="" className="h-16 sm:h-20 object-contain opacity-90" />
+                          </div>
+                        ) : (
+                          <div className="flex justify-center py-3">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                              step.done ? "bg-muted text-muted-foreground" : `${c.badge}/10 ${c.badge.replace("bg-", "text-")}`
+                            }`}>
+                              {React.cloneElement(step.icon as React.ReactElement, { className: "h-7 w-7" })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Bottom area: text + CTA */}
+                      <div className="px-5 pb-4 flex flex-col flex-1">
+                        <h3 className={`text-sm font-bold leading-snug ${step.done ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                          {isAr ? step.labelAr : step.label}
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed line-clamp-2 flex-1">
+                          {isAr ? step.descAr : step.desc}
+                        </p>
+
+                        {!step.done && (
+                          <div className="mt-3 flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              className={`h-8 text-xs rounded-lg px-4 font-semibold ${c.badge} hover:opacity-90 text-white border-0 shadow-sm`}
+                              onClick={(e) => { e.stopPropagation(); step.action(); }}
+                            >
+                              {isAr ? step.ctaAr : step.cta}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         );
