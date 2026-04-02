@@ -55,7 +55,8 @@ const DashboardLayout = () => {
           <AppHeader />
           <main className="flex-1 overflow-auto">
             <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:px-8 lg:py-6">
-              {trialDaysLeft !== null && trialDaysLeft > 0 && trialColor && (
+              {/* Trial banner hidden during beta — no paid plans available yet */}
+              {false && trialDaysLeft !== null && trialDaysLeft > 0 && trialColor && (
                 <Alert className={`mb-5 rounded-xl ${trialColor.border} ${trialColor.bg}`}>
                   <Timer className={`h-4 w-4 ${trialColor.icon}`} />
                   <div className="flex items-center justify-between w-full">
@@ -84,7 +85,7 @@ const DashboardLayout = () => {
                   </div>
                 </Alert>
               )}
-              {trialDaysLeft === 0 && (
+              {false && trialDaysLeft === 0 && (
                 <Alert className="mb-5 rounded-xl border-red-200 bg-red-50/80 dark:border-red-500/30 dark:bg-red-950/40">
                   <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
                   <AlertTitle className="text-red-800 dark:text-red-200 text-sm font-semibold">{t("dashboard.trialExpiredTitle")}</AlertTitle>
