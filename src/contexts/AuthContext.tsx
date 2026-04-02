@@ -18,6 +18,7 @@ import {
   logout as logoutApi,
   getMe,
   complete2FALogin as complete2FALoginApi,
+  googleLogin as googleLoginApi,
   TwoFactorRequiredError,
 } from "@/services/authApi";
 import { initCSRF } from "@/services/csrf";
@@ -30,6 +31,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   complete2FALogin: (challengeToken: string, code: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
+  googleLogin: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -41,6 +43,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   complete2FALogin: async () => {},
   register: async () => {},
+  googleLogin: async () => {},
   logout: async () => {},
   refreshUser: async () => {},
 });
@@ -82,6 +85,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setUser(res.user);
   }, []);
 
+  const googleLogin = useCallback(async (idToken: string) => {
+    const res = await googleLoginApi(idToken);
+    setUser(res.user);
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await logoutApi();
@@ -108,6 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         login,
         complete2FALogin,
         register,
+        googleLogin,
         logout,
         refreshUser,
       }}

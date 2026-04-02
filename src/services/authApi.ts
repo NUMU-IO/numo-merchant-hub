@@ -138,6 +138,23 @@ export async function register(data: RegisterData): Promise<AuthResponse> {
   return json.data;
 }
 
+export async function googleLogin(idToken: string): Promise<AuthResponse> {
+  const res = await fetch(`${API_BASE}/auth/google`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id_token: idToken }),
+  });
+
+  if (!res.ok) {
+    throw await apiErrorFromResponse(res);
+  }
+
+  const json = await res.json();
+  await initCSRF();
+  return json.data;
+}
+
 export async function logout(): Promise<void> {
   await fetch(`${API_BASE}/auth/logout`, {
     method: "POST",

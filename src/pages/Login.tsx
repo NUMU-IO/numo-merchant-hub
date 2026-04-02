@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, ArrowRight, ArrowLeft, Eye, EyeOff, ShieldCheck, Globe } from "lucide-react";
+import { GoogleLogin } from "@react-oauth/google";
 import { TwoFactorRequiredError } from "@/services/authApi";
 import { showError } from "@/lib/show-error";
 import { ApiError } from "@/lib/api-error";
@@ -32,7 +33,7 @@ type FieldErrors = Record<string, string>;
 
 export default function Login() {
   const { t } = useTranslation();
-  const { login, complete2FALogin, register } = useAuth();
+  const { login, complete2FALogin, register, googleLogin } = useAuth();
   const navigate = useNavigate();
 
   const [isRegister, setIsRegister] = useState(false);
@@ -50,6 +51,7 @@ export default function Login() {
   const [twoFACode, setTwoFACode] = useState("");
 
   const { language, setLanguage, isRTL } = useLanguage();
+  const isAr = language === "ar";
 
   // Rotating taglines
   const taglines = [
@@ -299,6 +301,40 @@ export default function Login() {
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{isRegister ? t("auth.register") : t("auth.login")}<ArrowRight className="h-4 w-4" /></>}
                 </Button>
               </form>
+
+              {/* Divider */}
+              <div className="relative mt-6 mb-4">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border/50" /></div>
+                <div className="relative flex justify-center text-xs"><span className="bg-card px-3 text-muted-foreground">{isAr ? "أو" : "or"}</span></div>
+              </div>
+
+              {/* Google Sign-In */}
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={async (credentialResponse) => {
+                    if (!credentialResponse.credential) return;
+                    setLoading(true);
+                    setError(null);
+                    try {
+                      await googleLogin(credentialResponse.credential);
+                      navigate("/", { replace: true });
+                    } catch (err: unknown) {
+                      if (err instanceof ApiError) {
+                        setError(err.toUserMessage(language));
+                      } else {
+                        setError(err instanceof Error ? err.message : "Google login failed");
+                      }
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  onError={() => setError(isAr ? "فشل تسجيل الدخول بجوجل" : "Google sign-in failed")}
+                  size="large"
+                  width="100%"
+                  text={isRegister ? "signup_with" : "signin_with"}
+                  shape="pill"
+                />
+              </div>
 
               <p className="mt-6 text-sm text-center text-muted-foreground">
                 {isRegister ? t("auth.hasAccount") : t("auth.noAccount")}{" "}
