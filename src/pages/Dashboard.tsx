@@ -113,8 +113,8 @@ const Dashboard = () => {
   const totalProducts = stats?.total_products ?? 0;
   const shippedCount = stats?.shipped_orders ?? 0;
 
-  // New merchant detection — hide analytics when everything is zero
-  const isNewMerchant = stats ? stats.total_orders === 0 && totalProducts === 0 : false;
+  // New merchant detection — hide analytics until first order arrives
+  const isNewMerchant = stats ? stats.total_orders === 0 : false;
 
   // Onboarding — single API call to backend
   const onboardingQuery = useQuery({
