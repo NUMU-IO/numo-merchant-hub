@@ -55,45 +55,7 @@ const DashboardLayout = () => {
           <AppHeader />
           <main className="flex-1 overflow-auto">
             <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:px-8 lg:py-6">
-              {/* Trial banner hidden during beta — no paid plans available yet */}
-              {false && trialDaysLeft !== null && trialDaysLeft > 0 && trialColor && (
-                <Alert className={`mb-5 rounded-xl ${trialColor.border} ${trialColor.bg}`}>
-                  <Timer className={`h-4 w-4 ${trialColor.icon}`} />
-                  <div className="flex items-center justify-between w-full">
-                    <div>
-                      <AlertTitle className={`${trialColor.title} text-sm font-semibold`}>
-                        {t("dashboard.trialTitle", { count: trialDaysLeft, days: trialDaysLeft })}
-                      </AlertTitle>
-                      <AlertDescription className={`${trialColor.desc} text-xs`}>
-                        {t("dashboard.trialDesc", {
-                          date: new Date(user!.trial_ends_at!).toLocaleDateString(undefined, {
-                            month: "long",
-                            day: "numeric",
-                            year: "numeric",
-                          }),
-                        })}
-                      </AlertDescription>
-                    </div>
-                    <Button
-                      size="sm"
-                      className={`shrink-0 h-7 text-xs rounded-lg gap-1 ${trialColor.btn}`}
-                      onClick={() => navigate("/settings")}
-                    >
-                      <Zap className="h-3 w-3" />
-                      {isAr ? "ترقية" : "Upgrade"}
-                    </Button>
-                  </div>
-                </Alert>
-              )}
-              {false && trialDaysLeft === 0 && (
-                <Alert className="mb-5 rounded-xl border-red-200 bg-red-50/80 dark:border-red-500/30 dark:bg-red-950/40">
-                  <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                  <AlertTitle className="text-red-800 dark:text-red-200 text-sm font-semibold">{t("dashboard.trialExpiredTitle")}</AlertTitle>
-                  <AlertDescription className="text-red-700/80 dark:text-red-300 text-xs">
-                    {t("dashboard.trialExpiredDesc")}
-                  </AlertDescription>
-                </Alert>
-              )}
+              {/* Trial banners hidden during beta — re-enable when paid plans launch */}
               {currentStore?.status === "suspended" && (
                 <Alert className="mb-5 rounded-xl border-red-200 bg-red-50/80 dark:border-red-500/30 dark:bg-red-950/40">
                   <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
