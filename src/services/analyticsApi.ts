@@ -30,6 +30,7 @@ export interface RevenueDataPoint {
   date: string;
   revenue: number; // cents
   orders: number;
+  visits: number;
 }
 
 export interface TopProduct {
