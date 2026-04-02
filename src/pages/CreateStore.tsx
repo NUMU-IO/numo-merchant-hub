@@ -3,15 +3,14 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { createStore, checkSubdomain } from "@/services/storeApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, CheckCircle2, XCircle, ArrowRight, Ticket } from "lucide-react";
 import { getStoreDomainSuffix } from "@/lib/storefront";
 import { ApiError } from "@/lib/api-error";
@@ -20,26 +19,20 @@ import { z } from "zod";
 const createStoreSchema = z.object({
   name: z.string().min(3, "اسم المتجر يجب أن يكون 3 أحرف على الأقل").max(60, "اسم المتجر يجب ألا يتجاوز 60 حرفًا"),
   subdomain: z.string().min(3, "النطاق الفرعي يجب أن يكون 3 أحرف على الأقل").max(30, "النطاق الفرعي يجب ألا يتجاوز 30 حرفًا").regex(/^[a-z0-9-]+$/, "النطاق الفرعي يجب أن يحتوي فقط على أحرف صغيرة وأرقام وشرطات"),
-  description: z.string().max(500, "الوصف يجب ألا يتجاوز 500 حرف").optional().or(z.literal("")),
 });
 
 type FieldErrors = Record<string, string>;
 
 export default function CreateStore() {
   const { t } = useTranslation();
+  const { language } = useLanguage();
   const navigate = useNavigate();
-  const { refetchStores, hasStores, isLoading: storesLoading } = useDashboardStore();
-
-  // Only redirect if user has stores AND didn't intentionally navigate here
-  // (e.g. from RequireStore guard, not from "New store" button)
+  const { refetchStores, hasStores } = useDashboardStore();
+  const isAr = language === "ar";
 
   const [name, setName] = useState("");
   const [subdomain, setSubdomain] = useState("");
-  const [description, setDescription] = useState("");
-  const [language, setLanguage] = useState("ar");
-  const [currency, setCurrency] = useState("EGP");
   const [betaCode, setBetaCode] = useState("");
-  const [showBetaCode, setShowBetaCode] = useState(false);
   const [subdomainStatus, setSubdomainStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
   const [subdomainMsg, setSubdomainMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -69,7 +62,7 @@ export default function CreateStore() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFieldErrors({});
-    const result = createStoreSchema.safeParse({ name, subdomain, description });
+    const result = createStoreSchema.safeParse({ name, subdomain });
     if (!result.success) {
       const errs: FieldErrors = {};
       for (const issue of result.error.issues) {
@@ -83,7 +76,7 @@ export default function CreateStore() {
     setError(null);
     setLoading(true);
     try {
-      await createStore({ name, subdomain, description: description || undefined, default_language: language, default_currency: currency, invite_code: betaCode || undefined });
+      await createStore({ name, subdomain, invite_code: betaCode || undefined });
       await refetchStores();
       navigate("/onboarding-wizard", { replace: true });
     } catch (err: unknown) {
@@ -138,7 +131,7 @@ export default function CreateStore() {
               onClick={() => navigate(-1)}
               className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
             >
-              ← {language === "ar" ? "رجوع" : "Back"}
+              ← {isAr ? "رجوع" : "Back"}
             </button>
           )}
 
@@ -167,64 +160,27 @@ export default function CreateStore() {
               {fieldErrors.subdomain && <p className="text-xs text-destructive">{fieldErrors.subdomain}</p>}
             </div>
 
+            {/* Beta invite code — always visible */}
             <div className="space-y-2">
-              <Label className="text-[13px] font-medium">{t("createStore.description")}</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("createStore.descriptionPlaceholder")} rows={3} className={`rounded-lg border-border/70 placeholder:text-muted-foreground/40 focus:border-foreground focus:ring-1 focus:ring-foreground/5 transition-colors ${fieldErrors.description ? "border-destructive" : ""}`} />
-              {fieldErrors.description && <p className="text-xs text-destructive">{fieldErrors.description}</p>}
+              <Label className="text-[13px] font-medium flex items-center gap-1.5">
+                <Ticket className="h-3.5 w-3.5 text-amber-500" />
+                {isAr ? "كود الدعوة (بيتا)" : "Beta Invite Code"}
+              </Label>
+              <Input
+                value={betaCode}
+                onChange={(e) => setBetaCode(e.target.value.toUpperCase().trim())}
+                placeholder={isAr ? "أدخل كود الدعوة" : "Enter your invite code"}
+                className={`${inputCls("invite_code")} font-mono tracking-widest`}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {isAr ? "مطلوب للوصول الفوري للمنصة." : "Required for instant platform access."}
+                {" "}
+                <Link to="/waitlist" className="text-primary hover:underline">
+                  {isAr ? "ليس لديك كود؟ انضم لقائمة الانتظار" : "No code? Join the waitlist"}
+                </Link>
+              </p>
+              {fieldErrors.invite_code && <p className="text-xs text-destructive">{fieldErrors.invite_code}</p>}
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label className="text-[13px] font-medium">{t("createStore.language")}</Label>
-                <Select value={language} onValueChange={setLanguage}>
-                  <SelectTrigger className="h-11 rounded-lg"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ar">العربية</SelectItem>
-                    <SelectItem value="en">English</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[13px] font-medium">{t("createStore.currency")}</Label>
-                <Select value={currency} onValueChange={setCurrency}>
-                  <SelectTrigger className="h-11 rounded-lg"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="EGP">EGP (ج.م)</SelectItem>
-                    <SelectItem value="USD">USD ($)</SelectItem>
-                    <SelectItem value="SAR">SAR (ر.س)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {!showBetaCode ? (
-              <button
-                type="button"
-                onClick={() => setShowBetaCode(true)}
-                className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Ticket className="h-3.5 w-3.5" />
-                {language === "ar" ? "هل لديك كود دعوة؟" : "Have an invite code?"}
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <Label className="text-[13px] font-medium flex items-center gap-1.5">
-                  <Ticket className="h-3.5 w-3.5 text-amber-500" />
-                  {language === "ar" ? "كود الدعوة (بيتا)" : "Beta Invite Code"}
-                </Label>
-                <Input
-                  value={betaCode}
-                  onChange={(e) => setBetaCode(e.target.value.toUpperCase().trim())}
-                  placeholder={language === "ar" ? "أدخل كود الدعوة" : "Enter your invite code"}
-                  className={`${inputCls("invite_code")} font-mono tracking-widest`}
-                  autoFocus
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  {language === "ar" ? "اختياري — يتيح لك الوصول الفوري للمنصة" : "Optional — gives you instant access to the platform"}
-                </p>
-                {fieldErrors.invite_code && <p className="text-xs text-destructive">{fieldErrors.invite_code}</p>}
-              </div>
-            )}
 
             {error && (
               <p className="text-sm text-destructive bg-destructive/[0.04] border border-destructive/10 rounded-lg px-3 py-2.5">{error}</p>

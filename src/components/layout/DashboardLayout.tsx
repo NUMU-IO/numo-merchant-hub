@@ -1,11 +1,13 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { AlertTriangle, Clock, Timer } from "lucide-react";
+import { AlertTriangle, Clock, Timer, Zap } from "lucide-react";
 import { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
 import MobileBottomNav from "./MobileBottomNav";
@@ -25,6 +27,9 @@ const DashboardLayout = () => {
   const { currentStore } = useDashboardStore();
   const { user } = useAuth();
   const { t } = useTranslation();
+  const { language } = useLanguage();
+  const navigate = useNavigate();
+  const isAr = language === "ar";
 
   const trialDaysLeft = useMemo(() => {
     if (!user?.trial_ends_at) return null;
@@ -34,6 +39,14 @@ const DashboardLayout = () => {
     return diff > 0 ? diff : 0;
   }, [user?.trial_ends_at]);
 
+  // Color progression: blue (>7d) → amber (3-7d) → red (≤3d)
+  const trialColor = useMemo(() => {
+    if (trialDaysLeft === null || trialDaysLeft === 0) return null;
+    if (trialDaysLeft > 7) return { border: "border-blue-200 dark:border-blue-500/30", bg: "bg-blue-50/80 dark:bg-blue-950/40", icon: "text-blue-600 dark:text-blue-400", title: "text-blue-800 dark:text-blue-200", desc: "text-blue-700/80 dark:text-blue-300", btn: "bg-blue-600 hover:bg-blue-700 text-white" };
+    if (trialDaysLeft > 3) return { border: "border-amber-200 dark:border-amber-500/30", bg: "bg-amber-50/80 dark:bg-amber-950/40", icon: "text-amber-600 dark:text-amber-400", title: "text-amber-800 dark:text-amber-200", desc: "text-amber-700/80 dark:text-amber-300", btn: "bg-amber-600 hover:bg-amber-700 text-white" };
+    return { border: "border-red-200 dark:border-red-500/30", bg: "bg-red-50/80 dark:bg-red-950/40", icon: "text-red-600 dark:text-red-400", title: "text-red-800 dark:text-red-200", desc: "text-red-700/80 dark:text-red-300", btn: "bg-red-600 hover:bg-red-700 text-white" };
+  }, [trialDaysLeft]);
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -42,21 +55,33 @@ const DashboardLayout = () => {
           <AppHeader />
           <main className="flex-1 overflow-auto">
             <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:px-8 lg:py-6">
-              {trialDaysLeft !== null && trialDaysLeft > 0 && (
-                <Alert className="mb-5 rounded-xl border-blue-200 bg-blue-50/80 dark:border-blue-500/30 dark:bg-blue-950/40">
-                  <Timer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <AlertTitle className="text-blue-800 dark:text-blue-200 text-sm font-semibold">
-                    {t("dashboard.trialTitle", { count: trialDaysLeft, days: trialDaysLeft })}
-                  </AlertTitle>
-                  <AlertDescription className="text-blue-700/80 dark:text-blue-300 text-xs">
-                    {t("dashboard.trialDesc", {
-                      date: new Date(user!.trial_ends_at!).toLocaleDateString(undefined, {
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
-                      }),
-                    })}
-                  </AlertDescription>
+              {trialDaysLeft !== null && trialDaysLeft > 0 && trialColor && (
+                <Alert className={`mb-5 rounded-xl ${trialColor.border} ${trialColor.bg}`}>
+                  <Timer className={`h-4 w-4 ${trialColor.icon}`} />
+                  <div className="flex items-center justify-between w-full">
+                    <div>
+                      <AlertTitle className={`${trialColor.title} text-sm font-semibold`}>
+                        {t("dashboard.trialTitle", { count: trialDaysLeft, days: trialDaysLeft })}
+                      </AlertTitle>
+                      <AlertDescription className={`${trialColor.desc} text-xs`}>
+                        {t("dashboard.trialDesc", {
+                          date: new Date(user!.trial_ends_at!).toLocaleDateString(undefined, {
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric",
+                          }),
+                        })}
+                      </AlertDescription>
+                    </div>
+                    <Button
+                      size="sm"
+                      className={`shrink-0 h-7 text-xs rounded-lg gap-1 ${trialColor.btn}`}
+                      onClick={() => navigate("/settings")}
+                    >
+                      <Zap className="h-3 w-3" />
+                      {isAr ? "ترقية" : "Upgrade"}
+                    </Button>
+                  </div>
                 </Alert>
               )}
               {trialDaysLeft === 0 && (

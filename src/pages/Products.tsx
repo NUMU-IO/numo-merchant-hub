@@ -329,22 +329,29 @@ const Products = () => {
               <p className="text-xs text-muted-foreground">{isAr ? "جارٍ التحميل..." : "Loading products..."}</p>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-5">
-              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-muted/40">
-                <Package className="h-10 w-10 text-muted-foreground/40" />
+            <div className="flex flex-col items-center justify-center py-20 gap-5">
+              <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/10">
+                <Package className="h-12 w-12 text-primary/40" />
               </div>
-              <div className="text-center space-y-1.5">
-                <p className="text-base font-semibold text-foreground">
-                  {isAr ? "لم يتم إضافة منتج بعد" : "No products added yet"}
+              <div className="text-center space-y-2 max-w-md">
+                <p className="text-lg font-semibold text-foreground">
+                  {isAr ? "متجرك في انتظار المنتجات" : "Your store is waiting for products"}
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  {isAr ? "ابدأ بإضافة أول منتج لمتجرك" : "Get started by adding your first product"}
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {isAr
+                    ? "أضف أول منتج وابدأ البيع. تقدر تضيف المنتجات يدوي أو تستوردها من إنستجرام أو ملف CSV."
+                    : "Add your first product to start selling. You can add products manually or import them from Instagram or a CSV file."}
                 </p>
               </div>
-              <Button onClick={() => navigate("/products/new")} size="sm" className="gap-1.5 rounded-lg px-5 h-9 shadow-sm">
-                <Plus className="h-4 w-4" />
-                {isAr ? "أضف منتجك الأول" : "Add your first product"}
-              </Button>
+              <div className="flex gap-3">
+                <Button onClick={() => navigate("/products/new")} size="sm" className="gap-1.5 rounded-lg px-5 h-9 shadow-sm">
+                  <Plus className="h-4 w-4" />
+                  {isAr ? "أضف منتج" : "Add Product"}
+                </Button>
+                <Button variant="outline" onClick={() => navigate("/social")} size="sm" className="gap-1.5 rounded-lg px-5 h-9">
+                  {isAr ? "استيراد منتجات" : "Import Products"}
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">

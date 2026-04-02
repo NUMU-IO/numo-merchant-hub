@@ -44,6 +44,7 @@ const CreateStore = lazy(() => import("@/pages/CreateStore"));
 const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const OnboardingWizard = lazy(() => import("@/pages/OnboardingWizard"));
+const Waitlist = lazy(() => import("@/pages/Waitlist"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -67,18 +68,27 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** Redirects authenticated users without stores to /create-store */
-function RequireStore({ children }: { children: React.ReactNode }) {
-  const { hasStores, isLoading } = useDashboardStore();
-  if (isLoading) return <NumuLoadingScreen />;
-  if (!hasStores) return <Navigate to="/create-store" replace />;
-  return <>{children}</>;
-}
-
 /** Redirects unverified users to /verify-email */
 function RequireVerified({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (user && !user.is_verified) return <Navigate to="/verify-email" replace />;
+  return <>{children}</>;
+}
+
+/** Combined guard: auth + verified + store — single loading screen */
+function RouteResolver({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+  const { hasStores, isLoading: storeLoading } = useDashboardStore();
+
+  // Single loading state for all checks
+  if (authLoading || (isAuthenticated && storeLoading)) {
+    return <NumuLoadingScreen />;
+  }
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user && !user.is_verified) return <Navigate to="/verify-email" replace />;
+  if (!hasStores) return <Navigate to="/create-store" replace />;
+
   return <>{children}</>;
 }
 
@@ -98,6 +108,7 @@ const App = () => (
                   <Route path="/login" element={<Login />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/waitlist" element={<Waitlist />} />
 
                   {/* Auth required, verification pending */}
                   <Route
@@ -125,13 +136,9 @@ const App = () => (
                   <Route
                     path="/onboarding-wizard"
                     element={
-                      <RequireAuth>
-                        <RequireVerified>
-                          <RequireStore>
-                            <OnboardingWizard />
-                          </RequireStore>
-                        </RequireVerified>
-                      </RequireAuth>
+                      <RouteResolver>
+                        <OnboardingWizard />
+                      </RouteResolver>
                     }
                   />
 
@@ -139,26 +146,18 @@ const App = () => (
                   <Route
                     path="/online-store/themes/editor"
                     element={
-                      <RequireAuth>
-                        <RequireVerified>
-                          <RequireStore>
-                            <ThemeEditor />
-                          </RequireStore>
-                        </RequireVerified>
-                      </RequireAuth>
+                      <RouteResolver>
+                        <ThemeEditor />
+                      </RouteResolver>
                     }
                   />
 
                   {/* Auth + verified + store required — dashboard */}
                   <Route
                     element={
-                      <RequireAuth>
-                        <RequireVerified>
-                          <RequireStore>
-                            <DashboardLayout />
-                          </RequireStore>
-                        </RequireVerified>
-                      </RequireAuth>
+                      <RouteResolver>
+                        <DashboardLayout />
+                      </RouteResolver>
                     }
                   >
                     <Route path="/" element={<Dashboard />} />

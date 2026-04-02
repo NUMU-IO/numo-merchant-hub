@@ -1,13 +1,20 @@
 /**
  * OnboardingWizard — multi-step smart onboarding that auto-configures
- * the store based on the merchant's answers.
+ * the store based on the merchant's answers, then optionally creates
+ * their first product and shows a store preview.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { configureFromWizard, type WizardConfig } from "@/services/storeApi";
+import { createProduct, uploadProductImage } from "@/services/productApi";
+import { getStoreUrl } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
   Loader2,
@@ -25,6 +32,10 @@ import {
   CreditCard,
   Check,
   SkipForward,
+  Upload,
+  ExternalLink,
+  ImagePlus,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +44,7 @@ import { cn } from "@/lib/utils";
 interface NicheOption {
   id: string;
   label: string;
+  labelEn: string;
   icon: React.ReactNode;
 }
 
@@ -58,13 +70,13 @@ interface PaymentOption {
 /* ──────────────────────────── Data ──────────────────────────── */
 
 const NICHES: NicheOption[] = [
-  { id: "fashion", label: "ملابس وأزياء", icon: <Shirt className="h-7 w-7" /> },
-  { id: "electronics", label: "إلكترونيات", icon: <Smartphone className="h-7 w-7" /> },
-  { id: "beauty", label: "تجميل وعناية", icon: <Sparkles className="h-7 w-7" /> },
-  { id: "home", label: "مستلزمات منزلية", icon: <Home className="h-7 w-7" /> },
-  { id: "food", label: "أطعمة ومشروبات", icon: <UtensilsCrossed className="h-7 w-7" /> },
-  { id: "accessories", label: "إكسسوارات", icon: <Watch className="h-7 w-7" /> },
-  { id: "other", label: "أخرى", icon: <Package className="h-7 w-7" /> },
+  { id: "fashion", label: "ملابس وأزياء", labelEn: "Fashion & Clothing", icon: <Shirt className="h-7 w-7" /> },
+  { id: "electronics", label: "إلكترونيات", labelEn: "Electronics", icon: <Smartphone className="h-7 w-7" /> },
+  { id: "beauty", label: "تجميل وعناية", labelEn: "Beauty & Care", icon: <Sparkles className="h-7 w-7" /> },
+  { id: "home", label: "مستلزمات منزلية", labelEn: "Home & Living", icon: <Home className="h-7 w-7" /> },
+  { id: "food", label: "أطعمة ومشروبات", labelEn: "Food & Drinks", icon: <UtensilsCrossed className="h-7 w-7" /> },
+  { id: "accessories", label: "إكسسوارات", labelEn: "Accessories", icon: <Watch className="h-7 w-7" /> },
+  { id: "other", label: "أخرى", labelEn: "Other", icon: <Package className="h-7 w-7" /> },
 ];
 
 const COUNTRIES: CountryOption[] = [
@@ -89,16 +101,31 @@ const PAYMENT_OPTIONS: PaymentOption[] = [
   { id: "kashier", label: "كاشير", desc: "بوابة دفع متعددة" },
 ];
 
-const TOTAL_STEPS = 4;
+// Steps: 0 = welcome, 1-4 = config, 5 = first product, 6 = preview
+const TOTAL_STEPS = 6;
+
+/* ──────────────────────────── Step Labels ──────────────────────────── */
+
+const STEP_LABELS = [
+  { key: "niche", labelAr: "التصنيف", labelEn: "Category" },
+  { key: "country", labelAr: "الموقع", labelEn: "Location" },
+  { key: "shipping", labelAr: "الشحن", labelEn: "Shipping" },
+  { key: "payments", labelAr: "الدفع", labelEn: "Payments" },
+  { key: "product", labelAr: "منتج", labelEn: "Product" },
+  { key: "preview", labelAr: "معاينة", labelEn: "Preview" },
+];
 
 /* ──────────────────────────── Component ──────────────────────────── */
 
 export default function OnboardingWizard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
+  const isAr = language === "ar";
 
   // Wizard state
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0); // 0 = welcome
   const [businessType, setBusinessType] = useState<string>("");
   const [country, setCountry] = useState<string>("EG");
   const [shippingPref, setShippingPref] = useState<string>("");
@@ -106,44 +133,62 @@ export default function OnboardingWizard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const progressValue = ((step - 1) / TOTAL_STEPS) * 100;
+  // Product step state
+  const [productName, setProductName] = useState("");
+  const [productPrice, setProductPrice] = useState("");
+  const [productImage, setProductImage] = useState<File | null>(null);
+  const [productImagePreview, setProductImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const progressValue = step === 0 ? 0 : (step / TOTAL_STEPS) * 100;
 
   const canAdvance = useCallback(() => {
     switch (step) {
-      case 1:
-        return !!businessType;
-      case 2:
-        return !!country;
-      case 3:
-        return !!shippingPref;
-      case 4:
-        return paymentMethods.length > 0;
-      default:
-        return false;
+      case 0: return true; // welcome
+      case 1: return !!businessType;
+      case 2: return !!country;
+      case 3: return !!shippingPref;
+      case 4: return paymentMethods.length > 0;
+      case 5: return true; // product step is skippable
+      case 6: return true; // preview is always passable
+      default: return false;
     }
   }, [step, businessType, country, shippingPref, paymentMethods]);
 
   const togglePayment = (id: string) => {
-    if (id === "cod") return; // Always on
+    if (id === "cod") return;
     setPaymentMethods((prev) =>
       prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
     );
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProductImage(file);
+    setProductImagePreview(URL.createObjectURL(file));
+  };
+
+  const clearImage = () => {
+    setProductImage(null);
+    if (productImagePreview) URL.revokeObjectURL(productImagePreview);
+    setProductImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleNext = () => {
     if (step < TOTAL_STEPS) {
       setStep((s) => s + 1);
     } else {
-      handleSubmit();
+      handleFinish();
     }
   };
 
   const handleBack = () => {
-    if (step > 1) setStep((s) => s - 1);
+    if (step > 0) setStep((s) => s - 1);
   };
 
   const handleSkip = () => {
-    // Apply defaults and submit
     const defaults: Partial<{
       businessType: string;
       country: string;
@@ -155,10 +200,10 @@ export default function OnboardingWizard() {
     if (!shippingPref) defaults.shippingPref = "manual";
     if (paymentMethods.length === 0) defaults.paymentMethods = ["cod"];
 
-    handleSubmitWithDefaults(defaults);
+    handleSubmitConfig(defaults);
   };
 
-  const handleSubmitWithDefaults = async (
+  const handleSubmitConfig = async (
     defaults: Partial<{
       businessType: string;
       country: string;
@@ -176,29 +221,113 @@ export default function OnboardingWizard() {
       country: defaults.country || country || "EG",
       shipping_preference: defaults.shippingPref || shippingPref || "manual",
       payment_methods: defaults.paymentMethods || paymentMethods,
-      store_language: "ar",
+      store_language: isAr ? "ar" : "en",
     };
 
     try {
       await configureFromWizard(currentStore.id, config);
-      navigate("/", { replace: true });
+      // If skipping, go straight to dashboard
+      if (Object.keys(defaults).length > 0) {
+        navigate("/", { replace: true });
+      }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "حدث خطأ أثناء إعداد المتجر");
-    } finally {
+      setError(err instanceof Error ? err.message : isAr ? "حدث خطأ أثناء إعداد المتجر" : "Error configuring store");
       setLoading(false);
+    } finally {
+      if (Object.keys(defaults).length === 0) {
+        setLoading(false);
+      }
     }
   };
 
-  const handleSubmit = () => handleSubmitWithDefaults();
+  const handleProductSubmit = async () => {
+    if (!currentStore?.id || !productName || !productPrice) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const priceInCents = String(Math.round(parseFloat(productPrice) * 100));
+      const product = await createProduct(currentStore.id, {
+        name: productName,
+        price: priceInCents,
+        status: "active",
+      });
+      // Upload image if provided
+      if (productImage && product.id) {
+        try {
+          await uploadProductImage(currentStore.id, product.id, productImage);
+        } catch {
+          // Image upload failure shouldn't block onboarding
+        }
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : isAr ? "حدث خطأ أثناء إضافة المنتج" : "Error adding product");
+      setLoading(false);
+      return;
+    }
+    setLoading(false);
+    setStep(TOTAL_STEPS); // Go to preview
+  };
+
+  const handleFinish = () => {
+    navigate("/", { replace: true });
+  };
+
+  // When advancing from step 4 (payments), submit config first
+  const handleStepTransition = async () => {
+    if (step === 4) {
+      // Submit configuration, then advance to product step
+      setLoading(true);
+      setError(null);
+      try {
+        await handleSubmitConfig();
+        setStep(5);
+      } catch {
+        // Error already handled in handleSubmitConfig
+      } finally {
+        setLoading(false);
+      }
+    } else if (step === 5 && productName && productPrice) {
+      // Submit product, then advance to preview
+      await handleProductSubmit();
+    } else {
+      handleNext();
+    }
+  };
 
   /* ──────── Step renderers ──────── */
+
+  const renderWelcome = () => (
+    <div className="text-center space-y-6">
+      <div className="w-20 h-20 mx-auto rounded-2xl bg-primary/10 flex items-center justify-center">
+        <Sparkles className="h-10 w-10 text-primary" />
+      </div>
+      <div>
+        <h1 className="text-3xl font-bold">
+          {isAr ? `أهلاً ${user?.first_name || ""}!` : `Welcome, ${user?.first_name || ""}!`}
+        </h1>
+        <p className="text-lg text-muted-foreground mt-2">
+          {isAr ? "خلينا نجهز متجرك في دقائق" : "Let's get your store ready in minutes"}
+        </p>
+      </div>
+      <div className="flex flex-col gap-3 max-w-xs mx-auto">
+        <Button size="lg" onClick={() => setStep(1)} className="gap-2">
+          {isAr ? "يلا نبدأ" : "Let's go!"}
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <button type="button" className="text-sm text-muted-foreground hover:text-foreground transition-colors" onClick={handleSkip}>
+          {isAr ? "تخطي الإعداد" : "Skip setup"}
+        </button>
+      </div>
+    </div>
+  );
 
   const renderStep1 = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold tracking-tight">ايه نوع منتجاتك؟</h2>
+        <h2 className="text-2xl font-bold tracking-tight">{isAr ? "ايه نوع منتجاتك؟" : "What do you sell?"}</h2>
         <p className="text-muted-foreground text-sm">
-          اختار التصنيف الأقرب — هنضبط المتجر على أساسه
+          {isAr ? "اختار التصنيف الأقرب — هنضبط المتجر على أساسه" : "Pick the closest category — we'll optimize your store for it"}
         </p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -225,7 +354,7 @@ export default function OnboardingWizard() {
             >
               {niche.icon}
             </div>
-            <span className="text-sm font-medium">{niche.label}</span>
+            <span className="text-sm font-medium">{isAr ? niche.label : niche.labelEn}</span>
           </button>
         ))}
       </div>
@@ -240,9 +369,9 @@ export default function OnboardingWizard() {
             <MapPin className="h-7 w-7 text-muted-foreground" />
           </div>
         </div>
-        <h2 className="text-2xl font-bold tracking-tight">فين متجرك؟</h2>
+        <h2 className="text-2xl font-bold tracking-tight">{isAr ? "فين متجرك؟" : "Where's your store?"}</h2>
         <p className="text-muted-foreground text-sm">
-          هنضبط العملة ومناطق الشحن تلقائياً
+          {isAr ? "هنضبط العملة ومناطق الشحن تلقائياً" : "We'll auto-set currency and shipping zones"}
         </p>
       </div>
       <div className="grid grid-cols-1 gap-3 max-w-sm mx-auto">
@@ -278,9 +407,9 @@ export default function OnboardingWizard() {
             <Truck className="h-7 w-7 text-muted-foreground" />
           </div>
         </div>
-        <h2 className="text-2xl font-bold tracking-tight">إزاي بتشحن؟</h2>
+        <h2 className="text-2xl font-bold tracking-tight">{isAr ? "إزاي بتشحن؟" : "How do you ship?"}</h2>
         <p className="text-muted-foreground text-sm">
-          اختار طريقة الشحن المناسبة ليك
+          {isAr ? "اختار طريقة الشحن المناسبة ليك" : "Choose your preferred shipping method"}
         </p>
       </div>
       <div className="grid grid-cols-1 gap-3 max-w-md mx-auto">
@@ -318,9 +447,9 @@ export default function OnboardingWizard() {
             <CreditCard className="h-7 w-7 text-muted-foreground" />
           </div>
         </div>
-        <h2 className="text-2xl font-bold tracking-tight">إزاي بتقبض؟</h2>
+        <h2 className="text-2xl font-bold tracking-tight">{isAr ? "إزاي بتقبض؟" : "How do you get paid?"}</h2>
         <p className="text-muted-foreground text-sm">
-          اختار طرق الدفع — تقدر تغيرها بعدين
+          {isAr ? "اختار طرق الدفع — تقدر تغيرها بعدين" : "Choose payment methods — you can change these later"}
         </p>
       </div>
       <div className="grid grid-cols-1 gap-3 max-w-md mx-auto">
@@ -357,7 +486,7 @@ export default function OnboardingWizard() {
               </div>
               {opt.alwaysOn && (
                 <span className="text-[11px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex-shrink-0">
-                  تلقائي
+                  {isAr ? "تلقائي" : "Auto"}
                 </span>
               )}
             </button>
@@ -367,18 +496,134 @@ export default function OnboardingWizard() {
     </div>
   );
 
+  const renderStep5 = () => (
+    <div className="space-y-6">
+      <div className="text-center space-y-2">
+        <div className="flex justify-center mb-2">
+          <div className="p-3 rounded-xl bg-muted">
+            <Package className="h-7 w-7 text-muted-foreground" />
+          </div>
+        </div>
+        <h2 className="text-2xl font-bold tracking-tight">
+          {isAr ? "أضف أول منتج" : "Add your first product"}
+        </h2>
+        <p className="text-muted-foreground text-sm">
+          {isAr ? "أضف منتج واحد عشان يبان متجرك — تقدر تزود بعدين" : "Add one product to get started — you can add more later"}
+        </p>
+      </div>
+      <div className="max-w-md mx-auto space-y-4">
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">{isAr ? "اسم المنتج" : "Product Name"}</Label>
+          <Input
+            value={productName}
+            onChange={(e) => setProductName(e.target.value)}
+            placeholder={isAr ? "مثال: تيشيرت قطن" : "e.g. Cotton T-Shirt"}
+            className="h-11 rounded-lg"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">{isAr ? "السعر" : "Price"}</Label>
+          <div className="relative">
+            <Input
+              type="number"
+              value={productPrice}
+              onChange={(e) => setProductPrice(e.target.value)}
+              placeholder="199"
+              className="h-11 rounded-lg pe-16"
+              min="0"
+              step="0.01"
+            />
+            <span className="absolute inset-y-0 end-3 flex items-center text-sm text-muted-foreground">
+              {currentStore?.default_currency || "EGP"}
+            </span>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">{isAr ? "صورة المنتج" : "Product Image"}</Label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageSelect}
+            className="hidden"
+            title={isAr ? "اختر صورة المنتج" : "Choose product image"}
+          />
+          {productImagePreview ? (
+            <div className="relative w-32 h-32 rounded-xl overflow-hidden border group">
+              <img src={productImagePreview} alt="Product" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={clearImage}
+                title={isAr ? "إزالة الصورة" : "Remove image"}
+                className="absolute top-1 end-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-32 h-32 rounded-xl border-2 border-dashed border-border/60 flex flex-col items-center justify-center gap-2 hover:border-foreground/30 hover:bg-accent/30 transition-colors"
+            >
+              <ImagePlus className="h-6 w-6 text-muted-foreground/50" />
+              <span className="text-[11px] text-muted-foreground">{isAr ? "اختر صورة" : "Add image"}</span>
+            </button>
+          )}
+          <p className="text-[11px] text-muted-foreground">{isAr ? "اختياري — تقدر تضيف صور بعدين" : "Optional — you can add images later"}</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderStep6 = () => (
+    <div className="space-y-6">
+      <div className="text-center space-y-2">
+        <div className="flex justify-center mb-2">
+          <div className="p-3 rounded-xl bg-emerald-500/10">
+            <Check className="h-7 w-7 text-emerald-500" />
+          </div>
+        </div>
+        <h2 className="text-2xl font-bold tracking-tight">
+          {isAr ? "متجرك جاهز!" : "Your store is ready!"}
+        </h2>
+        <p className="text-muted-foreground text-sm">
+          {isAr ? "شوف شكل متجرك — تقدر تعدل أي وقت من لوحة التحكم" : "See how your store looks — you can customize anytime from the dashboard"}
+        </p>
+      </div>
+      {currentStore?.subdomain && (
+        <div className="rounded-xl border overflow-hidden max-w-lg mx-auto">
+          <div className="bg-muted/50 px-4 py-2 flex items-center justify-between border-b">
+            <span className="text-xs text-muted-foreground font-mono truncate">{getStoreUrl(currentStore.subdomain)}</span>
+            <button
+              type="button"
+              onClick={() => window.open(getStoreUrl(currentStore.subdomain), "_blank")}
+              className="text-xs text-primary flex items-center gap-1 hover:underline shrink-0"
+            >
+              <ExternalLink className="h-3 w-3" />
+              {isAr ? "فتح" : "Open"}
+            </button>
+          </div>
+          <iframe
+            src={getStoreUrl(currentStore.subdomain)}
+            className="w-full h-[350px]"
+            title="Store Preview"
+          />
+        </div>
+      )}
+    </div>
+  );
+
   const renderCurrentStep = () => {
     switch (step) {
-      case 1:
-        return renderStep1();
-      case 2:
-        return renderStep2();
-      case 3:
-        return renderStep3();
-      case 4:
-        return renderStep4();
-      default:
-        return null;
+      case 0: return renderWelcome();
+      case 1: return renderStep1();
+      case 2: return renderStep2();
+      case 3: return renderStep3();
+      case 4: return renderStep4();
+      case 5: return renderStep5();
+      case 6: return renderStep6();
+      default: return null;
     }
   };
 
@@ -386,7 +631,7 @@ export default function OnboardingWizard() {
 
   return (
     <div
-      dir="rtl"
+      dir={isAr ? "rtl" : "ltr"}
       className="min-h-screen auth-page auth-dot-grid relative flex flex-col items-center justify-center p-4 sm:p-6 lg:p-10"
     >
       <div className="w-full max-w-[580px]">
@@ -399,25 +644,42 @@ export default function OnboardingWizard() {
 
         {/* ── Card ── */}
         <div className="auth-glass rounded-2xl p-7 sm:p-9 auth-enter">
-          {/* Progress bar */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-muted-foreground">
-                الخطوة {step} من {TOTAL_STEPS}
-              </span>
-              <button
-                type="button"
-                onClick={handleSkip}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <SkipForward className="h-3 w-3" />
-                تخطي الإعداد
-              </button>
+          {/* Progress bar + step indicator — only show after welcome */}
+          {step > 0 && (
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-3">
+                {/* Step indicators */}
+                <div className="flex items-center gap-1">
+                  {STEP_LABELS.map((s, i) => (
+                    <div key={s.key} className="flex items-center gap-1">
+                      <div className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors",
+                        i + 1 < step ? "bg-foreground text-background" :
+                        i + 1 === step ? "bg-foreground/80 text-background" :
+                        "bg-muted text-muted-foreground"
+                      )}>
+                        {i + 1 < step ? <Check className="h-3 w-3" /> : i + 1}
+                      </div>
+                      {i < STEP_LABELS.length - 1 && (
+                        <div className={cn("w-3 h-px", i + 1 < step ? "bg-foreground/40" : "bg-muted")} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSkip}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <SkipForward className="h-3 w-3" />
+                  {isAr ? "تخطي" : "Skip"}
+                </button>
+              </div>
+              <Progress value={progressValue} className="h-1.5" />
             </div>
-            <Progress value={progressValue} className="h-1.5" />
-          </div>
+          )}
 
-          {/* Step content with simple transition */}
+          {/* Step content */}
           <div
             key={step}
             className="animate-in fade-in slide-in-from-left-2 duration-300"
@@ -432,43 +694,63 @@ export default function OnboardingWizard() {
             </p>
           )}
 
-          {/* Navigation buttons */}
-          <div className="flex items-center justify-between mt-8 gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleBack}
-              disabled={step === 1 || loading}
-              className={cn(
-                "gap-2 transition-opacity",
-                step === 1 && "opacity-0 pointer-events-none"
-              )}
-            >
-              <ArrowRight className="h-4 w-4" />
-              رجوع
-            </Button>
+          {/* Navigation buttons — only for steps 1+ */}
+          {step > 0 && (
+            <div className="flex items-center justify-between mt-8 gap-3">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleBack}
+                disabled={step <= 1 || loading}
+                className={cn(
+                  "gap-2 transition-opacity",
+                  step <= 1 && "opacity-0 pointer-events-none"
+                )}
+              >
+                <ArrowRight className="h-4 w-4" />
+                {isAr ? "رجوع" : "Back"}
+              </Button>
 
-            <Button
-              type="button"
-              onClick={handleNext}
-              disabled={!canAdvance() || loading}
-              className="gap-2 min-w-[140px]"
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : step === TOTAL_STEPS ? (
-                <>
-                  إعداد المتجر
-                  <Check className="h-4 w-4" />
-                </>
-              ) : (
-                <>
-                  التالي
+              {step === 5 && (!productName || !productPrice) ? (
+                // On product step with empty fields — show skip + add later
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStep(TOTAL_STEPS)}
+                  className="gap-2"
+                >
+                  {isAr ? "تخطي — أضيف بعدين" : "Skip — add later"}
                   <ArrowLeft className="h-4 w-4" />
-                </>
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={handleStepTransition}
+                  disabled={!canAdvance() || loading}
+                  className="gap-2 min-w-[140px]"
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : step === TOTAL_STEPS ? (
+                    <>
+                      {isAr ? "ابدأ البيع" : "Start Selling"}
+                      <Check className="h-4 w-4" />
+                    </>
+                  ) : step === 5 ? (
+                    <>
+                      {isAr ? "أضف المنتج" : "Add Product"}
+                      <Package className="h-4 w-4" />
+                    </>
+                  ) : (
+                    <>
+                      {isAr ? "التالي" : "Next"}
+                      <ArrowLeft className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
               )}
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
 
         <p className="text-center text-[11px] text-primary-foreground/20 mt-6">
