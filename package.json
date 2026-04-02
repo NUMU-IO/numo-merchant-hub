@@ -105,5 +105,8 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": "eslint"
+  },
+  "overrides": {
+    "lodash": "^4.18.1"
   }
 }
