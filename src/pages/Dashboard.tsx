@@ -324,65 +324,7 @@ const Dashboard = () => {
         </button>
       </div>
 
-      {/* Onboarding — shown FIRST for new merchants */}
-      {showSetup && isNewMerchant && onboardingData && (() => {
-        // Map backend step keys to UI config
-        const STEP_UI: Record<string, { num: string; label: string; labelAr: string; desc: string; descAr: string; bg: string; action: () => void; cta: string; ctaAr: string; icon: React.ReactNode; time: string; timeAr: string }> = {
-          add_product: { num: "01", label: "Add a Product", labelAr: "أضف منتج", desc: "Add your first product to start selling online", descAr: "أضف أول منتج لبدء البيع أونلاين", bg: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200/50 dark:border-emerald-800/30", action: () => navigate("/products/new"), cta: "Add Product", ctaAr: "أضف منتج", icon: <Package className="h-5 w-5 text-emerald-600" />, time: "2 min", timeAr: "دقيقتان" },
-          set_identity: { num: "02", label: "Add Store Identity", labelAr: "أضف هوية متجرك", desc: "Set your brand colors, logo, and store description", descAr: "اعكس هويتك البصرية على متجرك من ألوان وشعار ولوجو", bg: "bg-amber-50 dark:bg-amber-950/30 border-amber-200/50 dark:border-amber-800/30", action: () => navigate("/store"), cta: "Customize Store", ctaAr: "أضف تفاصيل هويتك", icon: <Palette className="h-5 w-5 text-amber-600" />, time: "3 min", timeAr: "3 دقائق" },
-          confirm_support: { num: "03", label: "Confirm Support Number", labelAr: "أكد رقم الدعم الفني", desc: "Add a phone number so customers can reach you", descAr: "أضف رقم هاتف للدعم حتى يتواصل معك العملاء", bg: "bg-violet-50 dark:bg-violet-950/30 border-violet-200/50 dark:border-violet-800/30", action: () => navigate("/store"), cta: "Add Number", ctaAr: "تأكيد الرقم", icon: <CheckCircle2 className="h-5 w-5 text-violet-600" />, time: "1 min", timeAr: "دقيقة" },
-          add_shipping: { num: "04", label: "Set Shipping Location", labelAr: "حدد موقع تسليم الشحنات", desc: "Set where carriers pick up your orders for delivery", descAr: "حدّد الموقع الذي تستلم منه شركات الشحن طلبات عملائك", bg: "bg-rose-50 dark:bg-rose-950/30 border-rose-200/50 dark:border-rose-800/30", action: () => navigate("/logistics"), cta: "Set Location", ctaAr: "حدد الموقع", icon: <Truck className="h-5 w-5 text-rose-600" />, time: "3 min", timeAr: "3 دقائق" },
-          configure_payment: { num: "05", label: "Activate Payments", labelAr: "فعّل المدفوعات", desc: "Connect a payment gateway and start accepting money", descAr: "فعّل المدفوعات بخطوات بسيطة وابدأ استقبال الأموال", bg: "bg-sky-50 dark:bg-sky-950/30 border-sky-200/50 dark:border-sky-800/30", action: () => navigate("/payment-setup"), cta: "Activate Now", ctaAr: "فعّلها الآن", icon: <CreditCard className="h-5 w-5 text-sky-600" />, time: "5 min", timeAr: "5 دقائق" },
-          first_order: { num: "06", label: "Get Your First Order", labelAr: "احصل على أول طلب", desc: "Share your store link and start receiving orders", descAr: "شارك رابط متجرك وابدأ استقبال الطلبات", bg: "bg-teal-50 dark:bg-teal-950/30 border-teal-200/50 dark:border-teal-800/30", action: () => { if (currentStore?.subdomain) window.open(getStoreUrl(currentStore.subdomain), "_blank"); }, cta: "View Store", ctaAr: "عرض المتجر", icon: <Zap className="h-5 w-5 text-teal-600" />, time: "1 min", timeAr: "دقيقة" },
-        };
-        const steps = onboardingData.steps
-          .filter(s => s.key !== "create_store" && STEP_UI[s.key])
-          .map((s, i) => ({ ...STEP_UI[s.key], key: s.key, num: String(i + 1).padStart(2, "0"), done: s.status === "completed" || s.status === "skipped" }));
-        const doneCount = steps.filter(s => s.done).length;
-        return (
-          <div className="space-y-4">
-            <div className="relative rounded-xl overflow-hidden text-white" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }}>
-              <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "90px", backgroundRepeat: "repeat" }} />
-              <div className="relative z-10 p-5 sm:p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 rounded-lg bg-amber-400/20 flex items-center justify-center"><Gift className="h-4 w-4 text-amber-400" /></div>
-                      <div className="flex items-center gap-2 bg-amber-400/15 rounded-full px-2.5 py-0.5">
-                        <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">{isAr ? "مكافأة" : "REWARD"}</span>
-                      </div>
-                    </div>
-                    <h2 className="text-base sm:text-lg font-bold leading-tight">{isAr ? "أكمل كل الخطوات واحصل على شهر Premium مجاناً!" : "Complete all steps & get 1 month Premium free!"}</h2>
-                    <p className="text-xs text-white/50 mt-1.5">{isAr ? "كمّل الخطوات التالية بالترتيب حتى يكون عندك متجر متكامل جاهز للبيع" : "Follow these steps in order to get your store fully ready to sell"}</p>
-                    <div className="mt-4 flex items-center gap-3">
-                      <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
-                        <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-700" style={{ width: `${onboardingData.completion_percentage}%` }} />
-                      </div>
-                      <span className="text-sm font-bold tabular-nums text-white/80">{onboardingData.completion_percentage}%</span>
-                    </div>
-                  </div>
-                  <button type="button" onClick={handleDismissOnboarding} className="text-[10px] text-white/30 hover:text-white/60 transition-colors cursor-pointer mt-1 shrink-0">{isAr ? "تخطي" : "Skip"}</button>
-                </div>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {steps.map((step) => (
-                <div key={step.key} className={`relative rounded-xl border p-5 flex flex-col min-h-[180px] transition-all ${step.bg} ${step.done ? "opacity-60" : "hover:shadow-md cursor-pointer"}`} onClick={() => !step.done && step.action()}>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${step.done ? "bg-emerald-500 text-white" : "bg-white/80 dark:bg-white/10 text-foreground shadow-sm"}`}>{step.done ? <Check className="h-4 w-4" /> : step.num}</div>
-                    {!step.done && <span className="text-[10px] text-muted-foreground bg-white/70 dark:bg-white/10 rounded-full px-2.5 py-0.5 flex items-center gap-1 shadow-sm"><Clock className="h-2.5 w-2.5" />{isAr ? step.timeAr : step.time}</span>}
-                    {step.done && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />{isAr ? "أكملت الخطوة بنجاح" : "Completed"}</span>}
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-white/70 dark:bg-white/10 flex items-center justify-center mb-3 shadow-sm">{step.icon}</div>
-                  <h3 className={`text-sm font-bold mb-1 ${step.done ? "line-through text-muted-foreground" : ""}`}>{isAr ? step.labelAr : step.label}</h3>
-                  <p className="text-[11px] text-muted-foreground mb-3 line-clamp-2 flex-1">{isAr ? step.descAr : step.desc}</p>
-                  {!step.done && <div className="flex gap-2"><Button size="sm" className="h-8 text-xs rounded-lg" onClick={(e) => { e.stopPropagation(); step.action(); }}>{isAr ? step.ctaAr : step.cta}</Button></div>}
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
+      {/* Onboarding checklist — single instance, shown for all merchants with pending setup */}
 
       {/* KPI Cards + Analytics — hidden for brand-new merchants with zero data */}
       {!isNewMerchant && (
@@ -651,75 +593,85 @@ const Dashboard = () => {
       </>
       )}
 
-      {/* Onboarding — placed after KPI/Goals for returning merchants */}
+      {/* Onboarding checklist — single unified block */}
       {showSetup && onboardingData && (() => {
-        // Map backend step keys to UI config
-        const STEP_UI: Record<string, { num: string; label: string; labelAr: string; desc: string; descAr: string; bg: string; action: () => void; cta: string; ctaAr: string; icon: React.ReactNode; time: string; timeAr: string }> = {
-          add_product: { num: "01", label: "Add a Product", labelAr: "أضف منتج", desc: "Add your first product to start selling online", descAr: "أضف أول منتج لبدء البيع أونلاين", bg: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200/50 dark:border-emerald-800/30", action: () => navigate("/products/new"), cta: "Add Product", ctaAr: "أضف منتج", icon: <Package className="h-5 w-5 text-emerald-600" />, time: "2 min", timeAr: "دقيقتان" },
-          set_identity: { num: "02", label: "Add Store Identity", labelAr: "أضف هوية متجرك", desc: "Set your brand colors, logo, and store description", descAr: "اعكس هويتك البصرية على متجرك من ألوان وشعار ولوجو", bg: "bg-amber-50 dark:bg-amber-950/30 border-amber-200/50 dark:border-amber-800/30", action: () => navigate("/store"), cta: "Customize Store", ctaAr: "أضف تفاصيل هويتك", icon: <Palette className="h-5 w-5 text-amber-600" />, time: "3 min", timeAr: "3 دقائق" },
-          confirm_support: { num: "03", label: "Confirm Support Number", labelAr: "أكد رقم الدعم الفني", desc: "Add a phone number so customers can reach you", descAr: "أضف رقم هاتف للدعم حتى يتواصل معك العملاء", bg: "bg-violet-50 dark:bg-violet-950/30 border-violet-200/50 dark:border-violet-800/30", action: () => navigate("/store"), cta: "Add Number", ctaAr: "تأكيد الرقم", icon: <CheckCircle2 className="h-5 w-5 text-violet-600" />, time: "1 min", timeAr: "دقيقة" },
-          add_shipping: { num: "04", label: "Set Shipping Location", labelAr: "حدد موقع تسليم الشحنات", desc: "Set where carriers pick up your orders for delivery", descAr: "حدّد الموقع الذي تستلم منه شركات الشحن طلبات عملائك", bg: "bg-rose-50 dark:bg-rose-950/30 border-rose-200/50 dark:border-rose-800/30", action: () => navigate("/logistics"), cta: "Set Location", ctaAr: "حدد الموقع", icon: <Truck className="h-5 w-5 text-rose-600" />, time: "3 min", timeAr: "3 دقائق" },
-          configure_payment: { num: "05", label: "Activate Payments", labelAr: "فعّل المدفوعات", desc: "Connect a payment gateway and start accepting money", descAr: "فعّل المدفوعات بخطوات بسيطة وابدأ استقبال الأموال", bg: "bg-sky-50 dark:bg-sky-950/30 border-sky-200/50 dark:border-sky-800/30", action: () => navigate("/payment-setup"), cta: "Activate Now", ctaAr: "فعّلها الآن", icon: <CreditCard className="h-5 w-5 text-sky-600" />, time: "5 min", timeAr: "5 دقائق" },
-          first_order: { num: "06", label: "Get Your First Order", labelAr: "احصل على أول طلب", desc: "Share your store link and start receiving orders", descAr: "شارك رابط متجرك وابدأ استقبال الطلبات", bg: "bg-teal-50 dark:bg-teal-950/30 border-teal-200/50 dark:border-teal-800/30", action: () => { if (currentStore?.subdomain) window.open(getStoreUrl(currentStore.subdomain), "_blank"); }, cta: "View Store", ctaAr: "عرض المتجر", icon: <Zap className="h-5 w-5 text-teal-600" />, time: "1 min", timeAr: "دقيقة" },
+        const STEP_UI: Record<string, { label: string; labelAr: string; desc: string; descAr: string; action: () => void; cta: string; ctaAr: string; icon: React.ReactNode; time: string; timeAr: string }> = {
+          add_product: { label: "Add a Product", labelAr: "أضف منتج", desc: "Add your first product to start selling online", descAr: "أضف أول منتج لبدء البيع أونلاين", action: () => navigate("/products/new"), cta: "Add Product", ctaAr: "أضف منتج", icon: <Package className="h-4 w-4" />, time: "2 min", timeAr: "دقيقتان" },
+          set_identity: { label: "Add Store Identity", labelAr: "أضف هوية متجرك", desc: "Upload logo and add store description", descAr: "ارفع اللوجو وأضف وصف المتجر", action: () => navigate("/store"), cta: "Customize", ctaAr: "تخصيص", icon: <Palette className="h-4 w-4" />, time: "3 min", timeAr: "3 دقائق" },
+          confirm_support: { label: "Add Support Number", labelAr: "أضف رقم الدعم", desc: "Add a phone number so customers can reach you", descAr: "أضف رقم هاتف للتواصل", action: () => navigate("/store"), cta: "Add", ctaAr: "أضف", icon: <CheckCircle2 className="h-4 w-4" />, time: "1 min", timeAr: "دقيقة" },
+          add_shipping: { label: "Set Up Shipping", labelAr: "إعداد الشحن", desc: "Configure shipping zones or connect a carrier", descAr: "اضبط مناطق الشحن أو اربط شركة شحن", action: () => navigate("/logistics"), cta: "Set Up", ctaAr: "إعداد", icon: <Truck className="h-4 w-4" />, time: "3 min", timeAr: "3 دقائق" },
+          configure_payment: { label: "Activate Payments", labelAr: "فعّل المدفوعات", desc: "Connect a payment gateway to accept money", descAr: "فعّل بوابة دفع لاستقبال الأموال", action: () => navigate("/payment-setup"), cta: "Activate", ctaAr: "تفعيل", icon: <CreditCard className="h-4 w-4" />, time: "5 min", timeAr: "5 دقائق" },
+          first_order: { label: "Get Your First Order", labelAr: "أول طلب", desc: "Share your store link and start receiving orders", descAr: "شارك رابط متجرك وابدأ استقبال الطلبات", action: () => { if (currentStore?.subdomain) window.open(getStoreUrl(currentStore.subdomain), "_blank"); }, cta: "Share", ctaAr: "مشاركة", icon: <Zap className="h-4 w-4" />, time: "1 min", timeAr: "دقيقة" },
         };
-
-        // Filter out create_store (always done) and build steps from backend
         const steps = onboardingData.steps
           .filter(s => s.key !== "create_store" && STEP_UI[s.key])
-          .map((s, i) => ({
-            ...STEP_UI[s.key],
-            key: s.key,
-            num: String(i + 1).padStart(2, "0"),
-            done: s.status === "completed" || s.status === "skipped",
-          }));
-
+          .map((s, i) => ({ ...STEP_UI[s.key], key: s.key, num: i + 1, done: s.status === "completed" || s.status === "skipped" }));
         const doneCount = steps.filter(s => s.done).length;
+
         return (
-          <div className="space-y-4">
-            <div className="relative rounded-xl overflow-hidden text-white" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }}>
-              <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "90px", backgroundRepeat: "repeat" }} />
-              <div className="relative z-10 p-5 sm:p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 rounded-lg bg-amber-400/20 flex items-center justify-center">
-                        <Gift className="h-4 w-4 text-amber-400" />
-                      </div>
-                      <div className="flex items-center gap-2 bg-amber-400/15 rounded-full px-2.5 py-0.5">
-                        <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">{isAr ? "مكافأة" : "REWARD"}</span>
-                      </div>
+          <div className="rounded-xl border border-border/60 overflow-hidden">
+            {/* Header */}
+            <div className="relative text-white" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }}>
+              <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "80px", backgroundRepeat: "repeat" }} />
+              <div className="relative z-10 px-5 py-4 sm:px-6 sm:py-5">
+                <div className="flex items-center justify-between gap-4 mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-400/15 flex items-center justify-center">
+                      <Gift className="h-4 w-4 text-amber-400" />
                     </div>
-                    <h2 className="text-base sm:text-lg font-bold leading-tight">
-                      {isAr ? "أكمل كل الخطوات واحصل على شهر Premium مجاناً!" : "Complete all steps & get 1 month Premium free!"}
-                    </h2>
-                    <p className="text-xs text-white/50 mt-1.5">
-                      {isAr ? "كمّل الخطوات التالية بالترتيب حتى يكون عندك متجر متكامل جاهز للبيع" : "Follow these steps in order to get your store fully ready to sell"}
-                    </p>
-                    <div className="mt-4 flex items-center gap-3">
-                      <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
-                        <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-700" style={{ width: `${onboardingData.completion_percentage}%` }} />
-                      </div>
-                      <span className="text-sm font-bold tabular-nums text-white/80">{onboardingData.completion_percentage}%</span>
+                    <div>
+                      <h2 className="text-sm font-bold leading-tight">{isAr ? "جهّز متجرك واحصل على شهر Premium مجاناً" : "Set up your store & get 1 month Premium free"}</h2>
+                      <p className="text-[11px] text-white/40 mt-0.5">{doneCount}/{steps.length} {isAr ? "مكتمل" : "completed"}</p>
                     </div>
                   </div>
-                  <button type="button" onClick={handleDismissOnboarding} className="text-[10px] text-white/30 hover:text-white/60 transition-colors cursor-pointer mt-1 shrink-0">{isAr ? "تخطي" : "Skip"}</button>
+                  <button type="button" onClick={handleDismissOnboarding} className="text-[10px] text-white/30 hover:text-white/60 transition-colors shrink-0">{isAr ? "إخفاء" : "Hide"}</button>
+                </div>
+                <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-700" style={{ width: `${onboardingData.completion_percentage}%` }} />
                 </div>
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+
+            {/* Steps list */}
+            <div className="divide-y divide-border/40">
               {steps.map((step) => (
-                <div key={step.key} className={`relative rounded-xl border p-5 flex flex-col min-h-[180px] transition-all ${step.bg} ${step.done ? "opacity-60" : "hover:shadow-md cursor-pointer"}`} onClick={() => !step.done && step.action()}>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${step.done ? "bg-emerald-500 text-white" : "bg-white/80 dark:bg-white/10 text-foreground shadow-sm"}`}>
-                      {step.done ? <Check className="h-4 w-4" /> : step.num}
-                    </div>
-                    {!step.done && <span className="text-[10px] text-muted-foreground bg-white/70 dark:bg-white/10 rounded-full px-2.5 py-0.5 flex items-center gap-1 shadow-sm"><Clock className="h-2.5 w-2.5" />{isAr ? step.timeAr : step.time}</span>}
-                    {step.done && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />{isAr ? "أكملت الخطوة بنجاح" : "Completed"}</span>}
+                <div
+                  key={step.key}
+                  className={`flex items-center gap-4 px-5 py-3.5 sm:px-6 transition-colors ${step.done ? "opacity-50" : "hover:bg-muted/30 cursor-pointer"}`}
+                  onClick={() => !step.done && step.action()}
+                >
+                  {/* Status indicator */}
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+                    step.done
+                      ? "bg-emerald-500/10 text-emerald-500"
+                      : "bg-muted text-muted-foreground"
+                  }`}>
+                    {step.done ? <Check className="h-3.5 w-3.5" /> : step.num}
                   </div>
-                  <div className="w-10 h-10 rounded-xl bg-white/70 dark:bg-white/10 flex items-center justify-center mb-3 shadow-sm">{step.icon}</div>
-                  <h3 className={`text-sm font-bold mb-1 ${step.done ? "line-through text-muted-foreground" : ""}`}>{isAr ? step.labelAr : step.label}</h3>
-                  <p className="text-[11px] text-muted-foreground mb-3 line-clamp-2 flex-1">{isAr ? step.descAr : step.desc}</p>
-                  {!step.done && <div className="flex gap-2"><Button size="sm" className="h-8 text-xs rounded-lg" onClick={(e) => { e.stopPropagation(); step.action(); }}>{isAr ? step.ctaAr : step.cta}</Button></div>}
+
+                  {/* Icon */}
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    step.done ? "bg-muted/50 text-muted-foreground" : "bg-primary/5 text-primary"
+                  }`}>
+                    {step.icon}
+                  </div>
+
+                  {/* Text */}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-semibold ${step.done ? "line-through text-muted-foreground" : ""}`}>
+                      {isAr ? step.labelAr : step.label}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate">{isAr ? step.descAr : step.desc}</p>
+                  </div>
+
+                  {/* Action */}
+                  {step.done ? (
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium shrink-0">{isAr ? "تم" : "Done"}</span>
+                  ) : (
+                    <Button size="sm" variant="outline" className="h-7 text-xs rounded-lg shrink-0" onClick={(e) => { e.stopPropagation(); step.action(); }}>
+                      {isAr ? step.ctaAr : step.cta}
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
