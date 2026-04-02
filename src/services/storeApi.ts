@@ -303,6 +303,59 @@ export async function deleteFawryCredentials(
   });
 }
 
+// ─── Onboarding State ────────────────────────────────────────────────────────
+
+export interface OnboardingStep {
+  key: string;
+  status: "pending" | "completed" | "skipped";
+  is_skippable: boolean;
+  completed_at: string | null;
+  skipped_at: string | null;
+}
+
+export interface OnboardingData {
+  id: string;
+  store_id: string;
+  steps: OnboardingStep[];
+  completion_percentage: number;
+  current_step: string | null;
+  is_completed: boolean;
+  is_dismissed: boolean;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getOnboarding(storeId: string): Promise<OnboardingData> {
+  return apiClient<OnboardingData>(`/stores/${storeId}/onboarding`);
+}
+
+export async function dismissOnboarding(storeId: string): Promise<OnboardingData> {
+  return apiClient<OnboardingData>(`/stores/${storeId}/onboarding/dismiss`, {
+    method: "POST",
+  });
+}
+
+export async function completeOnboardingStep(
+  storeId: string,
+  step: string
+): Promise<OnboardingData> {
+  return apiClient<OnboardingData>(
+    `/stores/${storeId}/onboarding/complete/${step}`,
+    { method: "POST" }
+  );
+}
+
+export async function skipOnboardingStep(
+  storeId: string,
+  step: string
+): Promise<OnboardingData> {
+  return apiClient<OnboardingData>(
+    `/stores/${storeId}/onboarding/skip/${step}`,
+    { method: "POST" }
+  );
+}
+
 // ─── Onboarding Wizard ────────────────────────────────────────────────────────
 
 export interface WizardConfig {

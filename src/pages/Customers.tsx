@@ -277,8 +277,8 @@ export default function Customers() {
             <div className="px-5 pb-8">
               <EmptyState
                 icon={Users}
-                title={debouncedSearch ? (isAr ? "مفيش نتائج للبحث" : "No results found") : (isAr ? "مفيش عملاء لسه" : "No customers yet")}
-                description={debouncedSearch ? undefined : (isAr ? "سيظهر العملاء هنا مع أول طلب" : "Customers will appear here with your first order")}
+                title={debouncedSearch ? (isAr ? "مفيش نتائج للبحث" : "No results found") : (isAr ? "أول عميل في الطريق!" : "Your first customer is on the way!")}
+                description={debouncedSearch ? undefined : (isAr ? "شارك رابط متجرك وابدأ باستقبال الطلبات — العملاء هيظهروا هنا تلقائياً" : "Share your store link and start receiving orders — customers will appear here automatically")}
               />
             </div>
           ) : (
