@@ -30,7 +30,7 @@ import {
   ArrowLeft, Monitor, Smartphone, Undo2, Redo2, Globe,
   Loader2, Layout, Package, Navigation2, Image, AlignLeft,
   Palette, Store, RefreshCw, Plus, Trash2, Eye, EyeOff,
-  ChevronUp, ChevronDown, GripVertical,
+  ChevronUp, ChevronDown, GripVertical, CreditCard, MessageCircle, CheckCircle, User,
 } from "lucide-react";
 
 // ─── Global settings (identity, header, footer) ────────────────────────────
@@ -132,7 +132,35 @@ const SECTION_ICONS: Record<string, React.ComponentType<{ className?: string }>>
   "announcement-bar": AlignLeft,
   "rich-text": AlignLeft,
   "image-with-text": Image,
+  // Page section types (new)
+  "products-page": Package,
+  "product-detail": Package,
+  "checkout": CreditCard,
+  "contact": MessageCircle,
+  "order-confirmation": CheckCircle,
+  "profile": User,
 };
+
+// ─── Page definitions ───────────────────────────────────────────────────────
+
+interface PageDef {
+  id: string;       // matches PageTemplateName from bazaar
+  name: string;     // English display name
+  nameAr: string;   // Arabic display name
+  icon: React.ComponentType<{ className?: string }>;
+  /** The URL path to navigate the iframe to when this page is selected */
+  previewPath: string;
+}
+
+const EDITABLE_PAGES: PageDef[] = [
+  { id: "home", name: "Home", nameAr: "الرئيسية", icon: Layout, previewPath: "/" },
+  { id: "products", name: "Products", nameAr: "المنتجات", icon: Package, previewPath: "/products" },
+  { id: "product-detail", name: "Product Detail", nameAr: "تفاصيل المنتج", icon: Package, previewPath: "/product/demo" },
+  { id: "checkout", name: "Checkout", nameAr: "الدفع", icon: CreditCard, previewPath: "/checkout" },
+  { id: "contact", name: "Contact", nameAr: "التواصل", icon: MessageCircle, previewPath: "/contact" },
+  { id: "order-confirmation", name: "Order Confirmation", nameAr: "تأكيد الطلب", icon: CheckCircle, previewPath: "/order-confirmation" },
+  { id: "profile", name: "Profile", nameAr: "الحساب", icon: User, previewPath: "/profile" },
+];
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
@@ -160,6 +188,10 @@ function generateId(prefix = "s"): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function toTestIdSuffix(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
 // ─── Main component ─────────────────────────────────────────────────────────
 
 export default function ThemeEditor() {
@@ -173,7 +205,22 @@ export default function ThemeEditor() {
   const storeUrl = currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null;
 
   const [localData, setLocalData] = useState<CustomizationData | null>(null);
-  const [template, setTemplate] = useState<TemplateConfigData | null>(null);
+  const [activePage, setActivePage] = useState<string>("home");
+  const [allTemplates, setAllTemplates] = useState<Record<string, TemplateConfigData>>({});
+
+  // Active template for the currently selected page
+  const template = allTemplates[activePage] ?? null;
+
+  // Setter that updates the specific page in allTemplates
+  const setTemplate = useCallback((updater: (prev: TemplateConfigData | null) => TemplateConfigData | null) => {
+    setAllTemplates((prev) => {
+      const current = prev[activePage] ?? null;
+      const next = updater(current);
+      if (!next) return prev;
+      return { ...prev, [activePage]: next };
+    });
+  }, [activePage]);
+
   const [isDirty, setIsDirty] = useState(false);
   const [activeTab, setActiveTab] = useState<"sections" | "theme">("sections");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -222,15 +269,22 @@ export default function ThemeEditor() {
     }
     setLocalData(data);
 
-    // Initialize template: use existing V2 data or theme default
-    const existing = (data as CustomizationData & { templates?: Record<string, TemplateConfigData> })?.templates?.home;
-    const defaultTpl = schemaBundle.default_templates?.home;
-    const tpl = existing ?? defaultTpl ?? { name: "home", sections: {}, order: [] };
-    setTemplate(tpl);
+    // Initialize ALL page templates from existing customization or theme defaults
+    const existingTemplates = (data as CustomizationData & { templates?: Record<string, TemplateConfigData> })?.templates ?? {};
+    const defaults = schemaBundle.default_templates ?? {};
+    const merged: Record<string, TemplateConfigData> = {};
 
-    // Auto-select first section
-    if (tpl.order.length > 0) {
-      setSelectedId(tpl.order[0]);
+    for (const page of EDITABLE_PAGES) {
+      merged[page.id] = existingTemplates[page.id]
+        ?? defaults[page.id]
+        ?? { name: page.id, sections: {}, order: [] };
+    }
+    setAllTemplates(merged);
+
+    // Auto-select first section of home page
+    const homeTpl = merged["home"];
+    if (homeTpl && homeTpl.order.length > 0) {
+      setSelectedId(homeTpl.order[0]);
       setSelectedType("section");
     }
   }, [customization, schemaBundle, searchParams]);
@@ -256,11 +310,11 @@ export default function ThemeEditor() {
           labels: localData.labels,
           layout: localData.layout,
           schema_version: 2,
-          templates: { home: template },
+          templates: allTemplates,
         },
       }, "*");
     } catch { /* iframe not ready */ }
-  }, [localData, template]);
+  }, [localData, allTemplates]);
 
   useEffect(() => {
     clearTimeout(sendPreviewUpdate.current);
@@ -271,6 +325,33 @@ export default function ThemeEditor() {
   const handleIframeLoad = useCallback(() => {
     setTimeout(sendThemeToIframe, 500);
   }, [sendThemeToIframe]);
+
+  // ── Page change ──────────────────────────────────────────────────
+  const handlePageChange = useCallback((pageId: string) => {
+    setActivePage(pageId);
+
+    // Auto-select the first (and usually only) section of the new page
+    const pageTpl = allTemplates[pageId];
+    if (pageTpl && pageTpl.order.length > 0) {
+      setSelectedId(pageTpl.order[0]);
+      setSelectedType("section");
+    } else {
+      setSelectedId(null);
+    }
+
+    // Navigate iframe to the page's preview path
+    const pageDef = EDITABLE_PAGES.find((p) => p.id === pageId);
+    if (pageDef && iframeRef.current?.contentWindow) {
+      try {
+        iframeRef.current.contentWindow.postMessage({
+          type: "NUMU_NAVIGATE",
+          path: pageDef.previewPath,
+        }, "*");
+      } catch {
+        // Fallback
+      }
+    }
+  }, [allTemplates]);
 
   // ── Section operations ────────────────────────────────────────────
   function updateSectionSetting(sectionId: string, key: string, value: unknown) {
@@ -365,7 +446,7 @@ export default function ThemeEditor() {
   // ── Save / Publish ───────────────────────────────────────────────
   const saveMutation = useMutation({
     mutationFn: () => {
-      if (!localData || !template) throw new Error("No data");
+      if (!localData || Object.keys(allTemplates).length === 0) throw new Error("No data");
       return updateCustomization(storeId, {
         identity: localData.identity,
         theme: localData.theme,
@@ -377,7 +458,7 @@ export default function ThemeEditor() {
         labels: localData.labels,
         layout: localData.layout,
         schema_version: 2,
-        templates: { home: template },
+        templates: allTemplates,
       });
     },
     onSuccess: () => {
@@ -391,7 +472,7 @@ export default function ThemeEditor() {
 
   const publishMutation = useMutation({
     mutationFn: async () => {
-      if (!localData || !template) throw new Error("No data");
+      if (!localData || Object.keys(allTemplates).length === 0) throw new Error("No data");
       await updateCustomization(storeId, {
         identity: localData.identity,
         theme: localData.theme,
@@ -403,7 +484,7 @@ export default function ThemeEditor() {
         labels: localData.labels,
         layout: localData.layout,
         schema_version: 2,
-        templates: { home: template },
+        templates: allTemplates,
       });
       return publishCustomization(storeId);
     },
@@ -418,10 +499,16 @@ export default function ThemeEditor() {
 
   const isBusy = saveMutation.isPending || publishMutation.isPending;
 
+  const isHomePage = activePage === "home";
+
   // Available sections for the "add" picker (respect limits)
   const availableSections = useMemo(() => {
     if (!schemaBundle?.sections || !template) return [];
     return schemaBundle.sections.filter((schema) => {
+      // Page sections (limit:1, page_section:true) are not manually addable
+      const isPageSection = (schema as any).page_section === true;
+      if (isPageSection) return false;
+
       if (!schema.limit || schema.limit === 0) return true;
       const existing = Object.values(template.sections).filter((s) => s.type === schema.type).length;
       return existing < schema.limit;
@@ -431,9 +518,9 @@ export default function ThemeEditor() {
   // ─── Render ────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+    <div className="fixed inset-0 z-50 flex flex-col bg-background" data-testid="theme-editor">
       {/* ── Top bar ───────────────────────────────────────────────── */}
-      <header className="flex h-12 items-center gap-0 border-b bg-card px-3 shrink-0">
+      <header className="flex h-12 items-center gap-0 border-b bg-card px-3 shrink-0" data-testid="theme-editor-topbar">
         <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[13px] font-medium me-2"
           onClick={() => navigate("/online-store/themes")}>
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -445,6 +532,7 @@ export default function ThemeEditor() {
         <div className="flex items-center gap-0.5">
           {(["sections", "theme"] as const).map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
+              data-testid={`theme-editor-tab-${tab}`}
               className={cn("px-3 h-8 text-[12px] font-medium rounded-md transition-colors",
                 activeTab === tab ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/50")}>
               {tab === "sections" ? (isRTL ? "الأقسام" : "Sections") : (isRTL ? "الثيم" : "Theme")}
@@ -457,24 +545,26 @@ export default function ThemeEditor() {
         {/* Device */}
         <div className="flex items-center gap-1 me-2">
           <Button variant={device === "desktop" ? "secondary" : "ghost"} size="sm" className="h-7 w-7 px-0"
+            data-testid="theme-editor-device-desktop"
             onClick={() => setDevice("desktop")}><Monitor className="h-3.5 w-3.5" /></Button>
           <Button variant={device === "mobile" ? "secondary" : "ghost"} size="sm" className="h-7 w-7 px-0"
+            data-testid="theme-editor-device-mobile"
             onClick={() => setDevice("mobile")}><Smartphone className="h-3.5 w-3.5" /></Button>
         </div>
         <div className="h-5 w-px bg-border mx-1 shrink-0" />
 
         {isDirty && (
-          <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 me-2">
+          <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 me-2" data-testid="theme-editor-unsaved-badge">
             {isRTL ? "تغييرات" : "Unsaved"}
           </Badge>
         )}
 
-        <Button variant="outline" size="sm" className="h-8 text-[13px]"
+        <Button variant="outline" size="sm" className="h-8 text-[13px]" data-testid="theme-editor-save"
           onClick={() => saveMutation.mutate()} disabled={isBusy || !isDirty}>
           {saveMutation.isPending && <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />}
           {isRTL ? "حفظ" : "Save"}
         </Button>
-        <Button size="sm" className="h-8 text-[13px] ms-1.5"
+        <Button size="sm" className="h-8 text-[13px] ms-1.5" data-testid="theme-editor-publish"
           onClick={() => publishMutation.mutate()} disabled={isBusy}>
           {publishMutation.isPending ? <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" /> : <Globe className="h-3.5 w-3.5 me-1.5" />}
           {isRTL ? "نشر" : "Publish"}
@@ -485,13 +575,16 @@ export default function ThemeEditor() {
       <div className="flex flex-1 overflow-hidden">
 
         {/* Left sidebar */}
-        <aside className="flex w-[272px] shrink-0 flex-col border-e bg-card overflow-y-auto">
+        <aside className="flex w-[272px] shrink-0 flex-col border-e bg-card overflow-y-auto" data-testid="theme-editor-left-panel">
           {isLoading ? (
             <div className="p-3 space-y-2">
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-lg" />)}
             </div>
           ) : activeTab === "sections" ? (
             <SectionsPanel
+              activePage={activePage}
+              onPageChange={handlePageChange}
+              isHomePage={activePage === "home"}
               template={template}
               schemaMap={sectionSchemaMap}
               selectedId={selectedId}
@@ -513,7 +606,7 @@ export default function ThemeEditor() {
         </aside>
 
         {/* Center — Preview */}
-        <main className="relative flex flex-1 flex-col items-center justify-center bg-muted/40 overflow-hidden">
+        <main className="relative flex flex-1 flex-col items-center justify-center bg-muted/40 overflow-hidden" data-testid="theme-editor-preview-panel">
           {storeUrl ? (
             <>
               <div className={cn(
@@ -521,12 +614,12 @@ export default function ThemeEditor() {
                 device === "mobile"
                   ? "w-[390px] rounded-[36px] border-[6px] border-zinc-800 shadow-[0_30px_80px_rgba(0,0,0,0.25)]"
                   : "w-full h-full rounded-none border-none shadow-none"
-              )} style={device === "mobile" ? { height: "calc(100% - 48px)" } : { height: "100%" }}>
+              )} style={device === "mobile" ? { height: "calc(100% - 48px)" } : { height: "100%" }} data-testid="theme-editor-preview-shell">
                 <iframe ref={iframeRef} key={previewKey} src={storeUrl}
-                  className="w-full h-full border-0" title="Store preview" onLoad={handleIframeLoad} />
+                  className="w-full h-full border-0" title="Store preview" onLoad={handleIframeLoad} data-testid="theme-editor-preview-iframe" />
               </div>
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
-                <button className="flex items-center gap-1.5 rounded-full bg-background/90 backdrop-blur-sm border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors shadow-sm"
+                <button className="flex items-center gap-1.5 rounded-full bg-background/90 backdrop-blur-sm border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors shadow-sm" data-testid="theme-editor-preview-refresh"
                   onClick={() => setPreviewKey((k) => k + 1)}>
                   <RefreshCw className="h-3 w-3" />
                   {isRTL ? "تحديث" : "Refresh"}
@@ -540,7 +633,7 @@ export default function ThemeEditor() {
 
         {/* Right panel — Settings for selected item */}
         {selectedId && (
-          <aside className="w-[300px] shrink-0 border-s bg-card overflow-y-auto">
+          <aside className="w-[300px] shrink-0 border-s bg-card overflow-y-auto" data-testid="theme-editor-settings-panel">
             {selectedType === "section" && template ? (
               <SectionSettingsPanel
                 sectionId={selectedId}
@@ -567,10 +660,14 @@ export default function ThemeEditor() {
 // ─── Sections panel (left sidebar, "Sections" tab) ──────────────────────────
 
 function SectionsPanel({
+  activePage, onPageChange, isHomePage,
   template, schemaMap, selectedId, selectedType, isRTL,
   showAddPicker, availableSections,
   onSelectSection, onSelectGlobal, onMove, onToggle, onRemove, onAdd, onShowAdd,
 }: {
+  activePage: string;
+  onPageChange: (pageId: string) => void;
+  isHomePage: boolean;
   template: TemplateConfigData | null;
   schemaMap: Map<string, SectionSchemaData>;
   selectedId: string | null;
@@ -587,7 +684,7 @@ function SectionsPanel({
   onShowAdd: (show: boolean) => void;
 }) {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" data-testid="theme-editor-sections-panel">
       {/* Global sections (header, footer, identity) */}
       <div className="px-3 pt-3 pb-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">
@@ -598,6 +695,7 @@ function SectionsPanel({
           const active = selectedType === "global" && selectedId === gs.id;
           return (
             <button key={gs.id} onClick={() => onSelectGlobal(gs.id)}
+              data-testid={`theme-editor-global-${gs.id}`}
               className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] font-medium transition-colors mb-0.5",
                 active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
               <Icon className="h-3.5 w-3.5 shrink-0" />
@@ -609,10 +707,30 @@ function SectionsPanel({
 
       <div className="mx-3 h-px bg-border" />
 
-      {/* Home page sections from template */}
+      {/* Page selector */}
       <div className="px-3 pt-2 pb-1">
         <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">
-          {isRTL ? "أقسام الصفحة الرئيسية" : "Home page sections"}
+          {isRTL ? "الصفحة" : "Page"}
+        </p>
+        <Select value={activePage} onValueChange={onPageChange}>
+          <SelectTrigger className="h-8 text-[12px] mb-2" data-testid="theme-editor-page-selector">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent data-testid="theme-editor-page-options">
+            {EDITABLE_PAGES.map((page) => (
+              <SelectItem key={page.id} value={page.id} className="text-[12px]" data-testid={`theme-editor-page-option-${page.id}`}>
+                {isRTL ? page.nameAr : page.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="px-3 pb-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">
+          {isRTL
+            ? `أقسام ${EDITABLE_PAGES.find((p) => p.id === activePage)?.nameAr ?? ""}`
+            : `${EDITABLE_PAGES.find((p) => p.id === activePage)?.name ?? ""} sections`}
         </p>
       </div>
 
@@ -628,6 +746,9 @@ function SectionsPanel({
 
           return (
             <div key={sectionId}
+              data-testid="theme-editor-section-item"
+              data-section-id={sectionId}
+              data-section-type={instance.type}
               className={cn("group flex items-center gap-1 rounded-lg mb-0.5 transition-colors",
                 active ? "bg-primary/10 ring-1 ring-primary/20" : "hover:bg-muted",
                 disabled && "opacity-50")}>
@@ -636,6 +757,7 @@ function SectionsPanel({
 
               {/* Name — clickable */}
               <button onClick={() => onSelectSection(sectionId)}
+                data-testid={`theme-editor-section-select-${sectionId}`}
                 className="flex-1 flex items-center gap-2 py-2 px-1 text-[12px] font-medium text-start truncate">
                 <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="truncate">{name}</span>
@@ -644,13 +766,21 @@ function SectionsPanel({
               {/* Actions */}
               <div className="flex items-center gap-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 me-1">
                 <button onClick={() => onMove(sectionId, "up")} disabled={idx === 0}
+                  data-testid="theme-editor-section-move-up"
+                  data-section-id={sectionId}
                   className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-20"><ChevronUp className="h-3 w-3" /></button>
                 <button onClick={() => onMove(sectionId, "down")} disabled={idx === template.order.length - 1}
+                  data-testid="theme-editor-section-move-down"
+                  data-section-id={sectionId}
                   className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-20"><ChevronDown className="h-3 w-3" /></button>
-                <button onClick={() => onToggle(sectionId)} className="p-1 text-muted-foreground hover:text-foreground">
+                <button onClick={() => onToggle(sectionId)} className="p-1 text-muted-foreground hover:text-foreground"
+                  data-testid="theme-editor-section-toggle"
+                  data-section-id={sectionId}>
                   {disabled ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                 </button>
                 <button onClick={() => onRemove(sectionId)}
+                  data-testid="theme-editor-section-delete"
+                  data-section-id={sectionId}
                   className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
               </div>
             </div>
@@ -659,13 +789,13 @@ function SectionsPanel({
 
         {/* Add section */}
         {!showAddPicker ? (
-          <button onClick={() => onShowAdd(true)}
+          <button onClick={() => onShowAdd(true)} data-testid="theme-editor-add-section"
             className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-1 rounded-lg border border-dashed border-muted-foreground/20 text-[12px] text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors">
             <Plus className="h-3.5 w-3.5" />
             {isRTL ? "إضافة قسم" : "Add section"}
           </button>
         ) : (
-          <div className="mt-1 rounded-lg border bg-background p-2 space-y-0.5">
+          <div className="mt-1 rounded-lg border bg-background p-2 space-y-0.5" data-testid="theme-editor-add-section-picker">
             <div className="flex items-center justify-between mb-1">
               <p className="text-[11px] font-semibold">{isRTL ? "اختر قسم" : "Choose section"}</p>
               <button onClick={() => onShowAdd(false)} className="text-xs text-muted-foreground hover:text-foreground">✕</button>
@@ -674,6 +804,7 @@ function SectionsPanel({
               const Icon = SECTION_ICONS[schema.type] ?? Layout;
               return (
                 <button key={schema.type} onClick={() => onAdd(schema.type)}
+                  data-testid={`theme-editor-add-section-option-${schema.type}`}
                   className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                   <Icon className="h-3.5 w-3.5 shrink-0" />
                   {isRTL ? schema.nameAr ?? schema.name : schema.name}
@@ -714,7 +845,7 @@ function SectionSettingsPanel({
   }
 
   return (
-    <div className="py-3">
+    <div className="py-3" data-testid="theme-editor-section-settings">
       <div className="px-4 pb-3 border-b">
         <h3 className="text-sm font-semibold">{isRTL ? schema.nameAr ?? schema.name : schema.name}</h3>
         <p className="text-[11px] text-muted-foreground mt-0.5">{instance.type}</p>
@@ -754,7 +885,7 @@ function GlobalSettingsPanel({
   const Icon = section.icon;
 
   return (
-    <div className="py-3">
+    <div className="py-3" data-testid="theme-editor-global-settings">
       <div className="px-4 pb-3 border-b flex items-center gap-2">
         <Icon className="h-4 w-4 text-muted-foreground" />
         <h3 className="text-sm font-semibold">{isRTL ? section.nameAr : section.name}</h3>
@@ -785,12 +916,13 @@ function SchemaFieldControl({
   onChange: (value: unknown) => void;
 }) {
   const label = isRTL ? (setting.labelAr ?? setting.label) : setting.label;
+  const testId = `theme-editor-setting-${toTestIdSuffix(setting.key)}`;
 
   if (setting.type === "checkbox") {
     return (
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3" data-testid={testId}>
         <Label className="text-[12px] font-medium leading-tight">{label}</Label>
-        <Switch checked={Boolean(value)} onCheckedChange={onChange} className="shrink-0" />
+        <Switch checked={Boolean(value)} onCheckedChange={onChange} className="shrink-0" data-testid={`${testId}-switch`} />
       </div>
     );
   }
@@ -798,13 +930,13 @@ function SchemaFieldControl({
   if (setting.type === "color") {
     const colorVal = String(value ?? "#000000");
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" data-testid={testId}>
         <Label className="text-[12px] font-medium">{label}</Label>
         <div className="flex items-center gap-2">
           <input type="color" value={colorVal} onChange={(e) => onChange(e.target.value)}
-            className="h-8 w-8 cursor-pointer rounded-md border border-input p-0.5 block shrink-0" />
+            className="h-8 w-8 cursor-pointer rounded-md border border-input p-0.5 block shrink-0" data-testid={`${testId}-color`} />
           <Input value={colorVal} onChange={(e) => onChange(e.target.value)}
-            className="h-8 font-mono text-[12px] flex-1" maxLength={7} />
+            className="h-8 font-mono text-[12px] flex-1" maxLength={7} data-testid={`${testId}-input`} />
         </div>
       </div>
     );
@@ -812,10 +944,10 @@ function SchemaFieldControl({
 
   if (setting.type === "select" && setting.options) {
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" data-testid={testId}>
         <Label className="text-[12px] font-medium">{label}</Label>
         <Select value={String(value ?? "")} onValueChange={onChange}>
-          <SelectTrigger className="h-8 text-[12px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-[12px]" data-testid={`${testId}-select`}><SelectValue /></SelectTrigger>
           <SelectContent>
             {setting.options.map((opt) => (
               <SelectItem key={opt.value} value={opt.value} className="text-[12px]">
@@ -831,43 +963,43 @@ function SchemaFieldControl({
   if (setting.type === "range" || setting.type === "number") {
     const numVal = Number(value ?? setting.min ?? 0);
     return (
-      <div className="space-y-2">
+      <div className="space-y-2" data-testid={testId}>
         <div className="flex items-center justify-between">
           <Label className="text-[12px] font-medium">{label}</Label>
           <span className="text-[11px] text-muted-foreground font-mono">{numVal}{setting.unit ?? ""}</span>
         </div>
         <Slider value={[numVal]} min={setting.min ?? 0} max={setting.max ?? 100} step={setting.step ?? 1}
-          onValueChange={([v]) => onChange(v)} className="py-0" />
+          onValueChange={([v]) => onChange(v)} className="py-0" data-testid={`${testId}-slider`} />
       </div>
     );
   }
 
   if (setting.type === "textarea" || setting.type === "richtext") {
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" data-testid={testId}>
         <Label className="text-[12px] font-medium">{label}</Label>
         <Textarea value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}
-          placeholder={setting.placeholder} rows={3} className="text-[12px] resize-none" />
+          placeholder={setting.placeholder} rows={3} className="text-[12px] resize-none" data-testid={`${testId}-textarea`} />
       </div>
     );
   }
 
   if (setting.type === "image" || setting.type === "url") {
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" data-testid={testId}>
         <Label className="text-[12px] font-medium">{label}</Label>
         <Input value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}
-          placeholder={setting.placeholder} className="h-8 text-[12px]" type="url" dir="ltr" />
+          placeholder={setting.placeholder} className="h-8 text-[12px]" type="url" dir="ltr" data-testid={`${testId}-input`} />
       </div>
     );
   }
 
   // text (default)
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5" data-testid={testId}>
       <Label className="text-[12px] font-medium">{label}</Label>
       <Input value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}
-        placeholder={setting.placeholder} className="h-8 text-[12px]" />
+        placeholder={setting.placeholder} className="h-8 text-[12px]" data-testid={`${testId}-input`} />
     </div>
   );
 }
@@ -879,7 +1011,7 @@ function ThemeSettingsSidebar({ groups, data, isRTL, onChange }: {
   onChange: (path: string, value: unknown) => void;
 }) {
   return (
-    <div className="py-3">
+    <div className="py-3" data-testid="theme-editor-theme-settings">
       {groups.map((group) => (
         <div key={group.group} className="px-4 py-3 border-b last:border-b-0">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-3">
@@ -905,35 +1037,36 @@ function FieldControl({ field, value, isRTL, onChange, compact = false }: {
   onChange: (value: unknown) => void; compact?: boolean;
 }) {
   const label = isRTL ? field.labelAr : field.label;
+  const testId = `theme-editor-field-${toTestIdSuffix(field.key)}`;
 
   if (field.type === "toggle") {
     return (
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3" data-testid={testId}>
         <Label className={cn("text-[12px] font-medium leading-tight", compact ? "text-xs" : "text-sm")}>{label}</Label>
-        <Switch checked={Boolean(value)} onCheckedChange={onChange} className="shrink-0" />
+        <Switch checked={Boolean(value)} onCheckedChange={onChange} className="shrink-0" data-testid={`${testId}-switch`} />
       </div>
     );
   }
   if (field.type === "color") {
     const colorVal = String(value ?? "#000000");
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" data-testid={testId}>
         <Label className="text-[12px] font-medium">{label}</Label>
         <div className="flex items-center gap-2">
           <input type="color" value={colorVal} onChange={(e) => onChange(e.target.value)}
-            className="h-8 w-8 cursor-pointer rounded-md border border-input p-0.5 block shrink-0" />
+            className="h-8 w-8 cursor-pointer rounded-md border border-input p-0.5 block shrink-0" data-testid={`${testId}-color`} />
           <Input value={colorVal} onChange={(e) => onChange(e.target.value)}
-            className="h-8 font-mono text-[12px] flex-1" maxLength={7} />
+            className="h-8 font-mono text-[12px] flex-1" maxLength={7} data-testid={`${testId}-input`} />
         </div>
       </div>
     );
   }
   if (field.type === "select") {
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" data-testid={testId}>
         <Label className="text-[12px] font-medium">{label}</Label>
         <Select value={String(value ?? "")} onValueChange={onChange}>
-          <SelectTrigger className="h-8 text-[12px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-[12px]" data-testid={`${testId}-select`}><SelectValue /></SelectTrigger>
           <SelectContent>
             {(field.options ?? []).map((opt) => (
               <SelectItem key={opt} value={opt} className="text-[12px]">{opt}</SelectItem>
@@ -946,31 +1079,31 @@ function FieldControl({ field, value, isRTL, onChange, compact = false }: {
   if (field.type === "range") {
     const numVal = Number(value ?? field.min ?? 0);
     return (
-      <div className="space-y-2">
+      <div className="space-y-2" data-testid={testId}>
         <div className="flex items-center justify-between">
           <Label className="text-[12px] font-medium">{label}</Label>
           <span className="text-[11px] text-muted-foreground font-mono">{numVal}px</span>
         </div>
         <Slider value={[numVal]} min={field.min ?? 0} max={field.max ?? 100} step={field.step ?? 1}
-          onValueChange={([v]) => onChange(v)} className="py-0" />
+          onValueChange={([v]) => onChange(v)} className="py-0" data-testid={`${testId}-slider`} />
       </div>
     );
   }
   if (field.type === "textarea") {
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" data-testid={testId}>
         <Label className="text-[12px] font-medium">{label}</Label>
         <Textarea value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder} rows={3} className="text-[12px] resize-none" />
+          placeholder={field.placeholder} rows={3} className="text-[12px] resize-none" data-testid={`${testId}-textarea`} />
       </div>
     );
   }
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5" data-testid={testId}>
       <Label className="text-[12px] font-medium">{label}</Label>
       <Input value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}
         placeholder={field.placeholder} className="h-8 text-[12px]"
-        type={field.type === "url" ? "url" : "text"} dir={field.type === "url" ? "ltr" : undefined} />
+        type={field.type === "url" ? "url" : "text"} dir={field.type === "url" ? "ltr" : undefined} data-testid={`${testId}-input`} />
     </div>
   );
 }
