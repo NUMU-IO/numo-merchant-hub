@@ -40,6 +40,7 @@ jobs:
         env:
           VITE_API_URL: /api/v1
           VITE_STOREFRONT_URL: https://{subdomain}.numueg.app
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           VITE_SENTRY_ENVIRONMENT: production
 
