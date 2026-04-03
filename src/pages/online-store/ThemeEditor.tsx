@@ -314,6 +314,7 @@ export default function ThemeEditor() {
         },
       }, "*");
     } catch { /* iframe not ready */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localData, allTemplates]);
 
   useEffect(() => {
@@ -506,6 +507,7 @@ export default function ThemeEditor() {
     if (!schemaBundle?.sections || !template) return [];
     return schemaBundle.sections.filter((schema) => {
       // Page sections (limit:1, page_section:true) are not manually addable
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const isPageSection = (schema as any).page_section === true;
       if (isPageSection) return false;
 
