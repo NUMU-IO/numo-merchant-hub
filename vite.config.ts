@@ -40,12 +40,12 @@ function vitePluginCSP(): Plugin {
               content:
                 [
                   "default-src 'self'",
-                  "script-src 'self'",
-                  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+                  "script-src 'self' https://accounts.google.com https://apis.google.com",
+                  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
                   "font-src 'self' https://fonts.gstatic.com",
                   "img-src 'self' data: blob: https:",
-                  "connect-src 'self' https://numueg.app https://*.numueg.app https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.de.sentry.io",
-                  "frame-src 'self' https://numueg.app https://*.numueg.app",
+                  "connect-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.de.sentry.io",
+                  "frame-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com",
                   "worker-src 'self' blob:",
                 ].join("; ") + ";",
             },
