@@ -304,12 +304,12 @@ export default function Login() {
 
               {/* Divider */}
               <div className="relative mt-6 mb-4">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border/50" /></div>
-                <div className="relative flex justify-center text-xs"><span className="bg-card px-3 text-muted-foreground">{isAr ? "أو" : "or"}</span></div>
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10" /></div>
+                <div className="relative flex justify-center text-xs"><span className="bg-transparent px-3 text-white/40">{isAr ? "أو" : "or"}</span></div>
               </div>
 
               {/* Google Sign-In */}
-              <div className="flex justify-center">
+              <div className="flex justify-center [&_iframe]:!rounded-lg">
                 <GoogleLogin
                   onSuccess={async (credentialResponse) => {
                     if (!credentialResponse.credential) return;
@@ -333,6 +333,7 @@ export default function Login() {
                   width="100%"
                   text={isRegister ? "signup_with" : "signin_with"}
                   shape="pill"
+                  theme="filled_black"
                 />
               </div>
 
