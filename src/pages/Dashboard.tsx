@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import {
@@ -18,7 +18,6 @@ import { listOrders } from "@/services/orderApi";
 import { getOnboarding, dismissOnboarding, undismissOnboarding } from "@/services/storeApi";
 import type { OnboardingData } from "@/services/storeApi";
 import { getStoreUrl } from "@/lib/storefront";
-import { apiClient } from "@/services/api";
 import {
   TrendingUp, ShoppingCart, Users, ArrowUpRight, ArrowDownRight,
   Package, ExternalLink, AlertTriangle, Clock, ChevronRight,
@@ -84,6 +83,7 @@ const Dashboard = () => {
 
   const healthScore: HealthScoreData | null = healthScoreQuery.data ?? null;
 
+
   const stats = statsQuery.data ?? null;
   const chartData = chartQuery.data ?? [];
   const topProducts = topProductsQuery.data ?? [];
@@ -127,6 +127,16 @@ const Dashboard = () => {
   const onboardingData: OnboardingData | null = onboardingQuery.data ?? null;
   const canDismissOnboarding = !!onboardingData?.is_completed || (stats ? stats.total_orders > 0 : false);
   const showSetup = !!onboardingData && !onboardingData.is_completed && !onboardingData.is_dismissed;
+
+
+  // Floating demo order notification for new merchants
+  const [showDemoOrder, setShowDemoOrder] = useState(false);
+  useEffect(() => {
+    if (!showSetup) return;
+    const timer = setTimeout(() => setShowDemoOrder(true), 4000);
+    const hide = setTimeout(() => setShowDemoOrder(false), 11000);
+    return () => { clearTimeout(timer); clearTimeout(hide); };
+  }, [showSetup]);
 
   const handleDismissOnboarding = async () => {
     if (!storeId) return;
@@ -235,35 +245,54 @@ const Dashboard = () => {
   return (
     <div className="space-y-5">
       {/* Welcome */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">
-            {greeting}, {user?.first_name || currentStore?.name || t("dashboard.merchantName")}
-          </h1>
-          <p className="text-[13px] text-muted-foreground/80 mt-0.5">{summaryLine}</p>
+      {showSetup ? (
+        /* Zid-style big welcome banner during onboarding */
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+              {isAr
+                ? "أهلاً وسهلاً بتاجرنا في نُمو، يلا نبدأ رحلة تجهيز متجرك"
+                : "Welcome to NUMU! Let's start setting up your store"}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-2 leading-relaxed max-w-[700px]">
+              {isAr
+                ? "كمّل الخطوات التالية بالترتيب حتى يكون عندك متجر متكامل لبيع منتجاتك وخدماتك أونلاين وتحصل على المكافأة يلا!"
+                : "Complete the following steps in order to have a fully integrated store for selling your products and services online and earn your reward!"}
+            </p>
+          </div>
+          <img src="/onboarding/welcome.webp" alt="" className="hidden sm:block w-16 h-16 object-contain shrink-0" />
         </div>
-        <div className="hidden sm:flex gap-2 shrink-0">
-          {onboardingData?.is_dismissed && !onboardingData?.is_completed && (
-            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg border-amber-200/60 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30" onClick={handleShowOnboarding}>
-              <Gift className="h-3 w-3" />
-              {isAr ? "دليل الإعداد" : "Setup Guide"}
+      ) : (
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">
+              {greeting}, {user?.first_name || currentStore?.name || t("dashboard.merchantName")}
+            </h1>
+            <p className="text-[13px] text-muted-foreground/80 mt-0.5">{summaryLine}</p>
+          </div>
+          <div className="hidden sm:flex gap-2 shrink-0">
+            {onboardingData?.is_dismissed && !onboardingData?.is_completed && (
+              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg border-amber-200/60 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30" onClick={handleShowOnboarding}>
+                <Gift className="h-3 w-3" />
+                {isAr ? "دليل الإعداد" : "Setup Guide"}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg border-border/60" onClick={() => {
+              if (currentStore?.subdomain) window.open(getStoreUrl(currentStore.subdomain), "_blank");
+            }}>
+              <ExternalLink className="h-3 w-3" />
+              {t("dashboard.viewStore")}
             </Button>
-          )}
-          <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs rounded-lg border-border/60" onClick={() => {
-            if (currentStore?.subdomain) window.open(getStoreUrl(currentStore.subdomain), "_blank");
-          }}>
-            <ExternalLink className="h-3 w-3" />
-            {t("dashboard.viewStore")}
-          </Button>
-          <Button size="sm" className="gap-1.5 h-8 text-xs rounded-lg" onClick={() => navigate("/products/new")}>
-            <Plus className="h-3 w-3" />
-            {t("products.addProduct")}
-          </Button>
+            <Button size="sm" className="gap-1.5 h-8 text-xs rounded-lg" onClick={() => navigate("/products/new")}>
+              <Plus className="h-3 w-3" />
+              {t("products.addProduct")}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Attention Needed */}
-      {stats && (pendingCount > 0 || lowStockCount > 0) && (
+      {/* Attention Needed — hidden during setup wizard */}
+      {!showSetup && stats && (pendingCount > 0 || lowStockCount > 0) && (
         <div className="flex flex-col sm:flex-row gap-2">
           {pendingCount > 0 && (
             <button
@@ -306,8 +335,8 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Quick Actions — mobile + always visible */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      {/* Quick Actions — hidden during setup wizard */}
+      {!showSetup && <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <button onClick={() => navigate("/orders")} className="flex items-center gap-2.5 p-3 rounded-xl border border-border/50 hover:bg-muted/50 transition-colors text-left">
           <ShoppingCart className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="text-[12px] font-medium">{isAr ? "الطلبات" : "Orders"}</span>
@@ -326,7 +355,7 @@ const Dashboard = () => {
           <span className="text-[12px] font-medium">{isAr ? "العملاء" : "Customers"}</span>
           {newCustomers > 0 && <span className="ms-auto text-[10px] font-bold text-primary bg-primary/10 rounded-full px-1.5 py-0.5">+{newCustomers}</span>}
         </button>
-      </div>
+      </div>}
 
       {/* Onboarding checklist — single instance, shown for all merchants with pending setup */}
 
@@ -622,17 +651,22 @@ const Dashboard = () => {
           confirm_support: { label: "Add Support Number", labelAr: "أكد رقم الدعم الفني لمتجرك", desc: "Add a phone number so customers can reach you", descAr: "أضف رقم للدعم الفني لعملاؤك", action: () => navigate("/store"), cta: "Confirm Number", ctaAr: "أكد الرقم المسجل", icon: <CheckCircle2 className="h-5 w-5" />, time: "30 sec", timeAr: "30 ثانية" },
           add_shipping: { label: "Set Up Shipping", labelAr: "حدد موقع تسليم الشحنات", desc: "Configure shipping zones or connect a carrier", descAr: "اضبط مناطق الشحن أو اربط شركة شحن", action: () => navigate("/logistics"), cta: "Set Up", ctaAr: "إعداد", icon: <Truck className="h-5 w-5" />, time: "3 min", timeAr: "3 دقائق" },
           configure_payment: { label: "Activate Payments", labelAr: "فعّل المدفوعات", desc: "Connect a payment gateway to accept money", descAr: "أكمل عملية تحقق سريعة وآمنة لفتح جميع الميزات وبدء البيع", action: () => navigate("/payment-setup"), cta: "Start Verification", ctaAr: "ابدأ إجراءات التحقق", icon: <CreditCard className="h-5 w-5" />, time: "5 min", timeAr: "5 دقائق" },
-          first_order: { label: "Get Your First Order", labelAr: "احصل على أول طلب", desc: "Share your store link and start receiving orders", descAr: "شارك رابط متجرك وابدأ استقبال الطلبات", action: () => { if (currentStore?.subdomain) window.open(getStoreUrl(currentStore.subdomain), "_blank"); }, cta: "Share", ctaAr: "مشاركة", icon: <Zap className="h-5 w-5" />, time: "1 min", timeAr: "دقيقة" },
+          first_order: { label: "Get Your First Order", labelAr: "احصل على أول طلب", desc: "Share your store link and start receiving orders", descAr: "شارك رابط متجرك وابدأ استقبال الطلبات", action: () => { if (currentStore?.subdomain) window.open(getStoreUrl(currentStore.subdomain), "_blank"); }, cta: "Share", ctaAr: "مشاركة", icon: <Zap className="h-5 w-5" />, time: "1 min", timeAr: "دقيقة" },  // excluded from grid below
+
         };
         const steps = onboardingData.steps
-          .filter(s => s.key !== "create_store" && STEP_UI[s.key])
+          .filter(s => s.key !== "create_store" && s.key !== "first_order" && STEP_UI[s.key])
           .map((s, i) => ({ ...STEP_UI[s.key], key: s.key, num: i + 1, done: s.status === "completed" || s.status === "skipped", colors: stepColors[s.key], illustration: stepIllustrations[s.key] }));
         const doneCount = steps.filter(s => s.done).length;
+        const allStepsDone = doneCount === steps.length;
+        const totalSteps = steps.length + 1; // +1 for first order
+        const displayDone = allStepsDone ? steps.length : doneCount; // show X/6, last one is "first order"
+        const progressPercent = Math.round((displayDone / totalSteps) * 100);
 
         return (
-          <div className="rounded-xl border border-border/60 overflow-hidden">
+          <div>
             {/* Dark banner header */}
-            <div className="relative text-white" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }}>
+            <div className="relative text-white rounded-xl overflow-hidden" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }}>
               <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "80px", backgroundRepeat: "repeat" }} />
               <div className="relative z-10 px-5 py-4 sm:px-6 sm:py-5">
                 <div className="flex items-center justify-between gap-4 mb-3">
@@ -642,7 +676,7 @@ const Dashboard = () => {
                     </div>
                     <div>
                       <h2 className="text-sm font-bold leading-tight">{isAr ? "جهّز متجرك واحصل على شهر Premium مجاناً" : "Set up your store & get 1 month Premium free"}</h2>
-                      <p className="text-[11px] text-white/40 mt-0.5">{doneCount}/{steps.length} {isAr ? "مكتمل" : "completed"}</p>
+                      <p className="text-[11px] text-white/40 mt-0.5">{displayDone}/{totalSteps} {isAr ? "مكتمل" : "completed"}</p>
                     </div>
                   </div>
                   {canDismissOnboarding && (
@@ -650,40 +684,115 @@ const Dashboard = () => {
                   )}
                 </div>
                 <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-700" style={{ width: `${onboardingData.completion_percentage}%` }} />
+                  <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-700" style={{ width: `${progressPercent}%` }} />
                 </div>
               </div>
             </div>
 
             {/* Zid-style cards grid */}
-            <div className="p-3 sm:p-4 bg-background">
+            <div className="pt-3 sm:pt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 
                 {/* ── Reward card (left, tall — spans 2 rows) ── */}
-                <div className="relative overflow-hidden rounded-2xl sm:row-span-2 min-h-[220px] flex flex-col items-center justify-center text-center p-6" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }}>
+                <div className="relative overflow-hidden rounded-2xl sm:row-span-2 min-h-[260px] flex flex-col items-center justify-center text-center p-8" style={{ background: "hsl(222.2, 47.4%, 11.2%)" }}>
                   <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "60px", backgroundRepeat: "repeat" }} />
                   <div className="relative z-10 flex flex-col items-center">
-                  <div className="absolute top-0 ltr:right-0 rtl:left-0 text-xs font-bold text-white/30 tabular-nums">{doneCount} / {steps.length}</div>
-                  <img src="/onboarding/reward.svg" alt="" className="w-28 h-28 mb-4 object-contain" />
-                  <p className="text-base font-bold text-white leading-snug">
+                  {/* Counter badge */}
+                  <div className="mb-5 flex items-center gap-1.5 rounded-full bg-white/10 border border-white/10 px-3.5 py-1">
+                    <span className="text-sm font-bold text-white tabular-nums">{displayDone}</span>
+                    <span className="text-sm text-white/40">/</span>
+                    <span className="text-sm font-bold text-white tabular-nums">{totalSteps}</span>
+                  </div>
+                  <img src="/onboarding/reward.svg" alt="" className="w-36 h-36 mb-5 object-contain" />
+                  <p className="text-lg font-bold text-white leading-snug">
                     {isAr ? "اكسب شهر Premium مجاناً" : "Earn 1 month Premium free"}
                   </p>
-                  <p className="text-xs text-white/50 mt-1.5 max-w-[220px] leading-relaxed">
+                  <p className="text-sm text-white/50 mt-2 max-w-[240px] leading-relaxed">
                     {isAr ? "إذا أكملت كل خطوات تجهيز متجرك" : "Complete all setup steps to unlock your reward"}
                   </p>
                   </div>
                 </div>
 
+                {allStepsDone ? (
+                  <>
+                    {/* ── All steps done — waiting for first order ── */}
+                    <div className="relative overflow-hidden rounded-2xl lg:col-span-2 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-emerald-500/30 bg-emerald-500/[0.03]">
+                      <div className="relative z-10 flex flex-col items-center">
+                        <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-3">
+                          <ShoppingCart className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <p className="text-sm font-bold leading-snug">
+                            {isAr ? "متجرك جاهز!" : "Store is ready!"}
+                          </p>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px] leading-relaxed">
+                          {isAr ? "في انتظار أول طلب... شارك رابط متجرك" : "Waiting for your first order... share your store link"}
+                        </p>
+                        <div className="flex flex-col gap-2 mt-3 w-full">
+                          <Button size="sm" className="h-8 text-xs rounded-lg font-semibold gap-1.5 w-full" onClick={() => {
+                            if (currentStore?.subdomain) {
+                              const url = getStoreUrl(currentStore.subdomain);
+                              if (navigator.share) {
+                                navigator.share({ title: currentStore.name, url }).catch(() => {});
+                              } else {
+                                navigator.clipboard.writeText(url);
+                              }
+                            }
+                          }}>
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            {isAr ? "شارك رابط متجرك" : "Share Store Link"}
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-8 text-xs rounded-lg font-semibold gap-1.5 w-full" onClick={() => {
+                            if (currentStore?.subdomain) window.open(getStoreUrl(currentStore.subdomain), "_blank");
+                          }}>
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            {isAr ? "زُر متجرك" : "Visit Store"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Referral card — spans 2 cols ── */}
+                    <div className="relative overflow-hidden rounded-2xl p-5 sm:col-span-1 lg:col-span-2 flex items-center" style={{ background: "linear-gradient(135deg, hsl(222.2, 47.4%, 11.2%) 0%, hsl(250, 40%, 16%) 100%)" }}>
+                      <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "60px", backgroundRepeat: "repeat" }} />
+                      <img src="/onboarding/referral.webp" alt="" className={`relative z-10 h-[160px] shrink-0 ${isAr ? "-ml-2 -mr-1" : "-mr-2 -ml-1"} drop-shadow-lg`} />
+                      <div className={`relative z-10 flex flex-col ${isAr ? "mr-3" : "ml-3"}`}>
+                        <p className="text-sm font-bold text-white leading-snug">
+                          {isAr ? "ادعُ تاجر واحصل على نسبة من كل طلباته للأبد" : "Refer a merchant & earn a % of all their orders forever"}
+                        </p>
+                        <p className="text-[11px] text-white/50 mt-1.5 leading-relaxed">
+                          {isAr ? "شارك رابط الدعوة مع أصحاب المتاجر واكسب عمولة مستمرة من كل طلب يستقبلوه" : "Share your referral link with store owners and earn ongoing commission from every order they receive"}
+                        </p>
+                        <Button size="sm" className="mt-3 h-8 text-xs rounded-lg bg-white text-gray-900 hover:bg-white/90 font-semibold gap-1.5 w-fit" onClick={async () => {
+                          if (currentStore?.subdomain) {
+                            const url = getStoreUrl(currentStore.subdomain);
+                            if (navigator.share) {
+                              try { await navigator.share({ title: currentStore.name, url }); } catch { /* cancelled */ }
+                            } else {
+                              await navigator.clipboard.writeText(url);
+                            }
+                          }
+                        }}>
+                          <Gift className="h-3.5 w-3.5" />
+                          {isAr ? "شارك رابط الدعوة" : "Share Referral Link"}
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
                 {/* ── Step cards ── */}
                 {steps.map((step) => {
                   const c = step.colors;
                   return (
                     <div
                       key={step.key}
-                      className={`group relative rounded-2xl overflow-hidden flex flex-col transition-all duration-200 ${
+                      className={`group relative rounded-2xl overflow-hidden flex flex-col transition-all duration-200 ${c.bg} border ${c.border} ${
                         step.done
-                          ? "bg-muted/20 dark:bg-muted/10 border border-border/30"
-                          : `${c.bg} border ${c.border} hover:shadow-lg hover:-translate-y-0.5 cursor-pointer`
+                          ? "opacity-75"
+                          : "hover:shadow-lg hover:-translate-y-0.5 cursor-pointer"
                       }`}
                       onClick={() => !step.done && step.action()}
                     >
@@ -747,6 +856,35 @@ const Dashboard = () => {
                     </div>
                   );
                 })}
+
+                {/* ── Referral card — fills remaining grid space ── */}
+                <div className="relative overflow-hidden rounded-2xl p-5 sm:col-span-1 lg:col-span-2 flex items-center" style={{ background: "linear-gradient(135deg, hsl(222.2, 47.4%, 11.2%) 0%, hsl(250, 40%, 16%) 100%)" }}>
+                  <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "60px", backgroundRepeat: "repeat" }} />
+                  <img src="/onboarding/referral.webp" alt="" className={`relative z-10 h-[160px] shrink-0 ${isAr ? "-ml-2 -mr-1" : "-mr-2 -ml-1"} drop-shadow-lg`} />
+                  <div className={`relative z-10 flex flex-col ${isAr ? "mr-3" : "ml-3"}`}>
+                    <p className="text-sm font-bold text-white leading-snug">
+                      {isAr ? "ادعُ تاجر واحصل على نسبة من كل طلباته للأبد" : "Refer a merchant & earn a % of all their orders forever"}
+                    </p>
+                    <p className="text-[11px] text-white/50 mt-1.5 leading-relaxed">
+                      {isAr ? "شارك رابط الدعوة مع أصحاب المتاجر واكسب عمولة مستمرة من كل طلب يستقبلوه" : "Share your referral link with store owners and earn ongoing commission from every order they receive"}
+                    </p>
+                    <Button size="sm" className="mt-3 h-8 text-xs rounded-lg bg-white text-gray-900 hover:bg-white/90 font-semibold gap-1.5 w-fit" onClick={async () => {
+                      if (currentStore?.subdomain) {
+                        const url = getStoreUrl(currentStore.subdomain);
+                        if (navigator.share) {
+                          try { await navigator.share({ title: currentStore.name, url }); } catch { /* cancelled */ }
+                        } else {
+                          await navigator.clipboard.writeText(url);
+                        }
+                      }
+                    }}>
+                      <Gift className="h-3.5 w-3.5" />
+                      {isAr ? "شارك رابط الدعوة" : "Share Referral Link"}
+                    </Button>
+                  </div>
+                </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -955,6 +1093,24 @@ const Dashboard = () => {
         </Card>
       </div>
       </>
+      )}
+
+      {/* Floating demo order notification */}
+      {showSetup && (
+        <div
+          className={`fixed z-50 transition-all duration-500 ease-out ${isAr ? "left-4 sm:left-6" : "right-4 sm:right-6"} bottom-6 ${showDemoOrder ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0 pointer-events-none"}`}
+        >
+          <div className="flex items-center gap-3 rounded-2xl bg-background/95 backdrop-blur-md border border-border/60 shadow-2xl shadow-black/10 dark:shadow-black/30 px-4 py-3 min-w-[260px]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 shrink-0">
+              <ShoppingCart className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold leading-tight">{isAr ? "طلب جديد!" : "New Order!"}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{isAr ? "حلوان - القاهرة" : "Helwan - Cairo"}</p>
+            </div>
+            <span className="text-[10px] text-muted-foreground/60 shrink-0">{isAr ? "الآن" : "now"}</span>
+          </div>
+        </div>
       )}
 
     </div>

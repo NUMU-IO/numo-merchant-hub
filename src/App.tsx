@@ -26,6 +26,8 @@ const OnlineStoreNavigation = lazy(() => import("@/pages/online-store/Navigation
 const OnlineStorePreferences = lazy(() => import("@/pages/online-store/Preferences"));
 const ThemeEditor = lazy(() => import("@/pages/online-store/ThemeEditor"));
 const Payments = lazy(() => import("@/pages/Payments"));
+const WalletPage = lazy(() => import("@/pages/Wallet"));
+const StoreBalancePage = lazy(() => import("@/pages/StoreBalance"));
 const PaymentSetup = lazy(() => import("@/pages/PaymentSetup"));
 const Logistics = lazy(() => import("@/pages/Logistics"));
 const CODReconciliation = lazy(() => import("@/pages/CODReconciliation"));
@@ -171,6 +173,8 @@ const App = () => (
                     <Route path="/orders" element={<Orders />} />
                     <Route path="/orders/create" element={<CreateOrder />} />
                     <Route path="/payments" element={<Payments />} />
+                    <Route path="/wallet" element={<WalletPage />} />
+                    <Route path="/store-balance" element={<StoreBalancePage />} />
                     <Route path="/payment-setup" element={<PaymentSetup />} />
                     <Route path="/logistics" element={<Logistics />} />
                     <Route path="/store" element={<StoreSettings />} />

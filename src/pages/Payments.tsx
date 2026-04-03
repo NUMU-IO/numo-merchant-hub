@@ -116,8 +116,8 @@ const Payments = () => {
                   <span className="text-sm font-medium text-white/50">{isAr ? "ج.م" : "EGP"}</span>
                 </div>
                 <div className="flex gap-2 mt-4">
-                  <Button size="sm" className="h-8 text-xs rounded-lg bg-white text-foreground hover:bg-white/90">{isAr ? "عرض رصيد المحفظة" : "View Wallet"}</Button>
-                  <Button size="sm" className="h-8 text-xs rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20">{isAr ? "إضافة رصيد للمحفظة" : "Add Balance"}</Button>
+                  <Button size="sm" className="h-8 text-xs rounded-lg bg-white text-foreground hover:bg-white/90" onClick={() => navigate("/wallet")}>{isAr ? "عرض رصيد المحفظة" : "View Wallet"}</Button>
+                  <Button size="sm" className="h-8 text-xs rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20" onClick={() => navigate("/wallet")}>{isAr ? "إضافة رصيد للمحفظة" : "Add Balance"}</Button>
                 </div>
               </div>
               {/* Store Balance */}
@@ -131,7 +131,7 @@ const Payments = () => {
                   <span className="text-sm font-medium text-white/50">{isAr ? "ج.م" : "EGP"}</span>
                 </div>
                 <div className="flex gap-2 mt-4">
-                  <Button size="sm" className="h-8 text-xs rounded-lg bg-white text-foreground hover:bg-white/90">{isAr ? "عرض رصيد المتجر" : "View Store Balance"}</Button>
+                  <Button size="sm" className="h-8 text-xs rounded-lg bg-white text-foreground hover:bg-white/90" onClick={() => navigate("/store-balance")}>{isAr ? "عرض رصيد المتجر" : "View Store Balance"}</Button>
                 </div>
               </div>
             </div>

@@ -77,6 +77,17 @@ const DashboardLayout = () => {
               <Suspense fallback={<PageFallback />}>
                 <Outlet />
               </Suspense>
+
+              {/* Footer — inline at bottom of content like Zid */}
+              <div className="mt-12 mb-6 pt-6 border-t border-border/30 flex items-center justify-between text-xs text-muted-foreground/60">
+                <span>{isAr ? `© NUMU ${new Date().getFullYear()} جميع الحقوق محفوظة` : `© NUMU ${new Date().getFullYear()} All rights reserved`}</span>
+                <span className="flex items-center gap-1.5">
+                  {isAr ? "صنع في مصر بواسطة" : "Made in Egypt by"}
+                  <img src="/numu-logo-320.webp" alt="NUMU" className="h-4 w-4 rounded" />
+                  <span className="font-semibold text-muted-foreground/80">NUMU</span>
+                </span>
+              </div>
+
               {/* Spacer for mobile bottom nav */}
               <div className="h-16 md:hidden" />
             </div>
