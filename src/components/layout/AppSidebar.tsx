@@ -3,7 +3,8 @@ import { useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, CreditCard, Share2, Banknote,
   Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
-  Palette, FileText, Navigation2, SlidersHorizontal, ChevronRight,
+  Palette, FileText, Navigation2, SlidersHorizontal, ChevronRight, Filter, Radio,
+  Lightbulb, LineChart,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { NavLink } from "@/components/NavLink";
@@ -40,12 +41,14 @@ const AppSidebar = () => {
 
   const growthNav = [
     { title: t("nav.marketing"), url: "/marketing", icon: Megaphone },
-    { title: t("nav.analytics"), url: "/analytics", icon: BarChart3 },
     { title: t("nav.social"), url: "/social", icon: Share2 },
   ];
 
   const isActive = (url: string) =>
     url === "/" ? location.pathname === "/" : location.pathname.startsWith(url);
+
+  const analyticsActive = isActive("/analytics");
+  const analyticsOpen = analyticsActive;
 
   const onlineStoreActive = isActive("/online-store") || isActive("/store");
   const onlineStoreOpen = onlineStoreActive;
@@ -97,6 +100,117 @@ const AppSidebar = () => {
           {renderGroup(isRTL ? "العمليات" : "Operations", operationsNav)}
           <SidebarSeparator className="my-1.5 opacity-50" />
           {renderGroup(isRTL ? "النمو" : "Growth", growthNav)}
+
+          {/* Analytics — collapsible */}
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/40 group-data-[collapsible=icon]:hidden px-3 mb-0.5">
+              {isRTL ? "التقارير" : "Reports"}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <Collapsible defaultOpen={analyticsOpen} className="group/analytics">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip={t("nav.analytics")}
+                        className="h-8 rounded-lg"
+                        isActive={analyticsActive}
+                      >
+                        <BarChart3 className="h-[15px] w-[15px]" />
+                        <span className="text-[13px] font-medium">{t("nav.analytics")}</span>
+                        <ChevronRight className="ms-auto h-3.5 w-3.5 opacity-50 transition-transform duration-200 group-data-[state=open]/analytics:rotate-90" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/analytics/overview")}>
+                            <NavLink to="/analytics/overview">
+                              <BarChart3 className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "نظرة عامة" : "Overview"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/analytics/sales")}>
+                            <NavLink to="/analytics/sales">
+                              <CreditCard className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "المبيعات" : "Sales"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/analytics/orders")}>
+                            <NavLink to="/analytics/orders">
+                              <ShoppingCart className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "الطلبات" : "Orders"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/analytics/customers")}>
+                            <NavLink to="/analytics/customers">
+                              <Users className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "العملاء" : "Customers"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/analytics/products")}>
+                            <NavLink to="/analytics/products">
+                              <Package className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "المنتجات" : "Products"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/analytics/funnel")}>
+                            <NavLink to="/analytics/funnel">
+                              <Filter className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "القمع" : "Funnel"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/analytics/marketing")}>
+                            <NavLink to="/analytics/marketing">
+                              <Megaphone className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "التسويق" : "Marketing"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/analytics/live")}>
+                            <NavLink to="/analytics/live">
+                              <Radio className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "مباشر" : "Live"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/analytics/insights")}>
+                            <NavLink to="/analytics/insights">
+                              <Lightbulb className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "تحليلات ذكية" : "Insights"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/analytics/forecast")}>
+                            <NavLink to="/analytics/forecast">
+                              <LineChart className="h-3.5 w-3.5" />
+                              <span>{isRTL ? "التوقعات" : "Forecast"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
           <SidebarSeparator className="my-1.5 opacity-50" />
 
           {/* Sales Channels */}

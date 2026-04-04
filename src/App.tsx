@@ -33,7 +33,16 @@ const Logistics = lazy(() => import("@/pages/Logistics"));
 const CODReconciliation = lazy(() => import("@/pages/CODReconciliation"));
 const SocialImport = lazy(() => import("@/pages/SocialImport"));
 const Customers = lazy(() => import("@/pages/Customers"));
-const Analytics = lazy(() => import("@/pages/Analytics"));
+const AnalyticsOverview = lazy(() => import("@/pages/analytics/OverviewPage"));
+const AnalyticsSales = lazy(() => import("@/pages/analytics/SalesPage"));
+const AnalyticsOrders = lazy(() => import("@/pages/analytics/OrdersPage"));
+const AnalyticsCustomers = lazy(() => import("@/pages/analytics/CustomersPage"));
+const AnalyticsProducts = lazy(() => import("@/pages/analytics/ProductsPage"));
+const AnalyticsFunnel = lazy(() => import("@/pages/analytics/FunnelPage"));
+const AnalyticsMarketing = lazy(() => import("@/pages/analytics/MarketingPage"));
+const AnalyticsLive = lazy(() => import("@/pages/analytics/LivePage"));
+const AnalyticsInsights = lazy(() => import("@/pages/analytics/InsightsPage"));
+const AnalyticsForecast = lazy(() => import("@/pages/analytics/ForecastPage"));
 const HealthScore = lazy(() => import("@/pages/HealthScore"));
 const Marketing = lazy(() => import("@/pages/Marketing"));
 const Categories = lazy(() => import("@/pages/Categories"));
@@ -185,7 +194,17 @@ const App = () => (
                     <Route path="/online-store/preferences" element={<OnlineStorePreferences />} />
                     <Route path="/social" element={<SocialImport />} />
                     <Route path="/customers" element={<Customers />} />
-                    <Route path="/analytics" element={<Analytics />} />
+                    <Route path="/analytics" element={<Navigate to="/analytics/overview" replace />} />
+                    <Route path="/analytics/overview" element={<AnalyticsOverview />} />
+                    <Route path="/analytics/sales" element={<AnalyticsSales />} />
+                    <Route path="/analytics/orders" element={<AnalyticsOrders />} />
+                    <Route path="/analytics/customers" element={<AnalyticsCustomers />} />
+                    <Route path="/analytics/products" element={<AnalyticsProducts />} />
+                    <Route path="/analytics/funnel" element={<AnalyticsFunnel />} />
+                    <Route path="/analytics/marketing" element={<AnalyticsMarketing />} />
+                    <Route path="/analytics/live" element={<AnalyticsLive />} />
+                    <Route path="/analytics/insights" element={<AnalyticsInsights />} />
+                    <Route path="/analytics/forecast" element={<AnalyticsForecast />} />
                     <Route path="/health-score" element={<HealthScore />} />
                     <Route path="/marketing" element={<Marketing />} />
                     <Route path="/categories" element={<Categories />} />
