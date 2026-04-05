@@ -8,7 +8,11 @@ function InsightsContent() {
 
 export default function InsightsPage() {
   return (
-    <AnalyticsLayout>
+    <AnalyticsLayout
+      title={{ en: "AI Insights", ar: "تحليلات ذكية" }}
+      subtitle={{ en: "Anomaly detection, trends, and smart recommendations", ar: "اكتشاف الشذوذ والاتجاهات والتوصيات الذكية" }}
+      showPeriod={false}
+    >
       <InsightsContent />
     </AnalyticsLayout>
   );

@@ -8,7 +8,10 @@ function CustomersContent() {
 
 export default function CustomersPage() {
   return (
-    <AnalyticsLayout>
+    <AnalyticsLayout
+      title={{ en: "Customer Analytics", ar: "تحليلات العملاء" }}
+      subtitle={{ en: "Segmentation, retention cohorts, and lifetime value", ar: "التصنيفات والاحتفاظ وقيمة العميل مدى الحياة" }}
+    >
       <CustomersContent />
     </AnalyticsLayout>
   );

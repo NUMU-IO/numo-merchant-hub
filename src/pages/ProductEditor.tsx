@@ -71,6 +71,9 @@ const ProductEditor = () => {
   const [formStock, setFormStock] = useState("");
   const [formStatus, setFormStatus] = useState<ProductStatus>("draft");
   const [formCategory, setFormCategory] = useState("");
+  const [formSeoTitle, setFormSeoTitle] = useState("");
+  const [formSeoDesc, setFormSeoDesc] = useState("");
+  const [formSlug, setFormSlug] = useState("");
   const [formVariants, setFormVariants] = useState<{ name: string; nameAr: string; options: string; optionsAr: string }[]>([]);
   const [variantCombinations, setVariantCombinations] = useState<VariantCombination[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -108,6 +111,9 @@ const ProductEditor = () => {
         setFormStatus(p.status);
         setFormCategory(p.categoryId || "");
         setFormImages(p.images.filter(img => img !== "📦"));
+        setFormSeoTitle(api.seo_title || "");
+        setFormSeoDesc(api.seo_description || "");
+        setFormSlug(api.slug || "");
         setFormVariants(p.variants.map(v => ({
           name: v.name, nameAr: v.nameAr,
           options: v.options.join(", "), optionsAr: v.optionsAr.join(", "),
@@ -226,6 +232,9 @@ const ProductEditor = () => {
           category: cat?.name || "", categoryAr: cat?.name || "",
           variants,
           images: formImages.length > 0 ? formImages : undefined,
+          seoTitle: formSeoTitle || undefined,
+          seoDescription: formSeoDesc || undefined,
+          slug: formSlug || undefined,
         });
         if (variantCombinations.length > 0 && payload.attributes) {
           (payload.attributes as Record<string, unknown>).variant_combinations = variantCombinations;
@@ -243,6 +252,9 @@ const ProductEditor = () => {
           categoryId: formCategory || undefined,
           category: cat?.name || "", categoryAr: cat?.name || "",
           variants,
+          seoTitle: formSeoTitle || undefined,
+          seoDescription: formSeoDesc || undefined,
+          slug: formSlug || undefined,
         });
         if (variantCombinations.length > 0 && payload.attributes) {
           (payload.attributes as Record<string, unknown>).variant_combinations = variantCombinations;
@@ -555,15 +567,15 @@ const ProductEditor = () => {
         <CardContent className="space-y-3">
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "عنوان الصفحة" : "Page Title"}</Label>
-            <Input placeholder={formName || (language === "ar" ? "عنوان المنتج" : "Product title")} className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+            <Input value={formSeoTitle} onChange={(e) => setFormSeoTitle(e.target.value)} placeholder={formName || (language === "ar" ? "عنوان المنتج" : "Product title")} className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "وصف الصفحة" : "Meta Description"}</Label>
-            <Textarea placeholder={language === "ar" ? "وصف قصير يظهر في نتائج البحث" : "Short description for search results"} rows={2} className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+            <Textarea value={formSeoDesc} onChange={(e) => setFormSeoDesc(e.target.value)} placeholder={language === "ar" ? "وصف قصير يظهر في نتائج البحث" : "Short description for search results"} rows={2} className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "رابط المنتج" : "URL Slug"}</Label>
-            <Input placeholder={language === "ar" ? "رابط-المنتج" : "product-slug"} dir="ltr" className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border font-mono text-xs" />
+            <Input value={formSlug} onChange={(e) => setFormSlug(e.target.value)} placeholder={language === "ar" ? "رابط-المنتج" : "product-slug"} dir="ltr" className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border font-mono text-xs" />
           </div>
         </CardContent>
       </Card>

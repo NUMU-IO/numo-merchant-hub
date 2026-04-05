@@ -8,7 +8,10 @@ function ProductsContent() {
 
 export default function ProductsPage() {
   return (
-    <AnalyticsLayout>
+    <AnalyticsLayout
+      title={{ en: "Product Performance", ar: "أداء المنتجات" }}
+      subtitle={{ en: "Bestsellers, inventory health, and category breakdown", ar: "الأكثر مبيعاً وصحة المخزون وتوزيع الفئات" }}
+    >
       <ProductsContent />
     </AnalyticsLayout>
   );

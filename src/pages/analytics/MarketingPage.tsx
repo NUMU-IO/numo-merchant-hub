@@ -8,7 +8,10 @@ function MarketingContent() {
 
 export default function MarketingPage() {
   return (
-    <AnalyticsLayout>
+    <AnalyticsLayout
+      title={{ en: "Marketing Attribution", ar: "إسناد التسويق" }}
+      subtitle={{ en: "Channel performance, UTM campaigns, and traffic sources", ar: "أداء القنوات وحملات UTM ومصادر الزيارات" }}
+    >
       <MarketingContent />
     </AnalyticsLayout>
   );

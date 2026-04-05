@@ -125,8 +125,9 @@ const Dashboard = () => {
   });
 
   const onboardingData: OnboardingData | null = onboardingQuery.data ?? null;
-  const canDismissOnboarding = !!onboardingData?.is_completed || (stats ? stats.total_orders > 0 : false);
-  const showSetup = !!onboardingData && !onboardingData.is_completed && !onboardingData.is_dismissed;
+  const hasOrders = stats ? stats.total_orders > 0 : false;
+  const canDismissOnboarding = !!onboardingData?.is_completed || hasOrders;
+  const showSetup = !!onboardingData && !onboardingData.is_completed && !onboardingData.is_dismissed && !hasOrders;
 
 
   // Floating demo order notification for new merchants
@@ -264,11 +265,14 @@ const Dashboard = () => {
         </div>
       ) : (
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">
-              {greeting}, {user?.first_name || currentStore?.name || t("dashboard.merchantName")}
-            </h1>
-            <p className="text-[13px] text-muted-foreground/80 mt-0.5">{summaryLine}</p>
+          <div className="flex items-center gap-3">
+            <img src="/onboarding/welcome.webp" alt="" className="hidden sm:block w-14 h-14 object-contain shrink-0" />
+            <div>
+              <h1 className="text-lg font-semibold tracking-tight">
+                {greeting}, {user?.first_name || currentStore?.name || t("dashboard.merchantName")}
+              </h1>
+              <p className="text-[13px] text-muted-foreground/80 mt-0.5">{summaryLine}</p>
+            </div>
           </div>
           <div className="hidden sm:flex gap-2 shrink-0">
             {onboardingData?.is_dismissed && !onboardingData?.is_completed && (

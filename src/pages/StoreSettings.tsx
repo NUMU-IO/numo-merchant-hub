@@ -70,6 +70,15 @@ import {
 import { ThemePreview } from "@/components/ThemePreview";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { generatePolicy } from "@/services/aiApi";
+import {
   identitySettings,
   headerSettings,
   productsSettings,
@@ -603,6 +612,15 @@ const StoreSettings = () => {
   const [showLogoCrop, setShowLogoCrop] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [policyTab, setPolicyTab] = useState("return");
+  const [policyTexts, setPolicyTexts] = useState<Record<string, string>>({
+    return: "",
+    shipping: "",
+    privacy: "",
+    terms: "",
+  });
+  const [showAiPolicyDialog, setShowAiPolicyDialog] = useState(false);
+  const [aiPolicyAnswers, setAiPolicyAnswers] = useState<Record<string, string>>({});
+  const [isGeneratingPolicy, setIsGeneratingPolicy] = useState(false);
   const [, resetWalkthrough] = useWalkthroughStatus();
   const [showWalkthrough, setShowWalkthrough] = useState(false);
 
@@ -1330,21 +1348,6 @@ const StoreSettings = () => {
         { value: "domain", label: t("store.domain"), icon: Globe },
         { value: "policies", label: t("store.policies"), icon: ScrollText },
         { value: "status", label: t("store.status"), icon: Lock },
-      ],
-    },
-    {
-      label: language === "ar" ? "المظهر" : "Appearance",
-      items: [
-        {
-          value: "themes",
-          label: language === "ar" ? "سوق الثيمات" : "Themes",
-          icon: Sparkles,
-        },
-        {
-          value: "customization",
-          label: t("store.customization"),
-          icon: Palette,
-        },
       ],
     },
   ];
@@ -2374,7 +2377,62 @@ const StoreSettings = () => {
         )}
 
         {/* ─── Policies ─── */}
-        {activeSection === "policies" && (
+        {activeSection === "policies" && (() => {
+          const policyQuestions: Record<string, { key: string; label: string; labelAr: string; placeholder: string; placeholderAr: string }[]> = {
+            return: [
+              { key: "return_window", label: "Return window", labelAr: "مدة الإرجاع", placeholder: "e.g. 14 days", placeholderAr: "مثال: 14 يوم" },
+              { key: "refund_method", label: "Refund method", labelAr: "طريقة الاسترداد", placeholder: "e.g. Original payment method, store credit", placeholderAr: "مثال: نفس طريقة الدفع، رصيد بالمتجر" },
+              { key: "conditions", label: "Return conditions", labelAr: "شروط الإرجاع", placeholder: "e.g. Items must be unused and in original packaging", placeholderAr: "مثال: المنتجات لازم تكون جديدة وفي التغليف الأصلي" },
+            ],
+            shipping: [
+              { key: "shipping_regions", label: "Shipping regions", labelAr: "مناطق الشحن", placeholder: "e.g. All of Egypt, Cairo & Giza only", placeholderAr: "مثال: كل مصر، القاهرة والجيزة بس" },
+              { key: "delivery_time", label: "Estimated delivery time", labelAr: "وقت التوصيل المتوقع", placeholder: "e.g. 2-5 business days", placeholderAr: "مثال: 2-5 أيام عمل" },
+              { key: "shipping_cost", label: "Shipping cost info", labelAr: "تكلفة الشحن", placeholder: "e.g. Free shipping over 500 EGP, flat rate 50 EGP", placeholderAr: "مثال: شحن مجاني فوق 500 جنيه، سعر ثابت 50 جنيه" },
+            ],
+            privacy: [
+              { key: "data_collected", label: "Data you collect", labelAr: "البيانات اللي بتجمعها", placeholder: "e.g. Name, email, phone, address", placeholderAr: "مثال: الاسم، الإيميل، الموبايل، العنوان" },
+              { key: "data_usage", label: "How you use the data", labelAr: "إزاي بتستخدم البيانات", placeholder: "e.g. Order processing, marketing emails", placeholderAr: "مثال: تنفيذ الطلبات، إيميلات تسويقية" },
+              { key: "third_party", label: "Third-party sharing", labelAr: "مشاركة مع أطراف تالتة", placeholder: "e.g. Shipping companies, payment processors", placeholderAr: "مثال: شركات الشحن، بوابات الدفع" },
+            ],
+            terms: [
+              { key: "jurisdiction", label: "Jurisdiction / Country", labelAr: "الولاية القضائية / البلد", placeholder: "e.g. Egypt", placeholderAr: "مثال: مصر" },
+              { key: "age_requirement", label: "Minimum age requirement", labelAr: "الحد الأدنى للسن", placeholder: "e.g. 18 years old", placeholderAr: "مثال: 18 سنة" },
+              { key: "payment_terms", label: "Payment terms", labelAr: "شروط الدفع", placeholder: "e.g. Full payment at checkout, COD available", placeholderAr: "مثال: الدفع الكامل عند الشراء، الدفع عند الاستلام متاح" },
+            ],
+          };
+
+          const currentQuestions = policyQuestions[policyTab] || [];
+
+          const handleGeneratePolicy = async () => {
+            if (!currentStore?.id) return;
+            setIsGeneratingPolicy(true);
+            try {
+              const result = await generatePolicy(String(currentStore.id), {
+                policy_type: policyTab as "return" | "shipping" | "privacy" | "terms",
+                store_name: currentStore.name || "My Store",
+                answers: aiPolicyAnswers,
+                language: language === "ar" ? "ar" : "en",
+              });
+              setPolicyTexts((prev) => ({ ...prev, [policyTab]: result.policy_text }));
+              setShowAiPolicyDialog(false);
+              setAiPolicyAnswers({});
+              toast.success(
+                language === "ar"
+                  ? "تم إنشاء السياسة بنجاح"
+                  : "Policy generated successfully"
+              );
+            } catch {
+              toast.error(
+                language === "ar"
+                  ? "فشل إنشاء السياسة. حاول مرة تانية."
+                  : "Failed to generate policy. Please try again."
+              );
+            } finally {
+              setIsGeneratingPolicy(false);
+            }
+          };
+
+          return (
           <div key="policies" className="settings-section-enter">
             <div className="settings-section-header">
               <h2>{t("store.policies")}</h2>
@@ -2406,8 +2464,27 @@ const StoreSettings = () => {
               ))}
             </div>
 
+            <div className="flex justify-end mb-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setAiPolicyAnswers({});
+                  setShowAiPolicyDialog(true);
+                }}
+                className="gap-2"
+              >
+                <Sparkles className="h-4 w-4" />
+                {language === "ar" ? "إنشاء بالذكاء الاصطناعي" : "Generate with AI"}
+              </Button>
+            </div>
+
             <Textarea
               rows={10}
+              value={policyTexts[policyTab] || ""}
+              onChange={(e) =>
+                setPolicyTexts((prev) => ({ ...prev, [policyTab]: e.target.value }))
+              }
               placeholder={
                 language === "ar"
                   ? "اكتب السياسة هنا..."
@@ -2420,8 +2497,95 @@ const StoreSettings = () => {
                 {t("store.save")}
               </Button>
             </div>
+
+            {/* AI Policy Generation Dialog */}
+            <Dialog open={showAiPolicyDialog} onOpenChange={setShowAiPolicyDialog}>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5" />
+                    {language === "ar"
+                      ? "إنشاء السياسة بالذكاء الاصطناعي"
+                      : "Generate Policy with AI"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {language === "ar"
+                      ? "أجب على الأسئلة دي وهنكتبلك السياسة تلقائيًا"
+                      : "Answer a few questions and we'll generate the policy for you"}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-2">
+                  {currentQuestions.map((q) => (
+                    <div key={q.key} className="space-y-1.5">
+                      <Label className="text-sm font-medium">
+                        {language === "ar" ? q.labelAr : q.label}
+                      </Label>
+                      <Input
+                        value={aiPolicyAnswers[q.key] || ""}
+                        onChange={(e) =>
+                          setAiPolicyAnswers((prev) => ({
+                            ...prev,
+                            [q.key]: e.target.value,
+                          }))
+                        }
+                        placeholder={language === "ar" ? q.placeholderAr : q.placeholder}
+                      />
+                    </div>
+                  ))}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">
+                      {language === "ar" ? "ملاحظات إضافية (اختياري)" : "Additional notes (optional)"}
+                    </Label>
+                    <Textarea
+                      rows={2}
+                      value={aiPolicyAnswers.additional_notes || ""}
+                      onChange={(e) =>
+                        setAiPolicyAnswers((prev) => ({
+                          ...prev,
+                          additional_notes: e.target.value,
+                        }))
+                      }
+                      placeholder={
+                        language === "ar"
+                          ? "أي تفاصيل تانية عايز تضيفها..."
+                          : "Any other details you'd like to include..."
+                      }
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAiPolicyDialog(false)}
+                    disabled={isGeneratingPolicy}
+                  >
+                    {language === "ar" ? "إلغاء" : "Cancel"}
+                  </Button>
+                  <Button
+                    onClick={handleGeneratePolicy}
+                    disabled={isGeneratingPolicy}
+                    className="gap-2"
+                  >
+                    {isGeneratingPolicy ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {language === "ar" ? "جاري الإنشاء..." : "Generating..."}
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        {language === "ar" ? "إنشاء" : "Generate"}
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
-        )}
+          );
+        })()}
 
         {/* ─── Status ─── */}
         {activeSection === "status" && (

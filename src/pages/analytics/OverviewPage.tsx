@@ -84,7 +84,10 @@ function OverviewContent() {
 
 export default function OverviewPage() {
   return (
-    <AnalyticsLayout>
+    <AnalyticsLayout
+      title={{ en: "Overview", ar: "نظرة عامة" }}
+      subtitle={{ en: "Key metrics and performance summary", ar: "ملخص الأداء والمقاييس الأساسية" }}
+    >
       <OverviewContent />
     </AnalyticsLayout>
   );

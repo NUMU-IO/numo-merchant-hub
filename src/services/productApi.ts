@@ -70,6 +70,8 @@ export interface CreateProductData {
   category_id?: string;
   tags?: string[];
   attributes?: Record<string, unknown>;
+  seo_title?: string;
+  seo_description?: string;
 }
 
 export interface UpdateProductData extends Partial<CreateProductData> {
@@ -262,11 +264,15 @@ export interface ProductFormData {
   sku?: string;
   variants: ProductVariant[];
   images?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
+  slug?: string;
 }
 
 export function productToApiCreate(form: ProductFormData): CreateProductData {
   return {
     name: form.name,
+    slug: form.slug || undefined,
     sku: form.sku || undefined,
     description: form.description,
     status: form.status === "published" ? "active" : form.status,
@@ -278,6 +284,8 @@ export function productToApiCreate(form: ProductFormData): CreateProductData {
     category_id: form.categoryId || undefined,
     tags: [],
     images: form.images,
+    seo_title: form.seoTitle || undefined,
+    seo_description: form.seoDescription || undefined,
     attributes: {
       nameAr: form.nameAr,
       descriptionAr: form.descriptionAr,
@@ -506,6 +514,9 @@ export function productToApiUpdate(
   if (form.status !== undefined) data.status = toApiStatus(form.status);
   if (form.images !== undefined) data.images = form.images;
   if (form.categoryId !== undefined) data.category_id = form.categoryId || undefined;
+  if (form.slug !== undefined) data.slug = form.slug || undefined;
+  if (form.seoTitle !== undefined) data.seo_title = form.seoTitle || undefined;
+  if (form.seoDescription !== undefined) data.seo_description = form.seoDescription || undefined;
 
   // Always send full attributes to avoid partial overwrites
   const attributes: Record<string, unknown> = {};

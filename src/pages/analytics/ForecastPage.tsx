@@ -8,7 +8,11 @@ function ForecastContent() {
 
 export default function ForecastPage() {
   return (
-    <AnalyticsLayout>
+    <AnalyticsLayout
+      title={{ en: "Sales Forecast", ar: "توقعات المبيعات" }}
+      subtitle={{ en: "Revenue predictions with confidence intervals", ar: "توقعات الإيرادات مع نطاقات الثقة" }}
+      showPeriod={false}
+    >
       <ForecastContent />
     </AnalyticsLayout>
   );

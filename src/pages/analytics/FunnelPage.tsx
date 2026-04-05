@@ -8,7 +8,10 @@ function FunnelContent() {
 
 export default function FunnelPage() {
   return (
-    <AnalyticsLayout>
+    <AnalyticsLayout
+      title={{ en: "Conversion Funnel", ar: "قمع التحويل" }}
+      subtitle={{ en: "Cart abandonment, drop-offs, and conversion rates", ar: "ترك السلة ومعدلات الانسحاب والتحويل" }}
+    >
       <FunnelContent />
     </AnalyticsLayout>
   );

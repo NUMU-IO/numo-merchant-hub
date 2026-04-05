@@ -8,7 +8,10 @@ function SalesContent() {
 
 export default function SalesPage() {
   return (
-    <AnalyticsLayout>
+    <AnalyticsLayout
+      title={{ en: "Sales Analytics", ar: "تحليلات المبيعات" }}
+      subtitle={{ en: "Revenue trends, breakdowns, and coupon impact", ar: "اتجاهات الإيرادات وتفاصيل الخصومات والكوبونات" }}
+    >
       <SalesContent />
     </AnalyticsLayout>
   );

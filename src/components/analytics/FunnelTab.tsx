@@ -3,7 +3,7 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
-  Filter, ArrowRight, ShoppingCart, Clock, DollarSign, TrendingUp,
+  Filter, ArrowDown, ShoppingCart, Clock, DollarSign, TrendingUp,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -21,8 +21,8 @@ const STEP_LABELS: Record<string, { en: string; ar: string }> = {
   page_view: { en: "Page Views", ar: "مشاهدات الصفحة" },
   product_view: { en: "Product Views", ar: "مشاهدات المنتج" },
   add_to_cart: { en: "Add to Cart", ar: "إضافة للسلة" },
-  checkout_started: { en: "Checkout Started", ar: "بدء الدفع" },
-  order_completed: { en: "Order Completed", ar: "اكتمال الطلب" },
+  checkout_started: { en: "Checkout", ar: "بدء الدفع" },
+  order_completed: { en: "Completed", ar: "اكتمال الطلب" },
   order_delivered: { en: "Delivered", ar: "تم التسليم" },
 };
 
@@ -33,8 +33,8 @@ const TIMING_LABELS: Record<string, { en: string; ar: string }> = {
 };
 
 const STEP_COLORS = [
-  "bg-blue-500", "bg-cyan-500", "bg-violet-500",
-  "bg-amber-500", "bg-emerald-500", "bg-green-600",
+  "#3b82f6", "#06b6d4", "#8b5cf6",
+  "#f59e0b", "#10b981", "#16a34a",
 ];
 
 function formatMinutes(minutes: number, isAr: boolean): string {
@@ -59,11 +59,33 @@ export function FunnelTab({ period, formatCurrency }: FunnelTabProps) {
   });
 
   const data = funnelQuery.data ?? null;
+
+  // Check if there's any meaningful funnel data (at least 1 page view)
+  const hasData = data && data.steps.some((s) => s.count > 0);
   const maxCount = data?.steps[0]?.count || 1;
+
+  // No data at all — show a friendly empty state
+  if (data && !hasData) {
+    return (
+      <div className="space-y-4">
+        <Card className="border-border/60">
+          <CardContent className="py-16">
+            <EmptyState
+              icon={Filter}
+              title={isAr ? "مفيش بيانات قمع بعد" : "No funnel data yet"}
+              description={isAr
+                ? "البيانات هتظهر لما العملاء يبدأوا يتصفحوا المتجر. تأكد إن كود التتبع شغال."
+                : "Funnel data will appear as customers browse your store. Make sure tracking is enabled."}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {/* Cart Abandonment + Lost Revenue KPIs */}
+      {/* KPI Cards */}
       {data && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border-border/60">
@@ -76,11 +98,13 @@ export function FunnelTab({ period, formatCurrency }: FunnelTabProps) {
                   <ShoppingCart className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
                 </div>
               </div>
-              <p className={`text-2xl font-bold tabular-nums ${data.cart_abandonment.abandonment_rate > 60 ? "text-destructive" : data.cart_abandonment.abandonment_rate > 40 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                {data.cart_abandonment.abandonment_rate}%
+              <p className={`text-2xl font-bold tabular-nums ${data.cart_abandonment.carts_created > 0 ? (data.cart_abandonment.abandonment_rate > 60 ? "text-destructive" : data.cart_abandonment.abandonment_rate > 40 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400") : "text-muted-foreground"}`}>
+                {data.cart_abandonment.carts_created > 0 ? `${data.cart_abandonment.abandonment_rate}%` : "—"}
               </p>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                {data.cart_abandonment.carts_created - data.cart_abandonment.checkouts_started} {isAr ? "سلة متروكة" : "abandoned carts"}
+                {data.cart_abandonment.carts_created > 0
+                  ? `${data.cart_abandonment.carts_created - data.cart_abandonment.checkouts_started} ${isAr ? "سلة متروكة" : "abandoned"}`
+                  : (isAr ? "لا توجد بيانات سلة" : "No cart data yet")}
               </p>
             </CardContent>
           </Card>
@@ -96,7 +120,9 @@ export function FunnelTab({ period, formatCurrency }: FunnelTabProps) {
                 </div>
               </div>
               <p className="text-2xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
-                {formatCurrency(data.cart_abandonment.estimated_lost_revenue)}
+                {data.cart_abandonment.estimated_lost_revenue > 0
+                  ? formatCurrency(data.cart_abandonment.estimated_lost_revenue)
+                  : "—"}
               </p>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 {isAr ? "تقدير بناءً على متوسط الطلب" : "Based on avg order value"}
@@ -114,8 +140,8 @@ export function FunnelTab({ period, formatCurrency }: FunnelTabProps) {
                   <TrendingUp className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 </div>
               </div>
-              <p className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
-                {data.overall_conversion_pct}%
+              <p className={`text-2xl font-bold tabular-nums ${data.overall_conversion_pct > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+                {data.overall_conversion_pct > 0 ? `${data.overall_conversion_pct}%` : "—"}
               </p>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 {isAr ? "من المشاهدة للشراء" : "View to purchase"}
@@ -133,13 +159,15 @@ export function FunnelTab({ period, formatCurrency }: FunnelTabProps) {
                   <Filter className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
                 </div>
               </div>
-              <p className="text-2xl font-bold tabular-nums text-violet-600 dark:text-violet-400">
+              <p className={`text-2xl font-bold tabular-nums ${data.cart_abandonment.carts_created > 0 ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground"}`}>
                 {data.cart_abandonment.carts_created > 0
                   ? `${((data.cart_abandonment.checkouts_started / data.cart_abandonment.carts_created) * 100).toFixed(1)}%`
                   : "—"}
               </p>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                {data.cart_abandonment.checkouts_started} / {data.cart_abandonment.carts_created}
+                {data.cart_abandonment.carts_created > 0
+                  ? `${data.cart_abandonment.checkouts_started} / ${data.cart_abandonment.carts_created}`
+                  : (isAr ? "لا توجد بيانات" : "No data yet")}
               </p>
             </CardContent>
           </Card>
@@ -155,38 +183,50 @@ export function FunnelTab({ period, formatCurrency }: FunnelTabProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {data && data.steps.length > 0 ? (
-            <div className="space-y-3">
+          {data && hasData ? (
+            <div className="space-y-1">
               {data.steps.map((step, i) => {
                 const label = STEP_LABELS[step.step] || { en: step.step, ar: step.step };
                 const width = maxCount > 0 ? (step.count / maxCount) * 100 : 0;
                 const color = STEP_COLORS[i % STEP_COLORS.length];
+                const showDropOff = i > 0 && step.drop_off_pct > 0 && data.steps[i - 1].count > 0;
 
                 return (
                   <div key={step.step}>
-                    {i > 0 && step.drop_off_pct > 0 && (
-                      <div className="flex items-center justify-center gap-1.5 py-1">
-                        <ArrowRight className="h-3 w-3 text-muted-foreground/40" />
-                        <span className="text-[10px] font-medium text-destructive/70">
-                          −{step.drop_off_pct}% {isAr ? "انسحاب" : "drop-off"}
+                    {/* Drop-off indicator — only show when there's actual data in previous step */}
+                    {showDropOff && (
+                      <div className="flex items-center justify-center gap-1 py-0.5">
+                        <ArrowDown className="h-2.5 w-2.5 text-red-400/50" />
+                        <span className="text-[9px] font-medium text-red-400/70">
+                          −{step.drop_off_pct}%
                         </span>
                       </div>
                     )}
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] font-medium text-muted-foreground w-28 shrink-0 truncate">
+                    <div className="flex items-center gap-3 py-1">
+                      <span className="text-[11px] font-medium text-muted-foreground w-24 shrink-0 truncate">
                         {isAr ? label.ar : label.en}
                       </span>
-                      <div className="flex-1 h-8 bg-muted/40 rounded-lg overflow-hidden relative">
-                        <div
-                          className={`h-full rounded-lg transition-all duration-700 ${color}`}
-                          style={{ width: `${Math.max(width, 2)}%`, opacity: 0.8 }}
-                        />
+                      <div className="flex-1 h-7 bg-muted/30 rounded-md overflow-hidden relative">
+                        {step.count > 0 ? (
+                          <div
+                            className="h-full rounded-md transition-all duration-700"
+                            style={{
+                              width: `${Math.max(width, 3)}%`,
+                              backgroundColor: color,
+                              opacity: 0.75,
+                            }}
+                          />
+                        ) : null}
                         <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold tabular-nums">
-                          {step.count.toLocaleString(isAr ? "ar-EG" : undefined)}
+                          {step.count > 0
+                            ? step.count.toLocaleString(isAr ? "ar-EG" : undefined)
+                            : <span className="text-muted-foreground/40">0</span>}
                         </span>
                       </div>
-                      <span className="text-[11px] font-semibold tabular-nums text-muted-foreground w-12 text-end shrink-0">
-                        {maxCount > 0 ? `${((step.count / maxCount) * 100).toFixed(1)}%` : "0%"}
+                      <span className="text-[10px] font-semibold tabular-nums text-muted-foreground w-12 text-end shrink-0">
+                        {step.count > 0 && maxCount > 0
+                          ? `${((step.count / maxCount) * 100).toFixed(0)}%`
+                          : ""}
                       </span>
                     </div>
                   </div>
@@ -213,7 +253,7 @@ export function FunnelTab({ period, formatCurrency }: FunnelTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {data && data.trend.length > 0 ? (
+            {data && data.trend.length > 1 && data.trend.some((t) => t.conversion_rate > 0) ? (
               <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={data.trend}>
@@ -253,7 +293,7 @@ export function FunnelTab({ period, formatCurrency }: FunnelTabProps) {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <EmptyState icon={TrendingUp} title={isAr ? "مفيش بيانات كافية" : "Not enough data"} className="py-6" />
+              <EmptyState icon={TrendingUp} title={isAr ? "مفيش بيانات كافية" : "Not enough data"} description={isAr ? "محتاجين يومين على الأقل مع بيانات تحويل" : "Need at least 2 days with conversion data"} className="py-6" />
             )}
           </CardContent>
         </Card>
@@ -288,7 +328,7 @@ export function FunnelTab({ period, formatCurrency }: FunnelTabProps) {
                 })}
               </div>
             ) : (
-              <EmptyState icon={Clock} title={isAr ? "مفيش بيانات كافية" : "Not enough data"} className="py-6" />
+              <EmptyState icon={Clock} title={isAr ? "مفيش بيانات كافية" : "Not enough data"} description={isAr ? "محتاجين عملاء يمروا بأكتر من خطوة" : "Need customers completing multiple steps"} className="py-6" />
             )}
           </CardContent>
         </Card>

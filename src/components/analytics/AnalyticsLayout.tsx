@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
@@ -19,8 +18,19 @@ const AnalyticsContext = createContext<AnalyticsContextValue>({
 
 export const useAnalyticsContext = () => useContext(AnalyticsContext);
 
-export function AnalyticsLayout({ children }: { children: React.ReactNode }) {
-  const { t } = useTranslation();
+interface AnalyticsLayoutProps {
+  children: React.ReactNode;
+  title?: { en: string; ar: string };
+  subtitle?: { en: string; ar: string };
+  showPeriod?: boolean;
+}
+
+export function AnalyticsLayout({
+  children,
+  title = { en: "Analytics", ar: "التحليلات" },
+  subtitle = { en: "Your store reports and statistics", ar: "تقارير وإحصائيات متجرك" },
+  showPeriod = true,
+}: AnalyticsLayoutProps) {
   const { language } = useLanguage();
   const isAr = language === "ar";
   const queryClient = useQueryClient();
@@ -51,25 +61,29 @@ export function AnalyticsLayout({ children }: { children: React.ReactNode }) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">{t("nav.analytics")}</h1>
+            <h1 className="text-xl font-semibold tracking-tight">
+              {isAr ? title.ar : title.en}
+            </h1>
             <p className="text-[13px] text-muted-foreground mt-0.5">
-              {isAr ? "تقارير وإحصائيات متجرك" : "Your store reports and statistics"}
+              {isAr ? subtitle.ar : subtitle.en}
             </p>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="flex gap-0.5 rounded-lg bg-muted/60 p-0.5">
-              {([7, 30, 90] as Period[]).map((p) => (
-                <Button
-                  key={p}
-                  variant={period === p ? "default" : "ghost"}
-                  size="sm"
-                  className={`h-7 text-[11px] px-2.5 rounded-md ${period === p ? "" : "text-muted-foreground"}`}
-                  onClick={() => setPeriod(p)}
-                >
-                  {periodLabels[p]}
-                </Button>
-              ))}
-            </div>
+            {showPeriod && (
+              <div className="flex gap-0.5 rounded-lg bg-muted/60 p-0.5">
+                {([7, 30, 90] as Period[]).map((p) => (
+                  <Button
+                    key={p}
+                    variant={period === p ? "default" : "ghost"}
+                    size="sm"
+                    className={`h-7 text-[11px] px-2.5 rounded-md ${period === p ? "" : "text-muted-foreground"}`}
+                    onClick={() => setPeriod(p)}
+                  >
+                    {periodLabels[p]}
+                  </Button>
+                ))}
+              </div>
+            )}
             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={handleRefresh} disabled={isRefetching}>
               <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`} />
             </Button>

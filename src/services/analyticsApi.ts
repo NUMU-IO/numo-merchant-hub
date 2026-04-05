@@ -598,3 +598,71 @@ export async function getForecast(
     `/stores/${storeId}/analytics/forecast?horizon=${horizon}`
   );
 }
+
+// ── Customer Journey / Sessions ──
+
+export interface SessionSummary {
+  session_fingerprint: string;
+  page_count: number;
+  duration_seconds: number;
+  started_at: string;
+  device_type: string;
+  referrer: string | null;
+  funnel_reached: string | null;
+  has_order: boolean;
+}
+
+export interface SessionsOverview {
+  total_sessions: number;
+  avg_duration_seconds: number;
+  bounce_rate: number;
+  sessions_with_order_pct: number;
+}
+
+export interface SessionsData {
+  overview: SessionsOverview;
+  sessions: SessionSummary[];
+}
+
+export async function getSessions(
+  storeId: string,
+  days = 7,
+  hasOrder = false,
+  minPages = 1,
+  device = ""
+): Promise<SessionsData> {
+  const params = new URLSearchParams({
+    days: String(days),
+    has_order: String(hasOrder),
+    min_pages: String(minPages),
+  });
+  if (device) params.set("device", device);
+  return apiClient<SessionsData>(
+    `/stores/${storeId}/analytics/sessions?${params}`
+  );
+}
+
+export interface TimelineEvent {
+  type: string;
+  path: string | null;
+  step_data: Record<string, unknown> | null;
+  timestamp: string;
+}
+
+export interface SessionDetail {
+  session_fingerprint: string;
+  device_type: string;
+  referrer: string | null;
+  page_count: number;
+  duration_seconds: number;
+  timeline: TimelineEvent[];
+}
+
+export async function getSessionDetail(
+  storeId: string,
+  fingerprint: string
+): Promise<SessionDetail> {
+  return apiClient<SessionDetail>(
+    `/stores/${storeId}/analytics/sessions/${fingerprint}`
+  );
+}

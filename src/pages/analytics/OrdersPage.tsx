@@ -8,7 +8,10 @@ function OrdersContent() {
 
 export default function OrdersPage() {
   return (
-    <AnalyticsLayout>
+    <AnalyticsLayout
+      title={{ en: "Orders Analytics", ar: "تحليلات الطلبات" }}
+      subtitle={{ en: "Order patterns, fulfillment speed, and payment methods", ar: "أنماط الطلبات وسرعة التجهيز وطرق الدفع" }}
+    >
       <OrdersContent />
     </AnalyticsLayout>
   );
