@@ -10,10 +10,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import {
   Users, Search, ChevronLeft, ChevronRight, Mail, ShieldCheck, UserCheck,
   ArrowLeft, ShoppingCart, Calendar, Phone, DollarSign,
+  CheckCircle2, AlertTriangle, AlertCircle, Network,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { listCustomers, getCustomer } from "@/services/customerApi";
+import { listCustomers, getCustomer, getCustomerTrustStats } from "@/services/customerApi";
 import type { Customer } from "@/services/customerApi";
 import { listOrders } from "@/services/orderApi";
 import type { OrderListItem } from "@/services/orderApi";
@@ -150,6 +151,9 @@ export default function Customers() {
             </CardContent>
           </Card>
         </div>
+
+        {/* COD Trust Network Stats */}
+        {storeId && <TrustStatsCard storeId={storeId} customerId={c.id} isAr={isAr} />}
 
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Contact Info */}
@@ -347,5 +351,211 @@ export default function Customers() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+
+// ─── Trust Stats Card ──────────────────────────────────────────────────────
+
+interface TrustStatsCardProps {
+  storeId: string;
+  customerId: string;
+  isAr: boolean;
+}
+
+function TrustStatsCard({ storeId, customerId, isAr }: TrustStatsCardProps) {
+  const trustQuery = useQuery({
+    queryKey: ["customer-trust", storeId, customerId],
+    queryFn: () => getCustomerTrustStats(storeId, customerId),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const data = trustQuery.data;
+
+  // Loading state
+  if (trustQuery.isLoading) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+            <Network className="h-3.5 w-3.5 text-muted-foreground" />
+            {isAr ? "نسبة الثقة في الشبكة" : "Network Trust Score"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-20 animate-pulse bg-muted/40 rounded" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // No phone or no data yet — show a preview of what the card will look like
+  if (!data || !data.has_data) {
+    return (
+      <Card className="border-border/60 relative overflow-hidden">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+              <Network className="h-3.5 w-3.5 text-muted-foreground" />
+              {isAr ? "نسبة الثقة في شبكة نمو" : "NUMU Network Trust"}
+            </CardTitle>
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground border">
+              {isAr ? "في انتظار البيانات" : "Awaiting data"}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Preview placeholder with 4 stat tiles like the real card */}
+          <div className="grid gap-3 sm:grid-cols-4 opacity-40">
+            {[
+              { label: isAr ? "نسبة الاستلام" : "Delivery Rate", value: "—" },
+              { label: isAr ? "طلبات الشبكة" : "Network Orders", value: "—" },
+              { label: isAr ? "مرتجعات" : "Rejections", value: "—" },
+              { label: isAr ? "درجة الخطر" : "Risk Score", value: "—" },
+            ].map((tile) => (
+              <div key={tile.label} className="rounded-lg border bg-muted/20 p-3">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                  {tile.label}
+                </p>
+                <p className="text-2xl font-bold tabular-nums text-muted-foreground">{tile.value}</p>
+                <div className="h-2 mt-1 bg-muted/50 rounded" />
+              </div>
+            ))}
+          </div>
+          {/* Explanatory text below the preview */}
+          <p className="text-[11px] text-muted-foreground text-center mt-4 leading-relaxed">
+            {isAr
+              ? "هذه الإحصائيات هتظهر هنا بمجرد ما العميل يعمل أول طلب. شبكة نمو بتجمع بيانات من كل التجار عشان تعرف معدل قبول الطلبات للعميل قبل ما يطلب من متجرك."
+              : "These stats will appear here as soon as the customer places their first order. The NUMU network aggregates data from all merchants so you know the customer's delivery acceptance rate before they order from your store."}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Has data — full card
+  const recommendationConfig = {
+    safe: {
+      icon: CheckCircle2,
+      color: "text-emerald-600 dark:text-emerald-400",
+      bg: "bg-emerald-500/10",
+      border: "border-emerald-500/30",
+      label_en: "Trustworthy",
+      label_ar: "موثوق",
+    },
+    caution: {
+      icon: AlertTriangle,
+      color: "text-amber-600 dark:text-amber-400",
+      bg: "bg-amber-500/10",
+      border: "border-amber-500/30",
+      label_en: "Caution",
+      label_ar: "تحذير",
+    },
+    risky: {
+      icon: AlertCircle,
+      color: "text-red-600 dark:text-red-400",
+      bg: "bg-red-500/10",
+      border: "border-red-500/30",
+      label_en: "High Risk",
+      label_ar: "خطر عالي",
+    },
+  };
+
+  const config = recommendationConfig[data.recommendation];
+  const RecommendationIcon = config.icon;
+
+  // Delivery score visual: 0-100 scale (delivery_rate_pct)
+  const deliveryScoreLabel = data.delivery_rate_pct >= 80
+    ? (isAr ? "ممتاز" : "Excellent")
+    : data.delivery_rate_pct >= 60
+      ? (isAr ? "جيد" : "Good")
+      : data.delivery_rate_pct >= 40
+        ? (isAr ? "متوسط" : "Average")
+        : (isAr ? "ضعيف" : "Poor");
+
+  return (
+    <Card className={`border-border/60 ${config.border}`}>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+            <Network className="h-3.5 w-3.5 text-muted-foreground" />
+            {isAr ? "نسبة الثقة في شبكة نمو" : "NUMU Network Trust"}
+          </CardTitle>
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${config.bg}`}>
+            <RecommendationIcon className={`h-3.5 w-3.5 ${config.color}`} />
+            <span className={`text-[11px] font-bold ${config.color}`}>
+              {isAr ? config.label_ar : config.label_en}
+            </span>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-3 sm:grid-cols-4">
+          {/* Delivery Score */}
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+              {isAr ? "نسبة الاستلام" : "Delivery Rate"}
+            </p>
+            <p className={`text-2xl font-bold tabular-nums ${data.delivery_rate_pct >= 70 ? "text-emerald-600 dark:text-emerald-400" : data.delivery_rate_pct >= 40 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
+              {data.delivery_rate_pct}%
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{deliveryScoreLabel}</p>
+          </div>
+
+          {/* Total Network Orders */}
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+              {isAr ? "طلبات الشبكة" : "Network Orders"}
+            </p>
+            <p className="text-2xl font-bold tabular-nums">{data.network_orders}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {isAr ? `من ${data.contributing_store_count} متجر` : `from ${data.contributing_store_count} stores`}
+            </p>
+          </div>
+
+          {/* RTOs */}
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+              {isAr ? "مرتجعات" : "Rejections"}
+            </p>
+            <p className={`text-2xl font-bold tabular-nums ${data.network_rtos === 0 ? "text-emerald-600 dark:text-emerald-400" : data.rto_rate_pct < 20 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
+              {data.network_rtos}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{data.rto_rate_pct}% {isAr ? "من الكل" : "of total"}</p>
+          </div>
+
+          {/* Risk Score */}
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
+              {isAr ? "درجة الخطر" : "Risk Score"}
+            </p>
+            <p className={`text-2xl font-bold tabular-nums ${data.risk_score < 40 ? "text-emerald-600 dark:text-emerald-400" : data.risk_score < 70 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
+              {data.risk_score}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {isAr ? `ثقة ${data.confidence === "high" ? "عالية" : data.confidence === "medium" ? "متوسطة" : "منخفضة"}` : `${data.confidence} confidence`}
+            </p>
+          </div>
+        </div>
+
+        {/* Footer with last activity */}
+        {(data.last_order_at || data.last_rto_at) && (
+          <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between text-[10px] text-muted-foreground">
+            {data.last_order_at && (
+              <span>
+                {isAr ? "آخر طلب: " : "Last order: "}
+                {new Date(data.last_order_at).toLocaleDateString(isAr ? "ar-EG" : "en-US")}
+              </span>
+            )}
+            {data.last_rto_at && (
+              <span className="text-red-500/70">
+                {isAr ? "آخر مرتجع: " : "Last rejection: "}
+                {new Date(data.last_rto_at).toLocaleDateString(isAr ? "ar-EG" : "en-US")}
+              </span>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

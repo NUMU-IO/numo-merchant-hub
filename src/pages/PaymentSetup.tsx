@@ -8,7 +8,9 @@ import {
   fetchPaymobCredentials, savePaymobCredentials, deletePaymobCredentials,
   fetchKashierCredentials, saveKashierCredentials, deleteKashierCredentials,
   fetchFawryCredentials, saveFawryCredentials, deleteFawryCredentials,
+  fetchCodTrustSettings, updateCodTrustSettings,
   type PaymobCredentialsResponse, type KashierCredentialsResponse, type FawryCredentialsResponse,
+  type CodTrustSettings,
 } from "@/services/storeApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -138,14 +140,26 @@ const PaymentSetup = () => {
   const [fawryCreds, setFawryCreds] = useState<FawryCredentialsResponse | null>(null);
   const [enabledGateway, setEnabledGateway] = useState<"paymob" | "kashier" | "fawry" | null>(null);
   const [codEnabled, setCodEnabled] = useState(true);
+  const [codTrust, setCodTrust] = useState<CodTrustSettings>({
+    enabled: false,
+    threshold: 70,
+    min_confidence: "medium",
+    action: "block",
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!storeId) return;
     setLoading(true);
-    Promise.all([fetchPaymobCredentials(storeId).catch(() => null), fetchKashierCredentials(storeId).catch(() => null), fetchFawryCredentials(storeId).catch(() => null)])
-      .then(([p, k, f]) => {
+    Promise.all([
+      fetchPaymobCredentials(storeId).catch(() => null),
+      fetchKashierCredentials(storeId).catch(() => null),
+      fetchFawryCredentials(storeId).catch(() => null),
+      fetchCodTrustSettings(storeId).catch(() => null),
+    ])
+      .then(([p, k, f, ct]) => {
         setPaymobCreds(p); setKashierCreds(k); setFawryCreds(f);
+        if (ct) setCodTrust(ct);
         const configured = [
           p?.is_configured ? { key: "paymob" as const, time: p.last_configured ? new Date(p.last_configured).getTime() : 0 } : null,
           k?.is_configured ? { key: "kashier" as const, time: k.last_configured ? new Date(k.last_configured).getTime() : 0 } : null,
@@ -154,6 +168,20 @@ const PaymentSetup = () => {
         if (configured.length > 0) setEnabledGateway(configured.sort((a, b) => b.time - a.time)[0].key);
       }).finally(() => setLoading(false));
   }, [storeId]);
+
+  const handleUpdateCodTrust = async (patch: Partial<CodTrustSettings>) => {
+    if (!storeId) return;
+    const previous = codTrust;
+    const optimistic = { ...codTrust, ...patch };
+    setCodTrust(optimistic);
+    try {
+      const result = await updateCodTrustSettings(storeId, patch);
+      setCodTrust(result);
+    } catch (err) {
+      setCodTrust(previous);
+      showError(err, language);
+    }
+  };
 
   const getStatus = (key: "paymob" | "kashier" | "fawry") => {
     const c = key === "paymob" ? paymobCreds : key === "kashier" ? kashierCreds : fawryCreds;
@@ -265,7 +293,7 @@ const PaymentSetup = () => {
       {/* ── Section: COD ── */}
       <div className="rounded-xl border bg-card">
         <div className="px-5 py-4 border-b"><h2 className="text-base font-bold">{isAr ? "الدفع عند الاستلام" : "Cash on Delivery"}</h2></div>
-        <div className="p-5">
+        <div className="p-5 space-y-4">
           <div className="rounded-xl border bg-background p-5 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center"><Banknote className="h-5 w-5 text-emerald-600" /></div>
@@ -278,6 +306,103 @@ const PaymentSetup = () => {
               </div>
             </div>
             <Switch checked={codEnabled} onCheckedChange={setCodEnabled} />
+          </div>
+
+          {/* COD Fraud Protection */}
+          <div className="rounded-xl border bg-background p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 flex-1">
+                <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="h-5 w-5 text-violet-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold">{isAr ? "حماية من احتيال الدفع عند الاستلام" : "COD Fraud Protection"}</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-violet-600 bg-violet-500/10 px-1.5 py-0.5 rounded">{isAr ? "شبكة نمو" : "NUMU NETWORK"}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isAr
+                      ? "حظر العملاء ذوي معدل رفض عالي بناءً على شبكة الثقة بين التجار."
+                      : "Block customers flagged as high-risk by the cross-merchant trust network."}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={codTrust.enabled}
+                onCheckedChange={(v) => handleUpdateCodTrust({ enabled: v })}
+              />
+            </div>
+
+            {codTrust.enabled && (
+              <div className="mt-5 pt-5 border-t space-y-5">
+                {/* Threshold slider */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-xs font-medium">
+                      {isAr ? "حد المخاطرة" : "Risk Threshold"}
+                    </Label>
+                    <span className="text-sm font-bold tabular-nums text-violet-600">
+                      {codTrust.threshold}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={50}
+                    max={95}
+                    step={5}
+                    value={codTrust.threshold}
+                    onChange={(e) => handleUpdateCodTrust({ threshold: Number(e.target.value) })}
+                    className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-violet-600"
+                    aria-label={isAr ? "حد المخاطرة" : "Risk threshold"}
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                    <span>{isAr ? "حساس" : "Strict"}</span>
+                    <span>{isAr ? "متساهل" : "Lenient"}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    {isAr
+                      ? `العملاء بدرجة مخاطرة ≥ ${codTrust.threshold} (بثقة متوسطة فأعلى) سيتم حظرهم.`
+                      : `Customers with score ≥ ${codTrust.threshold} (medium+ confidence) will be blocked.`}
+                  </p>
+                </div>
+
+                {/* Action selector */}
+                <div>
+                  <Label className="text-xs font-medium mb-2 block">
+                    {isAr ? "الإجراء" : "Action"}
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateCodTrust({ action: "warn" })}
+                      className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                        codTrust.action === "warn"
+                          ? "border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+                          : "border-border bg-background text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {isAr ? "تحذير فقط" : "Warn only"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateCodTrust({ action: "block" })}
+                      className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                        codTrust.action === "block"
+                          ? "border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+                          : "border-border bg-background text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {isAr ? "حظر الطلب" : "Block order"}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    {codTrust.action === "warn"
+                      ? (isAr ? "السماح بالطلب وتسجيل تحذير في السجلات." : "Allow the order and log a warning.")
+                      : (isAr ? "رفض الطلب واقتراح الدفع الإلكتروني." : "Reject the order and suggest online payment.")}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

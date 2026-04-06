@@ -186,6 +186,31 @@ export async function deleteShippingZone(
   });
 }
 
+// ─── COD Trust Network ──────────────────────────────────────────────────────
+
+export interface CodTrustSettings {
+  enabled: boolean;
+  threshold: number;
+  min_confidence: "low" | "medium" | "high";
+  action: "block" | "warn";
+}
+
+export async function fetchCodTrustSettings(
+  storeId: string
+): Promise<CodTrustSettings> {
+  return apiClient<CodTrustSettings>(`/stores/${storeId}/settings/cod-trust`);
+}
+
+export async function updateCodTrustSettings(
+  storeId: string,
+  data: Partial<CodTrustSettings>
+): Promise<CodTrustSettings> {
+  return apiClient<CodTrustSettings>(`/stores/${storeId}/settings/cod-trust`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
 // ─── Paymob Credentials ──────────────────────────────────────────────────────
 
 export interface PaymobCredentialsResponse {
