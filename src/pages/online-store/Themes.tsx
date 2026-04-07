@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -8,12 +8,20 @@ import {
   fetchCustomization,
   updateCustomization,
   publishCustomization,
+  fetchStoreThemes,
+  submitExternalTheme,
+  fetchBuildStatus,
+  removeExternalTheme,
   type AvailableTheme,
   type CustomizationData,
+  type StoreThemeListItem,
+  type ThemeBuildStatus,
 } from "@/services/themeApi";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +42,7 @@ import { showError } from "@/lib/show-error";
 import { getStoreUrl } from "@/lib/storefront";
 import {
   Pencil, MoreHorizontal, ExternalLink, Eye, Copy, Sparkles,
-  CheckCircle2, Clock, Loader2, ArrowUpRight, Layers,
+  CheckCircle2, Clock, Loader2, ArrowUpRight, Layers, Github, Trash2,
 } from "lucide-react";
 
 // ─── Theme visual palettes ───────────────────────────────────────────────────
@@ -125,12 +133,27 @@ export default function OnlineStoreThemes() {
   const queryClient = useQueryClient();
   const [switchTarget, setSwitchTarget] = useState<AvailableTheme | null>(null);
 
+  // ─── External theme (BYOT) state ─────────────────────────────────────
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [githubUrl, setGithubUrl] = useState("");
+  const [activeBuildId, setActiveBuildId] = useState<string | null>(null);
+  const [buildStatus, setBuildStatus] = useState<ThemeBuildStatus | null>(null);
+  const [buildError, setBuildError] = useState<string | null>(null);
+
   const storeId = currentStore?.id ?? "";
   const storeUrl = currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null;
 
-  const { data: themes = [], isLoading: themesLoading } = useQuery({
+  // Built-in themes (legacy endpoint)
+  const { data: builtinThemes = [], isLoading: themesLoading } = useQuery({
     queryKey: ["themes"],
     queryFn: fetchThemes,
+  });
+
+  // Store-scoped themes including external (new endpoint)
+  const { data: storeThemes } = useQuery({
+    queryKey: ["store-themes", storeId],
+    queryFn: () => fetchStoreThemes(storeId),
+    enabled: !!storeId,
   });
 
   const { data: customization, isLoading: custLoading } = useQuery({
@@ -147,16 +170,98 @@ export default function OnlineStoreThemes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customization", storeId] });
+      queryClient.invalidateQueries({ queryKey: ["store-themes", storeId] });
       toast.success(isRTL ? "تم تغيير ونشر الثيم" : "Theme switched & published");
       setSwitchTarget(null);
     },
     onError: (err) => showError(err),
   });
 
+  // ─── External theme submission ───────────────────────────────────────
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      if (!githubUrl.trim()) throw new Error("GitHub URL is required");
+      return submitExternalTheme(storeId, githubUrl.trim());
+    },
+    onSuccess: (data) => {
+      setActiveBuildId(data.build_id);
+      setBuildStatus(data.status);
+      setBuildError(null);
+      toast.success(isRTL ? "بدأ بناء الثيم" : "Theme build started");
+    },
+    onError: (err) => {
+      showError(err);
+      setBuildError(err instanceof Error ? err.message : "Build failed");
+    },
+  });
+
+  // Poll build status while building
+  useEffect(() => {
+    if (!activeBuildId || !storeId) return;
+    if (buildStatus === "complete" || buildStatus === "failed") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const status = await fetchBuildStatus(storeId, activeBuildId);
+        setBuildStatus(status.status);
+        if (status.status === "complete") {
+          clearInterval(interval);
+          toast.success(isRTL ? "تم بناء الثيم بنجاح! 🎉" : "Theme built successfully! 🎉");
+          queryClient.invalidateQueries({ queryKey: ["store-themes", storeId] });
+          queryClient.invalidateQueries({ queryKey: ["customization", storeId] });
+          // Close modal after a short delay
+          setTimeout(() => {
+            setSubmitOpen(false);
+            setGithubUrl("");
+            setActiveBuildId(null);
+            setBuildStatus(null);
+          }, 2000);
+        } else if (status.status === "failed") {
+          clearInterval(interval);
+          setBuildError(status.error || "Build failed");
+          toast.error(isRTL ? "فشل بناء الثيم" : "Theme build failed");
+        }
+      } catch (e) {
+        // Continue polling on transient errors
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [activeBuildId, storeId, buildStatus, isRTL, queryClient]);
+
+  // Remove external theme
+  const removeExternalMutation = useMutation({
+    mutationFn: () => removeExternalTheme(storeId, "modern"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["store-themes", storeId] });
+      queryClient.invalidateQueries({ queryKey: ["customization", storeId] });
+      toast.success(isRTL ? "تم إزالة الثيم الخارجي" : "External theme removed");
+    },
+    onError: (err) => showError(err),
+  });
+
+  // Merge built-in themes with the store's external theme (if any)
+  const externalThemeFromStore = storeThemes?.themes?.find((t) => t.is_external);
+  const themes: AvailableTheme[] = [
+    ...builtinThemes,
+    ...(externalThemeFromStore
+      ? [
+          {
+            id: externalThemeFromStore.id,
+            name: externalThemeFromStore.name,
+            nameAr: externalThemeFromStore.nameAr,
+            layout: externalThemeFromStore.layout as any,
+            description: externalThemeFromStore.description,
+          },
+        ]
+      : []),
+  ];
+
   const activeThemeId = customization?.theme?.base_theme ?? themes[0]?.id;
   const activeTheme = themes.find((t) => t.id === activeThemeId) ?? themes[0];
   const libraryThemes = themes.filter((t) => t.id !== activeThemeId);
   const isLoading = themesLoading || custLoading;
+  const isExternalActive = externalThemeFromStore?.id === activeThemeId;
 
   return (
     <div className="space-y-8 max-w-5xl">
@@ -223,24 +328,120 @@ export default function OnlineStoreThemes() {
         </section>
       )}
 
-      {/* Marketplace CTA */}
-      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/5 via-background to-primary/3 p-5">
-        <div className="absolute -top-4 -end-4 h-24 w-24 rounded-full bg-primary/8 blur-2xl" />
-        <div className="relative flex items-center gap-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
-            <Sparkles className="h-5 w-5 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold">{isRTL ? "استعرض المزيد من الثيمات" : "Explore more themes"}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {isRTL ? "اكتشف ثيمات مصممة خصيصًا لمتاجر نومو" : "Themes crafted specifically for NUMU stores"}
-            </p>
-          </div>
-          <Badge variant="secondary" className="shrink-0 text-[10px] px-2">
-            {isRTL ? "قريبًا" : "Coming soon"}
-          </Badge>
+      {/* External theme (BYOT) section */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">
+            {isRTL ? "الثيمات المخصصة (BYOT)" : "Custom themes (BYOT)"}
+          </p>
+          {externalThemeFromStore && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-destructive hover:text-destructive"
+              onClick={() => removeExternalMutation.mutate()}
+              disabled={removeExternalMutation.isPending}
+            >
+              {removeExternalMutation.isPending ? (
+                <Loader2 className="h-3 w-3 me-1.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3 w-3 me-1.5" />
+              )}
+              {isRTL ? "إزالة الثيم الخارجي" : "Remove external theme"}
+            </Button>
+          )}
         </div>
-      </div>
+
+        {externalThemeFromStore ? (
+          <div className="relative overflow-hidden rounded-2xl border bg-card p-5">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
+                <Sparkles className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-base font-semibold">
+                    {isRTL ? externalThemeFromStore.nameAr : externalThemeFromStore.name}
+                  </h3>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {isRTL ? "خارجي" : "External"}
+                  </Badge>
+                  {isExternalActive && (
+                    <Badge className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/20">
+                      {isRTL ? "نشط" : "Active"}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground line-clamp-2">
+                  {externalThemeFromStore.description}
+                </p>
+                <div className="flex items-center gap-3 mt-3">
+                  {externalThemeFromStore.version && (
+                    <span className="text-[10px] text-muted-foreground">
+                      v{externalThemeFromStore.version}
+                    </span>
+                  )}
+                  {externalThemeFromStore.source_repo && (
+                    <a
+                      href={externalThemeFromStore.source_repo}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      <Github className="h-3 w-3" />
+                      {isRTL ? "المصدر" : "Source"}
+                    </a>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                {!isExternalActive && (
+                  <Button
+                    size="sm"
+                    onClick={() => switchMutation.mutate(externalThemeFromStore.id)}
+                    disabled={switchMutation.isPending}
+                  >
+                    {switchMutation.isPending && (
+                      <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />
+                    )}
+                    {isRTL ? "تفعيل" : "Activate"}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate(`/online-store/themes/editor?theme=${externalThemeFromStore.id}`)}
+                >
+                  <Pencil className="h-3.5 w-3.5 me-1.5" />
+                  {isRTL ? "تخصيص" : "Customize"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="relative overflow-hidden rounded-2xl border-2 border-dashed bg-gradient-to-br from-primary/5 via-background to-primary/3 p-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
+                <Github className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">
+                  {isRTL ? "أحضر ثيمك المخصص" : "Bring Your Own Theme"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isRTL
+                    ? "اربط ثيم من GitHub وسنبنيه ونرفعه تلقائيًا"
+                    : "Connect a GitHub repo — we'll build & deploy it automatically"}
+                </p>
+              </div>
+              <Button size="sm" onClick={() => setSubmitOpen(true)}>
+                <Github className="h-3.5 w-3.5 me-1.5" />
+                {isRTL ? "إضافة ثيم" : "Add theme"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* Switch confirmation */}
       <Dialog open={!!switchTarget} onOpenChange={() => setSwitchTarget(null)}>
@@ -262,6 +463,127 @@ export default function OnlineStoreThemes() {
               {switchMutation.isPending && <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />}
               {isRTL ? "تفعيل" : "Activate"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* External theme submission modal */}
+      <Dialog
+        open={submitOpen}
+        onOpenChange={(open) => {
+          if (!submitMutation.isPending && !activeBuildId) {
+            setSubmitOpen(open);
+            if (!open) {
+              setGithubUrl("");
+              setBuildError(null);
+            }
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Github className="h-4 w-4" />
+              {isRTL ? "إضافة ثيم خارجي" : "Add external theme"}
+            </DialogTitle>
+            <DialogDescription>
+              {isRTL
+                ? "أدخل رابط مستودع GitHub العام يحتوي على ثيم Prism."
+                : "Enter the public GitHub URL of a Prism-compatible theme."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Form */}
+          {!activeBuildId && (
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="github-url" className="text-xs">
+                  {isRTL ? "رابط GitHub" : "GitHub URL"}
+                </Label>
+                <Input
+                  id="github-url"
+                  placeholder="https://github.com/user/my-numu-theme"
+                  value={githubUrl}
+                  onChange={(e) => setGithubUrl(e.target.value)}
+                  disabled={submitMutation.isPending}
+                  dir="ltr"
+                />
+              </div>
+              {buildError && (
+                <p className="text-xs text-destructive">{buildError}</p>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                {isRTL
+                  ? "يجب أن يحتوي المستودع على theme.json و settings_schema.json و styles.css و index.ts."
+                  : "The repo must contain theme.json, settings_schema.json, styles.css, and index.ts."}
+              </p>
+            </div>
+          )}
+
+          {/* Build progress */}
+          {activeBuildId && (
+            <div className="py-4 space-y-3">
+              <div className="flex items-center gap-3">
+                {buildStatus === "complete" ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                ) : buildStatus === "failed" ? (
+                  <Trash2 className="h-5 w-5 text-destructive" />
+                ) : (
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                )}
+                <div className="flex-1">
+                  <p className="text-sm font-medium">
+                    {buildStatus === "queued" && (isRTL ? "في الانتظار..." : "Queued...")}
+                    {buildStatus === "cloning" && (isRTL ? "جاري الاستنساخ..." : "Cloning repository...")}
+                    {buildStatus === "validating" && (isRTL ? "جاري التحقق..." : "Validating contract...")}
+                    {buildStatus === "building" && (isRTL ? "جاري البناء..." : "Building theme...")}
+                    {buildStatus === "uploading" && (isRTL ? "جاري الرفع..." : "Uploading to CDN...")}
+                    {buildStatus === "complete" && (isRTL ? "تم بنجاح! 🎉" : "Complete! 🎉")}
+                    {buildStatus === "failed" && (isRTL ? "فشل البناء" : "Build failed")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Build ID: {activeBuildId.slice(0, 8)}</p>
+                </div>
+              </div>
+              {buildError && (
+                <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-3">
+                  <p className="text-xs text-destructive break-words">{buildError}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            {!activeBuildId ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setSubmitOpen(false)}
+                  disabled={submitMutation.isPending}
+                >
+                  {isRTL ? "إلغاء" : "Cancel"}
+                </Button>
+                <Button
+                  onClick={() => submitMutation.mutate()}
+                  disabled={submitMutation.isPending || !githubUrl.trim()}
+                >
+                  {submitMutation.isPending && (
+                    <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />
+                  )}
+                  {isRTL ? "بناء الثيم" : "Build theme"}
+                </Button>
+              </>
+            ) : buildStatus === "failed" ? (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setActiveBuildId(null);
+                  setBuildStatus(null);
+                  setBuildError(null);
+                }}
+              >
+                {isRTL ? "حاول مرة أخرى" : "Try again"}
+              </Button>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>

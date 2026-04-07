@@ -6,12 +6,14 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import {
   fetchCustomization, updateCustomization, publishCustomization,
   fetchThemeSchemas,
+  fetchStoreThemes,
   type CustomizationData,
   type SectionSchemaData,
   type SectionSettingDefinition,
   type SectionInstanceData,
   type TemplateConfigData,
   type ThemeSchemaBundle,
+  type StoreThemeListItem,
 } from "@/services/themeApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -241,13 +243,55 @@ export default function ThemeEditor() {
 
   const activeThemeId = localData?.theme?.base_theme ?? customization?.theme?.base_theme ?? "modern";
 
-  const { data: schemaBundle, isLoading: schemaLoading } = useQuery({
-    queryKey: ["themeSchemas", activeThemeId],
-    queryFn: () => fetchThemeSchemas(activeThemeId),
-    enabled: !!activeThemeId,
+  // Fetch store themes to detect if active theme is external
+  const { data: storeThemesData } = useQuery({
+    queryKey: ["store-themes", storeId],
+    queryFn: () => fetchStoreThemes(storeId),
+    enabled: !!storeId,
   });
 
-  const isLoading = custLoading || schemaLoading;
+  const externalTheme = useMemo(
+    () => storeThemesData?.themes?.find((t) => t.is_external && t.id === activeThemeId),
+    [storeThemesData, activeThemeId],
+  );
+  const isExternalTheme = !!externalTheme;
+
+  // For built-in themes, fetch the full schema bundle from the storefront API.
+  // For external themes, we use the schema embedded in the external theme entry.
+  const { data: builtinSchemaBundle, isLoading: schemaLoading } = useQuery({
+    queryKey: ["themeSchemas", activeThemeId],
+    queryFn: () => fetchThemeSchemas(activeThemeId),
+    enabled: !!activeThemeId && !isExternalTheme,
+  });
+
+  // Build a unified schema bundle from either built-in or external source
+  const schemaBundle: ThemeSchemaBundle | undefined = useMemo(() => {
+    if (isExternalTheme && externalTheme?.settings_schema) {
+      // Convert external theme schema into the same shape as built-in
+      return {
+        theme_id: externalTheme.id,
+        global_settings: externalTheme.settings_schema.settings.map((s) => ({
+          key: s.key,
+          type: s.type,
+          label: s.label,
+          labelAr: s.label,
+          description: s.description,
+          default: s.default,
+          group: s.group,
+          options: s.options,
+          min: s.min,
+          max: s.max,
+          step: s.step,
+          unit: s.unit,
+        })),
+        sections: [],
+        default_templates: {},
+      };
+    }
+    return builtinSchemaBundle;
+  }, [isExternalTheme, externalTheme, builtinSchemaBundle]);
+
+  const isLoading = custLoading || (!isExternalTheme && schemaLoading);
 
   // Schema lookup helper
   const sectionSchemaMap = useMemo(() => {

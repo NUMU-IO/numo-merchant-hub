@@ -212,3 +212,124 @@ export interface ThemeSchemaBundle {
 export function fetchThemeSchemas(themeId: string): Promise<ThemeSchemaBundle> {
   return apiClient<ThemeSchemaBundle>(`/storefront/themes/${themeId}/schemas`);
 }
+
+// ─── External Themes (BYOT) ──────────────────────────────────────────────────
+
+export interface ExternalThemeSettingDefinition {
+  key: string;
+  type: "color" | "text" | "checkbox" | "select" | "range" | "image";
+  label: string;
+  description?: string;
+  default?: string | number | boolean;
+  group?: string;
+  options?: Array<{ label: string; value: string }>;
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+}
+
+export interface ExternalThemeSettingsSchema {
+  settings: ExternalThemeSettingDefinition[];
+}
+
+export interface StoreThemeListItem {
+  id: string;
+  name: string;
+  nameAr: string;
+  layout: string;
+  description: string;
+  is_external: boolean;
+  bundle_url?: string;
+  css_url?: string;
+  version?: string;
+  source_repo?: string;
+  settings_schema?: ExternalThemeSettingsSchema;
+}
+
+export interface StoreThemesListResponse {
+  themes: StoreThemeListItem[];
+  active_theme_id: string | null;
+}
+
+/** Fetch all themes available to a store (built-in + external) */
+export function fetchStoreThemes(storeId: string): Promise<StoreThemesListResponse> {
+  return apiClient<StoreThemesListResponse>(`/stores/${storeId}/themes`);
+}
+
+export type ThemeBuildStatus =
+  | "queued"
+  | "cloning"
+  | "validating"
+  | "building"
+  | "uploading"
+  | "complete"
+  | "failed";
+
+export interface ThemeBuildResponse {
+  build_id: string;
+  status: ThemeBuildStatus;
+  message: string;
+}
+
+export interface ThemeBuildStatusResponse {
+  build_id: string;
+  status: ThemeBuildStatus;
+  theme_id: string | null;
+  bundle_url: string | null;
+  css_url: string | null;
+  error: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface ExternalThemeInfoResponse {
+  has_external_theme: boolean;
+  theme_id: string | null;
+  bundle_url: string | null;
+  css_url: string | null;
+  version: string | null;
+  source_repo: string | null;
+  built_at: string | null;
+}
+
+/** Submit a GitHub URL to build an external theme */
+export function submitExternalTheme(
+  storeId: string,
+  githubUrl: string,
+  branch: string = "main",
+): Promise<ThemeBuildResponse> {
+  return apiClient<ThemeBuildResponse>(`/stores/${storeId}/themes/external`, {
+    method: "POST",
+    body: JSON.stringify({ github_url: githubUrl, branch }),
+  });
+}
+
+/** Get the current external theme info for a store */
+export function fetchExternalThemeInfo(storeId: string): Promise<ExternalThemeInfoResponse> {
+  return apiClient<ExternalThemeInfoResponse>(`/stores/${storeId}/themes/external`);
+}
+
+/** Poll the build status by build_id */
+export function fetchBuildStatus(
+  storeId: string,
+  buildId: string,
+): Promise<ThemeBuildStatusResponse> {
+  return apiClient<ThemeBuildStatusResponse>(
+    `/stores/${storeId}/themes/external/builds/${buildId}`,
+  );
+}
+
+/** Remove the external theme and revert to a built-in fallback */
+export function removeExternalTheme(
+  storeId: string,
+  fallbackTheme: string = "modern",
+): Promise<{ removed: boolean; fallback_theme: string }> {
+  return apiClient<{ removed: boolean; fallback_theme: string }>(
+    `/stores/${storeId}/themes/external`,
+    {
+      method: "DELETE",
+      body: JSON.stringify({ fallback_theme: fallbackTheme }),
+    },
+  );
+}
