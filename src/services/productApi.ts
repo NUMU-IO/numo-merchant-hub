@@ -227,6 +227,7 @@ export function apiToProduct(api: ApiProductResponse): Product {
     compareAtPrice: api.compare_at_price
       ? parsePrice(api.compare_at_price)
       : undefined,
+    costPrice: api.cost_price ? parsePrice(api.cost_price) : undefined,
     stock: api.quantity,
     status: toDisplayStatus(api.status),
     category: attrs.categoryName || "",
@@ -256,6 +257,7 @@ export interface ProductFormData {
   descriptionAr: string;
   price: number;
   compareAtPrice?: number;
+  costPrice?: number;
   stock: number;
   status: ProductStatus;
   category: string;
@@ -279,6 +281,9 @@ export function productToApiCreate(form: ProductFormData): CreateProductData {
     price: form.price.toFixed(2),
     compare_at_price: form.compareAtPrice
       ? form.compareAtPrice.toFixed(2)
+      : undefined,
+    cost_price: form.costPrice
+      ? form.costPrice.toFixed(2)
       : undefined,
     quantity: form.stock,
     category_id: form.categoryId || undefined,
@@ -484,6 +489,7 @@ export async function duplicateProduct(
     description: original.description || undefined,
     price: original.price,
     compare_at_price: original.compare_at_price || undefined,
+    cost_price: original.cost_price || undefined,
     quantity: original.quantity,
     category_id: original.category_id || undefined,
     tags: original.tags,
@@ -508,6 +514,11 @@ export function productToApiUpdate(
   if (form.compareAtPrice !== undefined) {
     data.compare_at_price = form.compareAtPrice
       ? form.compareAtPrice.toFixed(2)
+      : undefined;
+  }
+  if (form.costPrice !== undefined) {
+    data.cost_price = form.costPrice
+      ? form.costPrice.toFixed(2)
       : undefined;
   }
   if (form.stock !== undefined) data.quantity = form.stock;

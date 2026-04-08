@@ -98,11 +98,15 @@ const Dashboard = () => {
   const todayOrders = stats ? stats.total_orders : 0;
   const newCustomers = stats ? stats.new_customers : 0;
   const avgOrder = stats ? stats.avg_order_value : 0;
+  const todayProfit = stats ? stats.total_profit : 0;
+  const productsWithCost = stats ? stats.products_with_cost : 0;
+  const totalProductsWithCostHint = stats ? stats.total_products : 0;
 
   const animRevenue = useCountUp(todayRevenue / 100, 1400);
   const animOrders = useCountUp(todayOrders, 800);
   const animCustomers = useCountUp(newCustomers, 800);
   const animAvg = useCountUp(avgOrder / 100, 1200);
+  const animProfit = useCountUp(todayProfit / 100, 1400);
 
   const trendPercent = stats?.revenue_change_percent ?? 0;
   const trendStr = trendPercent >= 0 ? `+${trendPercent.toFixed(1)}%` : `${trendPercent.toFixed(1)}%`;
@@ -387,15 +391,29 @@ const Dashboard = () => {
         const totalVisits = visitVals.reduce((s, v) => s + v, 0);
         const convRate = totalVisits > 0 ? Math.min(99.9, (animOrders / totalVisits) * 100) : 0;
 
-        const cards = [
+        const profitHint = totalProductsWithCostHint > 0 && productsWithCost < totalProductsWithCostHint
+          ? (isAr
+              ? `${productsWithCost} من ${totalProductsWithCostHint} منتج لديهم تكلفة`
+              : `${productsWithCost} of ${totalProductsWithCostHint} products have a cost set`)
+          : undefined;
+
+        const cards: Array<{
+          label: string;
+          value: string;
+          icon: React.ReactNode;
+          data: number[];
+          stroke: string;
+          hint?: string;
+        }> = [
           { label: isAr ? "المبيعات" : "Sales", value: formatCurrency(animRevenue * 100), icon: <TrendingUp className="h-4 w-4 text-muted-foreground/40" />, data: revenueVals, stroke: "hsl(var(--primary))" },
+          { label: isAr ? "صافي الربح" : "Net Profit", value: formatCurrency(animProfit * 100), icon: <Receipt className="h-4 w-4 text-muted-foreground/40" />, data: [], stroke: "hsl(160,84%,39%)", hint: profitHint },
           { label: isAr ? "الطلبات" : "Orders", value: String(animOrders), icon: <ShoppingCart className="h-4 w-4 text-muted-foreground/40" />, data: orderVals, stroke: "hsl(142,71%,45%)" },
           { label: isAr ? "الزيارات" : "Visits", value: String(totalVisits), icon: <Users className="h-4 w-4 text-muted-foreground/40" />, data: visitVals, stroke: "hsl(263,70%,50%)" },
           { label: isAr ? "نسبة التحويل" : "Conversion", value: `${convRate.toFixed(2)}%`, icon: <ArrowUpRight className="h-4 w-4 text-muted-foreground/40" />, data: [], stroke: "hsl(38,92%,50%)" },
         ];
 
         return (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {cards.map((kpi, i) => (
               <Card key={i} className="overflow-hidden transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer group" onClick={() => navigate("/analytics")}>
                 <CardContent className="p-4">
@@ -404,6 +422,9 @@ const Dashboard = () => {
                     {kpi.icon}
                   </div>
                   <p className="text-2xl font-bold tracking-tight tabular-nums leading-none mb-2">{kpi.value}</p>
+                  {kpi.hint && (
+                    <p className="text-[10px] text-muted-foreground/70 mb-2 truncate">{kpi.hint}</p>
+                  )}
                   {/* SVG sparkline */}
                   <div className="h-10 mb-2">
                     <svg width="100%" height="100%" viewBox="0 0 200 40" preserveAspectRatio="none">

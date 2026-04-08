@@ -16,6 +16,7 @@ export interface Product {
   descriptionAr: string;
   price: number;
   compareAtPrice?: number;
+  costPrice?: number;
   stock: number;
   status: ProductStatus;
   category: string;

@@ -22,6 +22,10 @@ export interface DashboardStats {
   new_customers: number;
   total_products: number;
   low_stock_count: number;
+  // Profit (only over products with cost_price set)
+  total_profit: number; // cents
+  total_cogs: number; // cents
+  products_with_cost: number;
   period_start: string;
   period_end: string;
 }
@@ -367,6 +371,10 @@ export interface ProductPerformanceItem {
   quantity_sold: number;
   current_stock: number;
   revenue_trend: number[]; // 7 data points
+  // Profit fields. Null if the product has no cost_price set.
+  cost_price: number | null; // cents
+  profit: number | null; // cents
+  margin_percent: number | null;
 }
 
 export interface CategoryPerformanceItem {

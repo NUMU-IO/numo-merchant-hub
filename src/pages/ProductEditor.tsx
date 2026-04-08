@@ -43,6 +43,9 @@ const productSchema = z.object({
     .refine((v) => /^\d+(\.\d{1,2})?$/.test(v), "السعر يجب ألا يتجاوز خانتين عشريتين"),
   comparePrice: z.string()
     .refine((v) => v === "" || (!isNaN(Number(v)) && Number(v) >= 0), "سعر المقارنة يجب أن يكون رقمًا صحيحًا"),
+  costPrice: z.string()
+    .refine((v) => v === "" || (!isNaN(Number(v)) && Number(v) >= 0), "تكلفة الوحدة يجب أن تكون رقمًا صحيحًا")
+    .refine((v) => v === "" || /^\d+(\.\d{1,2})?$/.test(v), "تكلفة الوحدة يجب ألا تتجاوز خانتين عشريتين"),
   stock: z.string()
     .refine((v) => v === "" || (!isNaN(Number(v)) && Number.isInteger(Number(v)) && Number(v) >= 0), "الكمية يجب أن تكون عددًا صحيحًا غير سالب"),
   description: z.string().max(2000, "الوصف يجب ألا يتجاوز 2000 حرف").optional().or(z.literal("")),
@@ -68,6 +71,7 @@ const ProductEditor = () => {
   const [formDescAr, setFormDescAr] = useState("");
   const [formPrice, setFormPrice] = useState("");
   const [formComparePrice, setFormComparePrice] = useState("");
+  const [formCostPrice, setFormCostPrice] = useState("");
   const [formStock, setFormStock] = useState("");
   const [formStatus, setFormStatus] = useState<ProductStatus>("draft");
   const [formCategory, setFormCategory] = useState("");
@@ -107,6 +111,7 @@ const ProductEditor = () => {
         setFormDescAr(p.descriptionAr);
         setFormPrice(String(p.price));
         setFormComparePrice(p.compareAtPrice ? String(p.compareAtPrice) : "");
+        setFormCostPrice(p.costPrice ? String(p.costPrice) : "");
         setFormStock(String(p.stock));
         setFormStatus(p.status);
         setFormCategory(p.categoryId || "");
@@ -193,6 +198,7 @@ const ProductEditor = () => {
       name: formName,
       price: formPrice,
       comparePrice: formComparePrice,
+      costPrice: formCostPrice,
       stock: formStock,
       description: formDesc,
     });
@@ -226,6 +232,7 @@ const ProductEditor = () => {
           description: formDesc, descriptionAr: formDescAr,
           price: Number(formPrice),
           compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
+          costPrice: formCostPrice ? Number(formCostPrice) : undefined,
           stock: Number(formStock),
           status: formStatus,
           categoryId: formCategory || undefined,
@@ -247,6 +254,7 @@ const ProductEditor = () => {
           description: formDesc, descriptionAr: formDescAr,
           price: Number(formPrice),
           compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
+          costPrice: formCostPrice ? Number(formCostPrice) : undefined,
           stock: Number(formStock),
           status: formStatus,
           categoryId: formCategory || undefined,
@@ -273,7 +281,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formSlug, variantCombinations]);
 
   if (isLoadingProduct) {
     return (
@@ -432,7 +440,7 @@ const ProductEditor = () => {
           <CardTitle className="text-base font-bold">{language === "ar" ? "الكميات في المخزون" : "Pricing & Inventory"}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.price")} (EGP) *</Label>
               <div className="relative">
@@ -450,6 +458,20 @@ const ProductEditor = () => {
               {fieldErrors.comparePrice && <p className="text-[11px] text-destructive">{fieldErrors.comparePrice}</p>}
             </div>
             <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.costPrice")}</Label>
+              <div className="relative">
+                <Input type="number" value={formCostPrice} onChange={e => setFormCostPrice(e.target.value)} placeholder="0.00" className={`h-10 rounded-lg ps-8 ${fieldErrors.costPrice ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">$</span>
+              </div>
+              {fieldErrors.costPrice ? (
+                <p className="text-[11px] text-destructive">{fieldErrors.costPrice}</p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground/60">
+                  {language === "ar" ? "اختياري — ليحسب صافي الربح" : "Optional — used to compute profit"}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.stock")}</Label>
               <div className="relative">
                 <Input type="number" value={formStock} onChange={e => setFormStock(e.target.value)} placeholder="0" className={`h-10 rounded-lg ps-8 ${fieldErrors.stock ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
@@ -458,6 +480,35 @@ const ProductEditor = () => {
               {fieldErrors.stock && <p className="text-[11px] text-destructive">{fieldErrors.stock}</p>}
             </div>
           </div>
+
+          {/* Live profit / margin preview */}
+          {(() => {
+            const priceNum = Number(formPrice);
+            const costNum = Number(formCostPrice);
+            if (!formPrice || !formCostPrice || isNaN(priceNum) || isNaN(costNum) || priceNum <= 0 || costNum < 0) {
+              return null;
+            }
+            const profit = priceNum - costNum;
+            const margin = priceNum > 0 ? (profit / priceNum) * 100 : 0;
+            const positive = profit >= 0;
+            return (
+              <div className={`mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border px-3 py-2 text-[11px] ${positive ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600" : "border-destructive/20 bg-destructive/5 text-destructive"}`}>
+                <span className="font-medium">
+                  {language === "ar" ? "ربح الوحدة:" : "Profit / unit:"}{" "}
+                  <span className="font-bold tabular-nums">{formatPreviewPrice(profit)}</span>
+                </span>
+                <span className="font-medium">
+                  {language === "ar" ? "هامش الربح:" : "Margin:"}{" "}
+                  <span className="font-bold tabular-nums">{margin.toFixed(1)}%</span>
+                </span>
+                {!positive && (
+                  <span className="font-medium">
+                    {language === "ar" ? "تحذير: التكلفة أعلى من السعر" : "Warning: cost exceeds price"}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 

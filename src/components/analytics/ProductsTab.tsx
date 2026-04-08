@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import {
   Package, FolderOpen, AlertTriangle, ArrowUpDown,
-  Crown, TrendingDown, BarChart3, AlertCircle,
+  Crown, TrendingDown, BarChart3, AlertCircle, Receipt,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -92,6 +92,13 @@ export function ProductsTab({ period, formatCurrency }: ProductsTabProps) {
   const totalRevenue = data?.products.reduce((sum, p) => sum + p.revenue, 0) ?? 0;
   const totalProducts = data ? data.products.length : 0;
 
+  // Profit aggregation across products with cost_price set
+  const profitableProducts = (data?.products ?? []).filter((p) => p.profit !== null);
+  const totalProfit = profitableProducts.reduce((sum, p) => sum + (p.profit ?? 0), 0);
+  const profitableRevenue = profitableProducts.reduce((sum, p) => sum + p.revenue, 0);
+  const overallMargin = profitableRevenue > 0 ? (totalProfit / profitableRevenue) * 100 : 0;
+  const productsWithoutCost = totalProducts - profitableProducts.length;
+
   // Revenue concentration: % from top 20% of products
   const top20Count = Math.max(1, Math.ceil(totalProducts * 0.2));
   const sortedByRev = [...(data?.products ?? [])].sort((a, b) => b.revenue - a.revenue);
@@ -118,7 +125,7 @@ export function ProductsTab({ period, formatCurrency }: ProductsTabProps) {
     <div className="space-y-4">
       {/* KPI Cards */}
       {data && data.products.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <Card className="border-border/60">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
@@ -149,6 +156,27 @@ export function ProductsTab({ period, formatCurrency }: ProductsTabProps) {
               <p className="text-2xl font-bold tabular-nums">{totalProducts}</p>
               <p className="text-[10px] text-muted-foreground">
                 {isAr ? "منتج حقق مبيعات" : "products with sales"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {isAr ? "إجمالي الربح" : "Total Profit"}
+                </p>
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <Receipt className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+              </div>
+              <p className="text-2xl font-bold tabular-nums">{formatCurrency(totalProfit)}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {profitableProducts.length === 0
+                  ? (isAr ? "حدد التكلفة لرؤية الربح" : "Set costs to see profit")
+                  : (isAr
+                      ? `هامش ${overallMargin.toFixed(1)}%${productsWithoutCost > 0 ? ` · ${productsWithoutCost} بدون تكلفة` : ""}`
+                      : `${overallMargin.toFixed(1)}% margin${productsWithoutCost > 0 ? ` · ${productsWithoutCost} no cost` : ""}`)}
               </p>
             </CardContent>
           </Card>
@@ -223,6 +251,8 @@ export function ProductsTab({ period, formatCurrency }: ProductsTabProps) {
                   <tr className="border-b border-border/60">
                     <th className="text-start font-medium text-muted-foreground p-2">{isAr ? "المنتج" : "Product"}</th>
                     <th className="text-end font-medium text-muted-foreground p-2">{isAr ? "الإيرادات" : "Revenue"}</th>
+                    <th className="text-end font-medium text-muted-foreground p-2">{isAr ? "الربح" : "Profit"}</th>
+                    <th className="text-end font-medium text-muted-foreground p-2">{isAr ? "هامش" : "Margin"}</th>
                     <th className="text-end font-medium text-muted-foreground p-2">{isAr ? "المبيع" : "Sold"}</th>
                     <th className="text-end font-medium text-muted-foreground p-2">{isAr ? "المخزون" : "Stock"}</th>
                     <th className="text-center font-medium text-muted-foreground p-2">{isAr ? "الاتجاه" : "Trend"}</th>
@@ -236,6 +266,22 @@ export function ProductsTab({ period, formatCurrency }: ProductsTabProps) {
                         {p.sku && <p className="text-[10px] text-muted-foreground font-mono">{p.sku}</p>}
                       </td>
                       <td className="text-end p-2 font-semibold tabular-nums">{formatCurrency(p.revenue)}</td>
+                      <td className="text-end p-2 tabular-nums">
+                        {p.profit !== null ? (
+                          <span className={p.profit >= 0 ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-destructive font-medium"}>
+                            {formatCurrency(p.profit)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/50">—</span>
+                        )}
+                      </td>
+                      <td className="text-end p-2 tabular-nums">
+                        {p.margin_percent !== null ? (
+                          <span className="text-muted-foreground">{p.margin_percent.toFixed(1)}%</span>
+                        ) : (
+                          <span className="text-muted-foreground/50">—</span>
+                        )}
+                      </td>
                       <td className="text-end p-2 tabular-nums">{p.quantity_sold}</td>
                       <td className="text-end p-2">
                         <span className={`tabular-nums font-medium ${p.current_stock <= 0 ? "text-destructive" : p.current_stock <= 5 ? "text-amber-600 dark:text-amber-400" : ""}`}>

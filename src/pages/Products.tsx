@@ -374,6 +374,9 @@ const Products = () => {
                       {t("products.price")}
                     </TableHead>
                     <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70">
+                      {t("products.profit")}
+                    </TableHead>
+                    <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70">
                       {t("products.status")}
                     </TableHead>
                     <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70 w-[120px]">
@@ -435,6 +438,35 @@ const Products = () => {
                             <p className="text-[11px] text-muted-foreground/50 line-through tabular-nums">{formatCurrency(p.compareAtPrice)}</p>
                           )}
                         </div>
+                      </TableCell>
+
+                      {/* Profit / Margin */}
+                      <TableCell>
+                        {p.costPrice != null ? (
+                          (() => {
+                            const profit = p.price - p.costPrice;
+                            const margin = p.price > 0 ? (profit / p.price) * 100 : 0;
+                            const positive = profit >= 0;
+                            return (
+                              <div>
+                                <p className={`font-semibold text-[13px] tabular-nums ${positive ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                                  {formatCurrency(profit)}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground/60 tabular-nums">
+                                  {margin.toFixed(1)}%
+                                </p>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/products/${p.id}/edit`); }}
+                            className="text-[11px] text-muted-foreground/60 hover:text-primary underline-offset-2 hover:underline"
+                          >
+                            {t("products.setCost")}
+                          </button>
+                        )}
                       </TableCell>
 
                       {/* Status badge */}
