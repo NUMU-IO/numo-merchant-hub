@@ -63,6 +63,10 @@ export function FunnelTab({ period, formatCurrency }: FunnelTabProps) {
   // Check if there's any meaningful funnel data (at least 1 page view)
   const hasData = data && data.steps.some((s) => s.count > 0);
   const maxCount = data?.steps[0]?.count || 1;
+  // Suppress drop-off labels until the prior step has at least this many
+  // sessions. With 1 page view and 0 product views the math says "−100%",
+  // which looks alarming but is statistical noise on a tiny baseline.
+  const DROP_OFF_MIN_SAMPLE = 5;
 
   // No data at all — show a friendly empty state
   if (data && !hasData) {
@@ -189,7 +193,10 @@ export function FunnelTab({ period, formatCurrency }: FunnelTabProps) {
                 const label = STEP_LABELS[step.step] || { en: step.step, ar: step.step };
                 const width = maxCount > 0 ? (step.count / maxCount) * 100 : 0;
                 const color = STEP_COLORS[i % STEP_COLORS.length];
-                const showDropOff = i > 0 && step.drop_off_pct > 0 && data.steps[i - 1].count > 0;
+                const showDropOff =
+                  i > 0 &&
+                  step.drop_off_pct > 0 &&
+                  data.steps[i - 1].count >= DROP_OFF_MIN_SAMPLE;
 
                 return (
                   <div key={step.step}>
