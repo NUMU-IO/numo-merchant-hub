@@ -3,20 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import {
-  fetchThemes,
-  fetchCustomization,
-  updateCustomization,
-  publishCustomization,
-  fetchStoreThemes,
-  submitExternalTheme,
-  fetchBuildStatus,
-  removeExternalTheme,
-  type AvailableTheme,
-  type CustomizationData,
-  type StoreThemeListItem,
-  type ThemeBuildStatus,
-} from "@/services/themeApi";
+import {,, validateExternalTheme, ThemeValidationResponse} from "@/services/themeApi";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -42,7 +30,7 @@ import { showError } from "@/lib/show-error";
 import { getStoreUrl } from "@/lib/storefront";
 import {
   Pencil, MoreHorizontal, ExternalLink, Eye, Copy, Sparkles,
-  CheckCircle2, Clock, Loader2, ArrowUpRight, Layers, Github, Trash2,
+  CheckCircle2, Clock, Loader2, ArrowUpRight, Layers, Github, Trash2, RefreshCw, ShieldCheck,
 } from "lucide-react";
 
 // ─── Theme visual palettes ───────────────────────────────────────────────────
@@ -140,6 +128,11 @@ export default function OnlineStoreThemes() {
   const [buildStatus, setBuildStatus] = useState<ThemeBuildStatus | null>(null);
   const [buildError, setBuildError] = useState<string | null>(null);
 
+  // ─── Dev server connection state ─────────────────────────────────────
+  const [devOpen, setDevOpen] = useState(false);
+  const [devUrl, setDevUrl] = useState("http://localhost:4321");
+  const [devError, setDevError] = useState<string | null>(null);
+
   const storeId = currentStore?.id ?? "";
   const storeUrl = currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null;
 
@@ -230,6 +223,30 @@ export default function OnlineStoreThemes() {
   }, [activeBuildId, storeId, buildStatus, isRTL, queryClient]);
 
   // Remove external theme
+  
+  const [rebuildBranch, setRebuildBranch] = useState("main");
+  const validateThemeMutation = useMutation({
+    mutationFn: () => validateExternalTheme(storeId),
+    onSuccess: (res) => {
+      if(res.data) {
+        let msg = res.data.valid ? "Theme is valid!\n" : "Theme has errors.\n";
+        res.data.errors.forEach((e: any) => msg += `- Error: ${e.message}\n`);
+        res.data.warnings.forEach((w: any) => msg += `- Warning: ${w.message}\n`);
+        toast[res.data.valid ? "success" : "error"](res.data.valid ? "Validation Passed" : "Validation Failed", { description: msg });
+      }
+    },
+    onError: (err: any) => toast.error("Validation Error", { description: err.message || "Failed validate." })
+  });
+
+  const rebuildThemeMutation = useMutation({
+    mutationFn: () => rebuildExternalTheme(storeId, rebuildBranch),
+    onSuccess: (res) => {
+      toast.success("Rebuild Started", { description: res.data.message || "Task queued." });
+      setPollBuildId(res.data.task_id || null);
+    },
+    onError: (err: any) => toast.error("Rebuild Error", { description: err.message || "Failed queue." })
+  });
+
   const removeExternalMutation = useMutation({
     mutationFn: () => removeExternalTheme(storeId, "modern"),
     onSuccess: () => {
@@ -238,6 +255,29 @@ export default function OnlineStoreThemes() {
       toast.success(isRTL ? "تم إزالة الثيم الخارجي" : "External theme removed");
     },
     onError: (err) => showError(err),
+  });
+
+  // Connect local dev server (numu-theme dev)
+  const connectDevMutation = useMutation({
+    mutationFn: async () => {
+      if (!devUrl.trim()) throw new Error("Dev URL is required");
+      return connectDevServer(storeId, devUrl.trim());
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["store-themes", storeId] });
+      queryClient.invalidateQueries({ queryKey: ["customization", storeId] });
+      toast.success(
+        isRTL
+          ? `تم الاتصال بـ ${data.theme_id} 🎉`
+          : `Connected to ${data.theme_id} 🎉`,
+      );
+      setDevOpen(false);
+      setDevError(null);
+    },
+    onError: (err) => {
+      showError(err);
+      setDevError(err instanceof Error ? err.message : "Failed to connect");
+    },
   });
 
   // Merge built-in themes with the store's external theme (if any)
@@ -366,6 +406,11 @@ export default function OnlineStoreThemes() {
                   <Badge variant="secondary" className="text-[10px]">
                     {isRTL ? "خارجي" : "External"}
                   </Badge>
+                  {externalThemeFromStore.mode === "dev" && (
+                    <Badge className="text-[10px] bg-amber-500/10 text-amber-700 border-amber-500/20">
+                      {isRTL ? "وضع التطوير" : "Dev mode"}
+                    </Badge>
+                  )}
                   {isExternalActive && (
                     <Badge className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/20">
                       {isRTL ? "نشط" : "Active"}
@@ -419,25 +464,56 @@ export default function OnlineStoreThemes() {
             </div>
           </div>
         ) : (
-          <div className="relative overflow-hidden rounded-2xl border-2 border-dashed bg-gradient-to-br from-primary/5 via-background to-primary/3 p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
-                <Github className="h-6 w-6 text-primary" />
+          <div className="grid gap-3 md:grid-cols-2">
+            {/* Production: GitHub repo → build pipeline → CDN */}
+            <div className="relative overflow-hidden rounded-2xl border-2 border-dashed bg-gradient-to-br from-primary/5 via-background to-primary/3 p-5">
+              <div className="flex flex-col gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
+                  <Github className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">
+                    {isRTL ? "إنتاج (من GitHub)" : "Production (from GitHub)"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isRTL
+                      ? "اربط مستودع GitHub — سنبنيه ونرفعه على CDN تلقائيًا"
+                      : "Connect a GitHub repo — we'll build & deploy it to the CDN"}
+                  </p>
+                </div>
+                <Button size="sm" className="w-full" onClick={() => setSubmitOpen(true)}>
+                  <Github className="h-3.5 w-3.5 me-1.5" />
+                  {isRTL ? "إضافة من GitHub" : "Add from GitHub"}
+                </Button>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">
-                  {isRTL ? "أحضر ثيمك المخصص" : "Bring Your Own Theme"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {isRTL
-                    ? "اربط ثيم من GitHub وسنبنيه ونرفعه تلقائيًا"
-                    : "Connect a GitHub repo — we'll build & deploy it automatically"}
-                </p>
+            </div>
+
+            {/* Dev: Local dev server (numu-theme dev) */}
+            <div className="relative overflow-hidden rounded-2xl border-2 border-dashed bg-gradient-to-br from-amber-500/5 via-background to-amber-500/3 p-5">
+              <div className="flex flex-col gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 ring-1 ring-amber-500/20">
+                  <Sparkles className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">
+                    {isRTL ? "تطوير (محلي)" : "Dev (local server)"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isRTL
+                      ? "شغّل numu-theme dev في مجلد ثيمك واربط الـURL هنا"
+                      : "Run `numu-theme dev` in your theme repo and paste the URL here"}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full border-amber-500/30 hover:bg-amber-500/10"
+                  onClick={() => setDevOpen(true)}
+                >
+                  <Sparkles className="h-3.5 w-3.5 me-1.5" />
+                  {isRTL ? "اربط خادم التطوير" : "Connect dev server"}
+                </Button>
               </div>
-              <Button size="sm" onClick={() => setSubmitOpen(true)}>
-                <Github className="h-3.5 w-3.5 me-1.5" />
-                {isRTL ? "إضافة ثيم" : "Add theme"}
-              </Button>
             </div>
           </div>
         )}
@@ -584,6 +660,88 @@ export default function OnlineStoreThemes() {
                 {isRTL ? "حاول مرة أخرى" : "Try again"}
               </Button>
             ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Connect Dev Server modal */}
+      <Dialog
+        open={devOpen}
+        onOpenChange={(open) => {
+          if (!connectDevMutation.isPending) {
+            setDevOpen(open);
+            if (!open) setDevError(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-amber-600" />
+              {isRTL ? "اربط خادم التطوير" : "Connect Dev Server"}
+            </DialogTitle>
+            <DialogDescription>
+              {isRTL
+                ? "شغّل numu-theme dev في مجلد ثيمك ثم الصق الـURL الذي يظهر هنا."
+                : "Run `numu-theme dev` in your theme folder and paste the URL it prints here."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="dev-url" className="text-xs">
+                {isRTL ? "رابط خادم التطوير" : "Dev server URL"}
+              </Label>
+              <Input
+                id="dev-url"
+                placeholder="http://localhost:4321"
+                value={devUrl}
+                onChange={(e) => setDevUrl(e.target.value)}
+                disabled={connectDevMutation.isPending}
+                dir="ltr"
+              />
+            </div>
+
+            {devError && (
+              <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-3">
+                <p className="text-xs text-destructive break-words">{devError}</p>
+              </div>
+            )}
+
+            {/* Quick instructions */}
+            <div className="rounded-lg bg-muted/40 border border-border/50 p-3 space-y-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {isRTL ? "كيف تشغل الخادم؟" : "How to start the server"}
+              </p>
+              <pre className="text-[11px] font-mono text-muted-foreground bg-background/50 px-2 py-1.5 rounded overflow-x-auto" dir="ltr">
+{`cd my-theme
+npx numu-theme dev`}
+              </pre>
+              <p className="text-[10px] text-muted-foreground/80">
+                {isRTL
+                  ? "في وضع التطوير لا يتم تخزين الثيم مؤقتًا — التغييرات تظهر فور التحديث."
+                  : "Dev mode disables caching — changes appear on refresh."}
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDevOpen(false)}
+              disabled={connectDevMutation.isPending}
+            >
+              {isRTL ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button
+              onClick={() => connectDevMutation.mutate()}
+              disabled={connectDevMutation.isPending || !devUrl.trim()}
+            >
+              {connectDevMutation.isPending && (
+                <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />
+              )}
+              {isRTL ? "اتصل" : "Connect"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
