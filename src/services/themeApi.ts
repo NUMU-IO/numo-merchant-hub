@@ -110,6 +110,15 @@ export interface CustomizationData {
   layout?: CustomizationLayout;
   is_published: boolean;
   last_published_at: string | null;
+  // V2 section engine
+  schema_version?: number;
+  templates?: Record<string, TemplateConfigData>;
+  /**
+   * Merchant-edited values for the active external theme, keyed by setting
+   * key from the bundle's `settings_schema`. Persisted server-side under
+   * `store.theme_settings.external_theme.merchant_settings`.
+   */
+  external_theme_merchant_settings?: Record<string, string | number | boolean>;
 }
 
 // Fetch the list of available storefront themes
@@ -139,6 +148,8 @@ export function updateCustomization(
     // V2 section engine fields
     schema_version: number;
     templates: Record<string, TemplateConfigData>;
+    // External theme merchant settings (keyed by external bundle's schema)
+    external_theme_merchant_settings: Record<string, string | number | boolean>;
   }>
 ): Promise<CustomizationData> {
   return apiClient<CustomizationData>(`/stores/${storeId}/settings/customization`, {
@@ -233,6 +244,37 @@ export interface ExternalThemeSettingsSchema {
   settings: ExternalThemeSettingDefinition[];
 }
 
+/**
+ * One entry in the bundle's `sections.json` manifest. Two flavors:
+ *
+ *  - **Override** — `override: true`, schema is omitted because the
+ *    storefront keeps the shared section's schema. Only metadata (name,
+ *    nameAr) is needed so the dashboard can surface the override in the UI.
+ *  - **New section** — `override` is false/missing. Carries a full schema
+ *    (settings, presets, limit) so the dashboard can render its form and
+ *    let merchants pick it from the section picker.
+ */
+export interface ExternalSectionManifestEntry {
+  type: string;
+  name?: string;
+  nameAr?: string;
+  override?: boolean;
+  limit?: number;
+  settings?: SectionSettingDefinition[];
+  presets?: Array<{
+    name: string;
+    nameAr?: string;
+    category?: string;
+    categoryAr?: string;
+    settings?: Record<string, unknown>;
+  }>;
+}
+
+export interface ExternalThemeSectionsManifest {
+  version: number;
+  sections: ExternalSectionManifestEntry[];
+}
+
 export interface StoreThemeListItem {
   id: string;
   name: string;
@@ -245,6 +287,8 @@ export interface StoreThemeListItem {
   version?: string;
   source_repo?: string;
   settings_schema?: ExternalThemeSettingsSchema;
+  /** Sections.json manifest — populated for external themes that ship custom sections. */
+  section_schemas?: ExternalThemeSectionsManifest;
   /** "dev" for local dev server, undefined for production CDN themes */
   mode?: "dev" | null;
 }

@@ -15,6 +15,8 @@ import {
   type ThemeSchemaBundle,
   type StoreThemeListItem,
 } from "@/services/themeApi";
+import { SchemaForm } from "@/components/theme-editor/SchemaForm";
+import type { SettingValue } from "@/components/theme-editor/SettingControl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -209,6 +211,10 @@ export default function ThemeEditor() {
   const [localData, setLocalData] = useState<CustomizationData | null>(null);
   const [activePage, setActivePage] = useState<string>("home");
   const [allTemplates, setAllTemplates] = useState<Record<string, TemplateConfigData>>({});
+  // Merchant-edited values for the active external theme. Stored separately
+  // from `localData.theme` because external themes have their own schema and
+  // their values must not collide with the built-in `theme.*` field names.
+  const [externalMerchantSettings, setExternalMerchantSettings] = useState<Record<string, SettingValue>>({});
 
   // Active template for the currently selected page
   const template = allTemplates[activePage] ?? null;
@@ -257,41 +263,93 @@ export default function ThemeEditor() {
   const isExternalTheme = !!externalTheme;
 
   // For built-in themes, fetch the full schema bundle from the storefront API.
-  // For external themes, we use the schema embedded in the external theme entry.
+  // External themes ALSO need the shared section schemas (so the section
+  // picker can offer built-in sections like `hero`, `marquee`, …) — we fetch
+  // the bundle for a baseline theme ("modern") and overlay the external
+  // theme's `section_schemas` on top.
+  const schemaSourceThemeId = isExternalTheme ? "modern" : activeThemeId;
   const { data: builtinSchemaBundle, isLoading: schemaLoading } = useQuery({
-    queryKey: ["themeSchemas", activeThemeId],
-    queryFn: () => fetchThemeSchemas(activeThemeId),
-    enabled: !!activeThemeId && !isExternalTheme,
+    queryKey: ["themeSchemas", schemaSourceThemeId],
+    queryFn: () => fetchThemeSchemas(schemaSourceThemeId),
+    enabled: !!schemaSourceThemeId,
   });
 
-  // Build a unified schema bundle from either built-in or external source
+  // Build a unified schema bundle. For external themes the GLOBAL settings
+  // come from the bundle's `settings_schema.json`, and the SECTION schemas
+  // are the union of (built-in shared sections) + (sections.json from the
+  // external bundle). External sections that override an existing shared
+  // section type don't carry their own settings — the dashboard keeps the
+  // shared schema as the single source of truth, matching the storefront's
+  // runtime merge behavior.
   const schemaBundle: ThemeSchemaBundle | undefined = useMemo(() => {
-    if (isExternalTheme && externalTheme?.settings_schema) {
-      // Convert external theme schema into the same shape as built-in
-      return {
-        theme_id: externalTheme.id,
-        global_settings: externalTheme.settings_schema.settings.map((s) => ({
-          key: s.key,
-          type: s.type,
-          label: s.label,
-          labelAr: s.label,
-          description: s.description,
-          default: s.default,
-          group: s.group,
-          options: s.options,
-          min: s.min,
-          max: s.max,
-          step: s.step,
-          unit: s.unit,
-        })),
-        sections: [],
-        default_templates: {},
+    if (!isExternalTheme) return builtinSchemaBundle;
+
+    if (!externalTheme || !builtinSchemaBundle) return builtinSchemaBundle;
+
+    const globalSettings = externalTheme.settings_schema?.settings.map((s) => ({
+      key: s.key,
+      type: s.type,
+      label: s.label,
+      labelAr: s.label,
+      description: s.description,
+      default: s.default,
+      group: s.group,
+      options: s.options,
+      min: s.min,
+      max: s.max,
+      step: s.step,
+      unit: s.unit,
+    })) ?? [];
+
+    // Merge external sections on top of the shared baseline. Overrides keep
+    // the shared schema entry; new section types are appended.
+    const mergedSections: SectionSchemaData[] = [...(builtinSchemaBundle.sections ?? [])];
+    const sectionIndex = new Map(mergedSections.map((s, i) => [s.type, i]));
+
+    for (const ext of externalTheme.section_schemas?.sections ?? []) {
+      if (ext.override) {
+        // Override an existing shared section: nothing to merge into the
+        // schema map (the storefront uses the shared schema at runtime).
+        // We still want a UI hint on the override though, so update the
+        // display name if it exists.
+        const idx = sectionIndex.get(ext.type);
+        if (idx != null && ext.name) {
+          mergedSections[idx] = {
+            ...mergedSections[idx],
+            name: ext.name,
+            nameAr: ext.nameAr ?? mergedSections[idx].nameAr,
+          };
+        }
+        continue;
+      }
+      // Brand-new section type — register full schema so the picker + form
+      // know how to render it.
+      const newEntry: SectionSchemaData = {
+        type: ext.type,
+        name: ext.name ?? ext.type,
+        nameAr: ext.nameAr,
+        limit: ext.limit,
+        settings: ext.settings ?? [],
+        presets: ext.presets,
       };
+      const idx = sectionIndex.get(ext.type);
+      if (idx != null) {
+        mergedSections[idx] = newEntry;
+      } else {
+        sectionIndex.set(ext.type, mergedSections.length);
+        mergedSections.push(newEntry);
+      }
     }
-    return builtinSchemaBundle;
+
+    return {
+      ...builtinSchemaBundle,
+      theme_id: externalTheme.id,
+      global_settings: globalSettings,
+      sections: mergedSections,
+    };
   }, [isExternalTheme, externalTheme, builtinSchemaBundle]);
 
-  const isLoading = custLoading || (!isExternalTheme && schemaLoading);
+  const isLoading = custLoading || schemaLoading;
 
   // Schema lookup helper
   const sectionSchemaMap = useMemo(() => {
@@ -325,13 +383,34 @@ export default function ThemeEditor() {
     }
     setAllTemplates(merged);
 
+    // Seed the external theme merchant settings: persisted values from the
+    // API take precedence, and any keys the merchant hasn't touched yet fall
+    // back to the schema defaults so the form is never empty.
+    if (isExternalTheme && schemaBundle.global_settings.length > 0) {
+      const persisted = data.external_theme_merchant_settings ?? {};
+      const seeded: Record<string, SettingValue> = {};
+      for (const def of schemaBundle.global_settings) {
+        const stored = persisted[def.key];
+        if (stored !== undefined) {
+          seeded[def.key] = stored as SettingValue;
+        } else if (def.default !== undefined) {
+          seeded[def.key] = def.default;
+        }
+      }
+      setExternalMerchantSettings(seeded);
+      // External themes own page rendering — sections aren't editable, so
+      // jump straight to the theme settings tab to avoid showing an empty
+      // section list as the default landing.
+      setActiveTab("theme");
+    }
+
     // Auto-select first section of home page
     const homeTpl = merged["home"];
     if (homeTpl && homeTpl.order.length > 0) {
       setSelectedId(homeTpl.order[0]);
       setSelectedType("section");
     }
-  }, [customization, schemaBundle, searchParams]);
+  }, [customization, schemaBundle, searchParams, isExternalTheme]);
 
   // ── PostMessage to iframe ─────────────────────────────────────────
   const sendPreviewUpdate = useRef<ReturnType<typeof setTimeout>>();
@@ -341,6 +420,22 @@ export default function ThemeEditor() {
     const target = iframeRef.current?.contentWindow;
     if (!target) return;
     try {
+      // Build the external_theme block (if any) so live preview can swap to
+      // a different bundle and apply the in-flight merchant settings without
+      // a save/publish round trip. The storefront's `sanitizeSettings`
+      // validates the URL + drops anything outside the schema's primitive
+      // value types before applying.
+      const external_theme = isExternalTheme && externalTheme
+        ? {
+            theme_id: externalTheme.id,
+            bundle_url: externalTheme.bundle_url,
+            css_url: externalTheme.css_url,
+            mode: externalTheme.mode ?? undefined,
+            settings_schema: externalTheme.settings_schema,
+            merchant_settings: externalMerchantSettings,
+          }
+        : undefined;
+
       target.postMessage({
         type: "NUMU_THEME_UPDATE",
         settings: {
@@ -355,11 +450,12 @@ export default function ThemeEditor() {
           layout: localData.layout,
           schema_version: 2,
           templates: allTemplates,
+          ...(external_theme ? { external_theme } : {}),
         },
       }, "*");
     } catch { /* iframe not ready */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localData, allTemplates]);
+  }, [localData, allTemplates, isExternalTheme, externalTheme, externalMerchantSettings]);
 
   useEffect(() => {
     clearTimeout(sendPreviewUpdate.current);
@@ -488,23 +584,47 @@ export default function ThemeEditor() {
     setIsDirty(true);
   }
 
+  // ── External theme merchant setting update ──────────────────────
+  // SchemaForm calls this with the schema's `key` field. Values are stored
+  // in a flat map and shipped to the API as
+  // `external_theme_merchant_settings`, then on to the storefront via
+  // `theme_settings.external_theme.merchant_settings`.
+  const updateExternalSetting = useCallback((key: string, value: SettingValue) => {
+    setExternalMerchantSettings((prev) => ({ ...prev, [key]: value }));
+    setIsDirty(true);
+  }, []);
+
   // ── Save / Publish ───────────────────────────────────────────────
+  // Build the PATCH payload once so save + publish stay in lockstep. When
+  // an external theme is active we attach the merchant_settings bucket on
+  // top of the standard customization fields; for built-in themes that key
+  // is omitted entirely (the API ignores `null` cleanly).
+  const buildCustomizationPatch = useCallback(() => {
+    if (!localData) return null;
+    const patch: Parameters<typeof updateCustomization>[1] = {
+      identity: localData.identity,
+      theme: localData.theme,
+      header: localData.header,
+      hero: localData.hero,
+      products: localData.products,
+      footer: localData.footer,
+      navigation: localData.navigation,
+      labels: localData.labels,
+      layout: localData.layout,
+      schema_version: 2,
+      templates: allTemplates,
+    };
+    if (isExternalTheme) {
+      patch.external_theme_merchant_settings = externalMerchantSettings;
+    }
+    return patch;
+  }, [localData, allTemplates, isExternalTheme, externalMerchantSettings]);
+
   const saveMutation = useMutation({
     mutationFn: () => {
-      if (!localData || Object.keys(allTemplates).length === 0) throw new Error("No data");
-      return updateCustomization(storeId, {
-        identity: localData.identity,
-        theme: localData.theme,
-        header: localData.header,
-        hero: localData.hero,
-        products: localData.products,
-        footer: localData.footer,
-        navigation: localData.navigation,
-        labels: localData.labels,
-        layout: localData.layout,
-        schema_version: 2,
-        templates: allTemplates,
-      });
+      const patch = buildCustomizationPatch();
+      if (!patch || Object.keys(allTemplates).length === 0) throw new Error("No data");
+      return updateCustomization(storeId, patch);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customization", storeId] });
@@ -517,20 +637,9 @@ export default function ThemeEditor() {
 
   const publishMutation = useMutation({
     mutationFn: async () => {
-      if (!localData || Object.keys(allTemplates).length === 0) throw new Error("No data");
-      await updateCustomization(storeId, {
-        identity: localData.identity,
-        theme: localData.theme,
-        header: localData.header,
-        hero: localData.hero,
-        products: localData.products,
-        footer: localData.footer,
-        navigation: localData.navigation,
-        labels: localData.labels,
-        layout: localData.layout,
-        schema_version: 2,
-        templates: allTemplates,
-      });
+      const patch = buildCustomizationPatch();
+      if (!patch || Object.keys(allTemplates).length === 0) throw new Error("No data");
+      await updateCustomization(storeId, patch);
       return publishCustomization(storeId);
     },
     onSuccess: () => {
@@ -645,6 +754,17 @@ export default function ThemeEditor() {
               onRemove={removeSection}
               onAdd={addSection}
               onShowAdd={setShowAddPicker}
+            />
+          ) : isExternalTheme && schemaBundle?.global_settings?.length ? (
+            // External themes ship their own settings_schema. We render it
+            // through the same generic SchemaForm used by built-in sections,
+            // and write back into the `externalMerchantSettings` bucket.
+            <ExternalThemeSettingsSidebar
+              themeName={externalTheme?.name ?? activeThemeId}
+              settings={schemaBundle.global_settings}
+              values={externalMerchantSettings}
+              onChange={updateExternalSetting}
+              isRTL={isRTL}
             />
           ) : (
             <ThemeSettingsSidebar groups={THEME_FIELD_GROUPS} data={localData} isRTL={isRTL} onChange={updateGlobalField} />
@@ -1046,6 +1166,37 @@ function SchemaFieldControl({
       <Label className="text-[12px] font-medium">{label}</Label>
       <Input value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}
         placeholder={setting.placeholder} className="h-8 text-[12px]" data-testid={`${testId}-input`} />
+    </div>
+  );
+}
+
+// ─── External theme settings sidebar (schema-driven) ─────────────────────────
+//
+// External theme bundles ship a `settings_schema.json` describing their
+// customizable knobs. This sidebar walks that schema and renders it through
+// the same generic SchemaForm we use for built-in section settings, then
+// writes back into a flat `Record<string, SettingValue>` that the parent
+// editor saves under `external_theme_merchant_settings` and ships in the
+// live-preview postMessage payload.
+
+function ExternalThemeSettingsSidebar({ themeName, settings, values, onChange, isRTL }: {
+  themeName: string;
+  settings: SectionSettingDefinition[];
+  values: Record<string, SettingValue>;
+  onChange: (key: string, value: SettingValue) => void;
+  isRTL: boolean;
+}) {
+  return (
+    <div className="py-3 px-4 space-y-4" data-testid="theme-editor-external-theme-settings">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+          {isRTL ? "ثيم خارجي" : "External theme"}
+        </p>
+        <h2 className="text-sm font-semibold mt-0.5 truncate" title={themeName}>
+          {themeName}
+        </h2>
+      </div>
+      <SchemaForm settings={settings} values={values} onChange={onChange} />
     </div>
   );
 }
