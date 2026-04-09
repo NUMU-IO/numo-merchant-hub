@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Theme-specific API calls for the NUMU merchant dashboard.
  */
 
@@ -154,7 +154,7 @@ export function publishCustomization(storeId: string): Promise<CustomizationData
   });
 }
 
-// ─── V2 Section Engine ────────────────────────────────────────────────────────
+// â”€â”€â”€ V2 Section Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface SectionSettingDefinition {
   key: string;
@@ -211,4 +211,168 @@ export interface ThemeSchemaBundle {
 // Fetch theme schemas (global + section schemas)
 export function fetchThemeSchemas(themeId: string): Promise<ThemeSchemaBundle> {
   return apiClient<ThemeSchemaBundle>(`/storefront/themes/${themeId}/schemas`);
+}
+
+// â”€â”€â”€ External Themes (BYOT) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export interface ExternalThemeSettingDefinition {
+  key: string;
+  type: "color" | "text" | "checkbox" | "select" | "range" | "image";
+  label: string;
+  description?: string;
+  default?: string | number | boolean;
+  group?: string;
+  options?: Array<{ label: string; value: string }>;
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+}
+
+export interface ExternalThemeSettingsSchema {
+  settings: ExternalThemeSettingDefinition[];
+}
+
+export interface StoreThemeListItem {
+  id: string;
+  name: string;
+  nameAr: string;
+  layout: string;
+  description: string;
+  is_external: boolean;
+  bundle_url?: string;
+  css_url?: string;
+  version?: string;
+  source_repo?: string;
+  settings_schema?: ExternalThemeSettingsSchema;
+  /** "dev" for local dev server, undefined for production CDN themes */
+  mode?: "dev" | null;
+}
+
+export interface StoreThemesListResponse {
+  themes: StoreThemeListItem[];
+  active_theme_id: string | null;
+}
+
+/** Fetch all themes available to a store (built-in + external) */
+export function fetchStoreThemes(storeId: string): Promise<StoreThemesListResponse> {
+  return apiClient<StoreThemesListResponse>(`/stores/${storeId}/themes`);
+}
+
+export type ThemeBuildStatus =
+  | "queued"
+  | "cloning"
+  | "validating"
+  | "building"
+  | "uploading"
+  | "complete"
+  | "failed";
+
+export interface ThemeBuildResponse {
+  build_id: string;
+  status: ThemeBuildStatus;
+  message: string;
+}
+
+export interface ThemeBuildStatusResponse {
+  build_id: string;
+  status: ThemeBuildStatus;
+  theme_id: string | null;
+  bundle_url: string | null;
+  css_url: string | null;
+  error: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface ExternalThemeInfoResponse {
+  has_external_theme: boolean;
+  theme_id: string | null;
+  bundle_url: string | null;
+  css_url: string | null;
+  version: string | null;
+  source_repo: string | null;
+  built_at: string | null;
+}
+
+/** Submit a GitHub URL to build an external theme */
+export function submitExternalTheme(
+  storeId: string,
+  githubUrl: string,
+  branch: string = "main",
+): Promise<ThemeBuildResponse> {
+  return apiClient<ThemeBuildResponse>(`/stores/${storeId}/themes/external`, {
+    method: "POST",
+    body: JSON.stringify({ github_url: githubUrl, branch }),
+  });
+}
+
+/**
+ * Connect a local theme dev server (running `numu-theme dev`) to this store.
+ * The backend probes the URL to verify it's reachable and reads the theme manifest.
+ */
+export function connectDevServer(
+  storeId: string,
+  devUrl: string,
+): Promise<ExternalThemeInfoResponse> {
+  return apiClient<ExternalThemeInfoResponse>(
+    `/stores/${storeId}/themes/external/dev-mode`,
+    {
+      method: "POST",
+      body: JSON.stringify({ dev_url: devUrl }),
+    },
+  );
+}
+
+/** Get the current external theme info for a store */
+export function fetchExternalThemeInfo(storeId: string): Promise<ExternalThemeInfoResponse> {
+  return apiClient<ExternalThemeInfoResponse>(`/stores/${storeId}/themes/external`);
+}
+
+/** Poll the build status by build_id */
+export function fetchBuildStatus(
+  storeId: string,
+  buildId: string,
+): Promise<ThemeBuildStatusResponse> {
+  return apiClient<ThemeBuildStatusResponse>(
+    `/stores/${storeId}/themes/external/builds/${buildId}`,
+  );
+}
+
+/** Remove the external theme and revert to a built-in fallback */
+export function removeExternalTheme(
+  storeId: string,
+  fallbackTheme: string = "modern",
+): Promise<{ removed: boolean; fallback_theme: string }> {
+  return apiClient<{ removed: boolean; fallback_theme: string }>(
+    `/stores/${storeId}/themes/external`,
+    {
+      method: "DELETE",
+      body: JSON.stringify({ fallback_theme: fallbackTheme }),
+    },
+  );
+}
+
+export async function rebuildExternalTheme(
+  storeId: string,
+  branch?: string
+): Promise<{ status: string; task_id: string; message: string }> {
+  return apiClient<{ status: string; task_id: string; message: string }>(
+    "/stores/$storeId/themes/external/rebuild",
+    {
+      method: "POST",
+      body: JSON.stringify({ branch }),
+    }
+  );
+}
+
+export async function validateExternalTheme(
+  storeId: string
+): Promise<{ valid: boolean; errors: any[]; warnings: any[]; contract_version: string }> {
+  return apiClient<{ valid: boolean; errors: any[]; warnings: any[]; contract_version: string }>(
+    "/stores/$storeId/themes/external/validate",
+    {
+      method: "POST",
+    }
+  );
 }
