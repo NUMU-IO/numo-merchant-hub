@@ -59,6 +59,8 @@ const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const OnboardingWizard = lazy(() => import("@/pages/OnboardingWizard"));
 const Waitlist = lazy(() => import("@/pages/Waitlist"));
 const TokenHandoff = lazy(() => import("@/pages/TokenHandoff"));
+const BillingPage = lazy(() => import("@/pages/billing/Billing"));
+const Referrals = lazy(() => import("@/pages/Referrals"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -216,6 +218,8 @@ const App = () => (
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/notifications" element={<Notifications />} />
+                    <Route path="/billing" element={<BillingPage />} />
+                    <Route path="/referrals" element={<Referrals />} />
                     <Route path="/cod" element={<CODReconciliation />} />
                     {/* Redirect old route */}
                     <Route path="/shipments" element={<Navigate to="/logistics" replace />} />
