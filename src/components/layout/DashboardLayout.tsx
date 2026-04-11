@@ -11,6 +11,7 @@ import { Outlet, useNavigate } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
 import MobileBottomNav from "./MobileBottomNav";
+import DemoBanner from "@/components/demo/DemoBanner";
 
 function PageFallback() {
   return (
@@ -55,7 +56,9 @@ const DashboardLayout = () => {
           <AppHeader />
           <main className="flex-1 overflow-auto">
             <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:px-8 lg:py-6">
-              {/* Trial banners hidden during beta — re-enable when paid plans launch */}
+              {/* Demo mode banner — shows countdown + "Save my work" CTA */}
+              <DemoBanner />
+              {/* Store status alerts */}
               {currentStore?.status === "suspended" && (
                 <Alert className="mb-5 rounded-xl border-red-200 bg-red-50/80 dark:border-red-500/30 dark:bg-red-950/40">
                   <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />

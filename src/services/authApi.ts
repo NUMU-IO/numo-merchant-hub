@@ -15,6 +15,20 @@ if (!import.meta.env.VITE_API_URL) {
 }
 const API_BASE = import.meta.env.VITE_API_URL;
 
+export interface TenantInfo {
+  id: string;
+  name: string;
+  subdomain: string;
+  plan: string;
+  lifecycle_state: string;
+  is_demo: boolean;
+  is_on_trial: boolean;
+  is_read_only: boolean;
+  is_writable: boolean;
+  expires_at: string | null;
+  days_remaining: number | null;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -29,6 +43,7 @@ export interface User {
   trial_ends_at: string | null;
   created_at: string;
   updated_at: string;
+  tenant: TenantInfo | null;
 }
 
 export interface AuthResponse {
