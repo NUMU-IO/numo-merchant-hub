@@ -10,8 +10,6 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, Navigate } from "react-router-dom";
-import { rawFetch } from "@/services/api";
-
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const TokenHandoff = () => {
@@ -30,7 +28,7 @@ const TokenHandoff = () => {
 
     (async () => {
       try {
-        const res = await rawFetch(`${API_BASE}/auth/token-handoff`, {
+        const res = await fetch(`${API_BASE}/auth/token-handoff`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
