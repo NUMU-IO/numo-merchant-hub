@@ -3,12 +3,28 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import {,, validateExternalTheme, ThemeValidationResponse} from "@/services/themeApi";
+import {
+  fetchThemes,
+  fetchCustomization,
+  updateCustomization,
+  publishCustomization,
+  fetchStoreThemes,
+  submitExternalTheme,
+  fetchBuildStatus,
+  removeExternalTheme,
+  connectDevServer,
+  rebuildExternalTheme,
+  validateExternalTheme,
+  type AvailableTheme,
+  type CustomizationData,
+  type StoreThemeListItem,
+  type ThemeBuildStatus,
+  type ThemeValidationResponse,
+} from "@/services/themeApi";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
@@ -230,12 +246,12 @@ export default function OnlineStoreThemes() {
     onSuccess: (res) => {
       if(res.data) {
         let msg = res.data.valid ? "Theme is valid!\n" : "Theme has errors.\n";
-        res.data.errors.forEach((e: any) => msg += `- Error: ${e.message}\n`);
-        res.data.warnings.forEach((w: any) => msg += `- Warning: ${w.message}\n`);
+        res.data.errors.forEach((e) => msg += `- Error: ${e.message}\n`);
+        res.data.warnings.forEach((w) => msg += `- Warning: ${w.message}\n`);
         toast[res.data.valid ? "success" : "error"](res.data.valid ? "Validation Passed" : "Validation Failed", { description: msg });
       }
     },
-    onError: (err: any) => toast.error("Validation Error", { description: err.message || "Failed validate." })
+    onError: (err: Error) => toast.error("Validation Error", { description: err.message || "Failed validate." })
   });
 
   const rebuildThemeMutation = useMutation({
@@ -244,7 +260,7 @@ export default function OnlineStoreThemes() {
       toast.success("Rebuild Started", { description: res.data.message || "Task queued." });
       setPollBuildId(res.data.task_id || null);
     },
-    onError: (err: any) => toast.error("Rebuild Error", { description: err.message || "Failed queue." })
+    onError: (err: Error) => toast.error("Rebuild Error", { description: err.message || "Failed queue." })
   });
 
   const removeExternalMutation = useMutation({
@@ -290,7 +306,7 @@ export default function OnlineStoreThemes() {
             id: externalThemeFromStore.id,
             name: externalThemeFromStore.name,
             nameAr: externalThemeFromStore.nameAr,
-            layout: externalThemeFromStore.layout as any,
+            layout: externalThemeFromStore.layout as AvailableTheme["layout"],
             description: externalThemeFromStore.description,
           },
         ]

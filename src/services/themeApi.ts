@@ -366,11 +366,19 @@ export async function rebuildExternalTheme(
   );
 }
 
+export interface ThemeValidationResponse {
+  valid: boolean;
+  errors: Array<{ file?: string; line?: number; path?: string; message: string; severity: string }>;
+  warnings: Array<{ file?: string; line?: number; path?: string; message: string; severity: string }>;
+  contract_version: string | null;
+  bundle_size_bytes?: number;
+}
+
 export async function validateExternalTheme(
   storeId: string
-): Promise<{ valid: boolean; errors: any[]; warnings: any[]; contract_version: string }> {
-  return apiClient<{ valid: boolean; errors: any[]; warnings: any[]; contract_version: string }>(
-    "/stores/$storeId/themes/external/validate",
+): Promise<ThemeValidationResponse> {
+  return apiClient<ThemeValidationResponse>(
+    `/stores/${storeId}/themes/external/validate`,
     {
       method: "POST",
     }
