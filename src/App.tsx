@@ -58,6 +58,7 @@ const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const OnboardingWizard = lazy(() => import("@/pages/OnboardingWizard"));
 const Waitlist = lazy(() => import("@/pages/Waitlist"));
+const TokenHandoff = lazy(() => import("@/pages/TokenHandoff"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -125,6 +126,7 @@ const App = () => (
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/waitlist" element={<Waitlist />} />
+                  <Route path="/token-handoff" element={<TokenHandoff />} />
 
                   {/* Auth required, verification pending */}
                   <Route
