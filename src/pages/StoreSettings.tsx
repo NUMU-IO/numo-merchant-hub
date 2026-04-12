@@ -858,6 +858,12 @@ const StoreSettings = () => {
     setClosureMessageAr((s.closure_message_ar as string) || "");
     setReopenDate((s.reopen_at as string) || "");
     setShowCountdown(s.show_countdown === "true" || s.show_countdown === true);
+    setPolicyTexts({
+      return: (s.return_policy as string) || "",
+      shipping: (s.shipping_policy as string) || "",
+      privacy: (s.privacy_policy as string) || "",
+      terms: (s.terms_of_service as string) || "",
+    });
   }, [currentStore?.id]);
 
   // Fetch available themes
@@ -2493,7 +2499,29 @@ const StoreSettings = () => {
               className="font-mono text-sm"
             />
             <div className="pt-4">
-              <Button onClick={() => toast.success(t("store.saved"))}>
+              <Button
+                disabled={isSaving}
+                onClick={async () => {
+                  if (!currentStore?.id) return;
+                  setIsSaving(true);
+                  try {
+                    await updateStore(currentStore.id, {
+                      settings: {
+                        return_policy: policyTexts.return,
+                        shipping_policy: policyTexts.shipping,
+                        privacy_policy: policyTexts.privacy,
+                        terms_of_service: policyTexts.terms,
+                      },
+                    });
+                    await refetchStores();
+                    toast.success(t("store.saved"));
+                  } catch (err) {
+                    showError(err, language);
+                  } finally {
+                    setIsSaving(false);
+                  }
+                }}
+              >
                 {t("store.save")}
               </Button>
             </div>
