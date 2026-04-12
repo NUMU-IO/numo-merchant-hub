@@ -647,7 +647,7 @@ export default function ThemeEditor() {
               onShowAdd={setShowAddPicker}
             />
           ) : (
-            <ThemeSettingsSidebar groups={THEME_FIELD_GROUPS} data={localData} isRTL={isRTL} onChange={updateGlobalField} />
+            <ThemeSettingsSidebar groups={THEME_FIELD_GROUPS} data={localData} isRTL={isRTL} onChange={updateGlobalField} schemaSettings={schemaBundle?.global_settings} />
           )}
         </aside>
 
@@ -1052,10 +1052,25 @@ function SchemaFieldControl({
 
 // ─── Theme settings sidebar (reused from before) ────────────────────────────
 
-function ThemeSettingsSidebar({ groups, data, isRTL, onChange }: {
+function ThemeSettingsSidebar({ groups, data, isRTL, onChange, schemaSettings }: {
   groups: ThemeFieldGroup[]; data: CustomizationData | null; isRTL: boolean;
   onChange: (path: string, value: unknown) => void;
+  schemaSettings?: SectionSettingDefinition[];
 }) {
+  // Group per-theme schema settings by their group field
+  const schemaGroups = useMemo(() => {
+    if (!schemaSettings?.length) return [];
+    const map = new Map<string, { groupAr?: string; settings: SectionSettingDefinition[] }>();
+    for (const s of schemaSettings) {
+      const g = s.group ?? "Other";
+      // Skip groups already handled by the hardcoded THEME_FIELD_GROUPS (Colors, Typography, Style)
+      if (g === "Colors" || g === "Typography" || g === "Style") continue;
+      if (!map.has(g)) map.set(g, { groupAr: s.groupAr, settings: [] });
+      map.get(g)!.settings.push(s);
+    }
+    return Array.from(map.entries());
+  }, [schemaSettings]);
+
   return (
     <div className="py-3" data-testid="theme-editor-theme-settings">
       {groups.map((group) => (
@@ -1068,6 +1083,20 @@ function ThemeSettingsSidebar({ groups, data, isRTL, onChange }: {
               <FieldControl key={field.key} field={field}
                 value={data ? getNestedValue(data, field.key) : undefined}
                 isRTL={isRTL} onChange={(v) => onChange(field.key, v)} compact />
+            ))}
+          </div>
+        </div>
+      ))}
+      {schemaGroups.map(([groupName, { groupAr, settings }]) => (
+        <div key={groupName} className="px-4 py-3 border-b last:border-b-0">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 mb-3">
+            {isRTL ? (groupAr ?? groupName) : groupName}
+          </p>
+          <div className="space-y-4">
+            {settings.map((setting) => (
+              <SchemaFieldControl key={setting.key} setting={setting}
+                value={data ? getNestedValue(data, `theme.${setting.key}`) : (setting.default ?? undefined)}
+                isRTL={isRTL} onChange={(v) => onChange(`theme.${setting.key}`, v)} />
             ))}
           </div>
         </div>

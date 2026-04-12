@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Store, CreditCard, Share2, Banknote,
   Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
   Palette, FileText, Navigation2, SlidersHorizontal, ChevronLeft, Filter, Radio,
-  Lightbulb, LineChart, MousePointerClick, DollarSign,
+  Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { NavLink } from "@/components/NavLink";
@@ -210,6 +210,16 @@ const AppSidebar = () => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
+                {/* Referrals */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/referrals")} tooltip={isRTL ? "الإحالات" : "Referrals"} className="h-10 rounded-lg px-3">
+                    <NavLink to="/referrals">
+                      <UserPlus className="h-[18px] w-[18px] opacity-70" />
+                      <span className="text-[13px] font-medium">{isRTL ? "الإحالات" : "Referrals"}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
                 {/* Analytics — clickable + expandable sub-items */}
                 {renderExpandableItem(
                   isRTL ? "التحليلات" : "Analytics",
@@ -254,6 +264,7 @@ const AppSidebar = () => {
               { title: isRTL ? "الدفع عند الاستلام" : "COD", url: "/cod", icon: Banknote },
               { title: isRTL ? "السوشيال ميديا" : "Social", url: "/social", icon: Share2 },
               { title: isRTL ? "الفواتير" : "Invoices", url: "/invoices", icon: Receipt },
+              { title: isRTL ? "الاشتراك والفواتير" : "Billing", url: "/billing", icon: HandCoins },
             ],
             false,
             "operations",

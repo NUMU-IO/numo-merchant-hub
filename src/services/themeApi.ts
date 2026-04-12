@@ -25,6 +25,8 @@ export interface CustomizationTheme {
   heading_font: string;
   body_font: string;
   nav_style: string;
+  /** Per-theme settings (hero_headline, show_product_rating, etc.) */
+  [key: string]: unknown;
 }
 
 export interface CustomizationIdentity {
