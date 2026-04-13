@@ -84,3 +84,53 @@ export async function apiClient<T>(
   const json = await res.json();
   return json.data;
 }
+
+export async function apiClientFormData<T>(
+  endpoint: string,
+  formData: FormData,
+): Promise<T> {
+  let res: Response;
+  try {
+    res = await rawFetch(endpoint, {
+      method: "POST",
+      body: formData,
+    });
+  } catch (err) {
+    throw apiErrorFromNetwork(err);
+  }
+
+  if (res.status === 403) {
+    const body = await res.json().catch(() => null);
+    if (body?.detail === "CSRF validation failed") {
+      await initCSRF();
+      try {
+        res = await rawFetch(endpoint, {
+          method: "POST",
+          body: formData,
+        });
+      } catch (err) {
+        throw apiErrorFromNetwork(err);
+      }
+    } else {
+      throw new ApiError(403, body?.detail || null);
+    }
+  }
+
+  if (res.status === 401) {
+    if (window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
+    throw new ApiError(401, null);
+  }
+
+  if (!res.ok) {
+    throw await apiErrorFromResponse(res);
+  }
+
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  const json = await res.json();
+  return json.data;
+}
