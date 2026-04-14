@@ -15,6 +15,9 @@ import {
   type ThemeSchemaBundle,
   type StoreThemeListItem,
 } from "@/services/themeApi";
+import { useEditHistory } from "@/hooks/useEditHistory";
+import { MediaPickerDialog } from "@/components/theme-editor/MediaPickerDialog";
+import { LinkEditorPopover } from "@/components/theme-editor/LinkEditorPopover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +32,7 @@ import { showError } from "@/lib/show-error";
 import { getStoreUrl } from "@/lib/storefront";
 import { cn } from "@/lib/utils";
 import {
-  ArrowLeft, Monitor, Smartphone, Undo2, Redo2, Globe,
+  ArrowLeft, Monitor, Smartphone, Tablet, Undo2, Redo2, Globe,
   Loader2, Layout, Package, Navigation2, Image, AlignLeft,
   Palette, Store, RefreshCw, Plus, Trash2, Eye, EyeOff,
   ChevronUp, ChevronDown, GripVertical, CreditCard, MessageCircle, CheckCircle, User,
@@ -162,6 +165,8 @@ const EDITABLE_PAGES: PageDef[] = [
   { id: "contact", name: "Contact", nameAr: "التواصل", icon: MessageCircle, previewPath: "/contact" },
   { id: "order-confirmation", name: "Order Confirmation", nameAr: "تأكيد الطلب", icon: CheckCircle, previewPath: "/order-confirmation" },
   { id: "profile", name: "Profile", nameAr: "الحساب", icon: User, previewPath: "/profile" },
+  { id: "lookbook", name: "Lookbook", nameAr: "لوك بوك", icon: Image, previewPath: "/lookbook" },
+  { id: "faq", name: "FAQ", nameAr: "الأسئلة الشائعة", icon: MessageCircle, previewPath: "/faq" },
 ];
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
@@ -210,6 +215,30 @@ export default function ThemeEditor() {
   const [activePage, setActivePage] = useState<string>("home");
   const [allTemplates, setAllTemplates] = useState<Record<string, TemplateConfigData>>({});
 
+  // History for undo/redo
+  const {
+    state: historyState,
+    setState: setHistoryState,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useEditHistory<{ templates: Record<string, TemplateConfigData> }>({ templates: {} });
+
+  // Sync history state with templates
+  useEffect(() => {
+    if (Object.keys(allTemplates).length > 0 && initializedRef.current) {
+      setHistoryState({ templates: allTemplates });
+    }
+  }, [allTemplates, setHistoryState]);
+
+  // Sync history state back to templates (for undo/redo)
+  useEffect(() => {
+    if (historyState.templates && Object.keys(historyState.templates).length > 0 && initializedRef.current) {
+      setAllTemplates(historyState.templates);
+    }
+  }, [historyState]);
+
   // Active template for the currently selected page
   const template = allTemplates[activePage] ?? null;
 
@@ -227,9 +256,14 @@ export default function ThemeEditor() {
   const [activeTab, setActiveTab] = useState<"sections" | "theme">("sections");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<"section" | "global">("section");
-  const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
+  const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [previewKey, setPreviewKey] = useState(0);
   const [showAddPicker, setShowAddPicker] = useState(false);
+  const [insertAfterSectionId, setInsertAfterSectionId] = useState<string | null>(null);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [mediaPickerTarget, setMediaPickerTarget] = useState<{ sectionId?: string; path?: string; settingKey?: string; type: "section" | "global" } | null>(null);
+  const [showLinkEditor, setShowLinkEditor] = useState(false);
+  const [linkEditorTarget, setLinkEditorTarget] = useState<{ sectionId: string; textKey: string; urlKey: string; type: "section" } | null>(null);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initializedRef = useRef(false);
@@ -357,6 +391,21 @@ export default function ThemeEditor() {
           templates: allTemplates,
         },
       }, "*");
+
+      if (template && schemaBundle) {
+        const sectionsMeta = template.order.map((id) => {
+          const inst = template.sections[id];
+          const schema = sectionSchemaMap.get(inst?.type ?? "");
+          return {
+            id,
+            type: inst?.type ?? "",
+            name: schema?.name ?? inst?.type ?? "",
+            nameAr: schema?.nameAr,
+            disabled: inst?.disabled ?? false,
+          };
+        });
+        target.postMessage({ type: "NUMU_SECTIONS_META", sections: sectionsMeta }, "*");
+      }
     } catch { /* iframe not ready */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localData, allTemplates]);
@@ -368,8 +417,180 @@ export default function ThemeEditor() {
   }, [sendThemeToIframe]);
 
   const handleIframeLoad = useCallback(() => {
-    setTimeout(sendThemeToIframe, 500);
+    setTimeout(() => {
+      sendThemeToIframe();
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: "NUMU_EDIT_MODE", enabled: true },
+        "*"
+      );
+    }, 500);
   }, [sendThemeToIframe]);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      const { data } = event;
+      if (!data?.type) return;
+
+      if (data.type === "NUMU_INLINE_EDIT") {
+        const { target, value } = data as { target: string; value: string };
+        if (!target || typeof value !== "string") return;
+        applyInlineEdit(target, value);
+      }
+
+      if (data.type === "NUMU_INLINE_FOCUS") {
+        const { target } = data as { target: string };
+        if (!target) return;
+        focusSettingInPanel(target);
+      }
+
+      if (data.type === "NUMU_SECTION_CLICK") {
+        const { sectionId } = data;
+        if (sectionId) {
+          // Find which page this section belongs to
+          for (const [pageId, tmpl] of Object.entries(allTemplates)) {
+            if (tmpl.sections[sectionId]) {
+              if (pageId !== activePage) setActivePage(pageId);
+              break;
+            }
+          }
+          setSelectedId(sectionId);
+          setSelectedType("section");
+        }
+      }
+
+      if (data.type === "NUMU_SECTION_ACTION") {
+        const { sectionId, action } = data;
+        if (!sectionId) return;
+        if (action === "toggle") toggleSection(sectionId);
+        if (action === "delete") removeSection(sectionId);
+      }
+
+      if (data.type === "NUMU_INSERT_SECTION") {
+        const { afterSectionId } = data;
+        setInsertAfterSectionId(afterSectionId ?? null);
+        setShowAddPicker(true);
+      }
+
+      if (data.type === "NUMU_TOOLBAR_ACTION") {
+        const { target, action, linkKey } = data;
+        if (!target) return;
+
+        if (action === "replace_image") {
+          const [kind, ...rest] = target.split(":");
+          if (kind === "section" && rest.length === 2) {
+            setMediaPickerTarget({ sectionId: rest[0], settingKey: rest[1], type: "section" });
+            setShowMediaPicker(true);
+          } else if (kind === "global") {
+            setMediaPickerTarget({ path: rest.join(":"), type: "global" });
+            setShowMediaPicker(true);
+          }
+        }
+
+        if (action === "edit_link") {
+          const [kind, ...rest] = target.split(":");
+          if (kind === "section" && rest.length === 2) {
+            setLinkEditorTarget({ sectionId: rest[0], textKey: rest[1], urlKey: linkKey, type: "section" });
+            setShowLinkEditor(true);
+          }
+        }
+      }
+
+      if (data.type === "NUMU_DRAG_START") {
+        const { sectionId } = data;
+        if (sectionId) {
+          setSelectedId(sectionId);
+          setSelectedType("section");
+        }
+      }
+
+      if (data.type === "NUMU_DRAG_END") {
+        const { sectionId, targetSectionId, position } = data;
+        if (!sectionId || !targetSectionId || !position) return;
+        
+        setTemplate((prev) => {
+          if (!prev) return prev;
+          const order = prev.order.filter((id) => id !== sectionId);
+          const targetIdx = order.indexOf(targetSectionId);
+          const insertIdx = position === "before" ? targetIdx : targetIdx + 1;
+          order.splice(insertIdx, 0, sectionId);
+          return { ...prev, order };
+        });
+        setIsDirty(true);
+      }
+
+      if (data.type === "NUMU_DRAG_OVER") {
+        const { targetSectionId, position } = data;
+        if (targetSectionId && position) {
+          setSelectedId(targetSectionId);
+          setSelectedType("section");
+        }
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  // Send NUMU_SECTION_SELECT when selection changes
+  useEffect(() => {
+    if (selectedId && selectedType === "section") {
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: "NUMU_SECTION_SELECT", sectionId: selectedId }, "*"
+      );
+    }
+  }, [selectedId, selectedType]);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [undo, redo]);
+
+  function applyInlineEdit(target: string, value: string) {
+    const [kind, ...rest] = target.split(":");
+    if (kind === "section" && rest.length === 2) {
+      updateSectionSetting(rest[0], rest[1], value);
+    } else if (kind === "global" && rest.length === 1) {
+      updateGlobalField(rest[0], value);
+    }
+  }
+
+  function focusSettingInPanel(target: string) {
+    const [kind, ...rest] = target.split(":");
+
+    if (kind === "section" && rest.length >= 1) {
+      const sectionId = rest[0];
+      const settingKey = rest[1];
+      setSelectedId(sectionId);
+      setSelectedType("section");
+      if (settingKey) {
+        const testIdSuffix = settingKey.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+        setTimeout(() => {
+          const fieldEl = document.querySelector(`[data-testid="theme-editor-setting-${testIdSuffix}"]`);
+          fieldEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 150);
+      }
+    } else if (kind === "global" && rest.length === 1) {
+      const dotPath = rest[0];
+      const sectionId = dotPath.split(".")[0];
+      setSelectedId(sectionId);
+      setSelectedType("global");
+      const testIdSuffix = dotPath.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      setTimeout(() => {
+        const fieldEl = document.querySelector(`[data-testid="theme-editor-field-${testIdSuffix}"]`);
+        fieldEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 150);
+    }
+  }
 
   // ── Page change ──────────────────────────────────────────────────
   const handlePageChange = useCallback((pageId: string) => {
@@ -466,18 +687,34 @@ export default function ThemeEditor() {
 
     setTemplate((prev) => {
       if (!prev) return prev;
+      const newOrder = [...prev.order];
+      
+      if (insertAfterSectionId !== null) {
+        const idx = newOrder.indexOf(insertAfterSectionId);
+        if (idx !== -1) {
+          newOrder.splice(idx + 1, 0, newId);
+        } else {
+          newOrder.push(newId);
+        }
+      } else if (insertAfterSectionId === null && showAddPicker) {
+        newOrder.unshift(newId);
+      } else {
+        newOrder.push(newId);
+      }
+
       return {
         ...prev,
         sections: {
           ...prev.sections,
           [newId]: { id: newId, type: sectionType, settings: { ...defaults, ...preset } },
         },
-        order: [...prev.order, newId],
+        order: newOrder,
       };
     });
     setSelectedId(newId);
     setSelectedType("section");
     setShowAddPicker(false);
+    setInsertAfterSectionId(null);
     setIsDirty(true);
   }
 
@@ -549,16 +786,24 @@ export default function ThemeEditor() {
   // Available sections for the "add" picker (respect limits)
   const availableSections = useMemo(() => {
     if (!schemaBundle?.sections || !template) return [];
-    return schemaBundle.sections.filter((schema) => {
-      // Page sections (limit:1, page_section:true) are not manually addable
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const isPageSection = (schema as any).page_section === true;
+    
+    const result = schemaBundle.sections.filter((schema) => {
+      // Page sections (checkout, product-detail, etc.) are not manually addable
+      const isPageSection = 
+        schema.type === "checkout" ||
+        schema.type === "product-detail" ||
+        schema.type === "products-page" ||
+        schema.type === "order-confirmation" ||
+        schema.type === "contact" ||
+        schema.type === "profile";
       if (isPageSection) return false;
 
       if (!schema.limit || schema.limit === 0) return true;
       const existing = Object.values(template.sections).filter((s) => s.type === schema.type).length;
       return existing < schema.limit;
     });
+    
+    return result;
   }, [schemaBundle, template]);
 
   // ─── Render ────────────────────────────────────────────────────────
@@ -588,11 +833,25 @@ export default function ThemeEditor() {
 
         <div className="flex-1" />
 
+        {/* Undo/Redo */}
+        <div className="flex items-center gap-1 me-2">
+          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">
+            <Undo2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)">
+            <Redo2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        <div className="h-5 w-px bg-border mx-1 shrink-0" />
+
         {/* Device */}
         <div className="flex items-center gap-1 me-2">
           <Button variant={device === "desktop" ? "secondary" : "ghost"} size="sm" className="h-7 w-7 px-0"
             data-testid="theme-editor-device-desktop"
             onClick={() => setDevice("desktop")}><Monitor className="h-3.5 w-3.5" /></Button>
+          <Button variant={device === "tablet" ? "secondary" : "ghost"} size="sm" className="h-7 w-7 px-0"
+            data-testid="theme-editor-device-tablet"
+            onClick={() => setDevice("tablet")}><Tablet className="h-3.5 w-3.5" /></Button>
           <Button variant={device === "mobile" ? "secondary" : "ghost"} size="sm" className="h-7 w-7 px-0"
             data-testid="theme-editor-device-mobile"
             onClick={() => setDevice("mobile")}><Smartphone className="h-3.5 w-3.5" /></Button>
@@ -645,6 +904,7 @@ export default function ThemeEditor() {
               onRemove={removeSection}
               onAdd={addSection}
               onShowAdd={setShowAddPicker}
+              setInsertAfterSectionId={setInsertAfterSectionId}
             />
           ) : (
             <ThemeSettingsSidebar groups={THEME_FIELD_GROUPS} data={localData} isRTL={isRTL} onChange={updateGlobalField} schemaSettings={schemaBundle?.global_settings} />
@@ -659,6 +919,8 @@ export default function ThemeEditor() {
                 "relative bg-white shadow-2xl transition-all duration-300 ease-in-out overflow-hidden",
                 device === "mobile"
                   ? "w-[390px] rounded-[36px] border-[6px] border-zinc-800 shadow-[0_30px_80px_rgba(0,0,0,0.25)]"
+                  : device === "tablet"
+                  ? "w-[768px] h-full border-[6px] border-zinc-800 rounded-[24px] shadow-lg"
                   : "w-full h-full rounded-none border-none shadow-none"
               )} style={device === "mobile" ? { height: "calc(100% - 48px)" } : { height: "100%" }} data-testid="theme-editor-preview-shell">
                 <iframe ref={iframeRef} key={previewKey} src={storeUrl}
@@ -680,14 +942,46 @@ export default function ThemeEditor() {
         {/* Right panel — Settings for selected item */}
         {selectedId && (
           <aside className="w-[300px] shrink-0 border-s bg-card overflow-y-auto" data-testid="theme-editor-settings-panel">
-            {selectedType === "section" && template ? (
-              <SectionSettingsPanel
-                sectionId={selectedId}
-                instance={template.sections[selectedId]}
-                schema={sectionSchemaMap.get(template.sections[selectedId]?.type)}
-                isRTL={isRTL}
-                onChange={updateSectionSetting}
-              />
+            {selectedType === "section" ? (
+              (() => {
+                // Search all templates for the section
+                let foundInstance: SectionInstanceData | undefined = undefined;
+                let foundPageId = activePage;
+                
+                // First check active page template
+                if (template?.sections[selectedId]) {
+                  foundInstance = template.sections[selectedId];
+                } else {
+                  // Search all page templates
+                  for (const [pageId, tmpl] of Object.entries(allTemplates)) {
+                    if (tmpl.sections[selectedId]) {
+                      foundInstance = tmpl.sections[selectedId];
+                      foundPageId = pageId;
+                      break;
+                    }
+                  }
+                }
+                
+                if (!foundInstance) {
+                  return <div className="p-4 text-sm text-muted-foreground">Section not found</div>;
+                }
+                
+                const schema = sectionSchemaMap.get(foundInstance.type);
+                return (
+                  <SectionSettingsPanel
+                    sectionId={selectedId}
+                    instance={foundInstance}
+                    schema={schema}
+                    isRTL={isRTL}
+                    onChange={(id, key, value) => {
+                      // Switch to the correct page if needed
+                      if (foundPageId !== activePage) setActivePage(foundPageId);
+                      updateSectionSetting(id, key, value);
+                    }}
+                    onBack={() => setSelectedId(null)}
+                  />
+                );
+              })()
             ) : selectedType === "global" ? (
               <GlobalSettingsPanel
                 sectionId={selectedId}
@@ -697,6 +991,37 @@ export default function ThemeEditor() {
               />
             ) : null}
           </aside>
+        )}
+
+        <MediaPickerDialog
+          open={showMediaPicker}
+          onOpenChange={setShowMediaPicker}
+          storeId={storeId}
+          onSelect={(url) => {
+            if (mediaPickerTarget?.type === "section" && mediaPickerTarget.sectionId && mediaPickerTarget.settingKey) {
+              updateSectionSetting(mediaPickerTarget.sectionId, mediaPickerTarget.settingKey, url);
+            } else if (mediaPickerTarget?.type === "global" && mediaPickerTarget.path) {
+              updateGlobalField(mediaPickerTarget.path, url);
+            }
+            setShowMediaPicker(false);
+          }}
+        />
+
+        {showLinkEditor && linkEditorTarget && (
+          <LinkEditorPopover
+            open={showLinkEditor}
+            onOpenChange={setShowLinkEditor}
+            sectionId={linkEditorTarget.sectionId}
+            textKey={linkEditorTarget.textKey}
+            urlKey={linkEditorTarget.urlKey}
+            currentText={String(template?.sections[linkEditorTarget.sectionId]?.settings?.[linkEditorTarget.textKey] ?? "")}
+            currentUrl={String(template?.sections[linkEditorTarget.sectionId]?.settings?.[linkEditorTarget.urlKey] ?? "")}
+            onSave={(text, url) => {
+              updateSectionSetting(linkEditorTarget.sectionId, linkEditorTarget.textKey, text);
+              updateSectionSetting(linkEditorTarget.sectionId, linkEditorTarget.urlKey, url);
+              setShowLinkEditor(false);
+            }}
+          />
         )}
       </div>
     </div>
@@ -709,7 +1034,7 @@ function SectionsPanel({
   activePage, onPageChange, isHomePage,
   template, schemaMap, selectedId, selectedType, isRTL,
   showAddPicker, availableSections,
-  onSelectSection, onSelectGlobal, onMove, onToggle, onRemove, onAdd, onShowAdd,
+  onSelectSection, onSelectGlobal, onMove, onToggle, onRemove, onAdd, onShowAdd, setInsertAfterSectionId,
 }: {
   activePage: string;
   onPageChange: (pageId: string) => void;
@@ -728,7 +1053,11 @@ function SectionsPanel({
   onRemove: (id: string) => void;
   onAdd: (type: string) => void;
   onShowAdd: (show: boolean) => void;
+  setInsertAfterSectionId: (id: string | null) => void;
 }) {
+  const [headerGroupOpen, setHeaderGroupOpen] = useState(true);
+  const [footerGroupOpen, setFooterGroupOpen] = useState(true);
+
   return (
     <div className="flex flex-col h-full" data-testid="theme-editor-sections-panel">
       {/* Global sections (header, footer, identity) */}
@@ -736,19 +1065,50 @@ function SectionsPanel({
         <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">
           {isRTL ? "عام" : "Global"}
         </p>
-        {GLOBAL_SECTIONS.map((gs) => {
-          const Icon = gs.icon;
-          const active = selectedType === "global" && selectedId === gs.id;
-          return (
-            <button key={gs.id} onClick={() => onSelectGlobal(gs.id)}
-              data-testid={`theme-editor-global-${gs.id}`}
-              className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] font-medium transition-colors mb-0.5",
-                active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
-              <Icon className="h-3.5 w-3.5 shrink-0" />
-              {isRTL ? gs.nameAr : gs.name}
-            </button>
-          );
-        })}
+        
+        <div className="border-b">
+          <button onClick={() => setHeaderGroupOpen(!headerGroupOpen)}
+            className="flex w-full items-center justify-between px-2.5 py-2 rounded-lg text-[12px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors mb-0.5">
+            <div className="flex items-center gap-2.5">
+              <Navigation2 className="h-3.5 w-3.5 shrink-0" />
+              {isRTL ? "الرأس" : "Header"}
+            </div>
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", headerGroupOpen && "rotate-180")} />
+          </button>
+          {headerGroupOpen && (
+            <div className="pb-1">
+              <button key="identity" onClick={() => onSelectGlobal("identity")}
+                data-testid={`theme-editor-global-identity`}
+                className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] font-medium transition-colors mb-0.5",
+                  selectedType === "global" && selectedId === "identity" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                <Store className="h-3.5 w-3.5 shrink-0" />
+                {isRTL ? "هوية المتجر" : "Identity"}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="border-b">
+          <button onClick={() => setFooterGroupOpen(!footerGroupOpen)}
+            className="flex w-full items-center justify-between px-2.5 py-2 rounded-lg text-[12px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors mb-0.5">
+            <div className="flex items-center gap-2.5">
+              <Layout className="h-3.5 w-3.5 shrink-0" />
+              {isRTL ? "التذييل" : "Footer"}
+            </div>
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", footerGroupOpen && "rotate-180")} />
+          </button>
+          {footerGroupOpen && (
+            <div className="pb-1">
+              <button key="footer-global" onClick={() => onSelectGlobal("footer")}
+                data-testid={`theme-editor-global-footer`}
+                className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] font-medium transition-colors mb-0.5",
+                  selectedType === "global" && selectedId === "footer" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                <Layout className="h-3.5 w-3.5 shrink-0" />
+                {isRTL ? "إعدادات التذييل" : "Footer settings"}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="mx-3 h-px bg-border" />
@@ -781,6 +1141,17 @@ function SectionsPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-2">
+        {/* Insertion point before first section */}
+        <div
+          className="group relative h-3 flex items-center justify-center cursor-pointer -my-1"
+          onClick={() => { setInsertAfterSectionId(null); onShowAdd(true); }}
+        >
+          <div className="absolute inset-x-3 h-[2px] bg-transparent group-hover:bg-primary/40 transition-colors rounded" />
+          <div className="w-5 h-5 rounded-full bg-primary text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10">
+            +
+          </div>
+        </div>
+
         {template?.order.map((sectionId, idx) => {
           const instance = template.sections[sectionId];
           if (!instance) return null;
@@ -789,45 +1160,59 @@ function SectionsPanel({
           const name = schema ? (isRTL ? schema.nameAr ?? schema.name : schema.name) : instance.type;
           const active = selectedType === "section" && selectedId === sectionId;
           const disabled = instance.disabled;
+          const prevSectionId = idx > 0 ? template.order[idx - 1] : null;
 
           return (
-            <div key={sectionId}
-              data-testid="theme-editor-section-item"
-              data-section-id={sectionId}
-              data-section-type={instance.type}
-              className={cn("group flex items-center gap-1 rounded-lg mb-0.5 transition-colors",
-                active ? "bg-primary/10 ring-1 ring-primary/20" : "hover:bg-muted",
-                disabled && "opacity-50")}>
-              {/* Grip */}
-              <GripVertical className="h-3 w-3 text-muted-foreground/30 shrink-0 ms-1" />
+            <div key={sectionId}>
+              {/* Insertion point before this section */}
+              <div
+                className="group relative h-3 flex items-center justify-center cursor-pointer -my-1"
+                onClick={() => { setInsertAfterSectionId(prevSectionId); onShowAdd(true); }}
+              >
+                <div className="absolute inset-x-3 h-[2px] bg-transparent group-hover:bg-primary/40 transition-colors rounded" />
+                <div className="w-5 h-5 rounded-full bg-primary text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10">
+                  +
+                </div>
+              </div>
 
-              {/* Name — clickable */}
-              <button onClick={() => onSelectSection(sectionId)}
-                data-testid={`theme-editor-section-select-${sectionId}`}
-                className="flex-1 flex items-center gap-2 py-2 px-1 text-[12px] font-medium text-start truncate">
-                <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate">{name}</span>
-              </button>
+              <div
+                data-testid="theme-editor-section-item"
+                data-section-id={sectionId}
+                data-section-type={instance.type}
+                className={cn("group flex items-center gap-1 rounded-lg mb-0.5 transition-colors",
+                  active ? "bg-primary/10 ring-1 ring-primary/20" : "hover:bg-muted",
+                  disabled && "opacity-50")}>
+                {/* Grip */}
+                <GripVertical className="h-3 w-3 text-muted-foreground/30 shrink-0 ms-1" />
 
-              {/* Actions */}
-              <div className="flex items-center gap-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 me-1">
-                <button onClick={() => onMove(sectionId, "up")} disabled={idx === 0}
-                  data-testid="theme-editor-section-move-up"
-                  data-section-id={sectionId}
-                  className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-20"><ChevronUp className="h-3 w-3" /></button>
-                <button onClick={() => onMove(sectionId, "down")} disabled={idx === template.order.length - 1}
-                  data-testid="theme-editor-section-move-down"
-                  data-section-id={sectionId}
-                  className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-20"><ChevronDown className="h-3 w-3" /></button>
-                <button onClick={() => onToggle(sectionId)} className="p-1 text-muted-foreground hover:text-foreground"
-                  data-testid="theme-editor-section-toggle"
-                  data-section-id={sectionId}>
-                  {disabled ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                {/* Name — clickable */}
+                <button onClick={() => onSelectSection(sectionId)}
+                  data-testid={`theme-editor-section-select-${sectionId}`}
+                  className="flex-1 flex items-center gap-2 py-2 px-1 text-[12px] font-medium text-start truncate">
+                  <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{name}</span>
                 </button>
-                <button onClick={() => onRemove(sectionId)}
-                  data-testid="theme-editor-section-delete"
-                  data-section-id={sectionId}
-                  className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+
+                {/* Actions */}
+                <div className="flex items-center gap-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 me-1">
+                  <button onClick={() => onMove(sectionId, "up")} disabled={idx === 0}
+                    data-testid="theme-editor-section-move-up"
+                    data-section-id={sectionId}
+                    className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-20"><ChevronUp className="h-3 w-3" /></button>
+                  <button onClick={() => onMove(sectionId, "down")} disabled={idx === template.order.length - 1}
+                    data-testid="theme-editor-section-move-down"
+                    data-section-id={sectionId}
+                    className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-20"><ChevronDown className="h-3 w-3" /></button>
+                  <button onClick={() => onToggle(sectionId)} className="p-1 text-muted-foreground hover:text-foreground"
+                    data-testid="theme-editor-section-toggle"
+                    data-section-id={sectionId}>
+                    {disabled ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </button>
+                  <button onClick={() => onRemove(sectionId)}
+                    data-testid="theme-editor-section-delete"
+                    data-section-id={sectionId}
+                    className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+                </div>
               </div>
             </div>
           );
@@ -870,13 +1255,14 @@ function SectionsPanel({
 // ─── Section settings panel (right sidebar) ─────────────────────────────────
 
 function SectionSettingsPanel({
-  sectionId, instance, schema, isRTL, onChange,
+  sectionId, instance, schema, isRTL, onChange, onBack,
 }: {
   sectionId: string;
   instance: SectionInstanceData | undefined;
   schema: SectionSchemaData | undefined;
   isRTL: boolean;
   onChange: (sectionId: string, key: string, value: unknown) => void;
+  onBack: () => void;
 }) {
   if (!instance || !schema) {
     return <div className="p-4 text-sm text-muted-foreground">{isRTL ? "قسم غير معروف" : "Unknown section"}</div>;
@@ -892,9 +1278,12 @@ function SectionSettingsPanel({
 
   return (
     <div className="py-3" data-testid="theme-editor-section-settings">
-      <div className="px-4 pb-3 border-b">
-        <h3 className="text-sm font-semibold">{isRTL ? schema.nameAr ?? schema.name : schema.name}</h3>
-        <p className="text-[11px] text-muted-foreground mt-0.5">{instance.type}</p>
+      {/* Back button header */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b">
+        <button onClick={onBack} className="p-1 rounded hover:bg-muted">
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-medium">{isRTL ? schema.nameAr ?? schema.name : schema.name}</span>
       </div>
       {Array.from(groups.entries()).map(([group, settings]) => (
         <div key={group} className="px-4 py-3 border-b last:border-b-0">
