@@ -178,7 +178,17 @@ export default function OnlineStoreThemes() {
 
   const switchMutation = useMutation({
     mutationFn: async (themeId: string) => {
-      // Save the theme to draft, then auto-publish so storefront picks it up
+      // If an external theme is currently installed, detach it first.
+      // Otherwise theme_settings.external_theme sticks around and the
+      // storefront's theme resolver can keep honoring it over base_theme.
+      const hasExternal = storeThemes?.themes?.some((t) => t.is_external);
+      if (hasExternal) {
+        try {
+          await removeExternalTheme(storeId, themeId);
+        } catch {
+          // 404 (no external) or transient — safe to ignore, proceed to switch
+        }
+      }
       await updateCustomization(storeId, { theme: { base_theme: themeId } });
       await publishCustomization(storeId);
     },

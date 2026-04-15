@@ -115,6 +115,7 @@ import type { SettingValue } from "@/components/theme-editor/SettingControl";
 import { updateStore, uploadStoreAsset } from "@/services/storeApi";
 import { apiClient } from "@/services/api";
 import { getStoreUrl, getStoreDomainSuffix } from "@/lib/storefront";
+import { FontGallery } from "@/components/theme-editor/FontGallery";
 import {
   fetchShippingSettings,
   addShippingZone,
@@ -136,21 +137,6 @@ import {
 } from "@/services/storeApi";
 
 // ─── Preload Google Fonts for font picker ────────────────────────────────────
-const AVAILABLE_FONTS = [
-  "Cairo",
-  "Tajawal",
-  "IBM Plex Sans Arabic",
-  "Noto Sans Arabic",
-  "El Messiri",
-  "Almarai",
-  "Changa",
-  "Rubik",
-  "Readex Pro",
-  "Inter",
-  "Poppins",
-  "Space Grotesk",
-];
-
 const HARDCODED_FONT_SETTINGS = [
   {
     key: "heading_font",
@@ -181,19 +167,6 @@ function ensureFontSettings(
   return missing.length ? [...settings, ...missing] : settings;
 }
 
-const _fontsPreloaded = { done: false };
-function preloadAllFonts() {
-  if (_fontsPreloaded.done) return;
-  _fontsPreloaded.done = true;
-  const families = AVAILABLE_FONTS.map(
-    (f) => `family=${encodeURIComponent(f)}:wght@400;600;700`,
-  ).join("&");
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
-  document.head.appendChild(link);
-}
-
 // ─── Inline Setting Field Renderer ──────────────────────────────────────────
 
 function SettingField({
@@ -214,46 +187,12 @@ function SettingField({
     const currentFont =
       (value as string) || (setting.default as string) || "Cairo";
     return (
-      <div className="grid gap-2">
-        <Label>{label}</Label>
-        <div
-          className="rounded-lg border bg-muted/30 p-3 text-center"
-          style={{ fontFamily: `'${currentFont}', sans-serif` }}
-        >
-          <p className="text-lg font-bold">أهلاً وسهلاً</p>
-          <p className="text-sm text-muted-foreground">
-            Hello World — {currentFont}
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5 max-h-[240px] overflow-y-auto rounded-lg border p-1.5">
-          {AVAILABLE_FONTS.map((fontName) => {
-            const isSelected = fontName === currentFont;
-            return (
-              <button
-                key={fontName}
-                type="button"
-                onClick={() => onChange(setting.key, fontName)}
-                className={`rounded-md px-2.5 py-2 text-start transition-all hover:bg-accent/50 ${
-                  isSelected
-                    ? "bg-primary/10 border border-primary ring-1 ring-primary/20"
-                    : "border border-transparent"
-                }`}
-                style={{ fontFamily: `'${fontName}', sans-serif` }}
-              >
-                <span className="block text-sm font-semibold truncate">
-                  {fontName}
-                </span>
-                <span
-                  className="block text-xs text-muted-foreground mt-0.5"
-                  style={{ fontFamily: `'${fontName}', sans-serif` }}
-                >
-                  مرحباً بالعالم
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <FontGallery
+        label={label}
+        value={currentFont}
+        onChange={(family) => onChange(setting.key, family)}
+        language={language as "en" | "ar"}
+      />
     );
   }
 
@@ -833,11 +772,6 @@ const StoreSettings = () => {
   );
 
   // ─── Effects ────────────────────────────────────────────────────────────
-
-  // Preload all Google Fonts on mount so font picker shows actual styles
-  useEffect(() => {
-    preloadAllFonts();
-  }, []);
 
   // Pre-populate profile from currentStore
   useEffect(() => {
@@ -2880,365 +2814,38 @@ const StoreSettings = () => {
           </div>
         )}
 
-        {/* ─── Customization ─── */}
+        {/* ─── Theme Customization (redirects to Theme Editor) ─── */}
         {activeSection === "customization" && (
           <div key="customization" className="settings-section-enter">
-            {/* Onboarding walkthrough */}
-            <CustomizationWalkthrough
-              language={language}
-              forceShow={showWalkthrough}
-              onDismiss={() => setShowWalkthrough(false)}
-            />
-
-            <div className="settings-section-header">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2>{t("store.customization")}</h2>
-                  <p>
-                    {language === "ar"
-                      ? `ثيم: ${availableThemes.find((t) => t.id === activeTheme)?.nameAr || activeTheme}`
-                      : `Theme: ${availableThemes.find((t) => t.id === activeTheme)?.name || activeTheme}`}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      resetWalkthrough();
-                      setShowWalkthrough(true);
-                    }}
-                    className="gap-1.5 text-muted-foreground h-8"
-                    title={language === "ar" ? "دليل الاستخدام" : "Show guide"}
-                  >
-                    <Compass className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    data-tour="preview-toggle"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowPreview((v) => !v)}
-                    className="gap-2 h-8"
-                  >
-                    {showPreview ? (
-                      <EyeOff className="h-3.5 w-3.5" />
-                    ) : (
-                      <Eye className="h-3.5 w-3.5" />
-                    )}
-                    <span className="hidden sm:inline">
-                      {showPreview
-                        ? language === "ar"
-                          ? "إخفاء"
-                          : "Hide"
-                        : language === "ar"
-                          ? "معاينة"
-                          : "Preview"}
-                    </span>
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Side-by-side: settings + resizable preview */}
-            <div ref={splitRef} className="flex" style={{ gap: 0 }}>
-              {/* Settings panel */}
-              <div
-                className="space-y-5 overflow-y-auto"
-                style={{
-                  width: showPreview ? `${100 - previewPct}%` : "100%",
-                  maxHeight: showPreview ? "calc(100vh - 10rem)" : undefined,
-                  paddingInlineEnd: showPreview ? "0.75rem" : 0,
-                }}
-              >
-                {/* Active theme indicator */}
-                <div className="flex items-center gap-4 rounded-xl border bg-gradient-to-r from-muted/15 to-transparent p-4">
-                  <div
-                    className="h-11 w-11 rounded-xl flex items-center justify-center shadow-sm ring-1 ring-border/20"
-                    style={{
-                      backgroundColor: (
-                        THEME_PREVIEWS[activeTheme] || THEME_PREVIEWS.modern
-                      ).bg,
-                    }}
-                  >
-                    <span className="text-lg">
-                      {
-                        (THEME_PREVIEWS[activeTheme] || THEME_PREVIEWS.modern)
-                          .icon
-                      }
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold tracking-tight truncate">
-                      {language === "ar"
-                        ? availableThemes.find((t) => t.id === activeTheme)
-                            ?.nameAr || activeTheme
-                        : availableThemes.find((t) => t.id === activeTheme)
-                            ?.name || activeTheme}
-                    </p>
-                    <p className="text-xs text-muted-foreground/70">
-                      {language === "ar"
-                        ? "الثيم المفعّل حالياً"
-                        : "Currently active theme"}
-                    </p>
-                  </div>
-                  <div className="flex gap-1.5">
-                    {["primary_color", "secondary_color", "accent_color"].map(
-                      (key) => (
-                        <div
-                          key={key}
-                          className="h-5 w-5 rounded-full ring-2 ring-background shadow-sm transition-transform hover:scale-110"
-                          style={{
-                            backgroundColor: String(themeState[key] || "#ccc"),
-                          }}
-                          title={key.replace(/_/g, " ")}
-                        />
-                      ),
-                    )}
-                  </div>
-                </div>
-
-                {/* Colors & Typography */}
-                <div
-                  data-tour="colors-typography"
-                  className="rounded-xl border bg-muted/5 p-5"
+            <Card className="border-2 border-dashed border-primary/30 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Palette className="h-5 w-5 text-primary" />
+                  {language === "ar" ? "تخصيص الثيم" : "Theme Customization"}
+                </CardTitle>
+                <CardDescription>
+                  {language === "ar"
+                    ? "استخدم محرر الثيم المتقدم لتخصيص ثيم متجرك"
+                    : "Use the advanced Theme Editor to customize your store theme"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  asChild
+                  className="gap-2"
                 >
-                  <div className="flex items-center gap-2.5 mb-5 pb-3 border-b border-border/20">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-                      <Palette className="h-3.5 w-3.5 text-primary" />
-                    </div>
-                    <h3 className="text-sm font-bold tracking-tight">
-                      {language === "ar"
-                        ? "الألوان والخطوط"
-                        : "Colors & Typography"}
-                    </h3>
-                  </div>
-                  {themeSchemaBundle?.global_settings ? (
-                    <SchemaForm
-                      settings={ensureFontSettings(
-                        themeSchemaBundle.global_settings,
-                      )}
-                      values={themeState}
-                      onChange={handleThemeSettingChange}
-                    />
-                  ) : (
-                    <div className="space-y-5">
-                      {Array.from(groupedThemeSettings).map(
-                        ([group, settings]) => (
-                          <div key={group} className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <div className="h-px flex-1 bg-border" />
-                              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-2">
-                                {language === "ar"
-                                  ? settings[0].groupAr
-                                  : group}
-                              </span>
-                              <div className="h-px flex-1 bg-border" />
-                            </div>
-                            <div
-                              className={`grid gap-3 ${showPreview ? "grid-cols-1" : "sm:grid-cols-2"}`}
-                            >
-                              {settings.map((setting) => (
-                                <SettingField
-                                  key={setting.key}
-                                  setting={setting}
-                                  value={themeState[setting.key]}
-                                  onChange={handleThemeSettingChange}
-                                  language={language}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        ),
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* V2: Home Page Sections */}
-                {templateConfig && themeSchemaBundle && (
-                  <div
-                    data-tour="home-sections"
-                    className="rounded-xl border bg-muted/5 p-5"
-                  >
-                    <div className="flex items-center gap-2.5 mb-5 pb-3 border-b border-border/20">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-                        <LayoutGrid className="h-3.5 w-3.5 text-primary" />
-                      </div>
-                      <h3 className="text-sm font-bold tracking-tight">
-                        {language === "ar"
-                          ? "أقسام الصفحة الرئيسية"
-                          : "Home Page Sections"}
-                      </h3>
-                    </div>
-                    <div className="space-y-4">
-                      {selectedSectionId &&
-                      templateConfig.sections[selectedSectionId] ? (
-                        (() => {
-                          const section =
-                            templateConfig.sections[selectedSectionId];
-                          const schema = themeSchemaBundle.sections.find(
-                            (s) => s.type === section.type,
-                          );
-                          if (!schema) return null;
-                          return (
-                            <SectionEditor
-                              section={section}
-                              schema={schema}
-                              onChange={handleSectionSettingChange}
-                              onBack={() => setSelectedSectionId(null)}
-                            />
-                          );
-                        })()
-                      ) : (
-                        <SectionList
-                          template={templateConfig}
-                          sectionSchemas={themeSchemaBundle.sections}
-                          selectedSectionId={selectedSectionId}
-                          onSelectSection={setSelectedSectionId}
-                          onReorder={handleSectionReorder}
-                          onToggleSection={handleToggleSection}
-                          onAddSection={handleAddSection}
-                          onRemoveSection={handleRemoveSection}
-                        />
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Store-wide settings accordion */}
-                <div>
-                  <div className="flex items-center gap-2.5 mb-4">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted/30">
-                      <ScrollText className="h-3.5 w-3.5 text-muted-foreground" />
-                    </div>
-                    <h3 className="text-sm font-bold tracking-tight">
-                      {language === "ar" ? "إعدادات المتجر" : "Store Settings"}
-                    </h3>
-                  </div>
-                  <Accordion type="multiple" className="space-y-2">
-                    {SECTION_CONFIG.map((section) => (
-                      <AccordionItem
-                        key={section.key}
-                        value={section.key}
-                        className="border rounded-xl px-4"
-                      >
-                        <AccordionTrigger className="hover:no-underline gap-3 py-3">
-                          <div className="flex items-center gap-2.5">
-                            <section.icon className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-sm font-medium">
-                              {language === "ar"
-                                ? section.labelAr
-                                : section.label}
-                            </span>
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="space-y-4 pb-4 pt-1">
-                          {section.settings.map((setting) => (
-                            <SettingField
-                              key={setting.key}
-                              setting={setting}
-                              value={sectionStates[section.key]?.[setting.key]}
-                              onChange={handleSectionChange(section.key)}
-                              language={language}
-                            />
-                          ))}
-                          {section.key === "navigation" && (
-                            <NavLinksEditor
-                              links={navLinks}
-                              onChange={(links) => {
-                                setNavLinks(links);
-                                setIsDirty(true);
-                              }}
-                              language={language}
-                            />
-                          )}
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-                </div>
-              </div>
-
-              {/* Drag handle */}
-              {showPreview && (
-                <div
-                  className="w-2 shrink-0 cursor-col-resize group flex items-center justify-center hover:bg-primary/10 rounded transition-colors"
-                  onMouseDown={startResize}
-                >
-                  <div className="w-0.5 h-12 rounded-full bg-border group-hover:bg-primary/40 transition-colors" />
-                </div>
-              )}
-
-              {/* Live preview */}
-              {showPreview && (
-                <div
-                  className="sticky top-4 self-start"
-                  style={{ width: `${previewPct}%` }}
-                >
-                  <div className="overflow-hidden h-[calc(100vh-10rem)] border-2 border-primary/10 rounded-xl">
-                    <ThemePreview
-                      key={activeTheme}
-                      storeSubdomain={currentStore?.subdomain}
-                      settings={buildFullPayload()}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Add Section Sheet */}
-            {themeSchemaBundle && (
-              <AddSectionSheet
-                open={showAddSheet}
-                onOpenChange={setShowAddSheet}
-                sectionSchemas={themeSchemaBundle.sections}
-                onAddSection={handleAddSection}
-              />
-            )}
+                  <a href="/online-store/theme-editor">
+                    <Sparkles className="h-4 w-4" />
+                    {language === "ar" ? "فتح محرر الثيم" : "Open Theme Editor"}
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         )}
-      </div>
 
-      {/* ═══ Sticky Save Bar (for customization) ═══ */}
-      {activeSection === "customization" && (
-        <div className="settings-save-bar" data-visible={isDirty}>
-          {isDirty && (
-            <Badge
-              variant="outline"
-              className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-[10px]"
-            >
-              {language === "ar" ? "تغييرات غير محفوظة" : "Unsaved changes"}
-            </Badge>
-          )}
-          <Button
-            onClick={saveDraft}
-            disabled={isSaving}
-            variant="outline"
-            size="sm"
-            className="gap-2 h-8"
-          >
-            {isSaving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Settings2 className="h-3.5 w-3.5" />
-            )}
-            {language === "ar" ? "حفظ مسودة" : "Save Draft"}
-          </Button>
-          <Button
-            onClick={publish}
-            disabled={isSaving}
-            size="sm"
-            className="gap-2 h-8"
-          >
-            {isSaving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Check className="h-3.5 w-3.5" />
-            )}
-            {language === "ar" ? "نشر" : "Publish"}
-          </Button>
-        </div>
-      )}
+      </div>
 
       {/* Logo Crop Dialog */}
       {logoCropSrc && (
