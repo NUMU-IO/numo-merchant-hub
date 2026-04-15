@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import { getStoreUrl } from "@/lib/storefront";
 import { cn } from "@/lib/utils";
+import { FontGallery } from "@/components/theme-editor/FontGallery";
 import {
   ArrowLeft, Monitor, Smartphone, Tablet, Undo2, Redo2, Globe,
   Loader2, Layout, Package, Navigation2, Image, AlignLeft,
@@ -110,8 +111,8 @@ const THEME_FIELD_GROUPS: ThemeFieldGroup[] = [
   {
     group: "Typography", groupAr: "الخطوط",
     fields: [
-      { key: "theme.heading_font", label: "Heading font", labelAr: "خط العناوين", type: "select", options: ["Inter", "Cairo", "Playfair Display", "DM Sans", "Raleway", "Poppins"] },
-      { key: "theme.body_font", label: "Body font", labelAr: "خط النصوص", type: "select", options: ["Inter", "Cairo", "DM Sans", "Source Sans 3", "Nunito", "Roboto"] },
+      { key: "theme.heading_font", label: "Heading font", labelAr: "خط العناوين", type: "font" },
+      { key: "theme.body_font", label: "Body font", labelAr: "خط النصوص", type: "font" },
     ],
   },
   {
@@ -1196,19 +1197,27 @@ function SectionsPanel({
                 {/* Actions */}
                 <div className="flex items-center gap-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 me-1">
                   <button onClick={() => onMove(sectionId, "up")} disabled={idx === 0}
+                    aria-label={isRTL ? "تحريك لأعلى" : "Move up"}
+                    title={isRTL ? "تحريك لأعلى" : "Move up"}
                     data-testid="theme-editor-section-move-up"
                     data-section-id={sectionId}
                     className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-20"><ChevronUp className="h-3 w-3" /></button>
                   <button onClick={() => onMove(sectionId, "down")} disabled={idx === template.order.length - 1}
+                    aria-label={isRTL ? "تحريك لأسفل" : "Move down"}
+                    title={isRTL ? "تحريك لأسفل" : "Move down"}
                     data-testid="theme-editor-section-move-down"
                     data-section-id={sectionId}
                     className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-20"><ChevronDown className="h-3 w-3" /></button>
                   <button onClick={() => onToggle(sectionId)} className="p-1 text-muted-foreground hover:text-foreground"
+                    aria-label={disabled ? (isRTL ? "إظهار القسم" : "Show section") : (isRTL ? "إخفاء القسم" : "Hide section")}
+                    title={disabled ? (isRTL ? "إظهار القسم" : "Show section") : (isRTL ? "إخفاء القسم" : "Hide section")}
                     data-testid="theme-editor-section-toggle"
                     data-section-id={sectionId}>
                     {disabled ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                   </button>
                   <button onClick={() => onRemove(sectionId)}
+                    aria-label={isRTL ? "حذف القسم" : "Delete section"}
+                    title={isRTL ? "حذف القسم" : "Delete section"}
                     data-testid="theme-editor-section-delete"
                     data-section-id={sectionId}
                     className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
@@ -1280,7 +1289,10 @@ function SectionSettingsPanel({
     <div className="py-3" data-testid="theme-editor-section-settings">
       {/* Back button header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b">
-        <button onClick={onBack} className="p-1 rounded hover:bg-muted">
+        <button onClick={onBack}
+          aria-label={isRTL ? "رجوع" : "Back"}
+          title={isRTL ? "رجوع" : "Back"}
+          className="p-1 rounded hover:bg-muted">
           <ArrowLeft className="h-4 w-4" />
         </button>
         <span className="text-sm font-medium">{isRTL ? schema.nameAr ?? schema.name : schema.name}</span>
@@ -1369,10 +1381,26 @@ function SchemaFieldControl({
         <Label className="text-[12px] font-medium">{label}</Label>
         <div className="flex items-center gap-2">
           <input type="color" value={colorVal} onChange={(e) => onChange(e.target.value)}
+            aria-label={label}
+            title={label}
             className="h-8 w-8 cursor-pointer rounded-md border border-input p-0.5 block shrink-0" data-testid={`${testId}-color`} />
           <Input value={colorVal} onChange={(e) => onChange(e.target.value)}
             className="h-8 font-mono text-[12px] flex-1" maxLength={7} data-testid={`${testId}-input`} />
         </div>
+      </div>
+    );
+  }
+
+  // Font picker for _font fields
+  if (setting.key.endsWith("_font") || setting.type === "font") {
+    const current = (value as string) || "Inter";
+    return (
+      <div className="space-y-1.5" data-testid={testId}>
+        <FontGallery
+          label={label}
+          value={current}
+          onChange={onChange}
+        />
       </div>
     );
   }
@@ -1518,6 +1546,8 @@ function FieldControl({ field, value, isRTL, onChange, compact = false }: {
         <Label className="text-[12px] font-medium">{label}</Label>
         <div className="flex items-center gap-2">
           <input type="color" value={colorVal} onChange={(e) => onChange(e.target.value)}
+            aria-label={label}
+            title={label}
             className="h-8 w-8 cursor-pointer rounded-md border border-input p-0.5 block shrink-0" data-testid={`${testId}-color`} />
           <Input value={colorVal} onChange={(e) => onChange(e.target.value)}
             className="h-8 font-mono text-[12px] flex-1" maxLength={7} data-testid={`${testId}-input`} />
@@ -1525,6 +1555,21 @@ function FieldControl({ field, value, isRTL, onChange, compact = false }: {
       </div>
     );
   }
+
+  // Font picker for _font fields (new-schema branch)
+  if (field.key?.endsWith("_font") || field.type === "font") {
+    const current = (value as string) || (field.default as string) || "Inter";
+    return (
+      <div className="space-y-1.5" data-testid={testId}>
+        <FontGallery
+          label={label}
+          value={current}
+          onChange={onChange}
+        />
+      </div>
+    );
+  }
+
   if (field.type === "select") {
     return (
       <div className="space-y-1.5" data-testid={testId}>
