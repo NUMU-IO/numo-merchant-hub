@@ -62,6 +62,11 @@ const TokenHandoff = lazy(() => import("@/pages/TokenHandoff"));
 const BillingPage = lazy(() => import("@/pages/billing/Billing"));
 const Referrals = lazy(() => import("@/pages/Referrals"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
+const Inbox = lazy(() => import("@/pages/Inbox"));
+const Channels = lazy(() => import("@/pages/Channels"));
+const WhatsAppTemplates = lazy(() => import("@/pages/WhatsAppTemplates"));
+const NewWhatsAppTemplate = lazy(() => import("@/pages/NewWhatsAppTemplate"));
+const MetaOAuthCallback = lazy(() => import("@/pages/MetaOAuthCallback"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -223,6 +228,13 @@ const App = () => (
                     <Route path="/cod" element={<CODReconciliation />} />
                     {/* Redirect old route */}
                     <Route path="/shipments" element={<Navigate to="/logistics" replace />} />
+                    {/* Omnichannel */}
+                    <Route path="/inbox" element={<Inbox />} />
+                    <Route path="/inbox/:threadId" element={<Inbox />} />
+                    <Route path="/channels" element={<Channels />} />
+                    <Route path="/channels/whatsapp/templates" element={<WhatsAppTemplates />} />
+                    <Route path="/channels/whatsapp/templates/new" element={<NewWhatsAppTemplate />} />
+                    <Route path="/channels/oauth/meta/callback" element={<MetaOAuthCallback />} />
                   </Route>
 
                   <Route path="*" element={<NotFound />} />
