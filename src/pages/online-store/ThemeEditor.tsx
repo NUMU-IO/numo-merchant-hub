@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
 import { uploadStoreAsset } from "@/services/storeApi";
+import { listProducts } from "@/services/productApi";
 
 // ─── Global settings (identity, header, footer) ────────────────────────────
 
@@ -1442,6 +1443,22 @@ function SchemaFieldControl({
     );
   }
 
+  if (setting.type === "products") {
+    const selected = Array.isArray(value)
+      ? (value as unknown[]).filter((x): x is string => typeof x === "string")
+      : [];
+    return (
+      <ProductPickerField
+        label={label}
+        helpText={isRTL ? (setting.helpAr ?? setting.help) : setting.help}
+        value={selected}
+        onChange={onChange}
+        isRTL={isRTL}
+        testId={testId}
+      />
+    );
+  }
+
   if (setting.type === "textarea" || setting.type === "richtext") {
     return (
       <div className="space-y-1.5" data-testid={testId}>
@@ -1536,6 +1553,127 @@ function ThemeSettingsSidebar({ groups, data, isRTL, onChange, schemaSettings }:
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Product picker field (featured collection sections) ──────────────────
+
+function ProductPickerField({
+  value, onChange, label, helpText, isRTL, testId,
+}: {
+  value: string[];
+  onChange: (ids: string[]) => void;
+  label: string;
+  helpText?: string;
+  isRTL: boolean;
+  testId: string;
+}) {
+  const { currentStore } = useDashboardStore();
+  const [query, setQuery] = useState("");
+  const { data, isLoading } = useQuery({
+    queryKey: ["theme-editor-products", currentStore?.id],
+    queryFn: () => listProducts(currentStore!.id, { limit: 200 }),
+    enabled: !!currentStore?.id,
+    staleTime: 60_000,
+  });
+
+  const allProducts = data?.items ?? [];
+  const selectedSet = new Set(value);
+  const filtered = query.trim()
+    ? allProducts.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()))
+    : allProducts;
+
+  const selected = value
+    .map((id) => allProducts.find((p) => p.id === id))
+    .filter((p): p is NonNullable<typeof p> => !!p);
+
+  const toggle = (id: string) => {
+    if (selectedSet.has(id)) {
+      onChange(value.filter((x) => x !== id));
+    } else {
+      onChange([...value, id]);
+    }
+  };
+
+  const move = (id: string, dir: -1 | 1) => {
+    const idx = value.indexOf(id);
+    if (idx === -1) return;
+    const next = idx + dir;
+    if (next < 0 || next >= value.length) return;
+    const copy = [...value];
+    [copy[idx], copy[next]] = [copy[next], copy[idx]];
+    onChange(copy);
+  };
+
+  return (
+    <div className="space-y-2" data-testid={testId}>
+      <Label className="text-[12px] font-medium">{label}</Label>
+      {helpText && <p className="text-[10.5px] text-muted-foreground leading-snug">{helpText}</p>}
+
+      {selected.length > 0 && (
+        <ul className="space-y-1">
+          {selected.map((p, i) => (
+            <li key={p.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-[11.5px]">
+              {p.images?.[0] && <img src={p.images[0]} alt="" className="h-7 w-7 rounded object-cover shrink-0" />}
+              <span className="flex-1 truncate">{p.name}</span>
+              <button type="button" onClick={() => move(p.id, -1)} disabled={i === 0}
+                className="px-1 disabled:opacity-30 hover:text-primary"
+                aria-label={isRTL ? "نقل لأعلى" : "Move up"} title={isRTL ? "نقل لأعلى" : "Move up"}
+              ><ChevronUp className="h-3 w-3" /></button>
+              <button type="button" onClick={() => move(p.id, 1)} disabled={i === selected.length - 1}
+                className="px-1 disabled:opacity-30 hover:text-primary"
+                aria-label={isRTL ? "نقل لأسفل" : "Move down"} title={isRTL ? "نقل لأسفل" : "Move down"}
+              ><ChevronDown className="h-3 w-3" /></button>
+              <button type="button" onClick={() => toggle(p.id)}
+                className="px-1 text-muted-foreground hover:text-destructive"
+                aria-label={isRTL ? "إزالة" : "Remove"} title={isRTL ? "إزالة" : "Remove"}
+              ><Trash2 className="h-3 w-3" /></button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={isRTL ? "ابحث عن منتج…" : "Search products…"}
+        aria-label={isRTL ? "ابحث عن منتج" : "Search products"}
+        title={isRTL ? "ابحث عن منتج" : "Search products"}
+        className="h-8 text-[12px]"
+      />
+
+      <div className="max-h-48 overflow-y-auto rounded-md border border-border">
+        {isLoading ? (
+          <div className="p-3 text-[11.5px] text-muted-foreground">{isRTL ? "جارٍ التحميل…" : "Loading…"}</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-3 text-[11.5px] text-muted-foreground">{isRTL ? "لا توجد منتجات" : "No products"}</div>
+        ) : (
+          <ul>
+            {filtered.map((p) => {
+              const checked = selectedSet.has(p.id);
+              return (
+                <li key={p.id}>
+                  <button type="button" onClick={() => toggle(p.id)}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-2 py-1.5 text-[11.5px] text-start hover:bg-accent transition-colors",
+                      checked && "bg-accent/50",
+                    )}>
+                    <span className={cn(
+                      "h-3.5 w-3.5 shrink-0 rounded border flex items-center justify-center",
+                      checked ? "bg-primary border-primary" : "border-input",
+                    )}>
+                      {checked && <CheckCircle className="h-2.5 w-2.5 text-primary-foreground" />}
+                    </span>
+                    {p.images?.[0] && <img src={p.images[0]} alt="" className="h-7 w-7 rounded object-cover shrink-0" />}
+                    <span className="flex-1 truncate">{p.name}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
