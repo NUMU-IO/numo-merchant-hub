@@ -169,6 +169,8 @@ const EDITABLE_PAGES: PageDef[] = [
   { id: "product-detail", name: "Product Detail", nameAr: "تفاصيل المنتج", icon: Package, previewPath: "/product/demo" },
   { id: "checkout", name: "Checkout", nameAr: "الدفع", icon: CreditCard, previewPath: "/checkout" },
   { id: "contact", name: "Contact", nameAr: "التواصل", icon: MessageCircle, previewPath: "/contact" },
+  { id: "about", name: "About", nameAr: "من نحن", icon: Layout, previewPath: "/about" },
+  { id: "auth", name: "Auth", nameAr: "تسجيل الدخول", icon: User, previewPath: "/auth" },
   { id: "order-confirmation", name: "Order Confirmation", nameAr: "تأكيد الطلب", icon: CheckCircle, previewPath: "/order-confirmation" },
   { id: "profile", name: "Profile", nameAr: "الحساب", icon: User, previewPath: "/profile" },
   { id: "lookbook", name: "Lookbook", nameAr: "لوك بوك", icon: Image, previewPath: "/lookbook" },
@@ -216,7 +218,13 @@ export default function ThemeEditor() {
   const queryClient = useQueryClient();
 
   const storeId = currentStore?.id ?? "";
-  const storeUrl = currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null;
+  // Append ?preview=1 so the storefront iframe renders in edit mode from the
+  // first paint (otherwise theme overrides like GildedContactPage flash before
+  // the postMessage NUMU_EDIT_MODE arrives).
+  const storeBaseUrl = currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null;
+  const storeUrl = storeBaseUrl
+    ? storeBaseUrl + (storeBaseUrl.includes("?") ? "&" : "?") + "preview=1"
+    : null;
 
   const [localData, setLocalData] = useState<CustomizationData | null>(null);
   const [activePage, setActivePage] = useState<string>("home");
@@ -633,13 +641,17 @@ export default function ThemeEditor() {
       setSelectedId(null);
     }
 
-    // Navigate iframe to the page's preview path
+    // Navigate iframe to the page's preview path (keep ?preview=1 so the
+    // storefront stays in edit mode across page switches).
     const pageDef = EDITABLE_PAGES.find((p) => p.id === pageId);
     if (pageDef && iframeRef.current?.contentWindow) {
+      const previewPath = pageDef.previewPath.includes("?")
+        ? `${pageDef.previewPath}&preview=1`
+        : `${pageDef.previewPath}?preview=1`;
       try {
         iframeRef.current.contentWindow.postMessage({
           type: "NUMU_NAVIGATE",
-          path: pageDef.previewPath,
+          path: previewPath,
         }, "*");
       } catch {
         // Fallback
