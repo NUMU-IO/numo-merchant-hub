@@ -4,6 +4,49 @@ import App from "./App.tsx";
 import "./i18n";
 import "./index.css";
 
+// ────────────────────────────────────────────────────────────────────────────
+// IMPERSONATION URL INTERCEPT
+// Intercept ?by=admin#handoff_token=... before the app mounts so that the
+// initial /auth/me call in AuthContext immediately uses the Bearer token
+// and loads the target merchant rather than the admin's own cookie session.
+// ────────────────────────────────────────────────────────────────────────────
+try {
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  const fragParams = new URLSearchParams(hash);
+  const queryParams = new URLSearchParams(window.location.search);
+
+  const handoffToken = fragParams.get("handoff_token");
+  const by =
+    queryParams.get("by") ||
+    fragParams.get("by") ||
+    (queryParams.get("impersonating") === "1" ? "admin" : null);
+
+  if (handoffToken) {
+    sessionStorage.setItem("numu.impersonation_token", handoffToken);
+    if (by) sessionStorage.setItem("numu.impersonating_by", by);
+    
+    // Strip from URL so it doesn't linger
+    queryParams.delete("by");
+    queryParams.delete("impersonating");
+    const rest = queryParams.toString();
+    const clean = window.location.pathname + (rest ? `?${rest}` : "");
+    window.history.replaceState({}, "", clean);
+  } else if (by && queryParams.get("impersonating") === "1") {
+    // Legacy fallback without handoff_token
+    sessionStorage.setItem("numu.impersonating_by", by);
+    queryParams.delete("by");
+    queryParams.delete("impersonating");
+    const rest = queryParams.toString();
+    const clean = window.location.pathname + (rest ? `?${rest}` : "");
+    window.history.replaceState({}, "", clean);
+  }
+} catch {
+  // Ignore URL parsing errors
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
   environment: import.meta.env.VITE_SENTRY_ENVIRONMENT || import.meta.env.MODE,
