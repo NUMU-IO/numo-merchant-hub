@@ -105,7 +105,10 @@ export default function OnlineStorePreferences() {
           seo_description:     form.seo_description,
           social_image_url:    form.social_image_url,
           password_enabled:    form.password_enabled,
-          storefront_password: form.password,
+          // When password protection is disabled, clear the stored password
+          // so the storefront gate unblocks even if it checks for a non-empty
+          // password as a secondary guard.
+          storefront_password: form.password_enabled ? form.password : "",
           ga_tracking_id:      form.ga_tracking_id,
           meta_pixel_id:       form.meta_pixel_id,
         },
@@ -362,7 +365,15 @@ export default function OnlineStorePreferences() {
             </div>
             <Switch
               checked={form.password_enabled}
-              onCheckedChange={(v) => set("password_enabled", v)}
+              onCheckedChange={(v) => {
+                setForm((p) => ({
+                  ...p,
+                  password_enabled: v,
+                  // Clear the password when disabling so it isn't sent on save.
+                  password: v ? p.password : "",
+                }));
+                setIsDirty(true);
+              }}
             />
           </div>
 
