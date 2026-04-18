@@ -56,7 +56,7 @@ export default {
     trialExpiredTitle: "انتهت الفترة التجريبية",
     trialExpiredDesc: "انتهت فترتك التجريبية. قم بترقية خطتك لمواصلة استخدام جميع الميزات.",
     storeSuspendedTitle: "المتجر معلّق",
-    storeSuspendedDesc: "تم تعليق متجرك ولن يظهر للعملاء. إذا كنت تعتقد أن هذا خطأ، تواصل مع support@numu.io.",
+    storeSuspendedDesc: "تم تعليق متجرك ولن يظهر للعملاء. إذا كنت تعتقد أن هذا خطأ، تواصل مع support@numueg.app.",
     pendingApprovalTitle: "في انتظار الموافقة",
     pendingApprovalDesc: "متجرك قيد المراجعة. يمكنك متابعة إعداد متجرك أثناء انتظار الموافقة.",
     healthTitle: "صحة المتجر",

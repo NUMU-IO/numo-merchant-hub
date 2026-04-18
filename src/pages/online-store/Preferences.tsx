@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { getStore, updateStore } from "@/services/storeApi";
+import { getStore, updateStore, uploadStoreAsset } from "@/services/storeApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,11 +12,12 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import {
-  Search, Share2, Lock, BarChart3, Save, Loader2, Info,
-  Eye, EyeOff, ShieldCheck, ShieldOff,
+  Search, Share2, BarChart3, Save, Loader2, Info,
+  Eye, EyeOff, ShieldCheck, ShieldOff, Upload, Image as ImageIcon, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
+import { ImageCropDialog } from "@/components/ImageCropDialog";
 
 interface PrefsState {
   seo_title: string;
@@ -257,46 +258,14 @@ export default function OnlineStorePreferences() {
 
       {/* ── Social sharing ───────────────────────────────────────────────────── */}
       <Section icon={<Share2 className="h-4 w-4" />} title={isRTL ? "صورة المشاركة الاجتماعية" : "Social sharing image"}>
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            {isRTL
-              ? "تظهر هذه الصورة عند مشاركة رابط متجرك على Facebook أو Twitter أو WhatsApp"
-              : "Shown when your store link is shared on Facebook, Twitter, or WhatsApp"}
-          </p>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">{isRTL ? "رابط الصورة" : "Image URL"}</Label>
-            <Input
-              value={form.social_image_url}
-              onChange={(e) => set("social_image_url", e.target.value)}
-              placeholder="https://cdn.example.com/og-image.jpg"
-              dir="ltr"
-            />
-          </div>
-          {/* Preview */}
-          {form.social_image_url ? (
-            <div className="rounded-xl border overflow-hidden bg-muted/20">
-              <img
-                src={form.social_image_url}
-                alt="OG preview"
-                className="w-full max-h-44 object-cover"
-                onError={(e) => ((e.target as HTMLImageElement).parentElement!.style.display = "none")}
-              />
-              <div className="px-3 py-2 border-t bg-muted/30">
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground/50">{storeUrl}</p>
-                <p className="text-sm font-semibold leading-tight mt-0.5">{seoTitle}</p>
-                {form.seo_description && (
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{form.seo_description}</p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border-2 border-dashed bg-muted/10 h-28 flex items-center justify-center">
-              <p className="text-xs text-muted-foreground/50">
-                {isRTL ? "أضف رابط الصورة لمعاينتها" : "Add an image URL to preview"}
-              </p>
-            </div>
-          )}
-        </div>
+        <SocialImageField
+          value={form.social_image_url}
+          onChange={(url) => set("social_image_url", url)}
+          storeUrl={storeUrl}
+          seoTitle={seoTitle}
+          seoDescription={form.seo_description}
+          isRTL={isRTL}
+        />
       </Section>
 
       {/* ── Tracking pixels ──────────────────────────────────────────────────── */}
@@ -465,6 +434,191 @@ function Section({
       </div>
       <div className="p-4">{children}</div>
     </section>
+  );
+}
+
+// ─── Social (Open Graph) image uploader ───────────────────────────────────────
+// OG standard aspect is 1.91:1 (1200×630). We crop to that before upload.
+const OG_ASPECT = 1200 / 630;
+const MAX_OG_BYTES = 5 * 1024 * 1024; // 5 MB
+
+function SocialImageField({
+  value,
+  onChange,
+  storeUrl,
+  seoTitle,
+  seoDescription,
+  isRTL,
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  storeUrl: string;
+  seoTitle: string;
+  seoDescription: string;
+  isRTL: boolean;
+}) {
+  const { currentStore } = useDashboardStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
+
+  useEffect(() => {
+    setPreviewError(false);
+  }, [value]);
+
+  const onPickFile = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error(isRTL ? "يجب أن يكون الملف صورة" : "File must be an image");
+      return;
+    }
+    if (file.size > MAX_OG_BYTES) {
+      toast.error(isRTL ? "الحد الأقصى لحجم الصورة 5 ميجا" : "Image must be under 5 MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const onCropDone = async (blob: Blob) => {
+    if (!currentStore?.id) return;
+    setUploading(true);
+    try {
+      const file = new File([blob], "social_image.jpg", { type: "image/jpeg" });
+      const result = await uploadStoreAsset(currentStore.id, file, "social_image");
+      onChange(result.url);
+      setCropSrc(null);
+      toast.success(isRTL ? "تم رفع الصورة" : "Image uploaded");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const hasImage = !!value && !previewError;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        {isRTL
+          ? "تظهر هذه الصورة عند مشاركة رابط متجرك على Facebook أو Twitter أو WhatsApp. الحجم الموصى به 1200×630 بكسل."
+          : "Shown when your store link is shared on Facebook, Twitter, or WhatsApp. Recommended size: 1200×630 px."}
+      </p>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        data-testid="social-image-file-input"
+        aria-label={isRTL ? "رفع صورة المشاركة الاجتماعية" : "Upload social sharing image"}
+        title={isRTL ? "اختر صورة" : "Choose an image"}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onPickFile(f);
+          e.target.value = "";
+        }}
+      />
+
+      {/* Preview card — matches the social-share card layout */}
+      {hasImage ? (
+        <div className="rounded-xl border overflow-hidden bg-muted/20">
+          <div className="relative">
+            <img
+              src={value}
+              alt="OG preview"
+              className="w-full aspect-[1.91/1] object-cover bg-muted"
+              onError={() => setPreviewError(true)}
+            />
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="absolute top-2 end-2 h-7 w-7 rounded-full bg-background/90 backdrop-blur-sm border shadow-sm flex items-center justify-center hover:bg-background text-muted-foreground hover:text-destructive transition-colors"
+              aria-label={isRTL ? "إزالة" : "Remove"}
+              data-testid="social-image-remove-btn"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="px-3 py-2 border-t bg-muted/30">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground/50 truncate">
+              {storeUrl.replace(/^https?:\/\//, "")}
+            </p>
+            <p className="text-sm font-semibold leading-tight mt-0.5 line-clamp-1">{seoTitle}</p>
+            {seoDescription && (
+              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{seoDescription}</p>
+            )}
+          </div>
+          <div className="px-3 py-2 border-t flex items-center justify-between gap-2">
+            <p className="text-[11px] text-muted-foreground truncate">
+              {isRTL ? "معاينة بطاقة المشاركة" : "Share card preview"}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 text-[11px]"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || !currentStore?.id}
+              data-testid="social-image-replace-btn"
+            >
+              {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+              {isRTL ? "استبدال" : "Replace"}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || !currentStore?.id}
+          className="group w-full rounded-xl border-2 border-dashed bg-muted/10 hover:bg-muted/20 hover:border-primary/40 transition-colors aspect-[1.91/1] flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+          data-testid="social-image-upload-btn"
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <p className="text-xs">{isRTL ? "جاري الرفع..." : "Uploading..."}</p>
+            </>
+          ) : (
+            <>
+              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                <ImageIcon className="h-5 w-5" />
+              </div>
+              <div className="text-center px-4">
+                <p className="text-xs font-medium">
+                  {isRTL ? "اضغط لرفع صورة" : "Click to upload an image"}
+                </p>
+                <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                  {isRTL ? "JPG, PNG, WebP · حتى 5MB" : "JPG, PNG, WebP · up to 5 MB"}
+                </p>
+              </div>
+            </>
+          )}
+        </button>
+      )}
+
+      {previewError && value && (
+        <p className="text-[11px] text-destructive">
+          {isRTL ? "تعذّر تحميل الصورة السابقة. ارفع واحدة جديدة." : "Couldn't load the previous image. Upload a new one."}
+        </p>
+      )}
+
+      {cropSrc && (
+        <ImageCropDialog
+          open={!!cropSrc}
+          onClose={() => setCropSrc(null)}
+          imageSrc={cropSrc}
+          cropShape="rect"
+          aspect={OG_ASPECT}
+          title={isRTL ? "تعديل صورة المشاركة (1200×630)" : "Edit share image (1200×630)"}
+          loading={uploading}
+          onCropComplete={onCropDone}
+        />
+      )}
+    </div>
   );
 }
 
