@@ -79,6 +79,20 @@ async function rawFetch(
     tenantHeaders["X-Tenant-Id"] = currentStoreId;
   }
 
+  // If an admin handed off an impersonation token into sessionStorage,
+  // send it as Bearer. sessionStorage is scoped per tab, so parallel
+  // impersonation tabs in the same browser each act as their own merchant
+  // without cookie collisions on `.numueg.app`.
+  const authHeaders: Record<string, string> = {};
+  try {
+    const handoff = sessionStorage.getItem("numu.impersonation_token");
+    if (handoff) {
+      authHeaders["Authorization"] = `Bearer ${handoff}`;
+    }
+  } catch {
+    /* sessionStorage unavailable — fall back to cookie auth */
+  }
+
   return fetch(`${API_BASE}${endpoint}`, {
     ...options,
     credentials: "include",
@@ -86,6 +100,7 @@ async function rawFetch(
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...csrfHeaders,
       ...tenantHeaders,
+      ...authHeaders,
       ...(options?.headers as Record<string, string> || {}),
     },
   });
