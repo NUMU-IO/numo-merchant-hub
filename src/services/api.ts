@@ -1,18 +1,62 @@
 /**
  * Base API client for the NUMU merchant dashboard.
+ *
  * Authentication is handled via httpOnly cookies set by the backend.
- * CSRF protection: token is stored in memory and sent as X-CSRF-Token
- * on every state-changing request (POST, PUT, PATCH, DELETE).
- * On 401, redirects to login page.
- * On 403 with CSRF failure, refreshes the token and retries once.
+ *
+ * - CSRF: token is stored in memory and attached as X-CSRF-Token on
+ *   state-changing requests. On 403 "CSRF validation failed", we
+ *   refetch the token and retry once.
+ *
+ * - 401: access token likely expired. We try to silently refresh via
+ *   POST /auth/refresh (which reads the refresh-token cookie); if that
+ *   succeeds, the new access-token cookie is set by the backend and we
+ *   retry the original request once. If refresh fails, THEN we bounce
+ *   to /login. Concurrent 401s across many feature services are
+ *   deduplicated onto a single in-flight refresh promise.
  */
 
 import { getCSRFToken, initCSRF } from "./csrf";
+import { refreshSession } from "./authApi";
 import { ApiError, apiErrorFromResponse, apiErrorFromNetwork } from "@/lib/api-error";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
+
+// Endpoints whose 401s must NOT trigger a refresh attempt. Refreshing on a
+// login/register 401 would be pointless (there's no session yet) and could
+// mask legitimate "wrong password" errors.
+const NO_REFRESH_PREFIXES = [
+  "/auth/refresh",  // infinite-loop guard
+  "/auth/login",
+  "/auth/register",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/google-login",
+  "/auth/complete-2fa-login",
+  "/auth/logout",
+];
+
+function shouldAttemptRefresh(endpoint: string): boolean {
+  return !NO_REFRESH_PREFIXES.some((p) => endpoint.startsWith(p));
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Refresh dedup: many feature services may fire requests in parallel and
+// all get 401 at the same moment. We share a single in-flight refresh
+// promise so they don't stampede /auth/refresh (which is rate-limited to
+// 5 req/min on the backend).
+// ────────────────────────────────────────────────────────────────────────────
+let pendingRefresh: Promise<boolean> | null = null;
+
+function attemptRefresh(): Promise<boolean> {
+  if (pendingRefresh) return pendingRefresh;
+  pendingRefresh = refreshSession().finally(() => {
+    // Clear on settlement so a later 401 (next token expiry) can try again.
+    pendingRefresh = null;
+  });
+  return pendingRefresh;
+}
 
 async function rawFetch(
   endpoint: string,
@@ -47,6 +91,35 @@ async function rawFetch(
   });
 }
 
+/**
+ * Handle a 401 by silently refreshing (if applicable) and retrying once.
+ * Returns the new Response after retry, or null if we should bounce to
+ * /login. The caller decides what to do with null.
+ */
+async function handle401(
+  endpoint: string,
+  options: RequestInit | undefined,
+  doFetch: () => Promise<Response>,
+): Promise<Response | null> {
+  if (!shouldAttemptRefresh(endpoint)) return null;
+
+  const refreshed = await attemptRefresh();
+  if (!refreshed) return null;
+
+  try {
+    return await doFetch();
+  } catch {
+    return null;
+  }
+}
+
+function redirectToLogin(): never {
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
+  throw new ApiError(401, null);
+}
+
 export async function apiClient<T>(
   endpoint: string,
   options?: RequestInit,
@@ -74,10 +147,13 @@ export async function apiClient<T>(
   }
 
   if (res.status === 401) {
-    if (window.location.pathname !== "/login") {
-      window.location.href = "/login";
+    const retried = await handle401(endpoint, options, () =>
+      rawFetch(endpoint, options),
+    );
+    if (retried === null) {
+      redirectToLogin();
     }
-    throw new ApiError(401, null);
+    res = retried;
   }
 
   if (!res.ok) {
@@ -100,12 +176,11 @@ export async function apiClientFormData<T>(
   endpoint: string,
   formData: FormData,
 ): Promise<T> {
+  const doFetch = () => rawFetch(endpoint, { method: "POST", body: formData });
+
   let res: Response;
   try {
-    res = await rawFetch(endpoint, {
-      method: "POST",
-      body: formData,
-    });
+    res = await doFetch();
   } catch (err) {
     throw apiErrorFromNetwork(err);
   }
@@ -115,10 +190,7 @@ export async function apiClientFormData<T>(
     if (body?.detail === "CSRF validation failed") {
       await initCSRF();
       try {
-        res = await rawFetch(endpoint, {
-          method: "POST",
-          body: formData,
-        });
+        res = await doFetch();
       } catch (err) {
         throw apiErrorFromNetwork(err);
       }
@@ -128,10 +200,11 @@ export async function apiClientFormData<T>(
   }
 
   if (res.status === 401) {
-    if (window.location.pathname !== "/login") {
-      window.location.href = "/login";
+    const retried = await handle401(endpoint, undefined, doFetch);
+    if (retried === null) {
+      redirectToLogin();
     }
-    throw new ApiError(401, null);
+    res = retried;
   }
 
   if (!res.ok) {
