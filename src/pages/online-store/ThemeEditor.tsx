@@ -411,6 +411,18 @@ export default function ThemeEditor() {
             disabled: inst?.disabled ?? false,
           };
         });
+        // Expose global chrome (header/footer/identity) to the overlay so
+        // hover labels show their friendly names instead of the raw
+        // "__global:*__" sentinel.
+        for (const g of GLOBAL_SECTIONS) {
+          sectionsMeta.push({
+            id: `__global:${g.id}__`,
+            type: "global",
+            name: g.name,
+            nameAr: g.nameAr,
+            disabled: false,
+          });
+        }
         target.postMessage({ type: "NUMU_SECTIONS_META", sections: sectionsMeta }, "*");
       }
     } catch { /* iframe not ready */ }
@@ -453,15 +465,24 @@ export default function ThemeEditor() {
       if (data.type === "NUMU_SECTION_CLICK") {
         const { sectionId } = data;
         if (sectionId) {
-          // Find which page this section belongs to
-          for (const [pageId, tmpl] of Object.entries(allTemplates)) {
-            if (tmpl.sections[sectionId]) {
-              if (pageId !== activePage) setActivePage(pageId);
-              break;
+          // Global regions are exposed to the storefront overlay with a
+          // "__global:<id>__" sentinel so a single click handler covers both
+          // section-engine sections and chrome like header/footer/identity.
+          const globalMatch = /^__global:(.+)__$/.exec(sectionId);
+          if (globalMatch) {
+            setSelectedId(globalMatch[1]);
+            setSelectedType("global");
+          } else {
+            // Find which page this section belongs to
+            for (const [pageId, tmpl] of Object.entries(allTemplates)) {
+              if (tmpl.sections[sectionId]) {
+                if (pageId !== activePage) setActivePage(pageId);
+                break;
+              }
             }
+            setSelectedId(sectionId);
+            setSelectedType("section");
           }
-          setSelectedId(sectionId);
-          setSelectedType("section");
         }
       }
 
