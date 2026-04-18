@@ -247,9 +247,23 @@ const AppHeader = () => {
           {/* Profile — rich panel */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2 h-8 rounded-lg ps-1.5 pe-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2 h-8 rounded-lg ps-1.5 pe-2"
+              >
+                <span className="hidden text-xs font-medium text-muted-foreground sm:block max-w-[160px] truncate">
+                  {user?.email}
+                </span>
                 {user?.avatar_url ? (
-                  <img src={user.avatar_url} alt="" width={24} height={24} loading="lazy" className="h-6 w-6 rounded-full object-cover ring-2 ring-border" />
+                  <img
+                    src={user.avatar_url}
+                    alt=""
+                    width={24}
+                    height={24}
+                    loading="lazy"
+                    className="h-6 w-6 rounded-full object-cover ring-2 ring-border"
+                  />
                 ) : (
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
                     {user?.first_name?.charAt(0)?.toUpperCase() || "N"}
@@ -258,27 +272,46 @@ const AppHeader = () => {
                 <ChevronDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 rounded-xl p-0 overflow-hidden">
+            <DropdownMenuContent
+              align="end"
+              className="w-64 rounded-xl p-0 overflow-hidden"
+            >
               {/* Store section */}
               <div className="p-4 bg-muted/30 border-b">
                 <div className="flex items-center gap-3 mb-3">
                   {currentStore?.logo_url ? (
-                    <img src={currentStore.logo_url} alt="" width={40} height={40} loading="lazy" className="h-10 w-10 rounded-xl object-cover border shadow-sm" />
+                    <img
+                      src={currentStore.logo_url}
+                      alt=""
+                      width={40}
+                      height={40}
+                      loading="lazy"
+                      className="h-10 w-10 rounded-xl object-cover border shadow-sm"
+                    />
                   ) : (
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-sm">
                       {currentStore?.name?.charAt(0)?.toUpperCase() || "N"}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold truncate">{currentStore?.name || "Store"}</p>
-                    <p className="text-[10px] text-muted-foreground font-mono truncate">{currentStore?.id?.slice(0, 8) || "—"}</p>
+                    <p className="text-sm font-bold truncate">
+                      {currentStore?.name || "Store"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground font-mono truncate">
+                      {currentStore?.id?.slice(0, 8) || "—"}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full">
                     {language === "ar" ? "الخطة الحالية" : "Current Plan"}
                   </span>
-                  <Button variant="default" size="sm" className="h-7 text-[11px] rounded-lg px-3" onClick={() => navigate("/store")}>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-7 text-[11px] rounded-lg px-3"
+                    onClick={() => navigate("/store")}
+                  >
                     {language === "ar" ? "إدارة" : "Manage"}
                   </Button>
                 </div>
@@ -287,30 +320,50 @@ const AppHeader = () => {
               <div className="p-3 border-b">
                 <div className="flex items-center gap-2.5">
                   {user?.avatar_url ? (
-                    <img src={user.avatar_url} alt="" width={32} height={32} loading="lazy" className="h-8 w-8 rounded-full object-cover" />
+                    <img
+                      src={user.avatar_url}
+                      alt=""
+                      width={32}
+                      height={32}
+                      loading="lazy"
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
                   ) : (
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                       {user?.first_name?.charAt(0)?.toUpperCase() || "N"}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold">{user?.first_name} {user?.last_name}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+                    <p className="text-xs font-semibold">
+                      {user?.first_name} {user?.last_name}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {user?.email}
+                    </p>
                   </div>
                 </div>
               </div>
               {/* Menu items */}
               <div className="p-1.5">
-                <DropdownMenuItem className="gap-2.5 rounded-lg text-xs py-2 cursor-pointer" onClick={() => navigate("/profile")}>
+                <DropdownMenuItem
+                  className="gap-2.5 rounded-lg text-xs py-2 cursor-pointer"
+                  onClick={() => navigate("/profile")}
+                >
                   <User className="h-3.5 w-3.5 text-muted-foreground" />
                   {language === "ar" ? "الملف الشخصي" : "Profile"}
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2.5 rounded-lg text-xs py-2 cursor-pointer" onClick={() => navigate("/settings")}>
+                <DropdownMenuItem
+                  className="gap-2.5 rounded-lg text-xs py-2 cursor-pointer"
+                  onClick={() => navigate("/settings")}
+                >
                   <Settings className="h-3.5 w-3.5 text-muted-foreground" />
                   {language === "ar" ? "الإعدادات" : "Settings"}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="my-1" />
-                <DropdownMenuItem className="gap-2.5 rounded-lg text-xs py-2 text-destructive cursor-pointer" onClick={logout}>
+                <DropdownMenuItem
+                  className="gap-2.5 rounded-lg text-xs py-2 text-destructive cursor-pointer"
+                  onClick={logout}
+                >
                   <LogOut className="h-3.5 w-3.5" />
                   {language === "ar" ? "تسجيل الخروج" : "Logout"}
                 </DropdownMenuItem>

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { useTrialPaywall } from "@/contexts/TrialPaywallContext";
 import {
   fetchCustomization, updateCustomization, publishCustomization,
   fetchThemeSchemas,
@@ -33,7 +34,10 @@ import {
   Loader2, Layout, Package, Navigation2, Image, AlignLeft,
   Palette, Store, RefreshCw, Plus, Trash2, Eye, EyeOff,
   ChevronUp, ChevronDown, GripVertical, CreditCard, MessageCircle, CheckCircle, User,
+  Upload,
 } from "lucide-react";
+import { ImageCropDialog } from "@/components/ImageCropDialog";
+import { uploadStoreAsset } from "@/services/storeApi";
 
 // ─── Global settings (identity, header, footer) ────────────────────────────
 
@@ -199,6 +203,7 @@ function toTestIdSuffix(value: string): string {
 export default function ThemeEditor() {
   const { isRTL } = useLanguage();
   const { currentStore } = useDashboardStore();
+  const { requireTrial } = useTrialPaywall();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -611,7 +616,7 @@ export default function ThemeEditor() {
           {isRTL ? "حفظ" : "Save"}
         </Button>
         <Button size="sm" className="h-8 text-[13px] ms-1.5" data-testid="theme-editor-publish"
-          onClick={() => publishMutation.mutate()} disabled={isBusy}>
+          onClick={() => { if (requireTrial("publish_store")) publishMutation.mutate(); }} disabled={isBusy}>
           {publishMutation.isPending ? <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" /> : <Globe className="h-3.5 w-3.5 me-1.5" />}
           {isRTL ? "نشر" : "Publish"}
         </Button>
@@ -1030,7 +1035,20 @@ function SchemaFieldControl({
     );
   }
 
-  if (setting.type === "image" || setting.type === "url") {
+  if (setting.type === "image") {
+    return (
+      <ImageUploadField
+        value={typeof value === "string" ? value : undefined}
+        onChange={(url) => onChange(url)}
+        label={label}
+        fieldKey={setting.key}
+        isRTL={isRTL}
+        testId={testId}
+      />
+    );
+  }
+
+  if (setting.type === "url") {
     return (
       <div className="space-y-1.5" data-testid={testId}>
         <Label className="text-[12px] font-medium">{label}</Label>
@@ -1105,6 +1123,122 @@ function ThemeSettingsSidebar({ groups, data, isRTL, onChange, schemaSettings }:
   );
 }
 
+// ─── Image upload field (logo, favicon, hero images, …) ────────────────────
+
+function inferAssetType(fieldKey: string): "logo" | "favicon" | "hero_image" | "section_image" {
+  const k = fieldKey.toLowerCase();
+  if (k.includes("favicon")) return "favicon";
+  if (k.includes("logo")) return "logo";
+  if (k.includes("hero")) return "hero_image";
+  return "section_image";
+}
+
+function ImageUploadField({
+  value, onChange, label, fieldKey, isRTL, testId,
+}: {
+  value: string | undefined;
+  onChange: (url: string) => void;
+  label: string;
+  fieldKey: string;
+  isRTL: boolean;
+  testId: string;
+}) {
+  const { currentStore } = useDashboardStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const assetType = useMemo(() => inferAssetType(fieldKey), [fieldKey]);
+  const aspect = assetType === "hero_image" ? 16 / 9 : 1;
+
+  const onPickFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const onCropDone = async (blob: Blob) => {
+    if (!currentStore?.id) return;
+    setUploading(true);
+    try {
+      const file = new File([blob], `${assetType}.jpg`, { type: "image/jpeg" });
+      const result = await uploadStoreAsset(currentStore.id, file, assetType);
+      onChange(result.url);
+      setCropSrc(null);
+      toast.success(isRTL ? "تم رفع الصورة" : "Image uploaded");
+    } catch {
+      toast.error(isRTL ? "فشل رفع الصورة" : "Failed to upload image");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5" data-testid={testId}>
+      <Label className="text-[12px] font-medium">{label}</Label>
+      <div className="flex items-center gap-2">
+        {value ? (
+          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border bg-muted">
+            <img src={value} alt="" className="h-full w-full object-cover" />
+          </div>
+        ) : (
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-dashed bg-muted/40">
+            <Image className="h-4 w-4 text-muted-foreground/50" />
+          </div>
+        )}
+        <div className="flex flex-1 flex-col gap-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            data-testid={`${testId}-file-input`}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onPickFile(f);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1.5 text-[11px]"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || !currentStore?.id}
+            data-testid={`${testId}-upload-btn`}
+          >
+            {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+            {value ? (isRTL ? "تغيير" : "Replace") : (isRTL ? "رفع" : "Upload")}
+          </Button>
+          {value && (
+            <button
+              type="button"
+              className="self-start text-[10px] text-muted-foreground hover:text-destructive"
+              onClick={() => onChange("")}
+              data-testid={`${testId}-remove-btn`}
+            >
+              {isRTL ? "إزالة" : "Remove"}
+            </button>
+          )}
+        </div>
+      </div>
+      {cropSrc && (
+        <ImageCropDialog
+          open={!!cropSrc}
+          onClose={() => setCropSrc(null)}
+          imageSrc={cropSrc}
+          cropShape="rect"
+          aspect={aspect}
+          title={isRTL ? "تعديل الصورة" : "Edit image"}
+          loading={uploading}
+          onCropComplete={onCropDone}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Field control (for global/theme settings) ──────────────────────────────
 
 function FieldControl({ field, value, isRTL, onChange, compact = false }: {
@@ -1171,6 +1305,18 @@ function FieldControl({ field, value, isRTL, onChange, compact = false }: {
         <Textarea value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder} rows={3} className="text-[12px] resize-none" data-testid={`${testId}-textarea`} />
       </div>
+    );
+  }
+  if (field.type === "image_picker") {
+    return (
+      <ImageUploadField
+        value={typeof value === "string" ? value : undefined}
+        onChange={(url) => onChange(url)}
+        label={label}
+        fieldKey={field.key}
+        isRTL={isRTL}
+        testId={testId}
+      />
     );
   }
   return (

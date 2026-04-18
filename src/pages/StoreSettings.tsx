@@ -135,6 +135,8 @@ import {
   type FawryCredentialsResponse,
 } from "@/services/storeApi";
 
+import { useTrialPaywall } from "@/contexts/TrialPaywallContext";
+
 // ─── Preload Google Fonts for font picker ────────────────────────────────────
 const AVAILABLE_FONTS = [
   "Cairo",
@@ -602,6 +604,7 @@ function extractNonEmpty(
 const StoreSettings = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
+  const { requireTrial } = useTrialPaywall();
   const { currentStore, refetchStores } = useDashboardStore();
 
   // UI state
@@ -619,7 +622,9 @@ const StoreSettings = () => {
     terms: "",
   });
   const [showAiPolicyDialog, setShowAiPolicyDialog] = useState(false);
-  const [aiPolicyAnswers, setAiPolicyAnswers] = useState<Record<string, string>>({});
+  const [aiPolicyAnswers, setAiPolicyAnswers] = useState<
+    Record<string, string>
+  >({});
   const [isGeneratingPolicy, setIsGeneratingPolicy] = useState(false);
   const [, resetWalkthrough] = useWalkthroughStatus();
   const [showWalkthrough, setShowWalkthrough] = useState(false);
@@ -721,10 +726,15 @@ const StoreSettings = () => {
   const [bostaShowKey, setBostaShowKey] = useState(false);
 
   // ─── Payment gateway state ──────────────────────────────────────────────
-  const [activeGateway, setActiveGateway] = useState<"paymob" | "kashier" | null>(null);
-  const [enabledGateway, setEnabledGateway] = useState<"paymob" | "kashier" | null>(null);
+  const [activeGateway, setActiveGateway] = useState<
+    "paymob" | "kashier" | null
+  >(null);
+  const [enabledGateway, setEnabledGateway] = useState<
+    "paymob" | "kashier" | null
+  >(null);
   const [enablingSaving, setEnablingSaving] = useState(false);
-  const [paymobCreds, setPaymobCreds] = useState<PaymobCredentialsResponse | null>(null);
+  const [paymobCreds, setPaymobCreds] =
+    useState<PaymobCredentialsResponse | null>(null);
   const [paymobForm, setPaymobForm] = useState({
     secret_key: "",
     public_key: "",
@@ -736,14 +746,21 @@ const StoreSettings = () => {
   const [paymobShowKeys, setPaymobShowKeys] = useState(false);
   const [paymobEditing, setPaymobEditing] = useState(false);
 
-  const [kashierCreds, setKashierCreds] = useState<KashierCredentialsResponse | null>(null);
-  const [kashierForm, setKashierForm] = useState({ merchant_id: "", api_key: "", secret_key: "" });
+  const [kashierCreds, setKashierCreds] =
+    useState<KashierCredentialsResponse | null>(null);
+  const [kashierForm, setKashierForm] = useState({
+    merchant_id: "",
+    api_key: "",
+    secret_key: "",
+  });
   const [kashierSaving, setKashierSaving] = useState(false);
   const [kashierShowKeys, setKashierShowKeys] = useState(false);
   const [kashierEditing, setKashierEditing] = useState(false);
 
   // ─── Fawry gateway state ─────────────────────────────────────────────────
-  const [fawryCreds, setFawryCreds] = useState<FawryCredentialsResponse | null>(null);
+  const [fawryCreds, setFawryCreds] = useState<FawryCredentialsResponse | null>(
+    null,
+  );
   const [fawryForm, setFawryForm] = useState({
     merchant_code: "",
     security_key: "",
@@ -975,8 +992,12 @@ const StoreSettings = () => {
       setPaymobCreds(paymob);
       setKashierCreds(kashier);
       if (paymob?.is_configured && kashier?.is_configured) {
-        const pDate = paymob.last_configured ? new Date(paymob.last_configured).getTime() : 0;
-        const kDate = kashier.last_configured ? new Date(kashier.last_configured).getTime() : 0;
+        const pDate = paymob.last_configured
+          ? new Date(paymob.last_configured).getTime()
+          : 0;
+        const kDate = kashier.last_configured
+          ? new Date(kashier.last_configured).getTime()
+          : 0;
         setEnabledGateway(pDate >= kDate ? "paymob" : "kashier");
       } else if (paymob?.is_configured) {
         setEnabledGateway("paymob");
@@ -1668,17 +1689,22 @@ const StoreSettings = () => {
               <div className="settings-field-group-label">
                 {t("store.customDomain")}
               </div>
-              <Input
-                value={currentStore?.custom_domain || ""}
-                placeholder={t("store.customDomainPlaceholder")}
-                disabled
-                className="max-w-sm bg-muted/30"
-              />
-              <p className="text-xs text-muted-foreground mt-2">
-                {language === "ar"
-                  ? "الدومينات المخصصة قريبا..."
-                  : "Custom domains coming soon..."}
-              </p>
+              <div className="space-y-3">
+                <Input
+                  value={currentStore?.custom_domain || ""}
+                  placeholder={t("store.customDomainPlaceholder")}
+                  disabled
+                  className="max-w-sm bg-muted/30"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => requireTrial("custom_domain")}
+                >
+                  {language === "ar"
+                    ? "ربط نطاق مخصص"
+                    : "Connect Custom Domain"}
+                </Button>
+              </div>
             </div>
 
             <div className="settings-field-group">
@@ -1713,35 +1739,86 @@ const StoreSettings = () => {
             <div className="settings-field-group !p-0 overflow-hidden divide-y divide-border/20">
               {/* ── Paymob Row ── */}
               <div>
-                <div className="flex items-center justify-between px-4 py-3.5 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setActiveGateway(activeGateway === "paymob" ? null : "paymob")}>
+                <div
+                  className="flex items-center justify-between px-4 py-3.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() =>
+                    setActiveGateway(
+                      activeGateway === "paymob" ? null : "paymob",
+                    )
+                  }
+                >
                   <div className="flex items-center gap-3">
-                    <img src="/paymob-logo.webp" alt="Paymob" className="h-6 w-auto max-w-[72px] object-contain" />
+                    <img
+                      src="/paymob-logo.webp"
+                      alt="Paymob"
+                      className="h-6 w-auto max-w-[72px] object-contain"
+                    />
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold">Paymob</span>
-                        {paymobCreds?.is_configured && enabledGateway === "paymob" && (
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded">{language === "ar" ? "نشط" : "LIVE"}</span>
-                        )}
-                        {paymobCreds?.is_configured && enabledGateway !== "paymob" && (
-                          <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{language === "ar" ? "مُعد" : "Ready"}</span>
-                        )}
+                        {paymobCreds?.is_configured &&
+                          enabledGateway === "paymob" && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                              {language === "ar" ? "نشط" : "LIVE"}
+                            </span>
+                          )}
+                        {paymobCreds?.is_configured &&
+                          enabledGateway !== "paymob" && (
+                            <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              {language === "ar" ? "مُعد" : "Ready"}
+                            </span>
+                          )}
                       </div>
-                      <p className="text-[11px] text-muted-foreground">{language === "ar" ? "بطاقات ومحافظ إلكترونية" : "Cards & wallets"}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {language === "ar"
+                          ? "بطاقات ومحافظ إلكترونية"
+                          : "Cards & wallets"}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     {paymobCreds?.is_configured && (
-                      <Switch checked={enabledGateway === "paymob"} disabled={enablingSaving} onClick={(e) => e.stopPropagation()} onCheckedChange={async (checked) => {
-                        if (!currentStore?.id) return;
-                        setEnablingSaving(true);
-                        try {
-                          await apiClient(`/stores/${currentStore.id}/settings/payment`, { method: "PATCH", body: JSON.stringify({ paymob_enabled: checked, ...(checked ? { kashier_enabled: false } : {}) }) });
-                          setEnabledGateway(checked ? "paymob" : null);
-                          toast.success(checked ? (language === "ar" ? "تم تفعيل Paymob" : "Paymob enabled") : (language === "ar" ? "تم إيقاف Paymob" : "Paymob disabled"));
-                        } catch (err) { showError(err); } finally { setEnablingSaving(false); }
-                      }} />
+                      <Switch
+                        checked={enabledGateway === "paymob"}
+                        disabled={enablingSaving}
+                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={async (checked) => {
+                          if (!currentStore?.id) return;
+                          setEnablingSaving(true);
+                          try {
+                            await apiClient(
+                              `/stores/${currentStore.id}/settings/payment`,
+                              {
+                                method: "PATCH",
+                                body: JSON.stringify({
+                                  paymob_enabled: checked,
+                                  ...(checked
+                                    ? { kashier_enabled: false }
+                                    : {}),
+                                }),
+                              },
+                            );
+                            setEnabledGateway(checked ? "paymob" : null);
+                            toast.success(
+                              checked
+                                ? language === "ar"
+                                  ? "تم تفعيل Paymob"
+                                  : "Paymob enabled"
+                                : language === "ar"
+                                  ? "تم إيقاف Paymob"
+                                  : "Paymob disabled",
+                            );
+                          } catch (err) {
+                            showError(err);
+                          } finally {
+                            setEnablingSaving(false);
+                          }
+                        }}
+                      />
                     )}
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${activeGateway === "paymob" ? "rotate-180" : ""}`} />
+                    <ChevronDown
+                      className={`h-4 w-4 text-muted-foreground transition-transform ${activeGateway === "paymob" ? "rotate-180" : ""}`}
+                    />
                   </div>
                 </div>
                 {activeGateway === "paymob" && (
@@ -1749,53 +1826,249 @@ const StoreSettings = () => {
                     {paymobCreds?.is_configured && !paymobEditing ? (
                       <div className="space-y-0 divide-y divide-border/30">
                         {[
-                          { label: "Secret Key", value: paymobCreds.secret_key_masked },
-                          { label: "Public Key", value: paymobCreds.public_key_masked },
-                          { label: "HMAC Secret", value: paymobCreds.hmac_secret_masked },
-                          { label: "Card Integration ID", value: paymobCreds.card_integration_id },
-                          ...(paymobCreds.wallet_integration_id ? [{ label: "Wallet Integration ID", value: paymobCreds.wallet_integration_id }] : []),
+                          {
+                            label: "Secret Key",
+                            value: paymobCreds.secret_key_masked,
+                          },
+                          {
+                            label: "Public Key",
+                            value: paymobCreds.public_key_masked,
+                          },
+                          {
+                            label: "HMAC Secret",
+                            value: paymobCreds.hmac_secret_masked,
+                          },
+                          {
+                            label: "Card Integration ID",
+                            value: paymobCreds.card_integration_id,
+                          },
+                          ...(paymobCreds.wallet_integration_id
+                            ? [
+                                {
+                                  label: "Wallet Integration ID",
+                                  value: paymobCreds.wallet_integration_id,
+                                },
+                              ]
+                            : []),
                         ].map((field) => (
-                          <div key={field.label} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
-                            <span className="text-xs text-muted-foreground">{field.label}</span>
-                            <span className="text-xs font-mono text-foreground/70">{field.value || "—"}</span>
+                          <div
+                            key={field.label}
+                            className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0"
+                          >
+                            <span className="text-xs text-muted-foreground">
+                              {field.label}
+                            </span>
+                            <span className="text-xs font-mono text-foreground/70">
+                              {field.value || "—"}
+                            </span>
                           </div>
                         ))}
                         <div className="flex gap-2 pt-3">
-                          <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPaymobEditing(true)}>{language === "ar" ? "تعديل" : "Edit"}</Button>
-                          <Button type="button" variant="ghost" size="sm" className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={async () => {
-                            if (!currentStore?.id) return;
-                            try { await deletePaymobCredentials(currentStore.id); setPaymobCreds({ is_configured: false, public_key_masked: null, secret_key_masked: null, hmac_secret_masked: null, card_integration_id: null, wallet_integration_id: null, last_configured: null }); if (enabledGateway === "paymob") setEnabledGateway(kashierCreds?.is_configured ? "kashier" : null); toast.success(language === "ar" ? "تم حذف بيانات Paymob" : "Paymob credentials removed"); } catch (err) { showError(err); }
-                          }}><Trash2 className="h-3 w-3 mr-1" />{language === "ar" ? "حذف" : "Remove"}</Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => setPaymobEditing(true)}
+                          >
+                            {language === "ar" ? "تعديل" : "Edit"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={async () => {
+                              if (!currentStore?.id) return;
+                              try {
+                                await deletePaymobCredentials(currentStore.id);
+                                setPaymobCreds({
+                                  is_configured: false,
+                                  public_key_masked: null,
+                                  secret_key_masked: null,
+                                  hmac_secret_masked: null,
+                                  card_integration_id: null,
+                                  wallet_integration_id: null,
+                                  last_configured: null,
+                                });
+                                if (enabledGateway === "paymob")
+                                  setEnabledGateway(
+                                    kashierCreds?.is_configured
+                                      ? "kashier"
+                                      : null,
+                                  );
+                                toast.success(
+                                  language === "ar"
+                                    ? "تم حذف بيانات Paymob"
+                                    : "Paymob credentials removed",
+                                );
+                              } catch (err) {
+                                showError(err);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            {language === "ar" ? "حذف" : "Remove"}
+                          </Button>
                         </div>
                       </div>
                     ) : (
                       <div>
-                        <p className="text-[11px] text-muted-foreground mb-3">{language === "ar" ? "تجد هذه البيانات في لوحة تحكم Paymob ← Developers ← Settings" : "Find these in Paymob Dashboard → Developers → Settings"}</p>
+                        <p className="text-[11px] text-muted-foreground mb-3">
+                          {language === "ar"
+                            ? "تجد هذه البيانات في لوحة تحكم Paymob ← Developers ← Settings"
+                            : "Find these in Paymob Dashboard → Developers → Settings"}
+                        </p>
                         <div className="space-y-2.5">
-                          {([
-                            { key: "secret_key" as const, label: "Secret Key", placeholder: "egy_sk_live_...", secret: true },
-                            { key: "public_key" as const, label: "Public Key", placeholder: "egy_pk_live_...", secret: true },
-                            { key: "hmac_secret" as const, label: "HMAC Secret", placeholder: "HMAC secret", secret: true },
-                            { key: "card_integration_id" as const, label: "Card Integration ID", placeholder: "e.g. 123456", secret: false },
-                            { key: "wallet_integration_id" as const, label: `Wallet Integration ID (${language === "ar" ? "اختياري" : "optional"})`, placeholder: "e.g. 789012", secret: false },
-                          ]).map((field) => (
+                          {[
+                            {
+                              key: "secret_key" as const,
+                              label: "Secret Key",
+                              placeholder: "egy_sk_live_...",
+                              secret: true,
+                            },
+                            {
+                              key: "public_key" as const,
+                              label: "Public Key",
+                              placeholder: "egy_pk_live_...",
+                              secret: true,
+                            },
+                            {
+                              key: "hmac_secret" as const,
+                              label: "HMAC Secret",
+                              placeholder: "HMAC secret",
+                              secret: true,
+                            },
+                            {
+                              key: "card_integration_id" as const,
+                              label: "Card Integration ID",
+                              placeholder: "e.g. 123456",
+                              secret: false,
+                            },
+                            {
+                              key: "wallet_integration_id" as const,
+                              label: `Wallet Integration ID (${language === "ar" ? "اختياري" : "optional"})`,
+                              placeholder: "e.g. 789012",
+                              secret: false,
+                            },
+                          ].map((field) => (
                             <div key={field.key} className="space-y-1">
-                              <Label className="text-[11px] text-muted-foreground">{field.label}</Label>
-                              <Input type={field.secret && !paymobShowKeys ? "password" : "text"} placeholder={field.placeholder} className="h-9 text-xs" value={paymobForm[field.key]} onChange={(e) => setPaymobForm((f) => ({ ...f, [field.key]: e.target.value }))} />
+                              <Label className="text-[11px] text-muted-foreground">
+                                {field.label}
+                              </Label>
+                              <Input
+                                type={
+                                  field.secret && !paymobShowKeys
+                                    ? "password"
+                                    : "text"
+                                }
+                                placeholder={field.placeholder}
+                                className="h-9 text-xs"
+                                value={paymobForm[field.key]}
+                                onChange={(e) =>
+                                  setPaymobForm((f) => ({
+                                    ...f,
+                                    [field.key]: e.target.value,
+                                  }))
+                                }
+                              />
                             </div>
                           ))}
                         </div>
                         <div className="flex items-center justify-between pt-3">
-                          <button type="button" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1" onClick={() => setPaymobShowKeys(!paymobShowKeys)}>
-                            {paymobShowKeys ? <><EyeOff className="h-3 w-3" /> {language === "ar" ? "إخفاء" : "Hide"}</> : <><Eye className="h-3 w-3" /> {language === "ar" ? "إظهار" : "Show"}</>}
+                          <button
+                            type="button"
+                            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                            onClick={() => setPaymobShowKeys(!paymobShowKeys)}
+                          >
+                            {paymobShowKeys ? (
+                              <>
+                                <EyeOff className="h-3 w-3" />{" "}
+                                {language === "ar" ? "إخفاء" : "Hide"}
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="h-3 w-3" />{" "}
+                                {language === "ar" ? "إظهار" : "Show"}
+                              </>
+                            )}
                           </button>
                           <div className="flex gap-2">
-                            {paymobEditing && <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setPaymobEditing(false); setPaymobForm({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" }); }}>{language === "ar" ? "إلغاء" : "Cancel"}</Button>}
-                            <Button type="button" size="sm" className="h-8 text-xs" disabled={paymobSaving || !paymobForm.secret_key || !paymobForm.public_key || !paymobForm.hmac_secret || !paymobForm.card_integration_id} onClick={async () => {
-                              if (!currentStore?.id) return;
-                              setPaymobSaving(true);
-                              try { const result = await savePaymobCredentials(currentStore.id, { secret_key: paymobForm.secret_key, public_key: paymobForm.public_key, hmac_secret: paymobForm.hmac_secret, card_integration_id: paymobForm.card_integration_id, wallet_integration_id: paymobForm.wallet_integration_id || undefined }); setPaymobCreds(result); setPaymobForm({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" }); setPaymobEditing(false); setEnabledGateway("paymob"); toast.success(language === "ar" ? "تم حفظ بيانات Paymob" : "Paymob credentials saved"); } catch (err) { showError(err); } finally { setPaymobSaving(false); }
-                            }}>{paymobSaving && <Loader2 className="h-3 w-3 animate-spin mr-1" />}{language === "ar" ? "حفظ" : "Save"}</Button>
+                            {paymobEditing && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 text-xs"
+                                onClick={() => {
+                                  setPaymobEditing(false);
+                                  setPaymobForm({
+                                    secret_key: "",
+                                    public_key: "",
+                                    hmac_secret: "",
+                                    card_integration_id: "",
+                                    wallet_integration_id: "",
+                                  });
+                                }}
+                              >
+                                {language === "ar" ? "إلغاء" : "Cancel"}
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8 text-xs"
+                              disabled={
+                                paymobSaving ||
+                                !paymobForm.secret_key ||
+                                !paymobForm.public_key ||
+                                !paymobForm.hmac_secret ||
+                                !paymobForm.card_integration_id
+                              }
+                              onClick={async () => {
+                                if (!currentStore?.id) return;
+                                setPaymobSaving(true);
+                                try {
+                                  const result = await savePaymobCredentials(
+                                    currentStore.id,
+                                    {
+                                      secret_key: paymobForm.secret_key,
+                                      public_key: paymobForm.public_key,
+                                      hmac_secret: paymobForm.hmac_secret,
+                                      card_integration_id:
+                                        paymobForm.card_integration_id,
+                                      wallet_integration_id:
+                                        paymobForm.wallet_integration_id ||
+                                        undefined,
+                                    },
+                                  );
+                                  setPaymobCreds(result);
+                                  setPaymobForm({
+                                    secret_key: "",
+                                    public_key: "",
+                                    hmac_secret: "",
+                                    card_integration_id: "",
+                                    wallet_integration_id: "",
+                                  });
+                                  setPaymobEditing(false);
+                                  setEnabledGateway("paymob");
+                                  toast.success(
+                                    language === "ar"
+                                      ? "تم حفظ بيانات Paymob"
+                                      : "Paymob credentials saved",
+                                  );
+                                } catch (err) {
+                                  showError(err);
+                                } finally {
+                                  setPaymobSaving(false);
+                                }
+                              }}
+                            >
+                              {paymobSaving && (
+                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                              )}
+                              {language === "ar" ? "حفظ" : "Save"}
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -1806,35 +2079,84 @@ const StoreSettings = () => {
 
               {/* ── Kashier Row ── */}
               <div>
-                <div className="flex items-center justify-between px-4 py-3.5 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setActiveGateway(activeGateway === "kashier" ? null : "kashier")}>
+                <div
+                  className="flex items-center justify-between px-4 py-3.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() =>
+                    setActiveGateway(
+                      activeGateway === "kashier" ? null : "kashier",
+                    )
+                  }
+                >
                   <div className="flex items-center gap-3">
-                    <img src="/kashier-logo.webp" alt="Kashier" className="h-6 w-auto max-w-[72px] object-contain" />
+                    <img
+                      src="/kashier-logo.webp"
+                      alt="Kashier"
+                      className="h-6 w-auto max-w-[72px] object-contain"
+                    />
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold">Kashier</span>
-                        {kashierCreds?.is_configured && enabledGateway === "kashier" && (
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded">{language === "ar" ? "نشط" : "LIVE"}</span>
-                        )}
-                        {kashierCreds?.is_configured && enabledGateway !== "kashier" && (
-                          <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{language === "ar" ? "مُعد" : "Ready"}</span>
-                        )}
+                        {kashierCreds?.is_configured &&
+                          enabledGateway === "kashier" && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                              {language === "ar" ? "نشط" : "LIVE"}
+                            </span>
+                          )}
+                        {kashierCreds?.is_configured &&
+                          enabledGateway !== "kashier" && (
+                            <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              {language === "ar" ? "مُعد" : "Ready"}
+                            </span>
+                          )}
                       </div>
-                      <p className="text-[11px] text-muted-foreground">{language === "ar" ? "بطاقات بنكية" : "Credit & debit cards"}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {language === "ar"
+                          ? "بطاقات بنكية"
+                          : "Credit & debit cards"}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     {kashierCreds?.is_configured && (
-                      <Switch checked={enabledGateway === "kashier"} disabled={enablingSaving} onClick={(e) => e.stopPropagation()} onCheckedChange={async (checked) => {
-                        if (!currentStore?.id) return;
-                        setEnablingSaving(true);
-                        try {
-                          await apiClient(`/stores/${currentStore.id}/settings/payment`, { method: "PATCH", body: JSON.stringify({ kashier_enabled: checked, ...(checked ? { paymob_enabled: false } : {}) }) });
-                          setEnabledGateway(checked ? "kashier" : null);
-                          toast.success(checked ? (language === "ar" ? "تم تفعيل Kashier" : "Kashier enabled") : (language === "ar" ? "تم إيقاف Kashier" : "Kashier disabled"));
-                        } catch (err) { showError(err); } finally { setEnablingSaving(false); }
-                      }} />
+                      <Switch
+                        checked={enabledGateway === "kashier"}
+                        disabled={enablingSaving}
+                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={async (checked) => {
+                          if (!currentStore?.id) return;
+                          setEnablingSaving(true);
+                          try {
+                            await apiClient(
+                              `/stores/${currentStore.id}/settings/payment`,
+                              {
+                                method: "PATCH",
+                                body: JSON.stringify({
+                                  kashier_enabled: checked,
+                                  ...(checked ? { paymob_enabled: false } : {}),
+                                }),
+                              },
+                            );
+                            setEnabledGateway(checked ? "kashier" : null);
+                            toast.success(
+                              checked
+                                ? language === "ar"
+                                  ? "تم تفعيل Kashier"
+                                  : "Kashier enabled"
+                                : language === "ar"
+                                  ? "تم إيقاف Kashier"
+                                  : "Kashier disabled",
+                            );
+                          } catch (err) {
+                            showError(err);
+                          } finally {
+                            setEnablingSaving(false);
+                          }
+                        }}
+                      />
                     )}
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${activeGateway === "kashier" ? "rotate-180" : ""}`} />
+                    <ChevronDown
+                      className={`h-4 w-4 text-muted-foreground transition-transform ${activeGateway === "kashier" ? "rotate-180" : ""}`}
+                    />
                   </div>
                 </div>
                 {activeGateway === "kashier" && (
@@ -1842,41 +2164,217 @@ const StoreSettings = () => {
                     {kashierCreds?.is_configured && !kashierEditing ? (
                       <div className="space-y-0 divide-y divide-border/30">
                         {[
-                          { label: "Merchant ID", value: kashierCreds.merchant_id },
-                          { label: "API Key", value: kashierCreds.api_key_masked },
+                          {
+                            label: "Merchant ID",
+                            value: kashierCreds.merchant_id,
+                          },
+                          {
+                            label: "API Key",
+                            value: kashierCreds.api_key_masked,
+                          },
                         ].map((field) => (
-                          <div key={field.label} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
-                            <span className="text-xs text-muted-foreground">{field.label}</span>
-                            <span className="text-xs font-mono text-foreground/70">{field.value || "—"}</span>
+                          <div
+                            key={field.label}
+                            className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0"
+                          >
+                            <span className="text-xs text-muted-foreground">
+                              {field.label}
+                            </span>
+                            <span className="text-xs font-mono text-foreground/70">
+                              {field.value || "—"}
+                            </span>
                           </div>
                         ))}
                         <div className="flex gap-2 pt-3">
-                          <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => setKashierEditing(true)}>{language === "ar" ? "تعديل" : "Edit"}</Button>
-                          <Button type="button" variant="ghost" size="sm" className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={async () => {
-                            if (!currentStore?.id) return;
-                            try { await deleteKashierCredentials(currentStore.id); setKashierCreds({ is_configured: false, merchant_id: null, api_key_masked: null, last_configured: null }); if (enabledGateway === "kashier") setEnabledGateway(paymobCreds?.is_configured ? "paymob" : null); toast.success(language === "ar" ? "تم حذف بيانات Kashier" : "Kashier credentials removed"); } catch (err) { showError(err); }
-                          }}><Trash2 className="h-3 w-3 mr-1" />{language === "ar" ? "حذف" : "Remove"}</Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => setKashierEditing(true)}
+                          >
+                            {language === "ar" ? "تعديل" : "Edit"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={async () => {
+                              if (!currentStore?.id) return;
+                              try {
+                                await deleteKashierCredentials(currentStore.id);
+                                setKashierCreds({
+                                  is_configured: false,
+                                  merchant_id: null,
+                                  api_key_masked: null,
+                                  last_configured: null,
+                                });
+                                if (enabledGateway === "kashier")
+                                  setEnabledGateway(
+                                    paymobCreds?.is_configured
+                                      ? "paymob"
+                                      : null,
+                                  );
+                                toast.success(
+                                  language === "ar"
+                                    ? "تم حذف بيانات Kashier"
+                                    : "Kashier credentials removed",
+                                );
+                              } catch (err) {
+                                showError(err);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            {language === "ar" ? "حذف" : "Remove"}
+                          </Button>
                         </div>
                       </div>
                     ) : (
                       <div>
-                        <p className="text-[11px] text-muted-foreground mb-3">{language === "ar" ? "تجد هذه البيانات في لوحة تحكم Kashier ← Settings" : "Find these in Kashier Dashboard → Settings"}</p>
+                        <p className="text-[11px] text-muted-foreground mb-3">
+                          {language === "ar"
+                            ? "تجد هذه البيانات في لوحة تحكم Kashier ← Settings"
+                            : "Find these in Kashier Dashboard → Settings"}
+                        </p>
                         <div className="space-y-2.5">
-                          <div className="space-y-1"><Label className="text-[11px] text-muted-foreground">Merchant ID</Label><Input type="text" placeholder="MID-xxx-xxx" className="h-9 text-xs" value={kashierForm.merchant_id} onChange={(e) => setKashierForm((f) => ({ ...f, merchant_id: e.target.value }))} /></div>
-                          <div className="space-y-1"><Label className="text-[11px] text-muted-foreground">Payment API Key</Label><Input type={kashierShowKeys ? "text" : "password"} placeholder="Payment API key" className="h-9 text-xs" value={kashierForm.api_key} onChange={(e) => setKashierForm((f) => ({ ...f, api_key: e.target.value }))} /></div>
-                          <div className="space-y-1"><Label className="text-[11px] text-muted-foreground">Secret Key</Label><Input type={kashierShowKeys ? "text" : "password"} placeholder="Secret key" className="h-9 text-xs" value={kashierForm.secret_key} onChange={(e) => setKashierForm((f) => ({ ...f, secret_key: e.target.value }))} /></div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">
+                              Merchant ID
+                            </Label>
+                            <Input
+                              type="text"
+                              placeholder="MID-xxx-xxx"
+                              className="h-9 text-xs"
+                              value={kashierForm.merchant_id}
+                              onChange={(e) =>
+                                setKashierForm((f) => ({
+                                  ...f,
+                                  merchant_id: e.target.value,
+                                }))
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">
+                              Payment API Key
+                            </Label>
+                            <Input
+                              type={kashierShowKeys ? "text" : "password"}
+                              placeholder="Payment API key"
+                              className="h-9 text-xs"
+                              value={kashierForm.api_key}
+                              onChange={(e) =>
+                                setKashierForm((f) => ({
+                                  ...f,
+                                  api_key: e.target.value,
+                                }))
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">
+                              Secret Key
+                            </Label>
+                            <Input
+                              type={kashierShowKeys ? "text" : "password"}
+                              placeholder="Secret key"
+                              className="h-9 text-xs"
+                              value={kashierForm.secret_key}
+                              onChange={(e) =>
+                                setKashierForm((f) => ({
+                                  ...f,
+                                  secret_key: e.target.value,
+                                }))
+                              }
+                            />
+                          </div>
                         </div>
                         <div className="flex items-center justify-between pt-3">
-                          <button type="button" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1" onClick={() => setKashierShowKeys(!kashierShowKeys)}>
-                            {kashierShowKeys ? <><EyeOff className="h-3 w-3" /> {language === "ar" ? "إخفاء" : "Hide"}</> : <><Eye className="h-3 w-3" /> {language === "ar" ? "إظهار" : "Show"}</>}
+                          <button
+                            type="button"
+                            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                            onClick={() => setKashierShowKeys(!kashierShowKeys)}
+                          >
+                            {kashierShowKeys ? (
+                              <>
+                                <EyeOff className="h-3 w-3" />{" "}
+                                {language === "ar" ? "إخفاء" : "Hide"}
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="h-3 w-3" />{" "}
+                                {language === "ar" ? "إظهار" : "Show"}
+                              </>
+                            )}
                           </button>
                           <div className="flex gap-2">
-                            {kashierEditing && <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setKashierEditing(false); setKashierForm({ merchant_id: "", api_key: "", secret_key: "" }); }}>{language === "ar" ? "إلغاء" : "Cancel"}</Button>}
-                            <Button type="button" size="sm" className="h-8 text-xs" disabled={kashierSaving || !kashierForm.merchant_id || !kashierForm.api_key} onClick={async () => {
-                              if (!currentStore?.id) return;
-                              setKashierSaving(true);
-                              try { const result = await saveKashierCredentials(currentStore.id, { merchant_id: kashierForm.merchant_id, api_key: kashierForm.api_key, secret_key: kashierForm.secret_key || undefined }); setKashierCreds(result); setKashierForm({ merchant_id: "", api_key: "", secret_key: "" }); setKashierEditing(false); setEnabledGateway("kashier"); toast.success(language === "ar" ? "تم حفظ بيانات Kashier" : "Kashier credentials saved"); } catch (err) { showError(err); } finally { setKashierSaving(false); }
-                            }}>{kashierSaving && <Loader2 className="h-3 w-3 animate-spin mr-1" />}{language === "ar" ? "حفظ" : "Save"}</Button>
+                            {kashierEditing && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 text-xs"
+                                onClick={() => {
+                                  setKashierEditing(false);
+                                  setKashierForm({
+                                    merchant_id: "",
+                                    api_key: "",
+                                    secret_key: "",
+                                  });
+                                }}
+                              >
+                                {language === "ar" ? "إلغاء" : "Cancel"}
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8 text-xs"
+                              disabled={
+                                kashierSaving ||
+                                !kashierForm.merchant_id ||
+                                !kashierForm.api_key
+                              }
+                              onClick={async () => {
+                                if (!currentStore?.id) return;
+                                setKashierSaving(true);
+                                try {
+                                  const result = await saveKashierCredentials(
+                                    currentStore.id,
+                                    {
+                                      merchant_id: kashierForm.merchant_id,
+                                      api_key: kashierForm.api_key,
+                                      secret_key:
+                                        kashierForm.secret_key || undefined,
+                                    },
+                                  );
+                                  setKashierCreds(result);
+                                  setKashierForm({
+                                    merchant_id: "",
+                                    api_key: "",
+                                    secret_key: "",
+                                  });
+                                  setKashierEditing(false);
+                                  setEnabledGateway("kashier");
+                                  toast.success(
+                                    language === "ar"
+                                      ? "تم حفظ بيانات Kashier"
+                                      : "Kashier credentials saved",
+                                  );
+                                } catch (err) {
+                                  showError(err);
+                                } finally {
+                                  setKashierSaving(false);
+                                }
+                              }}
+                            >
+                              {kashierSaving && (
+                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                              )}
+                              {language === "ar" ? "حفظ" : "Save"}
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -1890,13 +2388,19 @@ const StoreSettings = () => {
             <div className="border-t pt-6 mt-6">
               <div className="settings-field-group">
                 <div className="flex items-center justify-between">
-                  <div className="settings-field-group-label">
-                    Fawry
-                  </div>
-                  <Badge variant={fawryCreds?.is_configured ? "default" : "secondary"}>
+                  <div className="settings-field-group-label">Fawry</div>
+                  <Badge
+                    variant={
+                      fawryCreds?.is_configured ? "default" : "secondary"
+                    }
+                  >
                     {fawryCreds?.is_configured
-                      ? language === "ar" ? "مفعّل" : "Configured"
-                      : language === "ar" ? "غير مفعّل" : "Not Configured"}
+                      ? language === "ar"
+                        ? "مفعّل"
+                        : "Configured"
+                      : language === "ar"
+                        ? "غير مفعّل"
+                        : "Not Configured"}
                   </Badge>
                 </div>
 
@@ -1904,16 +2408,22 @@ const StoreSettings = () => {
                   <div className="space-y-2 text-sm text-muted-foreground mt-3">
                     <div className="flex justify-between">
                       <span>Merchant Code</span>
-                      <span className="font-mono">{fawryCreds.merchant_code}</span>
+                      <span className="font-mono">
+                        {fawryCreds.merchant_code}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Security Key</span>
-                      <span className="font-mono">{fawryCreds.security_key_masked}</span>
+                      <span className="font-mono">
+                        {fawryCreds.security_key_masked}
+                      </span>
                     </div>
                     {fawryCreds.last_configured && (
                       <p className="text-xs pt-1">
                         {language === "ar" ? "آخر تحديث: " : "Last updated: "}
-                        {new Date(fawryCreds.last_configured).toLocaleDateString()}
+                        {new Date(
+                          fawryCreds.last_configured,
+                        ).toLocaleDateString()}
                       </p>
                     )}
                   </div>
@@ -1924,8 +2434,12 @@ const StoreSettings = () => {
               <div className="settings-field-group">
                 <div className="settings-field-group-label">
                   {fawryCreds?.is_configured
-                    ? language === "ar" ? "تحديث بيانات Fawry" : "Update Fawry Credentials"
-                    : language === "ar" ? "إعداد Fawry" : "Setup Fawry"}
+                    ? language === "ar"
+                      ? "تحديث بيانات Fawry"
+                      : "Update Fawry Credentials"
+                    : language === "ar"
+                      ? "إعداد Fawry"
+                      : "Setup Fawry"}
                 </div>
                 <p className="text-xs text-muted-foreground mb-3">
                   {language === "ar"
@@ -1938,18 +2452,34 @@ const StoreSettings = () => {
                     <Label className="text-xs">Merchant Code</Label>
                     <Input
                       type="text"
-                      placeholder={language === "ar" ? "كود التاجر" : "e.g. +/IAKAN..."}
+                      placeholder={
+                        language === "ar" ? "كود التاجر" : "e.g. +/IAKAN..."
+                      }
                       value={fawryForm.merchant_code}
-                      onChange={(e) => setFawryForm((f) => ({ ...f, merchant_code: e.target.value }))}
+                      onChange={(e) =>
+                        setFawryForm((f) => ({
+                          ...f,
+                          merchant_code: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Security Key</Label>
                     <Input
                       type={fawryShowKeys ? "text" : "password"}
-                      placeholder={language === "ar" ? "مفتاح الأمان" : "Security key from Fawry dashboard"}
+                      placeholder={
+                        language === "ar"
+                          ? "مفتاح الأمان"
+                          : "Security key from Fawry dashboard"
+                      }
                       value={fawryForm.security_key}
-                      onChange={(e) => setFawryForm((f) => ({ ...f, security_key: e.target.value }))}
+                      onChange={(e) =>
+                        setFawryForm((f) => ({
+                          ...f,
+                          security_key: e.target.value,
+                        }))
+                      }
                     />
                   </div>
 
@@ -1960,9 +2490,15 @@ const StoreSettings = () => {
                       onClick={() => setFawryShowKeys(!fawryShowKeys)}
                     >
                       {fawryShowKeys ? (
-                        <span className="flex items-center gap-1"><EyeOff className="h-3 w-3" /> {language === "ar" ? "إخفاء" : "Hide"}</span>
+                        <span className="flex items-center gap-1">
+                          <EyeOff className="h-3 w-3" />{" "}
+                          {language === "ar" ? "إخفاء" : "Hide"}
+                        </span>
                       ) : (
-                        <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {language === "ar" ? "إظهار" : "Show"}</span>
+                        <span className="flex items-center gap-1">
+                          <Eye className="h-3 w-3" />{" "}
+                          {language === "ar" ? "إظهار" : "Show"}
+                        </span>
                       )}
                     </button>
                   </div>
@@ -1980,13 +2516,20 @@ const StoreSettings = () => {
                       if (!currentStore?.id) return;
                       setFawrySaving(true);
                       try {
-                        const result = await saveFawryCredentials(currentStore.id, {
-                          merchant_code: fawryForm.merchant_code,
-                          security_key: fawryForm.security_key,
-                        });
+                        const result = await saveFawryCredentials(
+                          currentStore.id,
+                          {
+                            merchant_code: fawryForm.merchant_code,
+                            security_key: fawryForm.security_key,
+                          },
+                        );
                         setFawryCreds(result);
                         setFawryForm({ merchant_code: "", security_key: "" });
-                        toast.success(language === "ar" ? "تم حفظ بيانات Fawry بنجاح" : "Fawry credentials saved");
+                        toast.success(
+                          language === "ar"
+                            ? "تم حفظ بيانات Fawry بنجاح"
+                            : "Fawry credentials saved",
+                        );
                       } catch (err) {
                         showError(err);
                       } finally {
@@ -1994,7 +2537,9 @@ const StoreSettings = () => {
                       }
                     }}
                   >
-                    {fawrySaving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+                    {fawrySaving && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    )}
                     {language === "ar" ? "حفظ" : "Save Credentials"}
                   </Button>
 
@@ -2006,8 +2551,17 @@ const StoreSettings = () => {
                         if (!currentStore?.id) return;
                         try {
                           await deleteFawryCredentials(currentStore.id);
-                          setFawryCreds({ is_configured: false, merchant_code: null, security_key_masked: null, last_configured: null });
-                          toast.success(language === "ar" ? "تم حذف بيانات Fawry" : "Fawry credentials removed");
+                          setFawryCreds({
+                            is_configured: false,
+                            merchant_code: null,
+                            security_key_masked: null,
+                            last_configured: null,
+                          });
+                          toast.success(
+                            language === "ar"
+                              ? "تم حذف بيانات Fawry"
+                              : "Fawry credentials removed",
+                          );
                         } catch (err) {
                           showError(err);
                         }
@@ -2210,7 +2764,9 @@ const StoreSettings = () => {
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <div className="settings-field-group-label mb-0">
-                        {language === "ar" ? "بوسطة - شركة الشحن" : "Bosta Shipping"}
+                        {language === "ar"
+                          ? "بوسطة - شركة الشحن"
+                          : "Bosta Shipping"}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {language === "ar"
@@ -2219,7 +2775,10 @@ const StoreSettings = () => {
                       </p>
                     </div>
                     {bostaCreds?.is_configured && !bostaEditing && (
-                      <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
+                      <Badge
+                        variant="outline"
+                        className="text-green-600 border-green-200 bg-green-50"
+                      >
                         {language === "ar" ? "مفعّل" : "CONNECTED"}
                       </Badge>
                     )}
@@ -2229,12 +2788,20 @@ const StoreSettings = () => {
                     <div className="rounded-lg border p-4 space-y-3">
                       <div className="grid gap-2 sm:grid-cols-2 text-sm">
                         <div>
-                          <span className="text-muted-foreground text-xs">API Key</span>
-                          <div className="font-mono text-sm">{bostaCreds.api_key_masked || "••••"}</div>
+                          <span className="text-muted-foreground text-xs">
+                            API Key
+                          </span>
+                          <div className="font-mono text-sm">
+                            {bostaCreds.api_key_masked || "••••"}
+                          </div>
                         </div>
                         <div>
-                          <span className="text-muted-foreground text-xs">Business ID</span>
-                          <div className="text-sm">{bostaCreds.business_id || "—"}</div>
+                          <span className="text-muted-foreground text-xs">
+                            Business ID
+                          </span>
+                          <div className="text-sm">
+                            {bostaCreds.business_id || "—"}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
@@ -2243,33 +2810,66 @@ const StoreSettings = () => {
                           disabled
                         />
                         <span className="text-muted-foreground">
-                          {language === "ar" ? "إنشاء شحنة تلقائيًا عند تأكيد الطلب" : "Auto-create shipment on order confirmation"}
+                          {language === "ar"
+                            ? "إنشاء شحنة تلقائيًا عند تأكيد الطلب"
+                            : "Auto-create shipment on order confirmation"}
                         </span>
                       </div>
                       {bostaCreds.last_configured && (
                         <p className="text-xs text-muted-foreground">
-                          {language === "ar" ? "آخر تحديث: " : "Last configured: "}
-                          {new Date(bostaCreds.last_configured).toLocaleDateString()}
+                          {language === "ar"
+                            ? "آخر تحديث: "
+                            : "Last configured: "}
+                          {new Date(
+                            bostaCreds.last_configured,
+                          ).toLocaleDateString()}
                         </p>
                       )}
                       <div className="flex gap-2 pt-1">
-                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => {
-                          setBostaEditing(true);
-                          setBostaForm({ api_key: "", business_id: bostaCreds.business_id || "", webhook_secret: "", auto_create_shipment: bostaCreds.auto_create_shipment });
-                        }}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            setBostaEditing(true);
+                            setBostaForm({
+                              api_key: "",
+                              business_id: bostaCreds.business_id || "",
+                              webhook_secret: "",
+                              auto_create_shipment:
+                                bostaCreds.auto_create_shipment,
+                            });
+                          }}
+                        >
                           {language === "ar" ? "تعديل" : "Edit"}
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive" onClick={async () => {
-                          if (!currentStore?.id) return;
-                          try {
-                            const { deleteBostaCredentials } = await import("@/services/shipmentApi");
-                            await deleteBostaCredentials(currentStore.id);
-                            setBostaCreds({ is_configured: false, api_key_masked: null, business_id: null, auto_create_shipment: false, last_configured: null });
-                            toast.success(language === "ar" ? "تم حذف بيانات بوسطة" : "Bosta credentials removed");
-                          } catch (err) {
-                            showError(err, language);
-                          }
-                        }}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs text-destructive hover:text-destructive"
+                          onClick={async () => {
+                            if (!currentStore?.id) return;
+                            try {
+                              const { deleteBostaCredentials } =
+                                await import("@/services/shipmentApi");
+                              await deleteBostaCredentials(currentStore.id);
+                              setBostaCreds({
+                                is_configured: false,
+                                api_key_masked: null,
+                                business_id: null,
+                                auto_create_shipment: false,
+                                last_configured: null,
+                              });
+                              toast.success(
+                                language === "ar"
+                                  ? "تم حذف بيانات بوسطة"
+                                  : "Bosta credentials removed",
+                              );
+                            } catch (err) {
+                              showError(err, language);
+                            }
+                          }}
+                        >
                           {language === "ar" ? "حذف" : "Remove"}
                         </Button>
                       </div>
@@ -2283,7 +2883,12 @@ const StoreSettings = () => {
                             <Input
                               type={bostaShowKey ? "text" : "password"}
                               value={bostaForm.api_key}
-                              onChange={(e) => setBostaForm(p => ({ ...p, api_key: e.target.value }))}
+                              onChange={(e) =>
+                                setBostaForm((p) => ({
+                                  ...p,
+                                  api_key: e.target.value,
+                                }))
+                              }
                               placeholder="Bosta API Key"
                             />
                             <button
@@ -2291,7 +2896,11 @@ const StoreSettings = () => {
                               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                               onClick={() => setBostaShowKey(!bostaShowKey)}
                             >
-                              {bostaShowKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                              {bostaShowKey ? (
+                                <EyeOff className="h-3.5 w-3.5" />
+                              ) : (
+                                <Eye className="h-3.5 w-3.5" />
+                              )}
                             </button>
                           </div>
                         </div>
@@ -2299,56 +2908,110 @@ const StoreSettings = () => {
                           <Label className="text-xs">Business ID</Label>
                           <Input
                             value={bostaForm.business_id}
-                            onChange={(e) => setBostaForm(p => ({ ...p, business_id: e.target.value }))}
+                            onChange={(e) =>
+                              setBostaForm((p) => ({
+                                ...p,
+                                business_id: e.target.value,
+                              }))
+                            }
                             placeholder="Bosta Business ID"
                           />
                         </div>
                       </div>
                       <div className="grid gap-1">
-                        <Label className="text-xs">{language === "ar" ? "مفتاح Webhook (اختياري)" : "Webhook Secret (optional)"}</Label>
+                        <Label className="text-xs">
+                          {language === "ar"
+                            ? "مفتاح Webhook (اختياري)"
+                            : "Webhook Secret (optional)"}
+                        </Label>
                         <Input
                           type="password"
                           value={bostaForm.webhook_secret}
-                          onChange={(e) => setBostaForm(p => ({ ...p, webhook_secret: e.target.value }))}
-                          placeholder={language === "ar" ? "لتوثيق إشعارات بوسطة" : "For webhook signature verification"}
+                          onChange={(e) =>
+                            setBostaForm((p) => ({
+                              ...p,
+                              webhook_secret: e.target.value,
+                            }))
+                          }
+                          placeholder={
+                            language === "ar"
+                              ? "لتوثيق إشعارات بوسطة"
+                              : "For webhook signature verification"
+                          }
                         />
                       </div>
                       <div className="flex items-center gap-2">
                         <Checkbox
                           checked={bostaForm.auto_create_shipment}
-                          onCheckedChange={(v) => setBostaForm(p => ({ ...p, auto_create_shipment: !!v }))}
+                          onCheckedChange={(v) =>
+                            setBostaForm((p) => ({
+                              ...p,
+                              auto_create_shipment: !!v,
+                            }))
+                          }
                         />
                         <span className="text-sm">
-                          {language === "ar" ? "إنشاء شحنة تلقائيًا عند تأكيد الطلب" : "Auto-create shipment on order confirmation"}
+                          {language === "ar"
+                            ? "إنشاء شحنة تلقائيًا عند تأكيد الطلب"
+                            : "Auto-create shipment on order confirmation"}
                         </span>
                       </div>
                       <div className="flex gap-2">
-                        <Button size="sm" disabled={bostaSaving || !bostaForm.api_key || !bostaForm.business_id} onClick={async () => {
-                          if (!currentStore?.id) return;
-                          setBostaSaving(true);
-                          try {
-                            const { saveBostaCredentials } = await import("@/services/shipmentApi");
-                            const result = await saveBostaCredentials(currentStore.id, {
-                              api_key: bostaForm.api_key,
-                              business_id: bostaForm.business_id,
-                              webhook_secret: bostaForm.webhook_secret || undefined,
-                              auto_create_shipment: bostaForm.auto_create_shipment,
-                            });
-                            setBostaCreds(result);
-                            setBostaEditing(false);
-                            setBostaForm({ api_key: "", business_id: "", webhook_secret: "", auto_create_shipment: false });
-                            toast.success(language === "ar" ? "تم حفظ بيانات بوسطة" : "Bosta credentials saved");
-                          } catch (err) {
-                            showError(err, language);
-                          } finally {
-                            setBostaSaving(false);
+                        <Button
+                          size="sm"
+                          disabled={
+                            bostaSaving ||
+                            !bostaForm.api_key ||
+                            !bostaForm.business_id
                           }
-                        }}>
-                          {bostaSaving && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                          onClick={async () => {
+                            if (!currentStore?.id) return;
+                            setBostaSaving(true);
+                            try {
+                              const { saveBostaCredentials } =
+                                await import("@/services/shipmentApi");
+                              const result = await saveBostaCredentials(
+                                currentStore.id,
+                                {
+                                  api_key: bostaForm.api_key,
+                                  business_id: bostaForm.business_id,
+                                  webhook_secret:
+                                    bostaForm.webhook_secret || undefined,
+                                  auto_create_shipment:
+                                    bostaForm.auto_create_shipment,
+                                },
+                              );
+                              setBostaCreds(result);
+                              setBostaEditing(false);
+                              setBostaForm({
+                                api_key: "",
+                                business_id: "",
+                                webhook_secret: "",
+                                auto_create_shipment: false,
+                              });
+                              toast.success(
+                                language === "ar"
+                                  ? "تم حفظ بيانات بوسطة"
+                                  : "Bosta credentials saved",
+                              );
+                            } catch (err) {
+                              showError(err, language);
+                            } finally {
+                              setBostaSaving(false);
+                            }
+                          }}
+                        >
+                          {bostaSaving && (
+                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                          )}
                           {language === "ar" ? "حفظ" : "Save"}
                         </Button>
                         {bostaEditing && (
-                          <Button variant="ghost" size="sm" onClick={() => setBostaEditing(false)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setBostaEditing(false)}
+                          >
                             {language === "ar" ? "إلغاء" : "Cancel"}
                           </Button>
                         )}
@@ -2383,237 +3046,347 @@ const StoreSettings = () => {
         )}
 
         {/* ─── Policies ─── */}
-        {activeSection === "policies" && (() => {
-          const policyQuestions: Record<string, { key: string; label: string; labelAr: string; placeholder: string; placeholderAr: string }[]> = {
-            return: [
-              { key: "return_window", label: "Return window", labelAr: "مدة الإرجاع", placeholder: "e.g. 14 days", placeholderAr: "مثال: 14 يوم" },
-              { key: "refund_method", label: "Refund method", labelAr: "طريقة الاسترداد", placeholder: "e.g. Original payment method, store credit", placeholderAr: "مثال: نفس طريقة الدفع، رصيد بالمتجر" },
-              { key: "conditions", label: "Return conditions", labelAr: "شروط الإرجاع", placeholder: "e.g. Items must be unused and in original packaging", placeholderAr: "مثال: المنتجات لازم تكون جديدة وفي التغليف الأصلي" },
-            ],
-            shipping: [
-              { key: "shipping_regions", label: "Shipping regions", labelAr: "مناطق الشحن", placeholder: "e.g. All of Egypt, Cairo & Giza only", placeholderAr: "مثال: كل مصر، القاهرة والجيزة بس" },
-              { key: "delivery_time", label: "Estimated delivery time", labelAr: "وقت التوصيل المتوقع", placeholder: "e.g. 2-5 business days", placeholderAr: "مثال: 2-5 أيام عمل" },
-              { key: "shipping_cost", label: "Shipping cost info", labelAr: "تكلفة الشحن", placeholder: "e.g. Free shipping over 500 EGP, flat rate 50 EGP", placeholderAr: "مثال: شحن مجاني فوق 500 جنيه، سعر ثابت 50 جنيه" },
-            ],
-            privacy: [
-              { key: "data_collected", label: "Data you collect", labelAr: "البيانات اللي بتجمعها", placeholder: "e.g. Name, email, phone, address", placeholderAr: "مثال: الاسم، الإيميل، الموبايل، العنوان" },
-              { key: "data_usage", label: "How you use the data", labelAr: "إزاي بتستخدم البيانات", placeholder: "e.g. Order processing, marketing emails", placeholderAr: "مثال: تنفيذ الطلبات، إيميلات تسويقية" },
-              { key: "third_party", label: "Third-party sharing", labelAr: "مشاركة مع أطراف تالتة", placeholder: "e.g. Shipping companies, payment processors", placeholderAr: "مثال: شركات الشحن، بوابات الدفع" },
-            ],
-            terms: [
-              { key: "jurisdiction", label: "Jurisdiction / Country", labelAr: "الولاية القضائية / البلد", placeholder: "e.g. Egypt", placeholderAr: "مثال: مصر" },
-              { key: "age_requirement", label: "Minimum age requirement", labelAr: "الحد الأدنى للسن", placeholder: "e.g. 18 years old", placeholderAr: "مثال: 18 سنة" },
-              { key: "payment_terms", label: "Payment terms", labelAr: "شروط الدفع", placeholder: "e.g. Full payment at checkout, COD available", placeholderAr: "مثال: الدفع الكامل عند الشراء، الدفع عند الاستلام متاح" },
-            ],
-          };
+        {activeSection === "policies" &&
+          (() => {
+            const policyQuestions: Record<
+              string,
+              {
+                key: string;
+                label: string;
+                labelAr: string;
+                placeholder: string;
+                placeholderAr: string;
+              }[]
+            > = {
+              return: [
+                {
+                  key: "return_window",
+                  label: "Return window",
+                  labelAr: "مدة الإرجاع",
+                  placeholder: "e.g. 14 days",
+                  placeholderAr: "مثال: 14 يوم",
+                },
+                {
+                  key: "refund_method",
+                  label: "Refund method",
+                  labelAr: "طريقة الاسترداد",
+                  placeholder: "e.g. Original payment method, store credit",
+                  placeholderAr: "مثال: نفس طريقة الدفع، رصيد بالمتجر",
+                },
+                {
+                  key: "conditions",
+                  label: "Return conditions",
+                  labelAr: "شروط الإرجاع",
+                  placeholder:
+                    "e.g. Items must be unused and in original packaging",
+                  placeholderAr:
+                    "مثال: المنتجات لازم تكون جديدة وفي التغليف الأصلي",
+                },
+              ],
+              shipping: [
+                {
+                  key: "shipping_regions",
+                  label: "Shipping regions",
+                  labelAr: "مناطق الشحن",
+                  placeholder: "e.g. All of Egypt, Cairo & Giza only",
+                  placeholderAr: "مثال: كل مصر، القاهرة والجيزة بس",
+                },
+                {
+                  key: "delivery_time",
+                  label: "Estimated delivery time",
+                  labelAr: "وقت التوصيل المتوقع",
+                  placeholder: "e.g. 2-5 business days",
+                  placeholderAr: "مثال: 2-5 أيام عمل",
+                },
+                {
+                  key: "shipping_cost",
+                  label: "Shipping cost info",
+                  labelAr: "تكلفة الشحن",
+                  placeholder:
+                    "e.g. Free shipping over 500 EGP, flat rate 50 EGP",
+                  placeholderAr:
+                    "مثال: شحن مجاني فوق 500 جنيه، سعر ثابت 50 جنيه",
+                },
+              ],
+              privacy: [
+                {
+                  key: "data_collected",
+                  label: "Data you collect",
+                  labelAr: "البيانات اللي بتجمعها",
+                  placeholder: "e.g. Name, email, phone, address",
+                  placeholderAr: "مثال: الاسم، الإيميل، الموبايل، العنوان",
+                },
+                {
+                  key: "data_usage",
+                  label: "How you use the data",
+                  labelAr: "إزاي بتستخدم البيانات",
+                  placeholder: "e.g. Order processing, marketing emails",
+                  placeholderAr: "مثال: تنفيذ الطلبات، إيميلات تسويقية",
+                },
+                {
+                  key: "third_party",
+                  label: "Third-party sharing",
+                  labelAr: "مشاركة مع أطراف تالتة",
+                  placeholder: "e.g. Shipping companies, payment processors",
+                  placeholderAr: "مثال: شركات الشحن، بوابات الدفع",
+                },
+              ],
+              terms: [
+                {
+                  key: "jurisdiction",
+                  label: "Jurisdiction / Country",
+                  labelAr: "الولاية القضائية / البلد",
+                  placeholder: "e.g. Egypt",
+                  placeholderAr: "مثال: مصر",
+                },
+                {
+                  key: "age_requirement",
+                  label: "Minimum age requirement",
+                  labelAr: "الحد الأدنى للسن",
+                  placeholder: "e.g. 18 years old",
+                  placeholderAr: "مثال: 18 سنة",
+                },
+                {
+                  key: "payment_terms",
+                  label: "Payment terms",
+                  labelAr: "شروط الدفع",
+                  placeholder: "e.g. Full payment at checkout, COD available",
+                  placeholderAr:
+                    "مثال: الدفع الكامل عند الشراء، الدفع عند الاستلام متاح",
+                },
+              ],
+            };
 
-          const currentQuestions = policyQuestions[policyTab] || [];
+            const currentQuestions = policyQuestions[policyTab] || [];
 
-          const handleGeneratePolicy = async () => {
-            if (!currentStore?.id) return;
-            setIsGeneratingPolicy(true);
-            try {
-              const result = await generatePolicy(String(currentStore.id), {
-                policy_type: policyTab as "return" | "shipping" | "privacy" | "terms",
-                store_name: currentStore.name || "My Store",
-                answers: aiPolicyAnswers,
-                language: language === "ar" ? "ar" : "en",
-              });
-              setPolicyTexts((prev) => ({ ...prev, [policyTab]: result.policy_text }));
-              setShowAiPolicyDialog(false);
-              setAiPolicyAnswers({});
-              toast.success(
-                language === "ar"
-                  ? "تم إنشاء السياسة بنجاح"
-                  : "Policy generated successfully"
-              );
-            } catch {
-              toast.error(
-                language === "ar"
-                  ? "فشل إنشاء السياسة. حاول مرة تانية."
-                  : "Failed to generate policy. Please try again."
-              );
-            } finally {
-              setIsGeneratingPolicy(false);
-            }
-          };
-
-          return (
-          <div key="policies" className="settings-section-enter">
-            <div className="settings-section-header">
-              <h2>{t("store.policies")}</h2>
-              <p>
-                {language === "ar"
-                  ? "سياسات المتجر والشروط القانونية"
-                  : "Store policies and legal terms"}
-              </p>
-            </div>
-
-            <div className="flex gap-1.5 mb-5 flex-wrap p-1 rounded-xl bg-muted/20 border border-border/20 w-fit">
-              {[
-                { key: "return", label: t("store.returnPolicy") },
-                { key: "shipping", label: t("store.shippingPolicy") },
-                { key: "privacy", label: t("store.privacyPolicy") },
-                { key: "terms", label: t("store.termsOfService") },
-              ].map((p) => (
-                <button
-                  key={p.key}
-                  onClick={() => setPolicyTab(p.key)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    policyTab === p.key
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex justify-end mb-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setAiPolicyAnswers({});
-                  setShowAiPolicyDialog(true);
-                }}
-                className="gap-2"
-              >
-                <Sparkles className="h-4 w-4" />
-                {language === "ar" ? "إنشاء بالذكاء الاصطناعي" : "Generate with AI"}
-              </Button>
-            </div>
-
-            <Textarea
-              rows={10}
-              value={policyTexts[policyTab] || ""}
-              onChange={(e) =>
-                setPolicyTexts((prev) => ({ ...prev, [policyTab]: e.target.value }))
+            const handleGeneratePolicy = async () => {
+              if (!currentStore?.id) return;
+              setIsGeneratingPolicy(true);
+              try {
+                const result = await generatePolicy(String(currentStore.id), {
+                  policy_type: policyTab as
+                    | "return"
+                    | "shipping"
+                    | "privacy"
+                    | "terms",
+                  store_name: currentStore.name || "My Store",
+                  answers: aiPolicyAnswers,
+                  language: language === "ar" ? "ar" : "en",
+                });
+                setPolicyTexts((prev) => ({
+                  ...prev,
+                  [policyTab]: result.policy_text,
+                }));
+                setShowAiPolicyDialog(false);
+                setAiPolicyAnswers({});
+                toast.success(
+                  language === "ar"
+                    ? "تم إنشاء السياسة بنجاح"
+                    : "Policy generated successfully",
+                );
+              } catch {
+                toast.error(
+                  language === "ar"
+                    ? "فشل إنشاء السياسة. حاول مرة تانية."
+                    : "Failed to generate policy. Please try again.",
+                );
+              } finally {
+                setIsGeneratingPolicy(false);
               }
-              placeholder={
-                language === "ar"
-                  ? "اكتب السياسة هنا..."
-                  : "Write your policy here..."
-              }
-              className="font-mono text-sm"
-            />
-            <div className="pt-4">
-              <Button
-                disabled={isSaving}
-                onClick={async () => {
-                  if (!currentStore?.id) return;
-                  setIsSaving(true);
-                  try {
-                    await updateStore(currentStore.id, {
-                      settings: {
-                        return_policy: policyTexts.return,
-                        shipping_policy: policyTexts.shipping,
-                        privacy_policy: policyTexts.privacy,
-                        terms_of_service: policyTexts.terms,
-                      },
-                    });
-                    await refetchStores();
-                    toast.success(t("store.saved"));
-                  } catch (err) {
-                    showError(err, language);
-                  } finally {
-                    setIsSaving(false);
-                  }
-                }}
-              >
-                {t("store.save")}
-              </Button>
-            </div>
+            };
 
-            {/* AI Policy Generation Dialog */}
-            <Dialog open={showAiPolicyDialog} onOpenChange={setShowAiPolicyDialog}>
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5" />
+            return (
+              <div key="policies" className="settings-section-enter">
+                <div className="settings-section-header">
+                  <h2>{t("store.policies")}</h2>
+                  <p>
                     {language === "ar"
-                      ? "إنشاء السياسة بالذكاء الاصطناعي"
-                      : "Generate Policy with AI"}
-                  </DialogTitle>
-                  <DialogDescription>
-                    {language === "ar"
-                      ? "أجب على الأسئلة دي وهنكتبلك السياسة تلقائيًا"
-                      : "Answer a few questions and we'll generate the policy for you"}
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-4 py-2">
-                  {currentQuestions.map((q) => (
-                    <div key={q.key} className="space-y-1.5">
-                      <Label className="text-sm font-medium">
-                        {language === "ar" ? q.labelAr : q.label}
-                      </Label>
-                      <Input
-                        value={aiPolicyAnswers[q.key] || ""}
-                        onChange={(e) =>
-                          setAiPolicyAnswers((prev) => ({
-                            ...prev,
-                            [q.key]: e.target.value,
-                          }))
-                        }
-                        placeholder={language === "ar" ? q.placeholderAr : q.placeholder}
-                      />
-                    </div>
-                  ))}
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium">
-                      {language === "ar" ? "ملاحظات إضافية (اختياري)" : "Additional notes (optional)"}
-                    </Label>
-                    <Textarea
-                      rows={2}
-                      value={aiPolicyAnswers.additional_notes || ""}
-                      onChange={(e) =>
-                        setAiPolicyAnswers((prev) => ({
-                          ...prev,
-                          additional_notes: e.target.value,
-                        }))
-                      }
-                      placeholder={
-                        language === "ar"
-                          ? "أي تفاصيل تانية عايز تضيفها..."
-                          : "Any other details you'd like to include..."
-                      }
-                    />
-                  </div>
+                      ? "سياسات المتجر والشروط القانونية"
+                      : "Store policies and legal terms"}
+                  </p>
                 </div>
 
-                <DialogFooter>
+                <div className="flex gap-1.5 mb-5 flex-wrap p-1 rounded-xl bg-muted/20 border border-border/20 w-fit">
+                  {[
+                    { key: "return", label: t("store.returnPolicy") },
+                    { key: "shipping", label: t("store.shippingPolicy") },
+                    { key: "privacy", label: t("store.privacyPolicy") },
+                    { key: "terms", label: t("store.termsOfService") },
+                  ].map((p) => (
+                    <button
+                      key={p.key}
+                      onClick={() => setPolicyTab(p.key)}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        policyTab === p.key
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex justify-end mb-2">
                   <Button
                     variant="outline"
-                    onClick={() => setShowAiPolicyDialog(false)}
-                    disabled={isGeneratingPolicy}
-                  >
-                    {language === "ar" ? "إلغاء" : "Cancel"}
-                  </Button>
-                  <Button
-                    onClick={handleGeneratePolicy}
-                    disabled={isGeneratingPolicy}
+                    size="sm"
+                    onClick={() => {
+                      setAiPolicyAnswers({});
+                      setShowAiPolicyDialog(true);
+                    }}
                     className="gap-2"
                   >
-                    {isGeneratingPolicy ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        {language === "ar" ? "جاري الإنشاء..." : "Generating..."}
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4" />
-                        {language === "ar" ? "إنشاء" : "Generate"}
-                      </>
-                    )}
+                    <Sparkles className="h-4 w-4" />
+                    {language === "ar"
+                      ? "إنشاء بالذكاء الاصطناعي"
+                      : "Generate with AI"}
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-          );
-        })()}
+                </div>
+
+                <Textarea
+                  rows={10}
+                  value={policyTexts[policyTab] || ""}
+                  onChange={(e) =>
+                    setPolicyTexts((prev) => ({
+                      ...prev,
+                      [policyTab]: e.target.value,
+                    }))
+                  }
+                  placeholder={
+                    language === "ar"
+                      ? "اكتب السياسة هنا..."
+                      : "Write your policy here..."
+                  }
+                  className="font-mono text-sm"
+                />
+                <div className="pt-4">
+                  <Button
+                    disabled={isSaving}
+                    onClick={async () => {
+                      if (!currentStore?.id) return;
+                      setIsSaving(true);
+                      try {
+                        await updateStore(currentStore.id, {
+                          settings: {
+                            return_policy: policyTexts.return,
+                            shipping_policy: policyTexts.shipping,
+                            privacy_policy: policyTexts.privacy,
+                            terms_of_service: policyTexts.terms,
+                          },
+                        });
+                        await refetchStores();
+                        toast.success(t("store.saved"));
+                      } catch (err) {
+                        showError(err, language);
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                  >
+                    {t("store.save")}
+                  </Button>
+                </div>
+
+                {/* AI Policy Generation Dialog */}
+                <Dialog
+                  open={showAiPolicyDialog}
+                  onOpenChange={setShowAiPolicyDialog}
+                >
+                  <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5" />
+                        {language === "ar"
+                          ? "إنشاء السياسة بالذكاء الاصطناعي"
+                          : "Generate Policy with AI"}
+                      </DialogTitle>
+                      <DialogDescription>
+                        {language === "ar"
+                          ? "أجب على الأسئلة دي وهنكتبلك السياسة تلقائيًا"
+                          : "Answer a few questions and we'll generate the policy for you"}
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+                      {currentQuestions.map((q) => (
+                        <div key={q.key} className="space-y-1.5">
+                          <Label className="text-sm font-medium">
+                            {language === "ar" ? q.labelAr : q.label}
+                          </Label>
+                          <Input
+                            value={aiPolicyAnswers[q.key] || ""}
+                            onChange={(e) =>
+                              setAiPolicyAnswers((prev) => ({
+                                ...prev,
+                                [q.key]: e.target.value,
+                              }))
+                            }
+                            placeholder={
+                              language === "ar"
+                                ? q.placeholderAr
+                                : q.placeholder
+                            }
+                          />
+                        </div>
+                      ))}
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-medium">
+                          {language === "ar"
+                            ? "ملاحظات إضافية (اختياري)"
+                            : "Additional notes (optional)"}
+                        </Label>
+                        <Textarea
+                          rows={2}
+                          value={aiPolicyAnswers.additional_notes || ""}
+                          onChange={(e) =>
+                            setAiPolicyAnswers((prev) => ({
+                              ...prev,
+                              additional_notes: e.target.value,
+                            }))
+                          }
+                          placeholder={
+                            language === "ar"
+                              ? "أي تفاصيل تانية عايز تضيفها..."
+                              : "Any other details you'd like to include..."
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowAiPolicyDialog(false)}
+                        disabled={isGeneratingPolicy}
+                      >
+                        {language === "ar" ? "إلغاء" : "Cancel"}
+                      </Button>
+                      <Button
+                        onClick={handleGeneratePolicy}
+                        disabled={isGeneratingPolicy}
+                        className="gap-2"
+                      >
+                        {isGeneratingPolicy ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            {language === "ar"
+                              ? "جاري الإنشاء..."
+                              : "Generating..."}
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4" />
+                            {language === "ar" ? "إنشاء" : "Generate"}
+                          </>
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            );
+          })()}
 
         {/* ─── Status ─── */}
         {activeSection === "status" && (

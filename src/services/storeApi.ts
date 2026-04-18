@@ -114,7 +114,7 @@ export interface UploadAssetResult {
 export async function uploadStoreAsset(
   storeId: string,
   file: File,
-  assetType: "logo" | "favicon" | "hero_image" | "profile_picture",
+  assetType: "logo" | "favicon" | "hero_image" | "profile_picture" | "section_image",
 ): Promise<UploadAssetResult> {
   const formData = new FormData();
   formData.append("file", file);
@@ -324,6 +324,46 @@ export async function deleteFawryCredentials(
   storeId: string
 ): Promise<void> {
   await apiClient(`/stores/${storeId}/settings/payment/fawry/credentials`, {
+    method: "DELETE",
+  });
+}
+
+// ─── Fawaterak Credentials ─────────────────────────────────────────────────
+
+export interface FawaterakCredentialsResponse {
+  is_configured: boolean;
+  api_key_masked: string | null;
+  vendor_key_masked: string | null;
+  environment: string | null;
+  last_configured: string | null;
+}
+
+export async function fetchFawaterakCredentials(
+  storeId: string
+): Promise<FawaterakCredentialsResponse> {
+  return apiClient<FawaterakCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/fawaterak/credentials`
+  );
+}
+
+export async function saveFawaterakCredentials(
+  storeId: string,
+  data: {
+    api_key: string;
+    vendor_key: string;
+    environment?: string;
+  }
+): Promise<FawaterakCredentialsResponse> {
+  return apiClient<FawaterakCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/fawaterak/credentials`,
+    { method: "PUT", body: JSON.stringify(data) }
+  );
+}
+
+export async function deleteFawaterakCredentials(
+  storeId: string
+): Promise<void> {
+  await apiClient(`/stores/${storeId}/settings/payment/fawaterak/credentials`, {
     method: "DELETE",
   });
 }

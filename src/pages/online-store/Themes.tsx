@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { useTrialPaywall } from "@/contexts/TrialPaywallContext";
 import {
   fetchThemes,
   fetchCustomization,
@@ -138,6 +139,7 @@ function ThemePreviewSVG({ themeId, palette }: { themeId: string; palette: typeo
 export default function OnlineStoreThemes() {
   const { isRTL } = useLanguage();
   const { currentStore } = useDashboardStore();
+  const { requireTrial } = useTrialPaywall();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [switchTarget, setSwitchTarget] = useState<AvailableTheme | null>(null);
@@ -464,7 +466,7 @@ export default function OnlineStoreThemes() {
                 {!isExternalActive && (
                   <Button
                     size="sm"
-                    onClick={() => switchMutation.mutate(externalThemeFromStore.id)}
+                    onClick={() => { if (requireTrial("publish_store")) switchMutation.mutate(externalThemeFromStore.id); }}
                     disabled={switchMutation.isPending}
                   >
                     {switchMutation.isPending && (
@@ -554,7 +556,7 @@ export default function OnlineStoreThemes() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSwitchTarget(null)}>{isRTL ? "إلغاء" : "Cancel"}</Button>
             <Button
-              onClick={() => switchTarget && switchMutation.mutate(switchTarget.id)}
+              onClick={() => { if (switchTarget && requireTrial("publish_store")) switchMutation.mutate(switchTarget.id); }}
               disabled={switchMutation.isPending}
             >
               {switchMutation.isPending && <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />}

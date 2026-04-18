@@ -28,13 +28,16 @@ interface FormData {
   phone: string;
 }
 
-const DemoConvertModal: React.FC<DemoConvertModalProps> = ({ open, onOpenChange }) => {
+const DemoConvertModal: React.FC<DemoConvertModalProps> = ({
+  open,
+  onOpenChange,
+}) => {
   const { language } = useLanguage();
-  const { refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const isAr = language === "ar";
 
   const [form, setForm] = useState<FormData>({
-    email: "",
+    email: user?.email || "",
     password: "",
     first_name: "",
     last_name: "",
@@ -45,8 +48,9 @@ const DemoConvertModal: React.FC<DemoConvertModalProps> = ({ open, onOpenChange 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const set = (field: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  const set =
+    (field: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement>) =>
+      setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +77,10 @@ const DemoConvertModal: React.FC<DemoConvertModalProps> = ({ open, onOpenChange 
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : null;
       setError(
-        msg || (isAr ? "حصلت مشكلة. حاول تاني." : "Something went wrong. Please try again.")
+        msg ||
+          (isAr
+            ? "حصلت مشكلة. حاول تاني."
+            : "Something went wrong. Please try again."),
       );
       setLoading(false);
     }
@@ -84,7 +91,9 @@ const DemoConvertModal: React.FC<DemoConvertModalProps> = ({ open, onOpenChange 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isAr ? "احفظ شغلك — ابدأ حسابك" : "Save your work — create your account"}
+            {isAr
+              ? "احفظ شغلك — ابدأ حسابك"
+              : "Save your work — create your account"}
           </DialogTitle>
           <DialogDescription>
             {isAr
@@ -96,32 +105,79 @@ const DemoConvertModal: React.FC<DemoConvertModalProps> = ({ open, onOpenChange 
         <form onSubmit={handleSubmit} className="space-y-3 mt-2">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="first_name">{isAr ? "الاسم الأول" : "First name"}</Label>
-              <Input id="first_name" required value={form.first_name} onChange={set("first_name")} disabled={loading} />
+              <Label htmlFor="first_name">
+                {isAr ? "الاسم الأول" : "First name"}
+              </Label>
+              <Input
+                id="first_name"
+                required
+                value={form.first_name}
+                onChange={set("first_name")}
+                disabled={loading}
+              />
             </div>
             <div>
-              <Label htmlFor="last_name">{isAr ? "الاسم الأخير" : "Last name"}</Label>
-              <Input id="last_name" required value={form.last_name} onChange={set("last_name")} disabled={loading} />
+              <Label htmlFor="last_name">
+                {isAr ? "الاسم الأخير" : "Last name"}
+              </Label>
+              <Input
+                id="last_name"
+                required
+                value={form.last_name}
+                onChange={set("last_name")}
+                disabled={loading}
+              />
             </div>
           </div>
 
           <div>
-            <Label htmlFor="email">{isAr ? "البريد الإلكتروني" : "Email"}</Label>
-            <Input id="email" type="email" required value={form.email} onChange={set("email")} disabled={loading} dir="ltr" />
+            <Label htmlFor="email">
+              {isAr ? "البريد الإلكتروني" : "Email"}
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              required
+              value={form.email}
+              onChange={set("email")}
+              disabled={loading}
+              dir="ltr"
+            />
           </div>
 
           <div>
-            <Label htmlFor="password">{isAr ? "كلمة المرور" : "Password"}</Label>
-            <Input id="password" type="password" required minLength={8} value={form.password} onChange={set("password")} disabled={loading} dir="ltr" />
+            <Label htmlFor="password">
+              {isAr ? "كلمة المرور" : "Password"}
+            </Label>
+            <Input
+              id="password"
+              type="password"
+              required
+              minLength={8}
+              value={form.password}
+              onChange={set("password")}
+              disabled={loading}
+              dir="ltr"
+            />
           </div>
 
           <div>
-            <Label htmlFor="store_name">{isAr ? "اسم المتجر" : "Store name"}</Label>
-            <Input id="store_name" required value={form.store_name} onChange={set("store_name")} disabled={loading} />
+            <Label htmlFor="store_name">
+              {isAr ? "اسم المتجر" : "Store name"}
+            </Label>
+            <Input
+              id="store_name"
+              required
+              value={form.store_name}
+              onChange={set("store_name")}
+              disabled={loading}
+            />
           </div>
 
           <div>
-            <Label htmlFor="subdomain">{isAr ? "رابط المتجر" : "Store URL"}</Label>
+            <Label htmlFor="subdomain">
+              {isAr ? "رابط المتجر" : "Store URL"}
+            </Label>
             <div className="flex items-center gap-1">
               <Input
                 id="subdomain"
@@ -135,21 +191,37 @@ const DemoConvertModal: React.FC<DemoConvertModalProps> = ({ open, onOpenChange 
                 placeholder="mystore"
                 className="flex-1"
               />
-              <span className="text-xs text-muted-foreground shrink-0">.numu.io</span>
+              <span className="text-xs text-muted-foreground shrink-0">
+                .numu.io
+              </span>
             </div>
           </div>
 
           <div>
-            <Label htmlFor="phone">{isAr ? "رقم الموبايل (اختياري)" : "Phone (optional)"}</Label>
-            <Input id="phone" type="tel" value={form.phone} onChange={set("phone")} disabled={loading} dir="ltr" placeholder="+201..." />
+            <Label htmlFor="phone">
+              {isAr ? "رقم الموبايل (اختياري)" : "Phone (optional)"}
+            </Label>
+            <Input
+              id="phone"
+              type="tel"
+              value={form.phone}
+              onChange={set("phone")}
+              disabled={loading}
+              dir="ltr"
+              placeholder="+201..."
+            />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <Button type="submit" className="w-full" disabled={loading}>
             {loading
-              ? (isAr ? "جاري الحفظ..." : "Saving...")
-              : (isAr ? "احفظ وابدأ التجربة المجانية" : "Save & start free trial")}
+              ? isAr
+                ? "جاري الحفظ..."
+                : "Saving..."
+              : isAr
+                ? "احفظ وابدأ التجربة المجانية"
+                : "Save & start free trial"}
           </Button>
         </form>
       </DialogContent>

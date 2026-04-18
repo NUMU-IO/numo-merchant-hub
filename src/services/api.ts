@@ -29,12 +29,19 @@ async function rawFetch(
     }
   }
 
+  const tenantHeaders: Record<string, string> = {};
+  const currentStoreId = localStorage.getItem("numu-current-store");
+  if (currentStoreId) {
+    tenantHeaders["X-Tenant-Id"] = currentStoreId;
+  }
+
   return fetch(`${API_BASE}${endpoint}`, {
     ...options,
     credentials: "include",
     headers: {
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...csrfHeaders,
+      ...tenantHeaders,
       ...(options?.headers as Record<string, string> || {}),
     },
   });
@@ -82,5 +89,9 @@ export async function apiClient<T>(
   }
 
   const json = await res.json();
-  return json.data;
+  // Responses are usually wrapped as {success, data, message}, but newer
+  // endpoints may return the payload directly — fall back to the raw body.
+  return json && Object.prototype.hasOwnProperty.call(json, "data")
+    ? json.data
+    : json;
 }

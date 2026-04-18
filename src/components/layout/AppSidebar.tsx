@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Package, ShoppingCart, Store, CreditCard, Share2, Banknote,
   Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
   Palette, FileText, Navigation2, SlidersHorizontal, ChevronLeft, Filter, Radio,
-  Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
+  Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus, MessageSquare,
+  Shield, UserCog,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { NavLink } from "@/components/NavLink";
@@ -210,6 +211,16 @@ const AppSidebar = () => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
+                {/* WhatsApp */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/whatsapp")} tooltip={isRTL ? "واتساب" : "WhatsApp"} className="h-10 rounded-lg px-3">
+                    <NavLink to="/whatsapp">
+                      <MessageSquare className="h-[18px] w-[18px] opacity-70" />
+                      <span className="text-[13px] font-medium">{isRTL ? "واتساب" : "WhatsApp"}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
                 {/* Referrals */}
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isActive("/referrals")} tooltip={isRTL ? "الإحالات" : "Referrals"} className="h-10 rounded-lg px-3">
@@ -246,6 +257,26 @@ const AppSidebar = () => {
                     <NavLink to="/payments">
                       <DollarSign className="h-[18px] w-[18px] opacity-70" />
                       <span className="text-[13px] font-medium">{isRTL ? "المالية" : "Finance"}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                {/* Staff */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/staff")} tooltip={isRTL ? "فريق العمل" : "Staff"} className="h-10 rounded-lg px-3">
+                    <NavLink to="/staff">
+                      <UserCog className="h-[18px] w-[18px] opacity-70" />
+                      <span className="text-[13px] font-medium">{isRTL ? "فريق العمل" : "Staff"}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                {/* Roles & Permissions */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/roles")} tooltip={isRTL ? "الأدوار والصلاحيات" : "Roles"} className="h-10 rounded-lg px-3">
+                    <NavLink to="/roles">
+                      <Shield className="h-[18px] w-[18px] opacity-70" />
+                      <span className="text-[13px] font-medium">{isRTL ? "الأدوار" : "Roles"}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -27,6 +27,7 @@ export interface TenantInfo {
   is_writable: boolean;
   expires_at: string | null;
   days_remaining: number | null;
+  demo_email: string | null;
 }
 
 export interface User {

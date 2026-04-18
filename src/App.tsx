@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { TrialPaywallProvider } from "@/contexts/TrialPaywallContext";
 import { StoreProvider, useDashboardStore } from "@/contexts/StoreContext";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -61,6 +62,12 @@ const Waitlist = lazy(() => import("@/pages/Waitlist"));
 const TokenHandoff = lazy(() => import("@/pages/TokenHandoff"));
 const BillingPage = lazy(() => import("@/pages/billing/Billing"));
 const Referrals = lazy(() => import("@/pages/Referrals"));
+const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
+const WhatsAppInbox = lazy(() => import("@/pages/WhatsAppInbox"));
+const WhatsAppCampaigns = lazy(() => import("@/pages/WhatsAppCampaigns"));
+const AcceptInvitation = lazy(() => import("@/pages/AcceptInvitation"));
+const Staff = lazy(() => import("@/pages/Staff"));
+const Roles = lazy(() => import("@/pages/Roles"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -117,6 +124,7 @@ const App = () => (
     <TooltipProvider>
       <LanguageProvider>
         <AuthProvider>
+          <TrialPaywallProvider>
           <StoreProvider>
             <Toaster />
             <Sonner />
@@ -129,6 +137,7 @@ const App = () => (
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/waitlist" element={<Waitlist />} />
                   <Route path="/token-handoff" element={<TokenHandoff />} />
+                  <Route path="/staff/invite/accept" element={<AcceptInvitation />} />
 
                   {/* Auth required, verification pending */}
                   <Route
@@ -218,9 +227,14 @@ const App = () => (
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/notifications" element={<Notifications />} />
+                    <Route path="/whatsapp" element={<WhatsApp />} />
+                    <Route path="/whatsapp/inbox" element={<WhatsAppInbox />} />
+                    <Route path="/whatsapp/campaigns" element={<WhatsAppCampaigns />} />
                     <Route path="/billing" element={<BillingPage />} />
                     <Route path="/referrals" element={<Referrals />} />
                     <Route path="/cod" element={<CODReconciliation />} />
+                    <Route path="/staff" element={<Staff />} />
+                    <Route path="/roles" element={<Roles />} />
                     {/* Redirect old route */}
                     <Route path="/shipments" element={<Navigate to="/logistics" replace />} />
                   </Route>
@@ -230,6 +244,7 @@ const App = () => (
               </Suspense>
             </BrowserRouter>
           </StoreProvider>
+          </TrialPaywallProvider>
         </AuthProvider>
       </LanguageProvider>
     </TooltipProvider>

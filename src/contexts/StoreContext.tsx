@@ -69,7 +69,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
       if (items.length > 0) {
         const savedId = localStorage.getItem(STORE_KEY);
         const saved = items.find((s) => s.id === savedId);
-        setCurrentStore(saved || items[0]);
+        const selected = saved || items[0];
+        setCurrentStore(selected);
+        localStorage.setItem(STORE_KEY, selected.id);
       } else {
         setCurrentStore(null);
       }
