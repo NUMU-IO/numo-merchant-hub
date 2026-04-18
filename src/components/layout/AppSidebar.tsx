@@ -42,6 +42,7 @@ const AppSidebar = () => {
 
   const analyticsActive = isActive("/analytics");
   const onlineStoreActive = isActive("/online-store") || isActive("/store");
+  const staffActive = isActive("/staff") || isActive("/roles");
 
   // Analytics sub-items
   const analyticsSubItems = [
@@ -64,6 +65,12 @@ const AppSidebar = () => {
     { title: isRTL ? "الصفحات" : "Pages", url: "/online-store/pages", icon: FileText },
     { title: isRTL ? "التنقل" : "Navigation", url: "/online-store/navigation", icon: Navigation2 },
     { title: isRTL ? "التفضيلات" : "Preferences", url: "/online-store/preferences", icon: SlidersHorizontal },
+  ];
+
+  // Staff sub-items
+  const staffSubItems = [
+    { title: isRTL ? "الأعضاء" : "Members", url: "/staff", icon: UserCog },
+    { title: isRTL ? "الأدوار" : "Roles", url: "/roles", icon: Shield },
   ];
 
   // Collapsible section builder (for bottom sections)
@@ -299,25 +306,15 @@ const AppSidebar = () => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
-                {/* Staff */}
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/staff")} tooltip={isRTL ? "فريق العمل" : "Staff"} className="h-10 rounded-lg px-3">
-                    <NavLink to="/staff">
-                      <UserCog className="h-[18px] w-[18px] opacity-70" />
-                      <span className="text-[13px] font-medium">{isRTL ? "فريق العمل" : "Staff"}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-
-                {/* Roles & Permissions */}
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/roles")} tooltip={isRTL ? "الأدوار والصلاحيات" : "Roles"} className="h-10 rounded-lg px-3">
-                    <NavLink to="/roles">
-                      <Shield className="h-[18px] w-[18px] opacity-70" />
-                      <span className="text-[13px] font-medium">{isRTL ? "الأدوار" : "Roles"}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {/* Staff — parent with Members + Roles sub-items */}
+                {renderExpandableItem(
+                  isRTL ? "فريق العمل" : "Staff",
+                  "/staff",
+                  UserCog,
+                  staffSubItems,
+                  staffActive,
+                  "staff",
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

@@ -51,6 +51,7 @@ const Categories = lazy(() => import("@/pages/Categories"));
 const Invoices = lazy(() => import("@/pages/Invoices"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const Settings = lazy(() => import("@/pages/Settings"));
+const SettingsPreferences = lazy(() => import("@/pages/SettingsPreferences"));
 const Notifications = lazy(() => import("@/pages/Notifications"));
 const Login = lazy(() => import("@/pages/Login"));
 const VerifyEmail = lazy(() => import("@/pages/VerifyEmail"));
@@ -231,6 +232,7 @@ const App = () => (
                     <Route path="/invoices" element={<Invoices />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
+                    <Route path="/settings/preferences" element={<SettingsPreferences />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/whatsapp" element={<WhatsApp />} />
                     <Route path="/whatsapp/inbox" element={<WhatsAppInbox />} />
