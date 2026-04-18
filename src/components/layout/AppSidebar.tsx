@@ -1,13 +1,16 @@
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, CreditCard, Share2, Banknote,
   Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
   Palette, FileText, Navigation2, SlidersHorizontal, ChevronLeft, Filter, Radio,
-  Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus, MessageSquare,
-  Shield, UserCog,
+  Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
+  MessageSquare, Shield, UserCog, Inbox, PlugZap,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useDashboardStore } from "@/contexts/StoreContext";
+import { listThreads } from "@/services/inboxApi";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -18,11 +21,21 @@ import {
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
 
 const AppSidebar = () => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const location = useLocation();
+  const { currentStore } = useDashboardStore();
+
+  const { data: inboxData } = useQuery({
+    queryKey: ["inbox", "threads", currentStore?.id],
+    queryFn: () => listThreads(currentStore!.id),
+    enabled: !!currentStore?.id,
+  });
+
+  const totalUnread = inboxData?.total_unread ?? 0;
 
   const isActive = (url: string) =>
     url === "/" ? location.pathname === "/" : location.pathname.startsWith(url);
@@ -157,6 +170,31 @@ const AppSidebar = () => {
                     <NavLink to="/" end>
                       <LayoutDashboard className="h-[18px] w-[18px] opacity-70" />
                       <span className="text-[13px] font-medium">{isRTL ? "لوحة التحكم" : "Dashboard"}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                {/* Inbox */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/inbox")} tooltip={isRTL ? "الرسائل" : "Inbox"} className="h-10 rounded-lg px-3">
+                    <NavLink to="/inbox">
+                      <Inbox className="h-[18px] w-[18px] opacity-70" />
+                      <span className="text-[13px] font-medium">{isRTL ? "الرسائل" : "Inbox"}</span>
+                      {totalUnread > 0 && (
+                        <Badge variant="destructive" className="ml-auto h-5 min-w-5 px-1.5 text-[10px]">
+                          {totalUnread > 99 ? "99+" : totalUnread}
+                        </Badge>
+                      )}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                {/* Channels */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/channels")} tooltip={isRTL ? "القنوات" : "Channels"} className="h-10 rounded-lg px-3">
+                    <NavLink to="/channels">
+                      <PlugZap className="h-[18px] w-[18px] opacity-70" />
+                      <span className="text-[13px] font-medium">{isRTL ? "القنوات" : "Channels"}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -337,3 +375,4 @@ const AppSidebar = () => {
 };
 
 export default AppSidebar;
+// omnichannel-v1

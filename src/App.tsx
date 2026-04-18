@@ -69,6 +69,11 @@ const AcceptInvitation = lazy(() => import("@/pages/AcceptInvitation"));
 const Staff = lazy(() => import("@/pages/Staff"));
 const Roles = lazy(() => import("@/pages/Roles"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
+const Inbox = lazy(() => import("@/pages/Inbox"));
+const Channels = lazy(() => import("@/pages/Channels"));
+const WhatsAppTemplates = lazy(() => import("@/pages/WhatsAppTemplates"));
+const NewWhatsAppTemplate = lazy(() => import("@/pages/NewWhatsAppTemplate"));
+const MetaOAuthCallback = lazy(() => import("@/pages/MetaOAuthCallback"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -237,6 +242,13 @@ const App = () => (
                     <Route path="/roles" element={<Roles />} />
                     {/* Redirect old route */}
                     <Route path="/shipments" element={<Navigate to="/logistics" replace />} />
+                    {/* Omnichannel */}
+                    <Route path="/inbox" element={<Inbox />} />
+                    <Route path="/inbox/:threadId" element={<Inbox />} />
+                    <Route path="/channels" element={<Channels />} />
+                    <Route path="/channels/whatsapp/templates" element={<WhatsAppTemplates />} />
+                    <Route path="/channels/whatsapp/templates/new" element={<NewWhatsAppTemplate />} />
+                    <Route path="/channels/oauth/meta/callback" element={<MetaOAuthCallback />} />
                   </Route>
 
                   <Route path="*" element={<NotFound />} />

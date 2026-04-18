@@ -36,6 +36,11 @@ export default function OnlineStoreNavigation() {
   const [editingLink, setEditingLink] = useState<EditState | null>(null);
   const [links, setLinks] = useState<NavLink[]>([]);
   const [showCategories, setShowCategories] = useState(true);
+  const [collectionsDropdown, setCollectionsDropdown] = useState(true);
+  const [collectionsLabel, setCollectionsLabel] = useState("Collections");
+  const [collectionsLabelAr, setCollectionsLabelAr] = useState("المجموعات");
+  const [collectionsMaxItems, setCollectionsMaxItems] = useState(12);
+  const [showAllCollectionsLink, setShowAllCollectionsLink] = useState(true);
   const [isDirty, setIsDirty] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -53,12 +58,25 @@ export default function OnlineStoreNavigation() {
     initializedRef.current = true;
     setLinks(customization.navigation?.links ?? []);
     setShowCategories(customization.navigation?.show_categories_in_nav ?? true);
+    setCollectionsDropdown(customization.navigation?.collections_dropdown ?? true);
+    setCollectionsLabel(customization.navigation?.collections_label ?? "Collections");
+    setCollectionsLabelAr(customization.navigation?.collections_label_ar ?? "المجموعات");
+    setCollectionsMaxItems(customization.navigation?.collections_max_items ?? 12);
+    setShowAllCollectionsLink(customization.navigation?.show_all_collections_link ?? true);
   }, [customization]);
 
   const saveMutation = useMutation({
     mutationFn: () =>
       updateCustomization(storeId, {
-        navigation: { links, show_categories_in_nav: showCategories },
+        navigation: { 
+          links, 
+          show_categories_in_nav: showCategories,
+          collections_dropdown: collectionsDropdown,
+          collections_label: collectionsLabel,
+          collections_label_ar: collectionsLabelAr,
+          collections_max_items: collectionsMaxItems,
+          show_all_collections_link: showAllCollectionsLink,
+        },
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customization", storeId] });
@@ -154,6 +172,61 @@ export default function OnlineStoreNavigation() {
           <li>{isRTL ? "اضغط «حفظ» لتطبيق التغييرات على واجهة متجرك." : "Click Save to apply changes to your storefront."}</li>
         </ul>
       </HelpTip>
+
+      {/* Collections dropdown card */}
+      <div className="rounded-2xl border bg-card overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/20">
+          <div className="flex items-center gap-2">
+            <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-semibold">{isRTL ? "قائمة المجموعات" : "Collections dropdown"}</span>
+          </div>
+          <Switch checked={collectionsDropdown} onCheckedChange={(c) => { setCollectionsDropdown(c); markDirty(); }} />
+        </div>
+        {collectionsDropdown && (
+          <div className="p-4 space-y-4">
+            <p className="text-xs text-muted-foreground">
+              {isRTL ? "المجموعات تُعرض تلقائياً من أقسام المنتجات — لإدارتها انتقل إلى المنتجات → الأقسام" : "Collections are synced from your product categories — manage them in Products → Categories"}
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs">{isRTL ? "العنوان (الإنجليزية)" : "Label (English)"}</Label>
+                <Input
+                  value={collectionsLabel}
+                  onChange={(e) => { setCollectionsLabel(e.target.value); markDirty(); }}
+                  placeholder="Collections"
+                  className="h-8 mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">{isRTL ? "العنوان (العربية)" : "Label (Arabic)"}</Label>
+                <Input
+                  value={collectionsLabelAr}
+                  onChange={(e) => { setCollectionsLabelAr(e.target.value); markDirty(); }}
+                  placeholder="المجموعات"
+                  className="h-8 mt-1"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs">{isRTL ? "الحد الأقصى للعناصر" : "Max items shown"}</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={24}
+                  value={collectionsMaxItems}
+                  onChange={(e) => { setCollectionsMaxItems(Number(e.target.value)); markDirty(); }}
+                  className="h-8 mt-1"
+                />
+              </div>
+              <div className="flex items-center gap-2 h-full pb-3">
+                <Switch checked={showAllCollectionsLink} onCheckedChange={(c) => { setShowAllCollectionsLink(c); markDirty(); }} />
+                <Label className="text-xs">{isRTL ? "إظهار رابط «كل المنتجات»" : "Show 'All Products' link"}</Label>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Main menu card */}
       <div className="rounded-2xl border bg-card overflow-hidden">

@@ -2,7 +2,7 @@
  * Product API service for the NUMU merchant dashboard.
  */
 
-import { apiClient } from "./api";
+import { apiClient, apiClientFormData } from "./api";
 import type { Product, ProductVariant, ProductStatus } from "@/data/mock-products";
 
 // ---------------------------------------------------------------------------
@@ -153,9 +153,9 @@ export async function uploadProductImage(
 ): Promise<UploadedImageResponse> {
   const formData = new FormData();
   formData.append("file", file);
-  return apiClient<UploadedImageResponse>(
+  return apiClientFormData<UploadedImageResponse>(
     `/stores/${storeId}/products/${productId}/images`,
-    { method: "POST", body: formData },
+    formData,
   );
 }
 
