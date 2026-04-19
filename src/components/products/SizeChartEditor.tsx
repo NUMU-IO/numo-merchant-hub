@@ -18,13 +18,14 @@
  *   - In-place editing of column headers and cells — no popups.
  */
 
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Ruler, Trash2 } from "lucide-react";
+import { ImagePlus, Loader2, Plus, Ruler, Trash2, Upload, X } from "lucide-react";
 
 /** What the storefront should do with this product:
  *   "default" — fall back to the store-level default chart (if any)
@@ -48,6 +49,7 @@ export interface SizeChart {
   image_url: string;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const EMPTY_SIZE_CHART: SizeChart = {
   enabled: false,
   mode: "default",
@@ -59,6 +61,7 @@ export const EMPTY_SIZE_CHART: SizeChart = {
 };
 
 /** Presets give merchants a running start. */
+// eslint-disable-next-line react-refresh/only-export-components
 export const SIZE_CHART_PRESETS: Record<string, SizeChart> = {
   apparel: {
     enabled: true,
@@ -146,6 +149,7 @@ function coerceChart(raw: unknown): SizeChart {
   };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function sanitizeChartForPersistence(chart: SizeChart): SizeChart | null {
   // "default" mode (which is the implicit state for every new product)
   // only needs to persist if the merchant has flipped to a non-default
@@ -195,6 +199,7 @@ export function sanitizeChartForPersistence(chart: SizeChart): SizeChart | null 
   };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function sizeChartFromAttributes(attributes: unknown): SizeChart {
   if (!attributes || typeof attributes !== "object") return { ...EMPTY_SIZE_CHART };
   const raw = (attributes as Record<string, unknown>).size_chart;
@@ -213,12 +218,17 @@ export function SizeChartEditor({
    * Parent is expected to open a dialog that re-uses this component in
    * variant="store-default" mode. */
   onEditStoreDefault,
+  /** Upload handler for the illustration image. Receives the picked File,
+   * returns a hosted URL. When omitted, the image slot falls back to a
+   * plain URL input so tests / storybook / offline demos still work. */
+  onUploadImage,
 }: {
   value: SizeChart;
   onChange: (next: SizeChart) => void;
   isAr: boolean;
   variant?: "product" | "store-default";
   onEditStoreDefault?: () => void;
+  onUploadImage?: (file: File) => Promise<string>;
 }) {
   const set = (patch: Partial<SizeChart>) => onChange({ ...value, ...patch });
   const setMode = (mode: SizeChartMode) => {
@@ -494,30 +504,165 @@ export function SizeChartEditor({
             />
           </div>
 
-          {/* Image URL */}
-          <div className="space-y-1.5">
-            <Label className="text-[11px] text-muted-foreground">
-              {isAr ? "رابط صورة توضيحية (اختياري)" : "Illustration image URL (optional)"}
-            </Label>
-            <Input
-              value={value.image_url}
-              onChange={(e) => set({ image_url: e.target.value })}
-              placeholder="https://..."
-              dir="ltr"
-              className="text-xs"
-            />
-            {value.image_url ? (
-              <img
-                src={value.image_url}
-                alt=""
-                className="mt-2 max-h-40 rounded border border-border object-contain bg-muted/30"
-                onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
-              />
-            ) : null}
-          </div>
+          {/* Illustration image — upload preferred, URL fallback */}
+          <IllustrationImageField
+            value={value.image_url}
+            onChange={(url) => set({ image_url: url })}
+            onUploadImage={onUploadImage}
+            isAr={isAr}
+          />
           </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * File-picker illustration slot. When `onUploadImage` is provided we render
+ * a proper drop-zone tile (upload → preview → remove). When it isn't (tests,
+ * storybook), we degrade to a plain URL input so the component stays pure.
+ */
+function IllustrationImageField({
+  value,
+  onChange,
+  onUploadImage,
+  isAr,
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  onUploadImage?: (file: File) => Promise<string>;
+  isAr: boolean;
+}) {
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const pick = () => fileRef.current?.click();
+
+  const onFile = async (file: File) => {
+    setError(null);
+    if (!onUploadImage) return;
+    if (!file.type.startsWith("image/")) {
+      setError(isAr ? "الملف لازم يكون صورة." : "File must be an image.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError(isAr ? "حجم الصورة أكبر من ٥ ميجا." : "Image must be under 5 MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await onUploadImage(file);
+      onChange(url);
+    } catch (err) {
+      setError((err as Error)?.message || (isAr ? "فشل الرفع." : "Upload failed."));
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const uploadMode = !!onUploadImage;
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-[11px] text-muted-foreground">
+        {isAr ? "صورة توضيحية (اختياري)" : "Illustration image (optional)"}
+      </Label>
+
+      {!uploadMode ? (
+        // Fallback: plain URL input when no uploader wired up.
+        <>
+          <Input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="https://..."
+            dir="ltr"
+            className="text-xs"
+          />
+          {value ? (
+            <img
+              src={value}
+              alt=""
+              className="mt-2 max-h-40 rounded border border-border object-contain bg-muted/30"
+              onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+            />
+          ) : null}
+        </>
+      ) : value ? (
+        // Already uploaded — preview + remove/replace controls.
+        <div className="relative rounded-md border border-border bg-muted/30 p-2">
+          <img
+            src={value}
+            alt=""
+            className="mx-auto max-h-48 rounded object-contain"
+            onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+          />
+          <div className="flex gap-2 justify-end mt-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={pick}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5 me-1.5" />
+              )}
+              {isAr ? "استبدال" : "Replace"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => onChange("")}
+              disabled={uploading}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <X className="h-3.5 w-3.5 me-1.5" />
+              {isAr ? "إزالة" : "Remove"}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        // Empty — drop-zone tile.
+        <button
+          type="button"
+          onClick={pick}
+          disabled={uploading}
+          className="w-full flex flex-col items-center justify-center gap-2 py-8 rounded-md border-2 border-dashed border-border bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:border-primary/40 hover:text-foreground transition-colors disabled:opacity-60"
+        >
+          {uploading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <ImagePlus className="h-5 w-5" />
+          )}
+          <span className="text-[11px] font-medium">
+            {uploading
+              ? isAr ? "جاري الرفع…" : "Uploading…"
+              : isAr ? "ارفع صورة الجدول" : "Upload chart image"}
+          </span>
+          <span className="text-[10px] text-muted-foreground/80">
+            {isAr ? "PNG / JPG / WEBP · حتى ٥ ميجا" : "PNG / JPG / WEBP · up to 5 MB"}
+          </span>
+        </button>
+      )}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFile(f);
+        }}
+      />
+
+      {error ? <p className="text-[11px] text-red-600">{error}</p> : null}
+    </div>
   );
 }

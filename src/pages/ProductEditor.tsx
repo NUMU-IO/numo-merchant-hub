@@ -159,7 +159,7 @@ const ProductEditor = () => {
         navigate("/products");
       })
       .finally(() => setIsLoadingProduct(false));
-  }, [storeId, productId]);
+  }, [storeId, productId, language, navigate]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -753,6 +753,11 @@ const ProductEditor = () => {
         value={sizeChart}
         onChange={setSizeChart}
         isAr={language === "ar"}
+        onUploadImage={
+          storeId
+            ? async (file) => (await uploadStoreAsset(storeId, file, "section_image")).url
+            : undefined
+        }
         onEditStoreDefault={() => {
           // Seed the dialog with whatever's currently stored at
           // currentStore.settings.size_chart. Pulling it here (on open)
@@ -956,6 +961,11 @@ const ProductEditor = () => {
               onChange={setStoreDefaultChart}
               isAr={language === "ar"}
               variant="store-default"
+              onUploadImage={
+                storeId
+                  ? async (file) => (await uploadStoreAsset(storeId, file, "section_image")).url
+                  : undefined
+              }
             />
           </div>
           <DialogFooter className="px-6 pb-5 border-t pt-3">
