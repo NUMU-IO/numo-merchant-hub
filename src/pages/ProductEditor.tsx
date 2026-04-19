@@ -25,6 +25,7 @@ import {
   sizeChartFromAttributes,
   type SizeChart,
 } from "@/components/products/SizeChartEditor";
+import { BundleManager } from "@/components/products/BundleManager";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -747,6 +748,9 @@ const ProductEditor = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Frequently Bought Together ── */}
+      <BundleManager productId={productId ?? null} isEditMode={isEditMode} />
 
       {/* ── Size Chart ── */}
       <SizeChartEditor
