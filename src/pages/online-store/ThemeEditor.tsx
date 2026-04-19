@@ -94,6 +94,7 @@ const GLOBAL_SECTIONS: GlobalSection[] = [
       { key: "footer.social_links.facebook", label: "Facebook", labelAr: "فيسبوك", type: "url" },
       { key: "footer.social_links.instagram", label: "Instagram", labelAr: "إنستجرام", type: "url" },
       { key: "footer.social_links.twitter", label: "Twitter/X", labelAr: "تويتر", type: "url" },
+      { key: "footer.social_links.tiktok", label: "TikTok", labelAr: "تيك توك", type: "url" },
       { key: "footer.social_links.whatsapp", label: "WhatsApp", labelAr: "واتساب", type: "text", placeholder: "+20XXXXXXXXXX" },
     ],
   },
@@ -564,6 +565,7 @@ export default function ThemeEditor() {
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Send NUMU_SECTION_SELECT when selection changes
