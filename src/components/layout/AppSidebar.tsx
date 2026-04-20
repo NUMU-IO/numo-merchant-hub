@@ -6,7 +6,7 @@ import {
   Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
   Palette, FileText, Navigation2, SlidersHorizontal, ChevronLeft, Filter, Radio,
   Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
-  MessageSquare, Shield, UserCog, Inbox, PlugZap,
+  UserCog, User, Inbox, PlugZap,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -71,8 +71,8 @@ const AppSidebar = () => {
 
   // Staff sub-items
   const staffSubItems = [
-    { title: isRTL ? "الأعضاء" : "Members", url: "/staff", icon: UserCog },
-    { title: isRTL ? "الأدوار" : "Roles", url: "/roles", icon: Shield },
+    { title: isRTL ? "الأعضاء" : "Members", url: "/staff", icon: User },
+    { title: isRTL ? "الأدوار" : "Roles", url: "/roles", icon: UserCog },
   ];
 
   // Collapsible section builder (for bottom sections)
@@ -250,7 +250,7 @@ const AppSidebar = () => {
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={isActive("/whatsapp")} tooltip={isRTL ? "واتساب" : "WhatsApp"} className="h-10 rounded-lg px-3">
                       <NavLink to="/whatsapp">
-                        <MessageSquare className="h-[18px] w-[18px] opacity-70" />
+                        <img src="/icons/whatsapp.webp" alt="" className="h-[18px] w-[18px] opacity-70" />
                         <span className="text-[13px] font-medium">{isRTL ? "واتساب" : "WhatsApp"}</span>
                       </NavLink>
                     </SidebarMenuButton>
@@ -310,7 +310,7 @@ const AppSidebar = () => {
                   {renderExpandableItem(
                     isRTL ? "فريق العمل" : "Staff",
                     "/staff",
-                    UserCog,
+                    Users,
                     staffSubItems,
                     staffActive,
                     "staff",

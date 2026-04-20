@@ -315,7 +315,7 @@ const PaymentSetup = () => {
         <div className="p-5 space-y-4">
           <div className="rounded-xl border bg-background p-5 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center"><Banknote className="h-5 w-5 text-emerald-600" /></div>
+              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center"><img src="/icons/cod.webp" alt="" className="h-6 w-6" /></div>
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold">{isAr ? "الدفع نقداً" : "Cash on Delivery"}</span>
@@ -332,7 +332,7 @@ const PaymentSetup = () => {
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3 flex-1">
                 <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="h-5 w-5 text-violet-600" />
+                  <img src="/icons/fraud-detection.webp" alt="" className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
