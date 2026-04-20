@@ -1416,16 +1416,19 @@ function SchemaFieldControl({
   }
 
   if (setting.type === "color") {
-    const colorVal = String(value ?? "#000000");
+    const hasValue = value !== undefined && value !== null && value !== "";
+    const inputVal = hasValue ? String(value) : "";
+    const colorPickerVal = hasValue ? String(value) : "#FFFFFF";
     return (
       <div className="space-y-1.5" data-testid={testId}>
         <Label className="text-[12px] font-medium">{label}</Label>
         <div className="flex items-center gap-2">
-          <input type="color" value={colorVal} onChange={(e) => onChange(e.target.value)}
+          <input type="color" value={colorPickerVal} onChange={(e) => onChange(e.target.value)}
             aria-label={label}
-            title={label}
+            title={hasValue ? label : `${label} (theme default)`}
             className="h-8 w-8 cursor-pointer rounded-md border border-input p-0.5 block shrink-0" data-testid={`${testId}-color`} />
-          <Input value={colorVal} onChange={(e) => onChange(e.target.value)}
+          <Input value={inputVal} onChange={(e) => onChange(e.target.value)}
+            placeholder="theme default"
             className="h-8 font-mono text-[12px] flex-1" maxLength={7} data-testid={`${testId}-input`} />
         </div>
       </div>
@@ -1847,16 +1850,22 @@ function FieldControl({ field, value, isRTL, onChange, compact = false }: {
     );
   }
   if (field.type === "color") {
-    const colorVal = String(value ?? "#000000");
+    const hasValue = value !== undefined && value !== null && value !== "";
+    const inputVal = hasValue ? String(value) : "";
+    // Don't fall back to #000000 in the color well — that misleads users into
+    // thinking every theme defaults to pure black. Use #FFFFFF so the well looks
+    // empty/neutral when no override is set.
+    const colorPickerVal = hasValue ? String(value) : "#FFFFFF";
     return (
       <div className="space-y-1.5" data-testid={testId}>
         <Label className="text-[12px] font-medium">{label}</Label>
         <div className="flex items-center gap-2">
-          <input type="color" value={colorVal} onChange={(e) => onChange(e.target.value)}
+          <input type="color" value={colorPickerVal} onChange={(e) => onChange(e.target.value)}
             aria-label={label}
-            title={label}
+            title={hasValue ? label : `${label} (theme default)`}
             className="h-8 w-8 cursor-pointer rounded-md border border-input p-0.5 block shrink-0" data-testid={`${testId}-color`} />
-          <Input value={colorVal} onChange={(e) => onChange(e.target.value)}
+          <Input value={inputVal} onChange={(e) => onChange(e.target.value)}
+            placeholder="theme default"
             className="h-8 font-mono text-[12px] flex-1" maxLength={7} data-testid={`${testId}-input`} />
         </div>
       </div>

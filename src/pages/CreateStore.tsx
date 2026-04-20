@@ -168,7 +168,7 @@ export default function CreateStore() {
               </Label>
               <Input
                 value={betaCode}
-                onChange={(e) => setBetaCode(e.target.value.toUpperCase().trim())}
+                onChange={(e) => setBetaCode(e.target.value.trim())}
                 placeholder={isAr ? "أدخل كود الدعوة" : "Enter your invite code"}
                 className={`${inputCls("invite_code")} font-mono tracking-widest`}
               />
