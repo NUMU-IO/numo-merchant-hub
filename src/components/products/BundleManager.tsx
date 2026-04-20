@@ -175,18 +175,26 @@ export function BundleManager({ productId, isEditMode }: BundleManagerProps) {
   }, [storeId, productId, isEditMode]);
 
   // ── Product search ─────────────────────────────────────────────────────
+  // Empty search → list the store's most recent products as a "suggestions"
+  // view so merchants can pick without having to guess product names. Typing
+  // debounces and re-queries with the search term.
   useEffect(() => {
-    if (!storeId || !searchQuery.trim()) {
+    if (!storeId) {
       setSearchResults([]);
       return;
     }
+
+    const hasQuery = searchQuery.trim().length > 0;
+    // Only debounce when the user is typing; an empty query should load
+    // instantly when the picker opens.
+    const delay = hasQuery ? 300 : 0;
 
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
         const result = await listProducts(storeId, {
-          search: searchQuery,
-          limit: 10,
+          ...(hasQuery ? { search: searchQuery } : {}),
+          limit: 20,
           status: "active",
         });
         // Filter out the current product and already-bundled products
@@ -200,7 +208,7 @@ export function BundleManager({ productId, isEditMode }: BundleManagerProps) {
       } finally {
         setIsSearching(false);
       }
-    }, 300);
+    }, delay);
 
     return () => clearTimeout(timer);
   }, [searchQuery, storeId, productId, bundles]);
@@ -664,18 +672,22 @@ export function BundleManager({ productId, isEditMode }: BundleManagerProps) {
                     ))}
                   </div>
                 ) : searchQuery.trim() ? (
+                  // A search was typed but returned nothing.
                   <div className="py-8 text-center">
                     <p className="text-xs text-muted-foreground">
                       {isAr ? "مفيش نتائج" : "No products found"}
                     </p>
                   </div>
                 ) : (
+                  // Nothing typed and list is empty (store has no other
+                  // products — the only product is the primary one, or
+                  // all other products are already bundled).
                   <div className="py-8 text-center">
                     <Search className="h-5 w-5 text-muted-foreground/30 mx-auto mb-2" />
                     <p className="text-xs text-muted-foreground">
                       {isAr
-                        ? "اكتب اسم المنتج للبحث"
-                        : "Type to search products"}
+                        ? "مفيش منتجات متاحة للإضافة"
+                        : "No products available to add"}
                     </p>
                   </div>
                 )}
