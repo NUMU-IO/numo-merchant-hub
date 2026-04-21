@@ -13,10 +13,11 @@ import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import {
   Search, Share2, Lock, BarChart3, Save, Loader2, Info,
-  Eye, EyeOff, ShieldCheck, ShieldOff,
+  Eye, EyeOff, ShieldCheck, ShieldOff, Image,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
+import { MediaPickerDialog } from "@/components/theme-editor/MediaPickerDialog";
 
 interface PrefsState {
   seo_title: string;
@@ -67,6 +68,7 @@ export default function OnlineStorePreferences() {
     password_enabled: false, password: "",
     ga_tracking_id: "", meta_pixel_id: "",
   });
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
@@ -199,6 +201,7 @@ export default function OnlineStorePreferences() {
               onChange={(e) => set("seo_title", e.target.value)}
               placeholder={currentStore?.name ?? "My Store"}
               maxLength={70}
+              dir="auto"
             />
           </div>
 
@@ -214,6 +217,7 @@ export default function OnlineStorePreferences() {
               placeholder={isRTL ? "وصف مختصر لمتجرك يظهر في نتائج البحث..." : "A short description of your store shown in search results..."}
               rows={3}
               maxLength={160}
+              dir="auto"
             />
           </div>
 
@@ -223,28 +227,28 @@ export default function OnlineStorePreferences() {
               {isRTL ? "معاينة نتيجة البحث" : "Search result preview"}
             </p>
             {/* Favicon + URL bar */}
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1" dir={form.seo_title.match(/^[a-zA-Z]/) ? "ltr" : "auto"}>
               <div className="h-4 w-4 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
                 <span className="text-[7px] font-bold text-muted-foreground">N</span>
               </div>
-              <div>
-                <p className="text-[11px] text-foreground/80 leading-none">
+              <div className="flex flex-col items-start w-full overflow-hidden">
+                <p className="text-[11px] text-foreground/80 leading-none" dir="auto">
                   {currentStore?.name ?? "My Store"}
                 </p>
-                <p className="text-[10px] text-emerald-700 dark:text-emerald-500 truncate leading-none mt-0.5">
+                <p className="text-[10px] text-emerald-700 dark:text-emerald-500 truncate leading-none mt-0.5" dir="ltr">
                   {storeUrl}
                 </p>
               </div>
             </div>
-            <p className="text-[15px] font-normal text-[#1a0dab] dark:text-[#8ab4f8] leading-snug hover:underline cursor-pointer truncate">
+            <p className="text-[15px] font-normal text-[#1a0dab] dark:text-[#8ab4f8] leading-snug hover:underline cursor-pointer truncate" dir="auto">
               {seoTitle}
             </p>
             {form.seo_description ? (
-              <p className="text-[13px] text-[#4d5156] dark:text-zinc-400 leading-snug line-clamp-2">
+              <p className="text-[13px] text-[#4d5156] dark:text-zinc-400 leading-snug line-clamp-2" dir="auto">
                 {form.seo_description}
               </p>
             ) : (
-              <p className="text-[13px] text-muted-foreground/40 italic leading-snug">
+              <p className="text-[13px] text-muted-foreground/40 italic leading-snug" dir="auto">
                 {isRTL ? "أضف وصفًا ليظهر هنا..." : "Add a description to see it here..."}
               </p>
             )}
@@ -257,29 +261,31 @@ export default function OnlineStorePreferences() {
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
             {isRTL
-              ? "تظهر هذه الصورة عند مشاركة رابط متجرك على Facebook أو Twitter أو WhatsApp"
-              : "Shown when your store link is shared on Facebook, Twitter, or WhatsApp"}
+              ? "تظهر هذه الصورة عند مشاركة رابط متجرك على Facebook أو Twitter أو WhatsApp. الحجم الموصى به 1200×630 بكسل."
+              : "Shown when your store link is shared on Facebook, Twitter, or WhatsApp. Recommended size is 1200×630px."}
           </p>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">{isRTL ? "رابط الصورة" : "Image URL"}</Label>
-            <Input
-              value={form.social_image_url}
-              onChange={(e) => set("social_image_url", e.target.value)}
-              placeholder="https://cdn.example.com/og-image.jpg"
-              dir="ltr"
-            />
-          </div>
-          {/* Preview */}
+
+          {/* Upload Dropzone / Preview */}
           {form.social_image_url ? (
-            <div className="rounded-xl border overflow-hidden bg-muted/20">
-              <img
-                src={form.social_image_url}
-                alt="OG preview"
-                className="w-full max-h-44 object-cover"
-                onError={(e) => ((e.target as HTMLImageElement).parentElement!.style.display = "none")}
-              />
+            <div className="rounded-xl border overflow-hidden bg-muted/20 pb-0 shadow-sm relative group">
+              <div className="relative">
+                <img
+                  src={form.social_image_url}
+                  alt="OG preview"
+                  className="w-full max-h-56 object-cover"
+                  onError={(e) => ((e.target as HTMLImageElement).parentElement!.style.display = "none")}
+                />
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Button type="button" variant="secondary" onClick={() => setPickerOpen(true)}>
+                    {isRTL ? "تغيير الصورة" : "Change Image"}
+                  </Button>
+                  <Button type="button" variant="destructive" className={isRTL ? "mr-2" : "ml-2"} onClick={() => set("social_image_url", "")}>
+                    {isRTL ? "إزالة" : "Remove"}
+                  </Button>
+                </div>
+              </div>
               <div className="px-3 py-2 border-t bg-muted/30">
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground/50">{storeUrl}</p>
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground/50" dir="ltr">{storeUrl}</p>
                 <p className="text-sm font-semibold leading-tight mt-0.5">{seoTitle}</p>
                 {form.seo_description && (
                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{form.seo_description}</p>
@@ -287,11 +293,29 @@ export default function OnlineStorePreferences() {
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border-2 border-dashed bg-muted/10 h-28 flex items-center justify-center">
-              <p className="text-xs text-muted-foreground/50">
-                {isRTL ? "أضف رابط الصورة لمعاينتها" : "Add an image URL to preview"}
+            <div 
+              onClick={() => setPickerOpen(true)}
+              className="rounded-xl border-2 border-dashed bg-muted/10 h-64 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors"
+            >
+              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mb-3">
+                <Image className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <p className="font-medium text-sm mb-1 text-foreground/80">
+                {isRTL ? "اضغط لرفع صورة" : "Click to upload image"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {isRTL ? "حتى 5MB · JPG, PNG, WebP" : "Up to 5MB · JPG, PNG, WebP"}
               </p>
             </div>
+          )}
+
+          {currentStore && (
+            <MediaPickerDialog
+              storeId={currentStore.id}
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+              onSelect={(url) => set("social_image_url", url)}
+            />
           )}
         </div>
       </Section>
