@@ -179,6 +179,28 @@ export async function logout(): Promise<void> {
   clearCSRFToken();
 }
 
+/**
+ * Silently refresh the access token using the httpOnly refresh-token cookie.
+ *
+ * Returns true when the backend rotated the cookies, false on any failure
+ * (expired/missing refresh token, rate limit, network). apiClient calls this
+ * on 401 to extend the session without bouncing the user to /login.
+ *
+ * Uses raw fetch (not apiClient) so a 401 here doesn't recurse back through
+ * the 401 handler.
+ */
+export async function refreshSession(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function getMe(): Promise<User> {
   // Use raw fetch — NOT apiClient — to avoid the 401 → redirect loop.
   // This is called on mount to check session validity; a 401 here simply

@@ -25,6 +25,7 @@ const OnlineStoreThemes = lazy(() => import("@/pages/online-store/Themes"));
 const OnlineStorePages = lazy(() => import("@/pages/online-store/Pages"));
 const OnlineStoreNavigation = lazy(() => import("@/pages/online-store/Navigation"));
 const OnlineStorePreferences = lazy(() => import("@/pages/online-store/Preferences"));
+const OnlineStoreCheckoutFields = lazy(() => import("@/pages/online-store/CheckoutFields"));
 const ThemeEditor = lazy(() => import("@/pages/online-store/ThemeEditor"));
 const Payments = lazy(() => import("@/pages/Payments"));
 const WalletPage = lazy(() => import("@/pages/Wallet"));
@@ -51,6 +52,7 @@ const Categories = lazy(() => import("@/pages/Categories"));
 const Invoices = lazy(() => import("@/pages/Invoices"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const Settings = lazy(() => import("@/pages/Settings"));
+const SettingsPreferences = lazy(() => import("@/pages/SettingsPreferences"));
 const Notifications = lazy(() => import("@/pages/Notifications"));
 const Login = lazy(() => import("@/pages/Login"));
 const VerifyEmail = lazy(() => import("@/pages/VerifyEmail"));
@@ -211,6 +213,7 @@ const App = () => (
                     <Route path="/online-store/pages" element={<OnlineStorePages />} />
                     <Route path="/online-store/navigation" element={<OnlineStoreNavigation />} />
                     <Route path="/online-store/preferences" element={<OnlineStorePreferences />} />
+                    <Route path="/online-store/checkout-fields" element={<OnlineStoreCheckoutFields />} />
                     <Route path="/social" element={<SocialImport />} />
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/analytics" element={<Navigate to="/analytics/overview" replace />} />
@@ -231,6 +234,7 @@ const App = () => (
                     <Route path="/invoices" element={<Invoices />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
+                    <Route path="/settings/preferences" element={<SettingsPreferences />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/whatsapp" element={<WhatsApp />} />
                     <Route path="/whatsapp/inbox" element={<WhatsAppInbox />} />

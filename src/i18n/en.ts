@@ -56,7 +56,7 @@ export default {
     trialExpiredTitle: "Trial Expired",
     trialExpiredDesc: "Your demo trial has ended. Upgrade your plan to continue using all features.",
     storeSuspendedTitle: "Store Suspended",
-    storeSuspendedDesc: "Your store has been suspended and is not visible to customers. If you believe this is a mistake, please contact support@numu.io.",
+    storeSuspendedDesc: "Your store has been suspended and is not visible to customers. If you believe this is a mistake, please contact support@numueg.app.",
     pendingApprovalTitle: "Pending Approval",
     pendingApprovalDesc: "Your store is under review. You can continue setting up your store while you wait for approval.",
     healthTitle: "Store Health",

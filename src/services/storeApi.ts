@@ -115,7 +115,7 @@ export interface UploadAssetResult {
 export async function uploadStoreAsset(
   storeId: string,
   file: File,
-  assetType: "logo" | "favicon" | "hero_image" | "profile_picture" | "section_image",
+  assetType: "logo" | "favicon" | "hero_image" | "profile_picture" | "section_image" | "social_image",
 ): Promise<UploadAssetResult> {
   // Favicons must stay crisp at their native size — don't touch. Everything
   // else (logo, banner, hero, profile, section images) gets downscaled to

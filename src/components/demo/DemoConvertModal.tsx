@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiClient } from "@/services/api";
+import { getStoreDomainSuffix } from "@/lib/storefront";
 
 interface DemoConvertModalProps {
   open: boolean;
@@ -192,7 +193,7 @@ const DemoConvertModal: React.FC<DemoConvertModalProps> = ({
                 className="flex-1"
               />
               <span className="text-xs text-muted-foreground shrink-0">
-                .numu.io
+                {getStoreDomainSuffix() ?? ".numueg.app"}
               </span>
             </div>
           </div>

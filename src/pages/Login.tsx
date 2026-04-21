@@ -27,6 +27,7 @@ const registerSchema = z.object({
   lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل").max(50, "اسم العائلة طويل جدًا"),
   email: z.string().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة"),
   password: z.string().min(12, "كلمة المرور يجب أن تكون 12 حرفًا على الأقل"),
+  phone: z.string().regex(/^(?:\+?\d{10,15})?$/, "رقم الهاتف غير صحيح").optional().or(z.literal("")),
 });
 
 type FieldErrors = Record<string, string>;
@@ -46,6 +47,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
 
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [twoFACode, setTwoFACode] = useState("");
@@ -80,7 +82,7 @@ export default function Login() {
     setFieldErrors({});
 
     const result = isRegister
-      ? registerSchema.safeParse({ firstName, lastName, email, password })
+      ? registerSchema.safeParse({ firstName, lastName, email, password, phone })
       : loginSchema.safeParse({ email, password });
 
     if (!result.success) {
@@ -96,7 +98,7 @@ export default function Login() {
     setLoading(true);
     try {
       if (isRegister) {
-        await register({ email, password, first_name: firstName, last_name: lastName });
+        await register({ email, password, first_name: firstName, last_name: lastName, phone: phone || undefined });
         navigate("/verify-email", { replace: true });
       } else {
         await login(email, password);
@@ -272,6 +274,14 @@ export default function Login() {
                   <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" className={inputCls("email")} />
                   {fieldErrors.email && <p className="text-xs text-destructive">{fieldErrors.email}</p>}
                 </div>
+
+                {isRegister && (
+                  <div className="space-y-2">
+                    <Label htmlFor="phone" className="text-[13px] font-medium">{t("auth.phone", "Phone (optional)")}</Label>
+                    <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01xxxxxxxxx" className={inputCls("phone")} />
+                    {fieldErrors.phone && <p className="text-xs text-destructive">{fieldErrors.phone}</p>}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
