@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, CreditCard, Share2, Banknote,
   Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
-  Palette, FileText, Navigation2, SlidersHorizontal, ChevronLeft, Filter, Radio,
+  Palette, FileText, Navigation2, SlidersHorizontal, ClipboardList, ChevronLeft, Filter, Radio,
   Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
   MessageSquare, Shield, UserCog, Inbox, PlugZap,
 } from "lucide-react";
@@ -64,6 +64,7 @@ const AppSidebar = () => {
     { title: isRTL ? "الصفحات" : "Pages", url: "/online-store/pages", icon: FileText },
     { title: isRTL ? "التنقل" : "Navigation", url: "/online-store/navigation", icon: Navigation2 },
     { title: isRTL ? "التفضيلات" : "Preferences", url: "/online-store/preferences", icon: SlidersHorizontal },
+    { title: isRTL ? "حقول الدفع" : "Checkout fields", url: "/online-store/checkout-fields", icon: ClipboardList },
   ];
 
   // Collapsible section builder (for bottom sections)
