@@ -15,7 +15,7 @@ import {
   productToApiCreate,
   productToApiUpdate,
 } from "@/services/productApi";
-import { validateImageFile } from "@/lib/image-validation";
+import { prepareImageForUpload } from "@/lib/image-validation";
 import { VariantMatrix, type VariantCombination } from "@/components/products/VariantMatrix";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -136,24 +136,26 @@ const ProductEditor = () => {
   }, [storeId, productId]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !storeId) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile || !storeId) return;
     setImageError(null);
     setValidatingImage(true);
+    let fileToUpload: File;
     try {
-      const error = await validateImageFile(file);
-      if (error) {
-        setImageError(error);
+      const result = await prepareImageForUpload(rawFile);
+      if (result.error) {
+        setImageError(result.error);
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
+      fileToUpload = result.file;
     } finally {
       setValidatingImage(false);
     }
     if (isEditMode && productId) {
       setUploadingImage(true);
       try {
-        const result = await uploadProductImage(storeId, productId, file);
+        const result = await uploadProductImage(storeId, productId, fileToUpload);
         setFormImages(prev => [...prev, result.url]);
         toast.success(language === "ar" ? "الصورة اترفعت!" : "Image uploaded!");
       } catch (err) {
@@ -162,7 +164,7 @@ const ProductEditor = () => {
         setUploadingImage(false);
       }
     } else {
-      setPendingFiles(prev => [...prev, file]);
+      setPendingFiles(prev => [...prev, fileToUpload]);
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };

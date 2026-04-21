@@ -4,6 +4,7 @@
 
 import { apiClient, apiClientFormData } from "./api";
 import type { Product, ProductVariant, ProductStatus } from "@/data/mock-products";
+import { compressImage } from "@/lib/image-compression";
 
 // ---------------------------------------------------------------------------
 // Backend response types (match API exactly)
@@ -151,8 +152,9 @@ export async function uploadProductImage(
   productId: string,
   file: File,
 ): Promise<UploadedImageResponse> {
+  const prepared = await compressImage(file);
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", prepared);
   return apiClientFormData<UploadedImageResponse>(
     `/stores/${storeId}/products/${productId}/images`,
     formData,
