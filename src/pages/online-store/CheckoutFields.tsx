@@ -33,12 +33,12 @@ const STANDARD_FIELD_ORDER: string[] = [
 
 const FIELD_LABELS: Record<string, { en: string; ar: string; hint?: { en: string; ar: string } }> = {
   first_name: { en: "First name", ar: "الاسم الأول" },
-  last_name:  { en: "Last name",  ar: "اسم العائلة" },
-  phone:      { en: "Phone number", ar: "رقم الهاتف" },
-  email:      { en: "Email", ar: "البريد الإلكتروني" },
+  last_name:  { en: "Last name",  ar: "اسم العيلة" },
+  phone:      { en: "Phone number", ar: "رقم الموبايل" },
+  email:      { en: "Email", ar: "الإيميل" },
   governorate: { en: "Governorate", ar: "المحافظة" },
   area:       { en: "Area",    ar: "المنطقة" },
-  address:    { en: "Detailed address", ar: "العنوان التفصيلي" },
+  address:    { en: "Detailed address", ar: "العنوان بالتفصيل" },
   landmark:   { en: "Landmark", ar: "علامة مميزة" },
   notes:      { en: "Order notes", ar: "ملاحظات الطلب" },
 };
@@ -47,8 +47,8 @@ const TYPE_LABELS: Record<CustomFieldType, { en: string; ar: string }> = {
   text:     { en: "Short text",  ar: "نص قصير" },
   textarea: { en: "Long text",   ar: "نص طويل" },
   number:   { en: "Number",      ar: "رقم" },
-  select:   { en: "Dropdown",    ar: "قائمة" },
-  checkbox: { en: "Checkbox",    ar: "مربع اختيار" },
+  select:   { en: "Dropdown",    ar: "قائمة اختيارات" },
+  checkbox: { en: "Checkbox",    ar: "بوكس اختيار" },
 };
 
 function newCustomField(position: number): CustomFieldSetting {
@@ -89,9 +89,9 @@ export default function CheckoutFields() {
     onSuccess: (saved) => {
       setConfig(saved);
       queryClient.invalidateQueries({ queryKey: ["checkout-fields", storeId] });
-      toast.success(isAr ? "تم الحفظ" : "Saved");
+      toast.success(isAr ? "اتحفظ" : "Saved");
     },
-    onError: (err) => showError(err, isAr ? "فشل الحفظ" : "Failed to save"),
+    onError: (err) => showError(err, isAr ? "الحفظ فشل" : "Failed to save"),
   });
 
   const dirty = useMemo(() => {
@@ -117,7 +117,7 @@ export default function CheckoutFields() {
     setConfig((c) => {
       if (!c) return c;
       if (c.custom_fields.length >= 10) {
-        toast.info(isAr ? "الحد الأقصى 10 حقول" : "10 custom fields max");
+        toast.info(isAr ? "أقصى حاجة ١٠ بيانات" : "10 custom fields max");
         return c;
       }
       return {
@@ -158,13 +158,13 @@ export default function CheckoutFields() {
     if (!config) return;
     for (const f of config.custom_fields) {
       if (!f.label.trim()) {
-        toast.error(isAr ? "كل الحقول المخصصة تحتاج اسمًا" : "Every custom field needs a label");
+        toast.error(isAr ? "كل الحقول الزيادة محتاجة اسم" : "Every custom field needs a label");
         return;
       }
       if (f.type === "select" && (!f.options || f.options.length === 0)) {
         toast.error(
           isAr
-            ? `أضِف خيارات للحقل "${f.label}"`
+            ? `ضيف اختيارات للبيان "${f.label}"`
             : `Add options to "${f.label}"`,
         );
         return;
@@ -176,7 +176,7 @@ export default function CheckoutFields() {
   if (!storeId) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
-        {isAr ? "اختر متجرًا أولاً" : "Select a store first"}
+        {isAr ? "اختار متجر الأول" : "Select a store first"}
       </div>
     );
   }
@@ -202,11 +202,11 @@ export default function CheckoutFields() {
             {isAr ? "الإعدادات" : "Settings"}
           </Link>
           <h1 className="text-xl font-semibold tracking-tight">
-            {isAr ? "حقول صفحة الدفع" : "Checkout fields"}
+            {isAr ? "بيانات الدفع" : "Checkout fields"}
           </h1>
           <p className="mt-1 text-[13px] text-muted-foreground">
             {isAr
-              ? "اختر الحقول المطلوبة على صفحة الدفع وأضِف حقولًا مخصصة."
+              ? "اختار المطلوبة من العميل وهو بيشتري وضيف حقول زيادة."
               : "Choose which fields are required at checkout and add your own custom fields."}
           </p>
         </div>
@@ -216,7 +216,7 @@ export default function CheckoutFields() {
           className="gap-2"
         >
           {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {isAr ? "حفظ" : "Save"}
+          {isAr ? "إحفظ" : "Save"}
         </Button>
       </div>
 
@@ -224,19 +224,19 @@ export default function CheckoutFields() {
       <section className="rounded-xl border">
         <div className="border-b p-4">
           <h2 className="text-sm font-semibold">
-            {isAr ? "الحقول القياسية" : "Standard fields"}
+            {isAr ? "البيانات الأساسية" : "Standard fields"}
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {isAr
-              ? "اختر ما يظهر للعميل وما يعتبر مطلوبًا."
+              ? "اختار إيه اللي يظهر للعميل وإيه اللي إجباري."
               : "Choose what shows to the customer and what's required."}
           </p>
         </div>
         <div className="divide-y">
           <div className="grid grid-cols-[1fr_auto_auto] items-center gap-6 px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            <span>{isAr ? "الحقل" : "Field"}</span>
-            <span className="w-16 text-center">{isAr ? "ظاهر" : "Shown"}</span>
-            <span className="w-16 text-center">{isAr ? "إلزامي" : "Required"}</span>
+            <span>{isAr ? "البيان" : "Field"}</span>
+            <span className="w-16 text-center">{isAr ? "باين" : "Shown"}</span>
+            <span className="w-16 text-center">{isAr ? "إجباري" : "Required"}</span>
           </div>
           {STANDARD_FIELD_ORDER.map((key) => {
             const setting = config.standard_fields[key] ?? { enabled: true, required: false };
@@ -280,23 +280,23 @@ export default function CheckoutFields() {
         <div className="flex items-center justify-between border-b p-4">
           <div>
             <h2 className="text-sm font-semibold">
-              {isAr ? "حقول مخصصة" : "Custom fields"}
+              {isAr ? "بيانات زيادة" : "Custom fields"}
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {isAr
-                ? "حتى 10 حقول إضافية، تُحفظ على الطلب."
+                ? "لحد ١٠ بيانات زيادة، وبتتحفظ مع الطلب."
                 : "Up to 10 extra fields, stored on each order."}
             </p>
           </div>
           <Button size="sm" variant="outline" onClick={addCustom} className="gap-1.5">
             <Plus className="h-4 w-4" />
-            {isAr ? "إضافة حقل" : "Add field"}
+            {isAr ? "ضيف بيان" : "Add field"}
           </Button>
         </div>
 
         {config.custom_fields.length === 0 ? (
           <p className="p-8 text-center text-sm text-muted-foreground">
-            {isAr ? "لم تُضِف أي حقول مخصصة بعد." : "No custom fields yet."}
+            {isAr ? "لسه مضفتش أي بيانات زيادة." : "No custom fields yet."}
           </p>
         ) : (
           <div className="divide-y">
@@ -399,7 +399,7 @@ export default function CheckoutFields() {
                 </div>
                 <div className="flex items-center justify-between pl-6 pt-1">
                   <span className="text-xs text-muted-foreground">
-                    {isAr ? "حقل إلزامي" : "Required"}
+                    {isAr ? "إجباري" : "Required"}
                   </span>
                   <Switch
                     checked={f.required}
