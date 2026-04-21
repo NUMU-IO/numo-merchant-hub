@@ -35,7 +35,7 @@ const FIELD_LABELS: Record<string, { en: string; ar: string; hint?: { en: string
   first_name: { en: "First name", ar: "الاسم الأول" },
   last_name:  { en: "Last name",  ar: "اسم العائلة" },
   phone:      { en: "Phone number", ar: "رقم الهاتف" },
-  email:      { en: "Email (logged-in)", ar: "البريد الإلكتروني (للمسجلين)", hint: { en: "Guests always provide email.", ar: "الضيوف يُطلب منهم البريد دائمًا." } },
+  email:      { en: "Email", ar: "البريد الإلكتروني" },
   governorate: { en: "Governorate", ar: "المحافظة" },
   area:       { en: "Area",    ar: "المنطقة" },
   address:    { en: "Detailed address", ar: "العنوان التفصيلي" },
