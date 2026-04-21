@@ -3,6 +3,7 @@
  */
 
 import { apiClient } from "./api";
+import { compressImage } from "@/lib/image-compression";
 
 export interface Category {
   id: string;
@@ -90,8 +91,9 @@ export async function uploadCategoryImage(
   categoryId: string,
   file: File
 ): Promise<Category> {
+  const prepared = await compressImage(file);
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", prepared);
   return apiClient<Category>(
     `/stores/${storeId}/categories/${categoryId}/image`,
     { method: "POST", body: formData }

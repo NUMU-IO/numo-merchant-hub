@@ -2,6 +2,8 @@
  * Shared image validation utilities for file uploads.
  */
 
+import { compressImage } from "./image-compression";
+
 export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 export const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -56,4 +58,31 @@ export async function validateImageFile(file: File): Promise<string | null> {
   }
 
   return null;
+}
+
+/**
+ * Prepare a user-selected image for upload.
+ *
+ * Auto-compresses oversized photos in-browser so a 10 MB phone shot still
+ * uploads cleanly, then runs the standard validator on the result. Returns
+ * either the (possibly new, compressed) File, or an error message string
+ * suitable for a toast.
+ *
+ * Call this wherever a raw File was previously handed to `validateImageFile`
+ * followed by an upload — it replaces both steps.
+ */
+export async function prepareImageForUpload(
+  file: File,
+): Promise<{ file: File; error: null } | { file: null; error: string }> {
+  // Server accepts jpeg/png/webp — HEIC from iPhones isn't on the allow list,
+  // but `compressImage` decodes HEIC where the browser supports it and outputs
+  // WebP/JPEG, so the validator downstream will be happy.
+  let prepared: File;
+  try {
+    prepared = await compressImage(file);
+  } catch {
+    prepared = file;
+  }
+  const error = await validateImageFile(prepared);
+  return error ? { file: null, error } : { file: prepared, error: null };
 }

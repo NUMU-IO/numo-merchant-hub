@@ -3,6 +3,7 @@
  */
 
 import { apiClient } from "./api";
+import { compressImage } from "@/lib/image-compression";
 
 export interface StoreData {
   id: string;
@@ -116,8 +117,13 @@ export async function uploadStoreAsset(
   file: File,
   assetType: "logo" | "favicon" | "hero_image" | "profile_picture" | "section_image" | "social_image",
 ): Promise<UploadAssetResult> {
+  // Favicons must stay crisp at their native size — don't touch. Everything
+  // else (logo, banner, hero, profile, section images) gets downscaled to
+  // fit comfortably under the server cap so phone photos upload cleanly.
+  const prepared = assetType === "favicon" ? file : await compressImage(file);
+
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", prepared);
   formData.append("asset_type", assetType);
 
   return apiClient<UploadAssetResult>(`/stores/${storeId}/settings/customization/assets`, {
