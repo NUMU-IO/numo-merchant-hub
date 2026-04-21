@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Timer, ExternalLink, Save, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getStoreUrl } from "@/lib/storefront";
 import DemoConvertModal from "./DemoConvertModal";
 
 /**
@@ -24,7 +25,7 @@ const DemoBanner = () => {
   if (!isDemoMode || !tenant) return null;
 
   const daysLeft = tenant.days_remaining ?? 0;
-  const storefrontUrl = `https://${tenant.subdomain}.numu.io`;
+  const storefrontUrl = getStoreUrl(tenant.subdomain);
 
   const urgency: "low" | "mid" | "high" =
     daysLeft <= 1 ? "high" : daysLeft <= 3 ? "mid" : "low";
