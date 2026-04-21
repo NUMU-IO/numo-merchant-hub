@@ -957,14 +957,31 @@ export default function ThemeEditor() {
         <main className="relative flex flex-1 flex-col items-center justify-center bg-muted/40 overflow-hidden" data-testid="theme-editor-preview-panel">
           {storeUrl ? (
             <>
+              {/* Mobile & tablet frames use real device aspect ratios so the
+                  preview doesn't stretch into a tall awkward rectangle on
+                  large monitors — matches Shopify/Webflow/Figma behavior.
+                    Mobile: iPhone 14 (390 × 844, ratio 390/844 ≈ 0.462)
+                    Tablet: iPad Air portrait (820 × 1180, ratio ≈ 0.695)
+                  `max-h-full` keeps the frame inside the available panel
+                  height (with bottom padding for the refresh button);
+                  `aspect-ratio` preserves phone/tablet proportions so the
+                  iframe inside scales naturally regardless of window size. */}
               <div className={cn(
                 "relative bg-white shadow-2xl transition-all duration-300 ease-in-out overflow-hidden",
                 device === "mobile"
-                  ? "w-[390px] rounded-[36px] border-[6px] border-zinc-800 shadow-[0_30px_80px_rgba(0,0,0,0.25)]"
+                  ? "w-[390px] max-w-[90%] max-h-[calc(100%-3rem)] rounded-[36px] border-[6px] border-zinc-800 shadow-[0_30px_80px_rgba(0,0,0,0.25)]"
                   : device === "tablet"
-                  ? "w-[768px] h-full border-[6px] border-zinc-800 rounded-[24px] shadow-lg"
+                  ? "w-[820px] max-w-[92%] max-h-[calc(100%-3rem)] border-[6px] border-zinc-800 rounded-[24px] shadow-lg"
                   : "w-full h-full rounded-none border-none shadow-none"
-              )} style={device === "mobile" ? { height: "calc(100% - 48px)" } : { height: "100%" }} data-testid="theme-editor-preview-shell">
+              )}
+              style={
+                device === "mobile"
+                  ? { aspectRatio: "390 / 844" }
+                  : device === "tablet"
+                    ? { aspectRatio: "820 / 1180" }
+                    : { height: "100%" }
+              }
+              data-testid="theme-editor-preview-shell">
                 <iframe ref={iframeRef} key={previewKey} src={storeUrl}
                   className="w-full h-full border-0" title="Store preview" onLoad={handleIframeLoad} data-testid="theme-editor-preview-iframe" />
               </div>
