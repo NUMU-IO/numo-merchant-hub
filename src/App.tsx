@@ -19,6 +19,7 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Products = lazy(() => import("@/pages/Products"));
 const ProductEditor = lazy(() => import("@/pages/ProductEditor"));
 const Orders = lazy(() => import("@/pages/Orders"));
+const OrderImport = lazy(() => import("@/pages/OrderImport"));
 const CreateOrder = lazy(() => import("@/pages/CreateOrder"));
 const StoreSettings = lazy(() => import("@/pages/StoreSettings"));
 const OnlineStoreThemes = lazy(() => import("@/pages/online-store/Themes"));
@@ -202,6 +203,7 @@ const App = () => (
                     <Route path="/products/:productId/edit" element={<ProductEditor />} />
                     <Route path="/orders" element={<Orders />} />
                     <Route path="/orders/create" element={<CreateOrder />} />
+                    <Route path="/orders/import" element={<OrderImport />} />
                     <Route path="/payments" element={<Payments />} />
                     <Route path="/wallet" element={<WalletPage />} />
                     <Route path="/store-balance" element={<StoreBalancePage />} />
