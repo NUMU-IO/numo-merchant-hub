@@ -98,6 +98,15 @@ const GLOBAL_SECTIONS: GlobalSection[] = [
     ],
   },
   {
+    id: "products", name: "Products", nameAr: "المنتجات", icon: Package,
+    fields: [
+      { key: "products.image_aspect", label: "Product image shape", labelAr: "شكل صورة المنتج", type: "select", options: ["portrait", "square", "landscape"] },
+      { key: "products.products_per_row", label: "Products per row (desktop)", labelAr: "عدد المنتجات في الصف", type: "range", min: 2, max: 4, step: 1 },
+      { key: "products.show_price", label: "Show price", labelAr: "إظهار السعر", type: "toggle" },
+      { key: "products.show_rating", label: "Show rating", labelAr: "إظهار التقييم", type: "toggle" },
+    ],
+  },
+  {
     id: "footer", name: "Footer", nameAr: "التذييل", icon: Layout,
     fields: [
       { key: "footer.footer_text", label: "Footer text", labelAr: "نص التذييل", type: "textarea" },
