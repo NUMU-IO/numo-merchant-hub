@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
 
+
 interface PrefsState {
   seo_title: string;
   seo_description: string;
@@ -68,6 +69,7 @@ export default function OnlineStorePreferences() {
     password_enabled: false, password: "",
     ga_tracking_id: "", meta_pixel_id: "",
   });
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
@@ -203,6 +205,7 @@ export default function OnlineStorePreferences() {
               onChange={(e) => set("seo_title", e.target.value)}
               placeholder={currentStore?.name ?? "My Store"}
               maxLength={70}
+              dir="auto"
             />
           </div>
 
@@ -218,6 +221,7 @@ export default function OnlineStorePreferences() {
               placeholder={isRTL ? "وصف مختصر لمتجرك يظهر في نتائج البحث..." : "A short description of your store shown in search results..."}
               rows={3}
               maxLength={160}
+              dir="auto"
             />
           </div>
 
@@ -227,28 +231,28 @@ export default function OnlineStorePreferences() {
               {isRTL ? "معاينة نتيجة البحث" : "Search result preview"}
             </p>
             {/* Favicon + URL bar */}
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1" dir={form.seo_title.match(/^[a-zA-Z]/) ? "ltr" : "auto"}>
               <div className="h-4 w-4 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
                 <span className="text-[7px] font-bold text-muted-foreground">N</span>
               </div>
-              <div>
-                <p className="text-[11px] text-foreground/80 leading-none">
+              <div className="flex flex-col items-start w-full overflow-hidden">
+                <p className="text-[11px] text-foreground/80 leading-none" dir="auto">
                   {currentStore?.name ?? "My Store"}
                 </p>
-                <p className="text-[10px] text-emerald-700 dark:text-emerald-500 truncate leading-none mt-0.5">
+                <p className="text-[10px] text-emerald-700 dark:text-emerald-500 truncate leading-none mt-0.5" dir="ltr">
                   {storeUrl}
                 </p>
               </div>
             </div>
-            <p className="text-[15px] font-normal text-[#1a0dab] dark:text-[#8ab4f8] leading-snug hover:underline cursor-pointer truncate">
+            <p className="text-[15px] font-normal text-[#1a0dab] dark:text-[#8ab4f8] leading-snug hover:underline cursor-pointer truncate" dir="auto">
               {seoTitle}
             </p>
             {form.seo_description ? (
-              <p className="text-[13px] text-[#4d5156] dark:text-zinc-400 leading-snug line-clamp-2">
+              <p className="text-[13px] text-[#4d5156] dark:text-zinc-400 leading-snug line-clamp-2" dir="auto">
                 {form.seo_description}
               </p>
             ) : (
-              <p className="text-[13px] text-muted-foreground/40 italic leading-snug">
+              <p className="text-[13px] text-muted-foreground/40 italic leading-snug" dir="auto">
                 {isRTL ? "أضف وصفًا ليظهر هنا..." : "Add a description to see it here..."}
               </p>
             )}
@@ -266,6 +270,7 @@ export default function OnlineStorePreferences() {
           seoDescription={form.seo_description}
           isRTL={isRTL}
         />
+
       </Section>
 
       {/* ── Tracking pixels ──────────────────────────────────────────────────── */}

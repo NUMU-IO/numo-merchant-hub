@@ -18,6 +18,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { apiClient } from "@/services/api";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { MemberOverridesDialog } from "@/components/staff/MemberOverridesDialog";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface StaffMember {
   id: string;
@@ -55,6 +56,8 @@ interface PendingAccessRequest {
 export default function StaffPage() {
   const { toast } = useToast();
   const { currentStore } = useDashboardStore();
+  const { language } = useLanguage();
+  const isAr = language === "ar";
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [accessRequests, setAccessRequests] = useState<PendingAccessRequest[]>([]);
@@ -302,27 +305,27 @@ export default function StaffPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <UserCog className="w-6 h-6" />
-            Staff Management
+            {isAr ? "فريق العمل" : "Staff Management"}
           </h1>
-          <p className="text-muted-foreground">Manage your team members and their permissions</p>
+          <p className="text-muted-foreground">{isAr ? "دير أعضاء فريقك وصلاحياتهم" : "Manage your team members and their permissions"}</p>
         </div>
         <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="w-4 h-4 mr-2" />
-              Invite Staff
+              {isAr ? "دعو موظف" : "Invite Staff"}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Invite Staff Member</DialogTitle>
+              <DialogTitle>{isAr ? "دعوة عضو للفريق" : "Invite Staff Member"}</DialogTitle>
               <DialogDescription>
-                Send an invitation to join your team
+                {isAr ? "ابعت دعوة للإنضمام لفريقك" : "Send an invitation to join your team"}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="email">{isAr ? "الإيميل" : "Email Address"}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -332,10 +335,10 @@ export default function StaffPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Assign Roles (optional)</Label>
+                <Label>{isAr ? "تحديد الأدوار (اختياري)" : "Assign Roles (optional)"}</Label>
                 {roles.length === 0 ? (
                   <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground flex items-center justify-between gap-2">
-                    <span>No roles exist yet for this store.</span>
+                    <span>{isAr ? "مفيش أدوار موجودة للمتجر ده لسه." : "No roles exist yet for this store."}</span>
                     <Button
                       type="button"
                       size="sm"
@@ -344,7 +347,7 @@ export default function StaffPage() {
                       disabled={isSeedingRoles}
                     >
                       {isSeedingRoles && <Loader2 className="w-3 h-3 mr-2 animate-spin" />}
-                      Create defaults
+                      {isAr ? "إنشاء الأدوار الافتراضية" : "Create defaults"}
                     </Button>
                   </div>
                 ) : (
@@ -369,17 +372,17 @@ export default function StaffPage() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="message">Message (optional)</Label>
+                <Label htmlFor="message">{isAr ? "رسالة (اختياري)" : "Message (optional)"}</Label>
                 <Input
                   id="message"
                   value={inviteMessage}
                   onChange={(e) => setInviteMessage(e.target.value)}
-                  placeholder="Welcome message..."
+                  placeholder={isAr ? "رسالة ترحيب..." : "Welcome message..."}
                 />
               </div>
               <Button onClick={handleInvite} disabled={isInviting} className="w-full">
                 {isInviting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Send Invitation
+                {isAr ? "ابعت الدعوة" : "Send Invitation"}
               </Button>
             </div>
           </DialogContent>
@@ -390,17 +393,17 @@ export default function StaffPage() {
       {invitations.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Pending Invitations</CardTitle>
-            <CardDescription>Invitations awaiting acceptance</CardDescription>
+            <CardTitle className="text-lg">{isAr ? "الدعوات المعلقة" : "Pending Invitations"}</CardTitle>
+            <CardDescription>{isAr ? "دعوات مستنية تتوافق عليها" : "Invitations awaiting acceptance"}</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Sent</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{isAr ? "الإيميل" : "Email"}</TableHead>
+                  <TableHead>{isAr ? "اتبعتت" : "Sent"}</TableHead>
+                  <TableHead>{isAr ? "بتنتهي" : "Expires"}</TableHead>
+                  <TableHead className="text-right">{isAr ? "إجراءات" : "Actions"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -416,7 +419,7 @@ export default function StaffPage() {
                         onClick={() => handleRevokeInvitation(invite.id)}
                       >
                         <X className="w-4 h-4 mr-1" />
-                        Revoke
+                        {isAr ? "إلغي" : "Revoke"}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -432,16 +435,17 @@ export default function StaffPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-lg">Team Members</CardTitle>
-              <CardDescription>{staff.length} members</CardDescription>
+              <CardTitle className="text-lg">{isAr ? "أعضاء الفريق" : "Team Members"}</CardTitle>
+              <CardDescription>{staff.length} {isAr ? "أعضاء" : "members"}</CardDescription>
             </div>
             <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className={`absolute ${isAr ? "right-3" : "left-3"} top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground`} />
               <Input
-                placeholder="Search staff..."
+                placeholder={isAr ? "دوّر في الفريق..." : "Search staff..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
+                className={isAr ? "pr-9 text-right" : "pl-9"}
+                dir={isAr ? "rtl" : "ltr"}
               />
             </div>
           </div>
@@ -450,11 +454,11 @@ export default function StaffPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Member</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Roles</TableHead>
-                <TableHead>Joined</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className={isAr ? "text-right" : ""}>{isAr ? "العضو" : "Member"}</TableHead>
+                <TableHead className={isAr ? "text-right" : ""}>{isAr ? "الحالة" : "Status"}</TableHead>
+                <TableHead className={isAr ? "text-right" : ""}>{isAr ? "الأدوار" : "Roles"}</TableHead>
+                <TableHead className={isAr ? "text-right" : ""}>{isAr ? "إنضم" : "Joined"}</TableHead>
+                <TableHead className={isAr ? "text-left" : "text-right"}>{isAr ? "إجراءات" : "Actions"}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -471,7 +475,7 @@ export default function StaffPage() {
                         <div className="font-medium">
                           {member.first_name} {member.last_name}
                           {member.is_owner && (
-                            <Badge variant="secondary" className="ml-2">Owner</Badge>
+                            <Badge variant="secondary" className={isAr ? "mr-2" : "ml-2"}>{isAr ? "المالك" : "Owner"}</Badge>
                           )}
                         </div>
                         <div className="text-sm text-muted-foreground">{member.email}</div>
@@ -480,7 +484,7 @@ export default function StaffPage() {
                   </TableCell>
                   <TableCell>
                     <Badge variant={member.status === "active" ? "default" : "secondary"}>
-                      {member.status}
+                      {member.status === "active" ? (isAr ? "نشط" : "Active") : (isAr ? "غير نشط" : "Inactive")}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -492,20 +496,20 @@ export default function StaffPage() {
                       ))}
                       {!member.roles?.length && (
                         <span className="text-muted-foreground text-sm">
-                          {member.is_owner ? "All access" : "No roles"}
+                          {member.is_owner ? (isAr ? "صلاحيات كاملة" : "All access") : (isAr ? "مفيش أدوار" : "No roles")}
                         </span>
                       )}
                     </div>
                   </TableCell>
                   <TableCell>{formatDate(member.joined_at)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
+                  <TableCell className={isAr ? "text-left" : "text-right"}>
+                    <div className={`flex ${isAr ? "justify-start" : "justify-end"} gap-1`}>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => openEditRoles(member)}
                         disabled={member.is_owner}
-                        title={member.is_owner ? "Owner roles cannot be edited" : "Edit roles"}
+                        title={member.is_owner ? (isAr ? "صلاحيات المالك مابتتعدلش" : "Owner roles cannot be edited") : (isAr ? "تعديل الصلاحيات" : "Edit roles")}
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
@@ -514,7 +518,7 @@ export default function StaffPage() {
                         size="sm"
                         onClick={() => setOverridesMember(member)}
                         disabled={member.is_owner}
-                        title={member.is_owner ? "Owner has all permissions" : "Permission overrides"}
+                        title={member.is_owner ? (isAr ? "المالك عنده كل الصلاحيات" : "Owner has all permissions") : (isAr ? "استثناءات الصلاحيات" : "Permission overrides")}
                       >
                         <Key className="w-4 h-4" />
                       </Button>
@@ -523,7 +527,7 @@ export default function StaffPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setDeletingMember(member)}
-                          title="Remove staff member"
+                          title={isAr ? "شيل الموظف" : "Remove staff member"}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -544,17 +548,17 @@ export default function StaffPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Roles</DialogTitle>
+            <DialogTitle>{isAr ? "تعديل الأدوار" : "Edit Roles"}</DialogTitle>
             <DialogDescription>
               {editingMember
-                ? `Update roles for ${editingMember.first_name} ${editingMember.last_name}`
+                ? (isAr ? `تحديث أدوار ${editingMember.first_name} ${editingMember.last_name}` : `Update roles for ${editingMember.first_name} ${editingMember.last_name}`)
                 : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {roles.length === 0 ? (
               <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground flex items-center justify-between gap-2">
-                <span>No roles exist yet for this store.</span>
+                <span>{isAr ? "مفيش أدوار موجودة للمتجر ده لسه." : "No roles exist yet for this store."}</span>
                 <Button
                   type="button"
                   size="sm"
@@ -563,7 +567,7 @@ export default function StaffPage() {
                   disabled={isSeedingRoles}
                 >
                   {isSeedingRoles && <Loader2 className="w-3 h-3 mr-2 animate-spin" />}
-                  Create defaults
+                  {isAr ? "إنشاء الأدوار الافتراضية" : "Create defaults"}
                 </Button>
               </div>
             ) : (
@@ -586,13 +590,13 @@ export default function StaffPage() {
                 ))}
               </div>
             )}
-            <div className="flex justify-end gap-2">
+            <div className={`flex ${isAr ? "justify-start" : "justify-end"} gap-2`}>
               <Button variant="outline" onClick={() => setEditingMember(null)}>
-                Cancel
+                {isAr ? "إلغاء" : "Cancel"}
               </Button>
               <Button onClick={handleSaveRoles} disabled={isSavingRoles}>
                 {isSavingRoles && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Save
+                {isAr ? "حفظ" : "Save"}
               </Button>
             </div>
           </div>
@@ -618,16 +622,16 @@ export default function StaffPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove staff member?</DialogTitle>
+            <DialogTitle>{isAr ? "متأكد إنك عايز تشيل الموظف ده؟" : "Remove staff member?"}</DialogTitle>
             <DialogDescription>
               {deletingMember
-                ? `${deletingMember.first_name} ${deletingMember.last_name} (${deletingMember.email}) will lose access to this store.`
+                ? (isAr ? `${deletingMember.first_name} ${deletingMember.last_name} (${deletingMember.email}) هيفقد صلاحية الدخول للمتجر.` : `${deletingMember.first_name} ${deletingMember.last_name} (${deletingMember.email}) will lose access to this store.`)
                 : ""}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className={`flex ${isAr ? "justify-start" : "justify-end"} gap-2 pt-2`}>
             <Button variant="outline" onClick={() => setDeletingMember(null)}>
-              Cancel
+              {isAr ? "إلغاء" : "Cancel"}
             </Button>
             <Button
               variant="destructive"
@@ -635,7 +639,7 @@ export default function StaffPage() {
               disabled={isDeleting}
             >
               {isDeleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Remove
+              {isAr ? "شيل" : "Remove"}
             </Button>
           </div>
         </DialogContent>
@@ -643,3 +647,4 @@ export default function StaffPage() {
     </div>
   );
 }
+
