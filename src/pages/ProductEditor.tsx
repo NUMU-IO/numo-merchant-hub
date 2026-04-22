@@ -15,8 +15,17 @@ import {
   productToApiCreate,
   productToApiUpdate,
 } from "@/services/productApi";
-import { validateImageFile } from "@/lib/image-validation";
+import { prepareImageForUpload } from "@/lib/image-validation";
+import { updateStore } from "@/services/storeApi";
 import { VariantMatrix, type VariantCombination } from "@/components/products/VariantMatrix";
+import {
+  SizeChartEditor,
+  EMPTY_SIZE_CHART,
+  sanitizeChartForPersistence,
+  sizeChartFromAttributes,
+  type SizeChart,
+} from "@/components/products/SizeChartEditor";
+import { BundleManager } from "@/components/products/BundleManager";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +34,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, X, ImagePlus, Loader2, Save, Undo2, Layers, Hash,
   Minus, ShoppingCart, Eye,
@@ -80,6 +97,15 @@ const ProductEditor = () => {
   const [formSlug, setFormSlug] = useState("");
   const [formVariants, setFormVariants] = useState<{ name: string; nameAr: string; options: string; optionsAr: string }[]>([]);
   const [variantCombinations, setVariantCombinations] = useState<VariantCombination[]>([]);
+  const [sizeChart, setSizeChart] = useState<SizeChart>({ ...EMPTY_SIZE_CHART });
+  // Store-level default chart. Fetched lazily when the merchant opens the
+  // "Edit store default" dialog from within the product's size-chart card.
+  const [storeDefaultChart, setStoreDefaultChart] = useState<SizeChart>({
+    ...EMPTY_SIZE_CHART,
+    mode: "custom",
+  });
+  const [showStoreDefaultDialog, setShowStoreDefaultDialog] = useState(false);
+  const [savingStoreDefault, setSavingStoreDefault] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formImages, setFormImages] = useState<string[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -127,33 +153,36 @@ const ProductEditor = () => {
         if (Array.isArray(rawCombos)) {
           setVariantCombinations(rawCombos as VariantCombination[]);
         }
+        setSizeChart(sizeChartFromAttributes(api.attributes));
       })
       .catch((err) => {
         showError(err, language);
         navigate("/products");
       })
       .finally(() => setIsLoadingProduct(false));
-  }, [storeId, productId]);
+  }, [storeId, productId, language, navigate]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !storeId) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile || !storeId) return;
     setImageError(null);
     setValidatingImage(true);
+    let fileToUpload: File;
     try {
-      const error = await validateImageFile(file);
-      if (error) {
-        setImageError(error);
+      const result = await prepareImageForUpload(rawFile);
+      if (result.error) {
+        setImageError(result.error);
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
+      fileToUpload = result.file;
     } finally {
       setValidatingImage(false);
     }
     if (isEditMode && productId) {
       setUploadingImage(true);
       try {
-        const result = await uploadProductImage(storeId, productId, file);
+        const result = await uploadProductImage(storeId, productId, fileToUpload);
         setFormImages(prev => [...prev, result.url]);
         toast.success(language === "ar" ? "الصورة اترفعت!" : "Image uploaded!");
       } catch (err) {
@@ -162,7 +191,7 @@ const ProductEditor = () => {
         setUploadingImage(false);
       }
     } else {
-      setPendingFiles(prev => [...prev, file]);
+      setPendingFiles(prev => [...prev, fileToUpload]);
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -246,6 +275,10 @@ const ProductEditor = () => {
         if (variantCombinations.length > 0 && payload.attributes) {
           (payload.attributes as Record<string, unknown>).variant_combinations = variantCombinations;
         }
+        const cleanedChart = sanitizeChartForPersistence(sizeChart);
+        if (cleanedChart && payload.attributes) {
+          (payload.attributes as Record<string, unknown>).size_chart = cleanedChart;
+        }
         await apiUpdateProduct(storeId, productId, payload);
         toast.success(t("products.productUpdated"));
       } else {
@@ -267,6 +300,10 @@ const ProductEditor = () => {
         if (variantCombinations.length > 0 && payload.attributes) {
           (payload.attributes as Record<string, unknown>).variant_combinations = variantCombinations;
         }
+        const cleanedChart = sanitizeChartForPersistence(sizeChart);
+        if (cleanedChart && payload.attributes) {
+          (payload.attributes as Record<string, unknown>).size_chart = cleanedChart;
+        }
         const created = await apiCreateProduct(storeId, payload);
         for (const file of pendingFiles) {
           try {
@@ -281,7 +318,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formSlug, variantCombinations]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formSlug, variantCombinations, sizeChart]);
 
   if (isLoadingProduct) {
     return (
@@ -714,6 +751,32 @@ const ProductEditor = () => {
         </CardContent>
       </Card>
 
+      {/* ── Frequently Bought Together ── */}
+      <BundleManager productId={productId ?? null} isEditMode={isEditMode} />
+
+      {/* ── Size Chart ── */}
+      <SizeChartEditor
+        value={sizeChart}
+        onChange={setSizeChart}
+        isAr={language === "ar"}
+        onUploadImage={
+          storeId
+            ? async (file) => (await uploadStoreAsset(storeId, file, "section_image")).url
+            : undefined
+        }
+        onEditStoreDefault={() => {
+          // Seed the dialog with whatever's currently stored at
+          // currentStore.settings.size_chart. Pulling it here (on open)
+          // instead of at mount keeps the initial product page load
+          // cheap for merchants who never touch store defaults.
+          const raw = (currentStore?.settings as Record<string, unknown> | null)?.size_chart;
+          setStoreDefaultChart(
+            raw ? { ...sizeChartFromAttributes({ size_chart: raw }), mode: "custom" } : { ...EMPTY_SIZE_CHART, mode: "custom" },
+          );
+          setShowStoreDefaultDialog(true);
+        }}
+      />
+
       </div>
 
       {/* Right: Live Preview */}
@@ -881,6 +944,83 @@ const ProductEditor = () => {
 
       {/* Sticky Footer */}
       </div>{/* end flex gap-6 */}
+
+      {/* ── Store-default size-chart dialog ──
+         Opened from the Size Chart card when the merchant is in "Store
+         default" mode. We edit the store default in-place here so they
+         don't have to navigate away from the product they're working on. */}
+      <Dialog open={showStoreDefaultDialog} onOpenChange={setShowStoreDefaultDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b">
+            <DialogTitle className="text-base">
+              {language === "ar" ? "تعديل جدول المقاسات الافتراضي" : "Edit store-default size chart"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {language === "ar"
+                ? "هذا الجدول بيظهر على كل منتج ما عدا اللي عنده جدول خاص."
+                : "Used on every product set to \"Store default\". Overridden per-product when needed."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-6">
+            <SizeChartEditor
+              value={storeDefaultChart}
+              onChange={setStoreDefaultChart}
+              isAr={language === "ar"}
+              variant="store-default"
+              onUploadImage={
+                storeId
+                  ? async (file) => (await uploadStoreAsset(storeId, file, "section_image")).url
+                  : undefined
+              }
+            />
+          </div>
+          <DialogFooter className="px-6 pb-5 border-t pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowStoreDefaultDialog(false)}
+              disabled={savingStoreDefault}
+            >
+              {language === "ar" ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button
+              type="button"
+              onClick={async () => {
+                if (!storeId) return;
+                setSavingStoreDefault(true);
+                try {
+                  const cleaned = sanitizeChartForPersistence({
+                    ...storeDefaultChart,
+                    // Force custom so sanitize keeps the data even if
+                    // the merchant didn't touch the mode picker in the
+                    // hidden-mode editor.
+                    mode: "custom",
+                  });
+                  await updateStore(storeId, {
+                    settings: {
+                      size_chart: cleaned ?? null,
+                    },
+                  });
+                  toast.success(language === "ar" ? "تم الحفظ" : "Store default saved");
+                  setShowStoreDefaultDialog(false);
+                } catch (err) {
+                  showError(err, language);
+                } finally {
+                  setSavingStoreDefault(false);
+                }
+              }}
+              disabled={savingStoreDefault}
+            >
+              {savingStoreDefault ? (
+                <Loader2 className="h-4 w-4 me-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 me-2" />
+              )}
+              {language === "ar" ? "حفظ الافتراضي" : "Save default"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

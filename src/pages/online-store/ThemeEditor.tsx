@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
 import { uploadStoreAsset } from "@/services/storeApi";
+import { listProducts } from "@/services/productApi";
 
 // ─── Global settings (identity, header, footer) ────────────────────────────
 
@@ -93,6 +94,7 @@ const GLOBAL_SECTIONS: GlobalSection[] = [
       { key: "footer.social_links.facebook", label: "Facebook", labelAr: "فيسبوك", type: "url" },
       { key: "footer.social_links.instagram", label: "Instagram", labelAr: "إنستجرام", type: "url" },
       { key: "footer.social_links.twitter", label: "Twitter/X", labelAr: "تويتر", type: "url" },
+      { key: "footer.social_links.tiktok", label: "TikTok", labelAr: "تيك توك", type: "url" },
       { key: "footer.social_links.whatsapp", label: "WhatsApp", labelAr: "واتساب", type: "text", placeholder: "+20XXXXXXXXXX" },
     ],
   },
@@ -168,6 +170,8 @@ const EDITABLE_PAGES: PageDef[] = [
   { id: "product-detail", name: "Product Detail", nameAr: "تفاصيل المنتج", icon: Package, previewPath: "/product/demo" },
   { id: "checkout", name: "Checkout", nameAr: "الدفع", icon: CreditCard, previewPath: "/checkout" },
   { id: "contact", name: "Contact", nameAr: "التواصل", icon: MessageCircle, previewPath: "/contact" },
+  { id: "about", name: "About", nameAr: "من نحن", icon: Layout, previewPath: "/about" },
+  { id: "auth", name: "Auth", nameAr: "تسجيل الدخول", icon: User, previewPath: "/auth" },
   { id: "order-confirmation", name: "Order Confirmation", nameAr: "تأكيد الطلب", icon: CheckCircle, previewPath: "/order-confirmation" },
   { id: "profile", name: "Profile", nameAr: "الحساب", icon: User, previewPath: "/profile" },
   { id: "lookbook", name: "Lookbook", nameAr: "لوك بوك", icon: Image, previewPath: "/lookbook" },
@@ -215,7 +219,13 @@ export default function ThemeEditor() {
   const queryClient = useQueryClient();
 
   const storeId = currentStore?.id ?? "";
-  const storeUrl = currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null;
+  // Append ?preview=1 so the storefront iframe renders in edit mode from the
+  // first paint (otherwise theme overrides like GildedContactPage flash before
+  // the postMessage NUMU_EDIT_MODE arrives).
+  const storeBaseUrl = currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null;
+  const storeUrl = storeBaseUrl
+    ? storeBaseUrl + (storeBaseUrl.includes("?") ? "&" : "?") + "preview=1"
+    : null;
 
   const [localData, setLocalData] = useState<CustomizationData | null>(null);
   const [activePage, setActivePage] = useState<string>("home");
@@ -410,6 +420,18 @@ export default function ThemeEditor() {
             disabled: inst?.disabled ?? false,
           };
         });
+        // Expose global chrome (header/footer/identity) to the overlay so
+        // hover labels show their friendly names instead of the raw
+        // "__global:*__" sentinel.
+        for (const g of GLOBAL_SECTIONS) {
+          sectionsMeta.push({
+            id: `__global:${g.id}__`,
+            type: "global",
+            name: g.name,
+            nameAr: g.nameAr,
+            disabled: false,
+          });
+        }
         target.postMessage({ type: "NUMU_SECTIONS_META", sections: sectionsMeta }, "*");
       }
     } catch { /* iframe not ready */ }
@@ -452,15 +474,24 @@ export default function ThemeEditor() {
       if (data.type === "NUMU_SECTION_CLICK") {
         const { sectionId } = data;
         if (sectionId) {
-          // Find which page this section belongs to
-          for (const [pageId, tmpl] of Object.entries(allTemplates)) {
-            if (tmpl.sections[sectionId]) {
-              if (pageId !== activePage) setActivePage(pageId);
-              break;
+          // Global regions are exposed to the storefront overlay with a
+          // "__global:<id>__" sentinel so a single click handler covers both
+          // section-engine sections and chrome like header/footer/identity.
+          const globalMatch = /^__global:(.+)__$/.exec(sectionId);
+          if (globalMatch) {
+            setSelectedId(globalMatch[1]);
+            setSelectedType("global");
+          } else {
+            // Find which page this section belongs to
+            for (const [pageId, tmpl] of Object.entries(allTemplates)) {
+              if (tmpl.sections[sectionId]) {
+                if (pageId !== activePage) setActivePage(pageId);
+                break;
+              }
             }
+            setSelectedId(sectionId);
+            setSelectedType("section");
           }
-          setSelectedId(sectionId);
-          setSelectedType("section");
         }
       }
 
@@ -534,6 +565,7 @@ export default function ThemeEditor() {
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Send NUMU_SECTION_SELECT when selection changes
@@ -611,13 +643,17 @@ export default function ThemeEditor() {
       setSelectedId(null);
     }
 
-    // Navigate iframe to the page's preview path
+    // Navigate iframe to the page's preview path (keep ?preview=1 so the
+    // storefront stays in edit mode across page switches).
     const pageDef = EDITABLE_PAGES.find((p) => p.id === pageId);
     if (pageDef && iframeRef.current?.contentWindow) {
+      const previewPath = pageDef.previewPath.includes("?")
+        ? `${pageDef.previewPath}&preview=1`
+        : `${pageDef.previewPath}?preview=1`;
       try {
         iframeRef.current.contentWindow.postMessage({
           type: "NUMU_NAVIGATE",
-          path: pageDef.previewPath,
+          path: previewPath,
         }, "*");
       } catch {
         // Fallback
@@ -921,14 +957,31 @@ export default function ThemeEditor() {
         <main className="relative flex flex-1 flex-col items-center justify-center bg-muted/40 overflow-hidden" data-testid="theme-editor-preview-panel">
           {storeUrl ? (
             <>
+              {/* Mobile & tablet frames use real device aspect ratios so the
+                  preview doesn't stretch into a tall awkward rectangle on
+                  large monitors — matches Shopify/Webflow/Figma behavior.
+                    Mobile: iPhone 14 (390 × 844, ratio 390/844 ≈ 0.462)
+                    Tablet: iPad Air portrait (820 × 1180, ratio ≈ 0.695)
+                  `max-h-full` keeps the frame inside the available panel
+                  height (with bottom padding for the refresh button);
+                  `aspect-ratio` preserves phone/tablet proportions so the
+                  iframe inside scales naturally regardless of window size. */}
               <div className={cn(
                 "relative bg-white shadow-2xl transition-all duration-300 ease-in-out overflow-hidden",
                 device === "mobile"
-                  ? "w-[390px] rounded-[36px] border-[6px] border-zinc-800 shadow-[0_30px_80px_rgba(0,0,0,0.25)]"
+                  ? "w-[390px] max-w-[90%] max-h-[calc(100%-3rem)] rounded-[36px] border-[6px] border-zinc-800 shadow-[0_30px_80px_rgba(0,0,0,0.25)]"
                   : device === "tablet"
-                  ? "w-[768px] h-full border-[6px] border-zinc-800 rounded-[24px] shadow-lg"
+                  ? "w-[820px] max-w-[92%] max-h-[calc(100%-3rem)] border-[6px] border-zinc-800 rounded-[24px] shadow-lg"
                   : "w-full h-full rounded-none border-none shadow-none"
-              )} style={device === "mobile" ? { height: "calc(100% - 48px)" } : { height: "100%" }} data-testid="theme-editor-preview-shell">
+              )}
+              style={
+                device === "mobile"
+                  ? { aspectRatio: "390 / 844" }
+                  : device === "tablet"
+                    ? { aspectRatio: "820 / 1180" }
+                    : { height: "100%" }
+              }
+              data-testid="theme-editor-preview-shell">
                 <iframe ref={iframeRef} key={previewKey} src={storeUrl}
                   className="w-full h-full border-0" title="Store preview" onLoad={handleIframeLoad} data-testid="theme-editor-preview-iframe" />
               </div>
@@ -1380,16 +1433,19 @@ function SchemaFieldControl({
   }
 
   if (setting.type === "color") {
-    const colorVal = String(value ?? "#000000");
+    const hasValue = value !== undefined && value !== null && value !== "";
+    const inputVal = hasValue ? String(value) : "";
+    const colorPickerVal = hasValue ? String(value) : "#FFFFFF";
     return (
       <div className="space-y-1.5" data-testid={testId}>
         <Label className="text-[12px] font-medium">{label}</Label>
         <div className="flex items-center gap-2">
-          <input type="color" value={colorVal} onChange={(e) => onChange(e.target.value)}
+          <input type="color" value={colorPickerVal} onChange={(e) => onChange(e.target.value)}
             aria-label={label}
-            title={label}
+            title={hasValue ? label : `${label} (theme default)`}
             className="h-8 w-8 cursor-pointer rounded-md border border-input p-0.5 block shrink-0" data-testid={`${testId}-color`} />
-          <Input value={colorVal} onChange={(e) => onChange(e.target.value)}
+          <Input value={inputVal} onChange={(e) => onChange(e.target.value)}
+            placeholder="theme default"
             className="h-8 font-mono text-[12px] flex-1" maxLength={7} data-testid={`${testId}-input`} />
         </div>
       </div>
@@ -1439,6 +1495,22 @@ function SchemaFieldControl({
         <Slider value={[numVal]} min={setting.min ?? 0} max={setting.max ?? 100} step={setting.step ?? 1}
           onValueChange={([v]) => onChange(v)} className="py-0" data-testid={`${testId}-slider`} />
       </div>
+    );
+  }
+
+  if (setting.type === "products") {
+    const selected = Array.isArray(value)
+      ? (value as unknown[]).filter((x): x is string => typeof x === "string")
+      : [];
+    return (
+      <ProductPickerField
+        label={label}
+        helpText={isRTL ? (setting.helpAr ?? setting.help) : setting.help}
+        value={selected}
+        onChange={onChange}
+        isRTL={isRTL}
+        testId={testId}
+      />
     );
   }
 
@@ -1536,6 +1608,127 @@ function ThemeSettingsSidebar({ groups, data, isRTL, onChange, schemaSettings }:
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Product picker field (featured collection sections) ──────────────────
+
+function ProductPickerField({
+  value, onChange, label, helpText, isRTL, testId,
+}: {
+  value: string[];
+  onChange: (ids: string[]) => void;
+  label: string;
+  helpText?: string;
+  isRTL: boolean;
+  testId: string;
+}) {
+  const { currentStore } = useDashboardStore();
+  const [query, setQuery] = useState("");
+  const { data, isLoading } = useQuery({
+    queryKey: ["theme-editor-products", currentStore?.id],
+    queryFn: () => listProducts(currentStore!.id, { limit: 200 }),
+    enabled: !!currentStore?.id,
+    staleTime: 60_000,
+  });
+
+  const allProducts = data?.items ?? [];
+  const selectedSet = new Set(value);
+  const filtered = query.trim()
+    ? allProducts.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()))
+    : allProducts;
+
+  const selected = value
+    .map((id) => allProducts.find((p) => p.id === id))
+    .filter((p): p is NonNullable<typeof p> => !!p);
+
+  const toggle = (id: string) => {
+    if (selectedSet.has(id)) {
+      onChange(value.filter((x) => x !== id));
+    } else {
+      onChange([...value, id]);
+    }
+  };
+
+  const move = (id: string, dir: -1 | 1) => {
+    const idx = value.indexOf(id);
+    if (idx === -1) return;
+    const next = idx + dir;
+    if (next < 0 || next >= value.length) return;
+    const copy = [...value];
+    [copy[idx], copy[next]] = [copy[next], copy[idx]];
+    onChange(copy);
+  };
+
+  return (
+    <div className="space-y-2" data-testid={testId}>
+      <Label className="text-[12px] font-medium">{label}</Label>
+      {helpText && <p className="text-[10.5px] text-muted-foreground leading-snug">{helpText}</p>}
+
+      {selected.length > 0 && (
+        <ul className="space-y-1">
+          {selected.map((p, i) => (
+            <li key={p.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-[11.5px]">
+              {p.images?.[0] && <img src={p.images[0]} alt="" className="h-7 w-7 rounded object-cover shrink-0" />}
+              <span className="flex-1 truncate">{p.name}</span>
+              <button type="button" onClick={() => move(p.id, -1)} disabled={i === 0}
+                className="px-1 disabled:opacity-30 hover:text-primary"
+                aria-label={isRTL ? "نقل لأعلى" : "Move up"} title={isRTL ? "نقل لأعلى" : "Move up"}
+              ><ChevronUp className="h-3 w-3" /></button>
+              <button type="button" onClick={() => move(p.id, 1)} disabled={i === selected.length - 1}
+                className="px-1 disabled:opacity-30 hover:text-primary"
+                aria-label={isRTL ? "نقل لأسفل" : "Move down"} title={isRTL ? "نقل لأسفل" : "Move down"}
+              ><ChevronDown className="h-3 w-3" /></button>
+              <button type="button" onClick={() => toggle(p.id)}
+                className="px-1 text-muted-foreground hover:text-destructive"
+                aria-label={isRTL ? "إزالة" : "Remove"} title={isRTL ? "إزالة" : "Remove"}
+              ><Trash2 className="h-3 w-3" /></button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={isRTL ? "ابحث عن منتج…" : "Search products…"}
+        aria-label={isRTL ? "ابحث عن منتج" : "Search products"}
+        title={isRTL ? "ابحث عن منتج" : "Search products"}
+        className="h-8 text-[12px]"
+      />
+
+      <div className="max-h-48 overflow-y-auto rounded-md border border-border">
+        {isLoading ? (
+          <div className="p-3 text-[11.5px] text-muted-foreground">{isRTL ? "جارٍ التحميل…" : "Loading…"}</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-3 text-[11.5px] text-muted-foreground">{isRTL ? "لا توجد منتجات" : "No products"}</div>
+        ) : (
+          <ul>
+            {filtered.map((p) => {
+              const checked = selectedSet.has(p.id);
+              return (
+                <li key={p.id}>
+                  <button type="button" onClick={() => toggle(p.id)}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-2 py-1.5 text-[11.5px] text-start hover:bg-accent transition-colors",
+                      checked && "bg-accent/50",
+                    )}>
+                    <span className={cn(
+                      "h-3.5 w-3.5 shrink-0 rounded border flex items-center justify-center",
+                      checked ? "bg-primary border-primary" : "border-input",
+                    )}>
+                      {checked && <CheckCircle className="h-2.5 w-2.5 text-primary-foreground" />}
+                    </span>
+                    {p.images?.[0] && <img src={p.images[0]} alt="" className="h-7 w-7 rounded object-cover shrink-0" />}
+                    <span className="flex-1 truncate">{p.name}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
@@ -1674,16 +1867,22 @@ function FieldControl({ field, value, isRTL, onChange, compact = false }: {
     );
   }
   if (field.type === "color") {
-    const colorVal = String(value ?? "#000000");
+    const hasValue = value !== undefined && value !== null && value !== "";
+    const inputVal = hasValue ? String(value) : "";
+    // Don't fall back to #000000 in the color well — that misleads users into
+    // thinking every theme defaults to pure black. Use #FFFFFF so the well looks
+    // empty/neutral when no override is set.
+    const colorPickerVal = hasValue ? String(value) : "#FFFFFF";
     return (
       <div className="space-y-1.5" data-testid={testId}>
         <Label className="text-[12px] font-medium">{label}</Label>
         <div className="flex items-center gap-2">
-          <input type="color" value={colorVal} onChange={(e) => onChange(e.target.value)}
+          <input type="color" value={colorPickerVal} onChange={(e) => onChange(e.target.value)}
             aria-label={label}
-            title={label}
+            title={hasValue ? label : `${label} (theme default)`}
             className="h-8 w-8 cursor-pointer rounded-md border border-input p-0.5 block shrink-0" data-testid={`${testId}-color`} />
-          <Input value={colorVal} onChange={(e) => onChange(e.target.value)}
+          <Input value={inputVal} onChange={(e) => onChange(e.target.value)}
+            placeholder="theme default"
             className="h-8 font-mono text-[12px] flex-1" maxLength={7} data-testid={`${testId}-input`} />
         </div>
       </div>

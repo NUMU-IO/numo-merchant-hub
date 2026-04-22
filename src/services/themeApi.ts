@@ -164,7 +164,9 @@ export interface SectionSettingDefinition {
   label: string;
   labelAr?: string;
   description?: string;
-  default?: string | number | boolean;
+  help?: string;
+  helpAr?: string;
+  default?: string | number | boolean | unknown[];
   placeholder?: string;
   options?: Array<{ label: string; labelAr?: string; value: string }>;
   min?: number;

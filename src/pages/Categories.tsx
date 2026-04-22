@@ -4,7 +4,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
-import { validateImageFile } from "@/lib/image-validation";
+import { prepareImageForUpload } from "@/lib/image-validation";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -263,17 +263,17 @@ export default function Categories() {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !storeId || !editingCategory) return;
-    const error = await validateImageFile(file);
-    if (error) {
-      toast.error(error);
+    const rawFile = e.target.files?.[0];
+    if (!rawFile || !storeId || !editingCategory) return;
+    const prepared = await prepareImageForUpload(rawFile);
+    if (prepared.error) {
+      toast.error(prepared.error);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
     setUploadingImage(true);
     try {
-      const updated = await uploadCategoryImage(storeId, editingCategory.id, file);
+      const updated = await uploadCategoryImage(storeId, editingCategory.id, prepared.file);
       setFormImageUrl(updated.image_url);
       setCategories(prev => prev.map(c => c.id === editingCategory.id ? { ...c, image_url: updated.image_url } : c));
       toast.success(isAr ? "الصورة اترفعت!" : "Image uploaded!");
