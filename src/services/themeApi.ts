@@ -33,6 +33,21 @@ export interface CustomizationIdentity {
   logo_url: string;
   store_name: string;
   favicon_url: string;
+  /** Explicit footer override; when empty the renderer falls back to dark/primary. */
+  logo_footer_url: string;
+  /** Variant for dark surfaces. Fallback for the footer when no explicit footer logo. */
+  logo_dark_url: string;
+  logo_alt_text: string;
+  logo_link_target: string;
+  /** Pixel widths — `0` means "use the theme default". */
+  logo_width_desktop: number;
+  logo_width_mobile: number;
+  logo_footer_width_desktop: number;
+  logo_footer_width_mobile: number;
+  logo_padding: number;
+  logo_background_color: string;
+  /** Footer-only CSS filter hint: "none" (default) | "white" | "invert". */
+  footer_logo_filter_mode: "none" | "white" | "invert";
 }
 
 export interface CustomizationHeader {
