@@ -138,6 +138,9 @@ const ProductEditor = () => {
   }[]>([]);
   const [variantCombinations, setVariantCombinations] = useState<VariantCombination[]>([]);
   const [sizeChart, setSizeChart] = useState<SizeChart>({ ...EMPTY_SIZE_CHART });
+  // When true, checkout ignores stock-zero and lets the order go through
+  // (stock will show negative). Persisted on attributes.continue_selling_when_out_of_stock.
+  const [continueSellingOutOfStock, setContinueSellingOutOfStock] = useState(false);
   // Store-level default chart. Fetched lazily when the merchant opens the
   // "Edit store default" dialog from within the product's size-chart card.
   const [storeDefaultChart, setStoreDefaultChart] = useState<SizeChart>({
@@ -196,6 +199,9 @@ const ProductEditor = () => {
           setVariantCombinations(rawCombos as VariantCombination[]);
         }
         setSizeChart(sizeChartFromAttributes(api.attributes));
+        setContinueSellingOutOfStock(
+          Boolean((api.attributes as Record<string, unknown>)?.continue_selling_when_out_of_stock),
+        );
       })
       .catch((err) => {
         showError(err, language);
@@ -336,6 +342,9 @@ const ProductEditor = () => {
         if (cleanedChart && payload.attributes) {
           (payload.attributes as Record<string, unknown>).size_chart = cleanedChart;
         }
+        if (payload.attributes) {
+          (payload.attributes as Record<string, unknown>).continue_selling_when_out_of_stock = continueSellingOutOfStock;
+        }
         await apiUpdateProduct(storeId, productId, payload);
         toast.success(t("products.productUpdated"));
       } else {
@@ -361,6 +370,9 @@ const ProductEditor = () => {
         if (cleanedChart && payload.attributes) {
           (payload.attributes as Record<string, unknown>).size_chart = cleanedChart;
         }
+        if (payload.attributes) {
+          (payload.attributes as Record<string, unknown>).continue_selling_when_out_of_stock = continueSellingOutOfStock;
+        }
         const created = await apiCreateProduct(storeId, payload);
         for (const file of pendingFiles) {
           try {
@@ -375,7 +387,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formSlug, variantCombinations, sizeChart]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formSlug, variantCombinations, sizeChart, continueSellingOutOfStock]);
 
   if (isLoadingProduct) {
     return (
@@ -574,6 +586,28 @@ const ProductEditor = () => {
               {fieldErrors.stock && <p className="text-[11px] text-destructive">{fieldErrors.stock}</p>}
             </div>
           </div>
+
+          {/* Oversell toggle */}
+          <label className="mt-3 flex items-start gap-2 rounded-lg border border-border/50 bg-muted/20 p-3 cursor-pointer hover:bg-muted/30 transition-colors">
+            <input
+              type="checkbox"
+              checked={continueSellingOutOfStock}
+              onChange={(e) => setContinueSellingOutOfStock(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded accent-primary"
+            />
+            <div className="flex-1">
+              <div className="text-[13px] font-medium">
+                {language === "ar"
+                  ? "استمر في البيع حتى لو نفد المخزون"
+                  : "Continue selling when out of stock"}
+              </div>
+              <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                {language === "ar"
+                  ? "الطلبات هتقبل حتى لو الكمية صفر. الرصيد هيظهر بالسالب."
+                  : "Orders will be accepted even when stock reaches zero. Inventory may go negative."}
+              </p>
+            </div>
+          </label>
 
           {/* Live profit / margin preview */}
           {(() => {
