@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft, CheckCircle2, Circle, Clock, Package, Truck, XCircle,
-  MoreHorizontal, Printer, FileDown, ChevronRight, ArrowRightCircle, Loader2,
+  MoreHorizontal, Printer, FileDown, FileUp, ChevronRight, ArrowRightCircle, Loader2,
   RotateCcw, AlertCircle, FileText, ArrowUpDown, ListFilter, LayoutList, Search,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
@@ -758,6 +758,9 @@ const Orders = () => {
           </DropdownMenu>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={handleExportCSV}>
             <FileDown className="h-3 w-3" />{isAr ? "تصدير الطلبات" : "Export"}
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => navigate("/orders/import")}>
+            <FileUp className="h-3 w-3" />{isAr ? "استيراد" : "Import"}
           </Button>
           <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => navigate("/orders/create")}>
             <Package className="h-3 w-3" />{isAr ? "إنشاء" : "Create"}
