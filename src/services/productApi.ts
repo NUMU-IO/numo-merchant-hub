@@ -196,6 +196,8 @@ interface RawVariant {
   nameAr?: string;
   options?: string[];
   optionsAr?: string[];
+  hexValues?: string[];
+  imageValues?: string[];
 }
 
 function extractVariants(attributes: ProductAttributes): ProductVariant[] {
@@ -207,6 +209,8 @@ function extractVariants(attributes: ProductAttributes): ProductVariant[] {
     nameAr: v.nameAr || "",
     options: v.options || [],
     optionsAr: v.optionsAr || [],
+    hexValues: Array.isArray(v.hexValues) ? v.hexValues : undefined,
+    imageValues: Array.isArray(v.imageValues) ? v.imageValues : undefined,
   }));
 }
 
@@ -303,6 +307,8 @@ export function productToApiCreate(form: ProductFormData): CreateProductData {
         nameAr: v.nameAr,
         options: v.options,
         optionsAr: v.optionsAr,
+        ...(v.hexValues ? { hexValues: v.hexValues } : {}),
+        ...(v.imageValues ? { imageValues: v.imageValues } : {}),
       })),
     },
   };
@@ -545,6 +551,8 @@ export function productToApiUpdate(
       nameAr: v.nameAr,
       options: v.options,
       optionsAr: v.optionsAr,
+      ...(v.hexValues ? { hexValues: v.hexValues } : {}),
+      ...(v.imageValues ? { imageValues: v.imageValues } : {}),
     }));
   }
   if (Object.keys(attributes).length > 0) data.attributes = attributes;

@@ -50,6 +50,38 @@ import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import { z } from "zod";
 
+// ── Color variant helpers ──────────────────────────────────────────────
+
+/** Is this variant a color swatch variant? Matches "color"/"colour"/"اللون". */
+function isColorVariant(name: string, nameAr?: string): boolean {
+  const n = (name || "").toLowerCase();
+  if (n.includes("color") || n.includes("colour")) return true;
+  const ar = (nameAr || "");
+  return ar.includes("لون");
+}
+
+/**
+ * Fallback hex for common color names (EN + AR) when the merchant hasn't
+ * explicitly picked one. Keeps older products from showing grey swatches.
+ */
+const COLOR_NAME_TO_HEX: Record<string, string> = {
+  red: "#e11d48", blue: "#2563eb", green: "#16a34a", black: "#111111",
+  white: "#fafafa", grey: "#737373", gray: "#737373", navy: "#1e3a8a",
+  brown: "#8b4513", beige: "#d4b896", tan: "#d2b48c", yellow: "#eab308",
+  orange: "#f97316", purple: "#a855f7", pink: "#ec4899", gold: "#d4af37",
+  silver: "#c0c0c0",
+  "أحمر": "#e11d48", "أزرق": "#2563eb", "أخضر": "#16a34a", "أسود": "#111111",
+  "أبيض": "#fafafa", "رمادي": "#737373", "كحلي": "#1e3a8a", "بني": "#8b4513",
+  "بيج": "#d4b896", "تان": "#d2b48c", "أصفر": "#eab308", "برتقالي": "#f97316",
+  "بنفسجي": "#a855f7", "وردي": "#ec4899", "ذهبي": "#d4af37", "فضي": "#c0c0c0",
+};
+
+function defaultHexForName(name: string): string {
+  return COLOR_NAME_TO_HEX[(name || "").trim().toLowerCase()]
+    || COLOR_NAME_TO_HEX[(name || "").trim()]
+    || "#888888";
+}
+
 const productSchema = z.object({
   name: z.string()
     .min(3, "اسم المنتج يجب أن يكون 3 أحرف على الأقل")
@@ -95,9 +127,20 @@ const ProductEditor = () => {
   const [formSeoTitle, setFormSeoTitle] = useState("");
   const [formSeoDesc, setFormSeoDesc] = useState("");
   const [formSlug, setFormSlug] = useState("");
-  const [formVariants, setFormVariants] = useState<{ name: string; nameAr: string; options: string; optionsAr: string }[]>([]);
+  const [formVariants, setFormVariants] = useState<{
+    name: string;
+    nameAr: string;
+    options: string;
+    optionsAr: string;
+    /** Aligned to parsed `options` by index; only present for color variants. */
+    hexValues?: string[];
+    imageValues?: string[];
+  }[]>([]);
   const [variantCombinations, setVariantCombinations] = useState<VariantCombination[]>([]);
   const [sizeChart, setSizeChart] = useState<SizeChart>({ ...EMPTY_SIZE_CHART });
+  // When true, checkout ignores stock-zero and lets the order go through
+  // (stock will show negative). Persisted on attributes.continue_selling_when_out_of_stock.
+  const [continueSellingOutOfStock, setContinueSellingOutOfStock] = useState(false);
   // Store-level default chart. Fetched lazily when the merchant opens the
   // "Edit store default" dialog from within the product's size-chart card.
   const [storeDefaultChart, setStoreDefaultChart] = useState<SizeChart>({
@@ -148,12 +191,17 @@ const ProductEditor = () => {
         setFormVariants(p.variants.map(v => ({
           name: v.name, nameAr: v.nameAr,
           options: v.options.join(", "), optionsAr: v.optionsAr.join(", "),
+          hexValues: v.hexValues,
+          imageValues: v.imageValues,
         })));
         const rawCombos = (api.attributes as Record<string, unknown>)?.variant_combinations;
         if (Array.isArray(rawCombos)) {
           setVariantCombinations(rawCombos as VariantCombination[]);
         }
         setSizeChart(sizeChartFromAttributes(api.attributes));
+        setContinueSellingOutOfStock(
+          Boolean((api.attributes as Record<string, unknown>)?.continue_selling_when_out_of_stock),
+        );
       })
       .catch((err) => {
         showError(err, language);
@@ -245,12 +293,27 @@ const ProductEditor = () => {
     setIsSaving(true);
     const variants: ProductVariant[] = formVariants
       .filter(v => v.name && v.options)
-      .map((v, i) => ({
-        id: `v-${Date.now()}-${i}`,
-        name: v.name, nameAr: v.nameAr,
-        options: v.options.split(",").map(o => o.trim()).filter(Boolean),
-        optionsAr: v.optionsAr.split(",").map(o => o.trim()).filter(Boolean),
-      }));
+      .map((v, i) => {
+        const parsedOptions = v.options.split(",").map(o => o.trim()).filter(Boolean);
+        const parsedOptionsAr = v.optionsAr.split(",").map(o => o.trim()).filter(Boolean);
+        const isColor = isColorVariant(v.name, v.nameAr);
+        // Align per-option metadata to parsedOptions; drop stale entries
+        // beyond the current option count, pad missing ones with defaults.
+        const hexValues = isColor
+          ? parsedOptions.map((opt, j) => v.hexValues?.[j] || defaultHexForName(opt))
+          : undefined;
+        const imageValues = isColor
+          ? parsedOptions.map((_, j) => v.imageValues?.[j] || "")
+          : undefined;
+        return {
+          id: `v-${Date.now()}-${i}`,
+          name: v.name, nameAr: v.nameAr,
+          options: parsedOptions,
+          optionsAr: parsedOptionsAr,
+          hexValues,
+          imageValues,
+        };
+      });
 
     const cat = apiCategories.find(c => c.id === formCategory);
 
@@ -279,6 +342,9 @@ const ProductEditor = () => {
         if (cleanedChart && payload.attributes) {
           (payload.attributes as Record<string, unknown>).size_chart = cleanedChart;
         }
+        if (payload.attributes) {
+          (payload.attributes as Record<string, unknown>).continue_selling_when_out_of_stock = continueSellingOutOfStock;
+        }
         await apiUpdateProduct(storeId, productId, payload);
         toast.success(t("products.productUpdated"));
       } else {
@@ -304,6 +370,9 @@ const ProductEditor = () => {
         if (cleanedChart && payload.attributes) {
           (payload.attributes as Record<string, unknown>).size_chart = cleanedChart;
         }
+        if (payload.attributes) {
+          (payload.attributes as Record<string, unknown>).continue_selling_when_out_of_stock = continueSellingOutOfStock;
+        }
         const created = await apiCreateProduct(storeId, payload);
         for (const file of pendingFiles) {
           try {
@@ -318,7 +387,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formSlug, variantCombinations, sizeChart]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formSlug, variantCombinations, sizeChart, continueSellingOutOfStock]);
 
   if (isLoadingProduct) {
     return (
@@ -517,6 +586,28 @@ const ProductEditor = () => {
               {fieldErrors.stock && <p className="text-[11px] text-destructive">{fieldErrors.stock}</p>}
             </div>
           </div>
+
+          {/* Oversell toggle */}
+          <label className="mt-3 flex items-start gap-2 rounded-lg border border-border/50 bg-muted/20 p-3 cursor-pointer hover:bg-muted/30 transition-colors">
+            <input
+              type="checkbox"
+              checked={continueSellingOutOfStock}
+              onChange={(e) => setContinueSellingOutOfStock(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded accent-primary"
+            />
+            <div className="flex-1">
+              <div className="text-[13px] font-medium">
+                {language === "ar"
+                  ? "استمر في البيع حتى لو نفد المخزون"
+                  : "Continue selling when out of stock"}
+              </div>
+              <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                {language === "ar"
+                  ? "الطلبات هتقبل حتى لو الكمية صفر. الرصيد هيظهر بالسالب."
+                  : "Orders will be accepted even when stock reaches zero. Inventory may go negative."}
+              </p>
+            </div>
+          </label>
 
           {/* Live profit / margin preview */}
           {(() => {
@@ -730,6 +821,84 @@ const ProductEditor = () => {
                         <Input placeholder="S, M, L, XL" value={v.optionsAr} onChange={e => updateVariant(idx, "optionsAr", e.target.value)} dir="rtl" className="h-9 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border text-sm" />
                       </div>
                     </div>
+
+                    {/* ── Color swatch + image picker (only for color variants) ── */}
+                    {isColorVariant(v.name, v.nameAr) && v.options.trim() && (() => {
+                      const parsedOptions = v.options.split(",").map(o => o.trim()).filter(Boolean);
+                      const uploadedImages = formImages; // merchant's product images, pickable
+                      return (
+                        <div className="pt-3 border-t border-border/40 space-y-2">
+                          <Label className="text-[11px] font-medium text-muted-foreground/80">
+                            {language === "ar" ? "لون وصورة لكل اختيار" : "Swatch + image per option"}
+                          </Label>
+                          <div className="space-y-1.5">
+                            {parsedOptions.map((optName, optIdx) => {
+                              const currentHex = v.hexValues?.[optIdx] || defaultHexForName(optName);
+                              const currentImage = v.imageValues?.[optIdx] || "";
+                              return (
+                                <div key={optIdx} className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/50 p-2">
+                                  <input
+                                    type="color"
+                                    value={currentHex}
+                                    aria-label={`Color for ${optName}`}
+                                    onChange={(e) => {
+                                      setFormVariants(prev => prev.map((vv, i) => {
+                                        if (i !== idx) return vv;
+                                        const next = [...(vv.hexValues || parsedOptions.map((o) => defaultHexForName(o)))];
+                                        next[optIdx] = e.target.value;
+                                        return { ...vv, hexValues: next };
+                                      }));
+                                    }}
+                                    className="h-8 w-10 rounded-md border border-border cursor-pointer bg-transparent shrink-0"
+                                  />
+                                  <span className="text-xs font-medium flex-1 min-w-0 truncate">{optName}</span>
+                                  <Select
+                                    value={currentImage || "__none__"}
+                                    onValueChange={(value) => {
+                                      setFormVariants(prev => prev.map((vv, i) => {
+                                        if (i !== idx) return vv;
+                                        const next = [...(vv.imageValues || parsedOptions.map(() => ""))];
+                                        next[optIdx] = value === "__none__" ? "" : value;
+                                        return { ...vv, imageValues: next };
+                                      }));
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-8 w-48 text-[11px] shrink-0">
+                                      <SelectValue placeholder={language === "ar" ? "صورة (اختياري)" : "Image (optional)"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__none__">
+                                        {language === "ar" ? "بدون صورة" : "No image"}
+                                      </SelectItem>
+                                      {uploadedImages.map((url, i) => (
+                                        <SelectItem key={url} value={url}>
+                                          {language === "ar" ? `صورة ${i + 1}` : `Image ${i + 1}`}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {currentImage ? (
+                                    <img src={currentImage} alt="" className="h-8 w-8 rounded-md object-cover shrink-0 ring-1 ring-border/40" />
+                                  ) : (
+                                    <div
+                                      className="h-8 w-8 rounded-md shrink-0 ring-1 ring-border/40"
+                                      style={{ backgroundColor: currentHex }}
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {uploadedImages.length === 0 && (
+                            <p className="text-[11px] text-muted-foreground/60">
+                              {language === "ar"
+                                ? "ارفع صور المنتج فوق عشان تقدر تربطها بالألوان."
+                                : "Upload product images above to link them to colors."}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}
