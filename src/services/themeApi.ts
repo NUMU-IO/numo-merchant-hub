@@ -72,6 +72,8 @@ export interface CustomizationProducts {
   products_per_row: number;
   show_price: boolean;
   show_rating: boolean;
+  /** Product-image aspect ratio on cards + PDP. "portrait" (3/4), "square" (1/1), "landscape" (4/3). */
+  image_aspect: "portrait" | "square" | "landscape";
 }
 
 export interface CustomizationFooter {
