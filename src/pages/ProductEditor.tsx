@@ -880,77 +880,185 @@ const ProductEditor = () => {
                     )}
 
                     {/* ── Color swatch + image picker (only for color variants) ── */}
+                    {/* Shopify-style card grid: each color is a compact card
+                        with a big click-to-pick swatch, an editable name,
+                        an individual remove, and a linked product image. */}
                     {isColorVariant(v.name, v.nameAr) && v.options.trim() && (() => {
                       const parsedOptions = v.options.split(",").map(o => o.trim()).filter(Boolean);
-                      const uploadedImages = formImages; // merchant's product images, pickable
+                      const parsedOptionsAr = v.optionsAr.split(",").map(o => o.trim()).filter(Boolean);
+                      const uploadedImages = formImages;
+
+                      // Mutate both EN + AR option lists by index, then
+                      // repack the comma string so the state stays canonical.
+                      const mutateOptions = (mutator: (en: string[], ar: string[], hex: string[], img: string[]) => void) => {
+                        setFormVariants(prev => prev.map((vv, i) => {
+                          if (i !== idx) return vv;
+                          const en = vv.options.split(",").map(o => o.trim()).filter(Boolean);
+                          const ar = vv.optionsAr.split(",").map(o => o.trim()).filter(Boolean);
+                          // Pad AR list to match EN so per-index ops don't drop data.
+                          while (ar.length < en.length) ar.push("");
+                          const hex = (vv.hexValues ?? en.map(defaultHexForName)).slice();
+                          while (hex.length < en.length) hex.push(defaultHexForName(en[hex.length]));
+                          const img = (vv.imageValues ?? en.map(() => "")).slice();
+                          while (img.length < en.length) img.push("");
+                          mutator(en, ar, hex, img);
+                          return {
+                            ...vv,
+                            options: en.join(", "),
+                            optionsAr: ar.join(", "),
+                            hexValues: hex,
+                            imageValues: img,
+                          };
+                        }));
+                      };
+
+                      const renameColor = (i: number, nextName: string) => {
+                        mutateOptions((en) => { en[i] = nextName; });
+                      };
+                      const setColorHex = (i: number, nextHex: string) => {
+                        mutateOptions((_en, _ar, hex) => { hex[i] = nextHex; });
+                      };
+                      const setColorImage = (i: number, nextImg: string) => {
+                        mutateOptions((_en, _ar, _hex, img) => { img[i] = nextImg; });
+                      };
+                      const removeColor = (i: number) => {
+                        mutateOptions((en, ar, hex, img) => {
+                          en.splice(i, 1);
+                          ar.splice(i, 1);
+                          hex.splice(i, 1);
+                          img.splice(i, 1);
+                        });
+                      };
+                      const addColor = () => {
+                        mutateOptions((en, ar, hex, img) => {
+                          en.push(language === "ar" ? "لون جديد" : "New color");
+                          ar.push("لون جديد");
+                          hex.push("#888888");
+                          img.push("");
+                        });
+                      };
+
                       return (
                         <div className="pt-3 border-t border-border/40 space-y-2">
-                          <Label className="text-[11px] font-medium text-muted-foreground/80">
-                            {language === "ar" ? "لون وصورة لكل اختيار" : "Swatch + image per option"}
-                          </Label>
-                          <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[11px] font-medium text-muted-foreground/80">
+                              {language === "ar" ? "الألوان" : "Colors"}
+                            </Label>
+                            <span className="text-[10px] text-muted-foreground/60">
+                              {language === "ar"
+                                ? "اضغط على الدائرة لتغيير اللون"
+                                : "Tap a swatch to change its color"}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
                             {parsedOptions.map((optName, optIdx) => {
                               const currentHex = v.hexValues?.[optIdx] || defaultHexForName(optName);
                               const currentImage = v.imageValues?.[optIdx] || "";
                               return (
-                                <div key={optIdx} className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/50 p-2">
-                                  <input
-                                    type="color"
-                                    value={currentHex}
-                                    aria-label={`Color for ${optName}`}
-                                    onChange={(e) => {
-                                      setFormVariants(prev => prev.map((vv, i) => {
-                                        if (i !== idx) return vv;
-                                        const next = [...(vv.hexValues || parsedOptions.map((o) => defaultHexForName(o)))];
-                                        next[optIdx] = e.target.value;
-                                        return { ...vv, hexValues: next };
-                                      }));
-                                    }}
-                                    className="h-8 w-10 rounded-md border border-border cursor-pointer bg-transparent shrink-0"
-                                  />
-                                  <span className="text-xs font-medium flex-1 min-w-0 truncate">{optName}</span>
-                                  <Select
-                                    value={currentImage || "__none__"}
-                                    onValueChange={(value) => {
-                                      setFormVariants(prev => prev.map((vv, i) => {
-                                        if (i !== idx) return vv;
-                                        const next = [...(vv.imageValues || parsedOptions.map(() => ""))];
-                                        next[optIdx] = value === "__none__" ? "" : value;
-                                        return { ...vv, imageValues: next };
-                                      }));
-                                    }}
+                                <div
+                                  key={optIdx}
+                                  className="group relative flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-card p-3 transition-shadow hover:shadow-sm"
+                                >
+                                  {/* Remove — corner button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeColor(optIdx)}
+                                    aria-label={language === "ar" ? `احذف ${optName}` : `Remove ${optName}`}
+                                    className="absolute start-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-background/80 text-muted-foreground hover:bg-destructive hover:text-destructive-foreground transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                                   >
-                                    <SelectTrigger className="h-8 w-48 text-[11px] shrink-0">
-                                      <SelectValue placeholder={language === "ar" ? "صورة (اختياري)" : "Image (optional)"} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="__none__">
-                                        {language === "ar" ? "بدون صورة" : "No image"}
-                                      </SelectItem>
-                                      {uploadedImages.map((url, i) => (
-                                        <SelectItem key={url} value={url}>
-                                          {language === "ar" ? `صورة ${i + 1}` : `Image ${i + 1}`}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  {currentImage ? (
-                                    <img src={currentImage} alt="" className="h-8 w-8 rounded-md object-cover shrink-0 ring-1 ring-border/40" />
-                                  ) : (
-                                    <div
-                                      className="h-8 w-8 rounded-md shrink-0 ring-1 ring-border/40"
-                                      style={{ backgroundColor: currentHex }}
+                                    <X className="h-3 w-3" />
+                                  </button>
+
+                                  {/* Click-anywhere swatch — the <input type="color"> is visually hidden but covers the circle, so the native picker opens on any tap. */}
+                                  <label
+                                    className="relative h-14 w-14 cursor-pointer rounded-full ring-2 ring-border/40 ring-offset-2 ring-offset-card transition-transform hover:scale-[1.04] active:scale-[0.97]"
+                                    style={{ backgroundColor: currentHex }}
+                                    title={currentHex}
+                                  >
+                                    <input
+                                      type="color"
+                                      value={currentHex}
+                                      onChange={(e) => setColorHex(optIdx, e.target.value)}
+                                      aria-label={`Color for ${optName}`}
+                                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                                     />
+                                  </label>
+
+                                  {/* Inline-editable name — edits flow back into v.options */}
+                                  <Input
+                                    value={optName}
+                                    onChange={(e) => renameColor(optIdx, e.target.value)}
+                                    className="h-7 rounded-md border-transparent bg-muted/40 text-center text-xs font-medium focus:border-border focus:bg-background"
+                                  />
+
+                                  {/* Linked image — thumb when set, picker dropdown when empty */}
+                                  {currentImage ? (
+                                    <div className="relative w-full">
+                                      <img src={currentImage} alt="" className="h-10 w-full rounded-md object-cover ring-1 ring-border/40" />
+                                      <button
+                                        type="button"
+                                        onClick={() => setColorImage(optIdx, "")}
+                                        aria-label={language === "ar" ? "احذف الصورة" : "Remove image"}
+                                        className="absolute end-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-background/90 text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  ) : uploadedImages.length > 0 ? (
+                                    <Select
+                                      value="__none__"
+                                      onValueChange={(value) => setColorImage(optIdx, value === "__none__" ? "" : value)}
+                                    >
+                                      <SelectTrigger className="h-7 w-full text-[11px]">
+                                        <SelectValue placeholder={language === "ar" ? "ربط صورة" : "Link image"} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__none__">
+                                          {language === "ar" ? "بدون صورة" : "No image"}
+                                        </SelectItem>
+                                        {uploadedImages.map((url, i) => (
+                                          <SelectItem key={url} value={url}>
+                                            {language === "ar" ? `صورة ${i + 1}` : `Image ${i + 1}`}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground/50">
+                                      {language === "ar" ? "ارفع صور أولاً" : "Upload images first"}
+                                    </span>
                                   )}
                                 </div>
                               );
                             })}
+
+                            {/* Add card — dashed, matches card footprint */}
+                            <button
+                              type="button"
+                              onClick={addColor}
+                              className="flex min-h-[10rem] flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-border/50 text-xs text-muted-foreground hover:border-foreground/30 hover:bg-muted/20 transition-colors"
+                            >
+                              <Plus className="h-4 w-4" />
+                              {language === "ar" ? "ضيف لون" : "Add color"}
+                            </button>
                           </div>
+
                           {uploadedImages.length === 0 && (
                             <p className="text-[11px] text-muted-foreground/60">
                               {language === "ar"
                                 ? "ارفع صور المنتج فوق عشان تقدر تربطها بالألوان."
                                 : "Upload product images above to link them to colors."}
+                            </p>
+                          )}
+                          {/* Arabic name sync hint — merchant edits names in the
+                              card (EN), AR stays in sync by index via the
+                              Options (AR) text input above. */}
+                          {parsedOptionsAr.length !== parsedOptions.length && (
+                            <p className="text-[11px] text-amber-600">
+                              {language === "ar"
+                                ? "الأسماء العربية غير متطابقة مع الإنجليزية — راجع خانة «الخيارات (AR)»."
+                                : "Arabic option count doesn't match English — check the Options (AR) field above."}
                             </p>
                           )}
                         </div>
