@@ -134,6 +134,11 @@ export async function listOrders(
   if (params?.date_from) qs.set("date_from", params.date_from);
   if (params?.date_to) qs.set("date_to", params.date_to);
   if (params?.search) qs.set("search", params.search);
+  // `customer_id` was typed on ListOrdersParams but never serialized —
+  // Customers.tsx → customer detail view passed it expecting a per-customer
+  // filter and silently got "all orders for the store" back (showed up on
+  // the customer-history card as unrelated orders).
+  if (params?.customer_id) qs.set("customer_id", params.customer_id);
   const query = qs.toString();
   return apiClient<PaginatedOrders>(
     `/stores/${storeId}/orders/${query ? `?${query}` : ""}`,
