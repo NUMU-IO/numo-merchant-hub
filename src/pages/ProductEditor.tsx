@@ -801,6 +801,40 @@ const ProductEditor = () => {
                     </Button>
                   </div>
                   <div className="p-4 space-y-3">
+                    {/* ── Quick-pick presets ── */}
+                    {/* Only show on a brand-new empty row so the chips aren't
+                        visual noise once the merchant has started filling it. */}
+                    {!v.name.trim() && !v.nameAr.trim() && !v.options.trim() && !v.optionsAr.trim() && (() => {
+                      const presets = [
+                        { en: "Size", ar: "المقاس", options_en: "S, M, L, XL", options_ar: "S, M, L, XL" },
+                        { en: "Color", ar: "اللون", options_en: "Red, Blue, Black, White", options_ar: "أحمر, أزرق, أسود, أبيض" },
+                        { en: "Material", ar: "الخامة", options_en: "", options_ar: "" },
+                      ];
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[11px] text-muted-foreground/70 me-1">
+                            {language === "ar" ? "ابدأ بسرعة:" : "Quick start:"}
+                          </span>
+                          {presets.map((p) => (
+                            <button
+                              key={p.en}
+                              type="button"
+                              onClick={() => {
+                                setFormVariants(prev => prev.map((vv, i) =>
+                                  i === idx
+                                    ? { ...vv, name: p.en, nameAr: p.ar, options: p.options_en, optionsAr: p.options_ar }
+                                    : vv,
+                                ));
+                              }}
+                              className="h-7 px-2.5 rounded-md bg-muted/50 hover:bg-muted text-[11px] font-medium text-foreground/80 hover:text-foreground transition-colors"
+                            >
+                              {language === "ar" ? p.ar : p.en}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-1">
                         <Label className="text-[11px] text-muted-foreground/70">{language === "ar" ? "الاسم (EN)" : "Name (EN)"}</Label>
@@ -814,13 +848,36 @@ const ProductEditor = () => {
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-1">
                         <Label className="text-[11px] text-muted-foreground/70">{language === "ar" ? "الخيارات (EN)" : "Options (EN)"}</Label>
-                        <Input placeholder="S, M, L, XL" value={v.options} onChange={e => updateVariant(idx, "options", e.target.value)} className="h-9 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border text-sm" />
+                        <Input
+                          placeholder={isColorVariant(v.name, v.nameAr) ? "Red, Blue, Black" : "S, M, L, XL"}
+                          value={v.options}
+                          onChange={e => updateVariant(idx, "options", e.target.value)}
+                          className="h-9 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border text-sm"
+                        />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[11px] text-muted-foreground/70">{language === "ar" ? "الخيارات (AR)" : "Options (AR)"}</Label>
-                        <Input placeholder="S, M, L, XL" value={v.optionsAr} onChange={e => updateVariant(idx, "optionsAr", e.target.value)} dir="rtl" className="h-9 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border text-sm" />
+                        <Input
+                          placeholder={isColorVariant(v.name, v.nameAr) ? "أحمر, أزرق, أسود" : "S, M, L, XL"}
+                          value={v.optionsAr}
+                          onChange={e => updateVariant(idx, "optionsAr", e.target.value)}
+                          dir="rtl"
+                          className="h-9 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border text-sm"
+                        />
                       </div>
                     </div>
+
+                    {/* ── Color variant hint when options are empty ── */}
+                    {/* Covers the UX gap where a merchant names a variant
+                        "Color" but leaves the options placeholder untouched
+                        and wonders why no swatch picker appeared. */}
+                    {isColorVariant(v.name, v.nameAr) && !v.options.trim() && (
+                      <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-3 text-[11px] text-muted-foreground">
+                        {language === "ar"
+                          ? "اكتب أسماء الألوان بالأعلى (مثلاً: أحمر، أزرق، أسود) عشان تظهر خانات اختيار اللون لكل واحد."
+                          : "Type color names above (e.g., Red, Blue, Black) to get a swatch + image picker per color."}
+                      </div>
+                    )}
 
                     {/* ── Color swatch + image picker (only for color variants) ── */}
                     {isColorVariant(v.name, v.nameAr) && v.options.trim() && (() => {
