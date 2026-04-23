@@ -53,7 +53,6 @@ const Payments = () => {
   const storeId = currentStore?.id;
   const navigate = useNavigate();
 
-  const [walletBalance, setWalletBalance] = useState(0);
   const [storeBalance, setStoreBalance] = useState(0);
   const [deposits, setDeposits] = useState<Transaction[]>([]);
   const [loadingDeposits, setLoadingDeposits] = useState(true);
@@ -69,7 +68,7 @@ const Payments = () => {
   useEffect(() => {
     if (!storeId) return;
     apiClient<{ wallet_balance_cents: number; store_balance_cents: number }>(`/stores/${storeId}/payments/balances`)
-      .then(b => { setWalletBalance(b.wallet_balance_cents); setStoreBalance(b.store_balance_cents); }).catch(() => {});
+      .then(b => { setStoreBalance(b.store_balance_cents); }).catch(() => {});
     setLoadingInvoices(true);
     apiClient<Invoice[]>(`/stores/${storeId}/payments/invoices`).then(setInvoices).catch(() => setInvoices([])).finally(() => setLoadingInvoices(false));
   }, [storeId]);
@@ -108,17 +107,21 @@ const Payments = () => {
           </div>
           <div className="relative z-10 px-5 pb-5">
             <div className="grid gap-4 sm:grid-cols-2">
-              {/* Wallet Balance */}
-              <div className="rounded-xl bg-white/[0.07] backdrop-blur-sm border border-white/[0.08] p-5 flex flex-col justify-between min-h-[130px]">
-                <p className="text-sm text-white/70">{isAr ? "رصيد المحفظة الحالي" : "Current Wallet Balance"}</p>
-                <div className="flex items-baseline gap-1.5 mt-2">
-                  <span className="text-3xl font-bold tabular-nums text-white">{fmtBig(walletBalance)}</span>
-                  <span className="text-sm font-medium text-white/50">{isAr ? "ج.م" : "EGP"}</span>
+              {/* Wallet Balance — Coming soon */}
+              <div className="relative rounded-xl bg-white/[0.04] border border-white/[0.08] p-5 flex flex-col justify-between min-h-[130px] overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-white/60">{isAr ? "رصيد المحفظة" : "Wallet Balance"}</p>
+                  <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-white/10 text-white/80 border border-white/10">
+                    {isAr ? "قريباً" : "Soon"}
+                  </span>
                 </div>
-                <div className="flex gap-2 mt-4">
-                  <Button size="sm" className="h-8 text-xs rounded-lg bg-white text-foreground hover:bg-white/90" onClick={() => navigate("/wallet")}>{isAr ? "عرض رصيد المحفظة" : "View Wallet"}</Button>
-                  <Button size="sm" className="h-8 text-xs rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20" onClick={() => navigate("/wallet")}>{isAr ? "إضافة رصيد للمحفظة" : "Add Balance"}</Button>
+                <div className="flex items-baseline gap-1.5 mt-2 opacity-60">
+                  <span className="text-3xl font-bold tabular-nums text-white/70">— —</span>
+                  <span className="text-sm font-medium text-white/40">{isAr ? "ج.م" : "EGP"}</span>
                 </div>
+                <p className="text-xs text-white/50 mt-3">
+                  {isAr ? "محفظة شحن الخدمات ستتوفر قريباً" : "Service-credit wallet launching soon"}
+                </p>
               </div>
               {/* Store Balance */}
               <div className="rounded-xl bg-white/[0.07] backdrop-blur-sm border border-white/[0.08] p-5 flex flex-col justify-between min-h-[130px]">
@@ -131,7 +134,7 @@ const Payments = () => {
                   <span className="text-sm font-medium text-white/50">{isAr ? "ج.م" : "EGP"}</span>
                 </div>
                 <div className="flex gap-2 mt-4">
-                  <Button size="sm" className="h-8 text-xs rounded-lg bg-white text-foreground hover:bg-white/90" onClick={() => navigate("/store-balance")}>{isAr ? "عرض رصيد المتجر" : "View Store Balance"}</Button>
+                  <Button size="sm" className="h-8 text-xs rounded-lg bg-white text-slate-900 hover:bg-white/90" onClick={() => navigate("/store-balance")}>{isAr ? "عرض رصيد المتجر" : "View Store Balance"}</Button>
                 </div>
               </div>
             </div>
