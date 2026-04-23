@@ -854,7 +854,81 @@ const Orders = () => {
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* ── Mobile card list (< md) ──
+                The 9-column table is unusable below ~900px. On mobile we
+                render each order as a stacked card with the info merchants
+                actually need at a glance: order # + date on top, customer +
+                total on a row, two status pills at the bottom. Checkbox in
+                the corner keeps bulk-select working. */}
+            <div className="md:hidden divide-y divide-border/50">
+              <div className="flex items-center gap-3 px-4 py-2.5 bg-muted/20">
+                <Checkbox
+                  checked={orders.length > 0 && selected.size === orders.length}
+                  onCheckedChange={() => { if (selected.size === orders.length) setSelected(new Set()); else setSelected(new Set(orders.map(o => o.id))); }}
+                  aria-label={isAr ? "اختر الكل" : "Select all"}
+                />
+                <span className="text-[11px] font-semibold text-muted-foreground">
+                  {isAr ? `${orders.length} طلب` : `${orders.length} orders`}
+                </span>
+              </div>
+              {orders.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => openOrderDetail(o.id)}
+                  className="flex w-full items-start gap-3 px-4 py-3 text-start hover:bg-muted/30 transition-colors"
+                >
+                  <div onClick={(e) => e.stopPropagation()} className="pt-0.5">
+                    <Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggleSelect(o.id)} />
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-semibold">{o.order_number}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{fmtDate(o.created_at)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium truncate">{o.customer_name || "—"}</span>
+                      <span className="text-xs font-semibold tabular-nums shrink-0">{formatCurrency(o.total)}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-medium rounded-md py-0 px-1.5 gap-1 ${
+                          o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
+                          o.status === "shipped" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50" :
+                          o.status === "processing" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
+                          o.status === "cancelled" ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50" :
+                          "bg-muted text-muted-foreground border-border"
+                        }`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500" :
+                          o.status === "shipped" ? "bg-blue-500" :
+                          o.status === "processing" ? "bg-amber-500" :
+                          o.status === "cancelled" ? "bg-red-500" : "bg-muted-foreground/40"
+                        }`} />
+                        {t(`orders.${o.status}`)}
+                      </Badge>
+                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0 px-1.5 ${
+                        o.payment_status === "paid" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
+                        o.payment_status === "pending" || o.payment_status === "cod" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
+                        o.payment_status === "refunded" ? "bg-blue-500/10 text-blue-600 border-blue-200/50" :
+                        "bg-red-500/10 text-red-600 border-red-200/50"
+                      }`}>
+                        {t(`orders.${o.payment_status}`)}
+                      </Badge>
+                      {o.payment_method && (
+                        <span className="text-[10px] text-muted-foreground">· {o.payment_method}</span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* ── Desktop table (≥ md) ── */}
+          <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/20 hover:bg-muted/20">
@@ -936,6 +1010,7 @@ const Orders = () => {
               </TableBody>
             </Table>
           </div>
+          </>
         )}
 
         {/* Pagination */}
