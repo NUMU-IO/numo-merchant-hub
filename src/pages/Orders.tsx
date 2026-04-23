@@ -854,7 +854,70 @@ const Orders = () => {
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* Mobile card list (< md) */}
+            <div className="md:hidden divide-y">
+              {orders.length > 0 && (
+                <div className="flex items-center gap-3 px-4 py-2 bg-muted/10">
+                  <Checkbox
+                    checked={orders.length > 0 && selected.size === orders.length}
+                    onCheckedChange={() => { if (selected.size === orders.length) setSelected(new Set()); else setSelected(new Set(orders.map(o => o.id))); }}
+                  />
+                  <span className="text-[11px] text-muted-foreground">{isAr ? "تحديد الكل" : "Select all"}</span>
+                </div>
+              )}
+              {orders.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => openOrderDetail(o.id)}
+                  className="w-full flex items-start gap-3 px-4 py-3 text-start hover:bg-muted/20 transition-colors"
+                >
+                  <div onClick={e => { e.stopPropagation(); }} className="pt-0.5">
+                    <Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggleSelect(o.id)} />
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-semibold truncate">{o.order_number}</span>
+                      <span className="text-xs font-semibold tabular-nums shrink-0">{formatCurrency(o.total)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                      <span className="truncate">{o.customer_name || "—"}</span>
+                      <span className="shrink-0">{fmtDate(o.created_at)}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 gap-1 ${
+                        o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
+                        o.status === "shipped" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50" :
+                        o.status === "processing" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
+                        o.status === "cancelled" ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50" :
+                        "bg-muted text-muted-foreground border-border"
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500" :
+                          o.status === "shipped" ? "bg-blue-500" :
+                          o.status === "processing" ? "bg-amber-500" :
+                          o.status === "cancelled" ? "bg-red-500" : "bg-muted-foreground/40"
+                        }`} />
+                        {t(`orders.${o.status}`)}
+                      </Badge>
+                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 ${
+                        o.payment_status === "paid" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
+                        o.payment_status === "pending" || o.payment_status === "cod" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
+                        o.payment_status === "refunded" ? "bg-blue-500/10 text-blue-600 border-blue-200/50" :
+                        "bg-red-500/10 text-red-600 border-red-200/50"
+                      }`}>
+                        {t(`orders.${o.payment_status}`)}
+                      </Badge>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-1 rtl:rotate-180" />
+                </button>
+              ))}
+            </div>
+
+            {/* Desktop table (≥ md) */}
+            <div className="hidden md:block overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/20 hover:bg-muted/20">
@@ -935,7 +998,8 @@ const Orders = () => {
                 ))}
               </TableBody>
             </Table>
-          </div>
+            </div>
+          </>
         )}
 
         {/* Pagination */}
