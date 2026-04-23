@@ -173,6 +173,14 @@ export function publishCustomization(storeId: string): Promise<CustomizationData
   });
 }
 
+// Reset storefront customization back to the theme defaults. Doesn't auto-
+// publish — the merchant still has to click Publish to push the reset live.
+export function resetCustomization(storeId: string): Promise<CustomizationData> {
+  return apiClient<CustomizationData>(`/stores/${storeId}/settings/customization/reset`, {
+    method: "POST",
+  });
+}
+
 // â”€â”€â”€ V2 Section Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface SectionSettingDefinition {

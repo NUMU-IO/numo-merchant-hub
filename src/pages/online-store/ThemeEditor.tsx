@@ -5,7 +5,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useTrialPaywall } from "@/contexts/TrialPaywallContext";
 import {
-  fetchCustomization, updateCustomization, publishCustomization,
+  fetchCustomization, updateCustomization, publishCustomization, resetCustomization,
   fetchThemeSchemas,
   fetchStoreThemes,
   type CustomizationData,
@@ -16,6 +16,16 @@ import {
   type ThemeSchemaBundle,
   type StoreThemeListItem,
 } from "@/services/themeApi";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useEditHistory } from "@/hooks/useEditHistory";
 import { MediaPickerDialog } from "@/components/theme-editor/MediaPickerDialog";
 import { LinkEditorPopover } from "@/components/theme-editor/LinkEditorPopover";
@@ -38,7 +48,7 @@ import {
   Loader2, Layout, Package, Navigation2, Image, AlignLeft,
   Palette, Store, RefreshCw, Plus, Trash2, Eye, EyeOff,
   ChevronUp, ChevronDown, GripVertical, CreditCard, MessageCircle, CheckCircle, User,
-  Upload,
+  Upload, RotateCcw,
 } from "lucide-react";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
 import { uploadStoreAsset } from "@/services/storeApi";
@@ -814,6 +824,24 @@ export default function ThemeEditor() {
     onError: (err) => showError(err),
   });
 
+  // "Reset to defaults" — replaces the draft with the theme's fresh-start
+  // values. Doesn't auto-publish; merchant has to hit Publish themselves.
+  // Tracks its own open state for the confirm dialog so the primary
+  // action button stays wired to the async mutation.
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const resetMutation = useMutation({
+    mutationFn: () => resetCustomization(storeId),
+    onSuccess: (fresh) => {
+      queryClient.invalidateQueries({ queryKey: ["customization", storeId] });
+      setLocalData(fresh);
+      setIsDirty(false);
+      setResetDialogOpen(false);
+      toast.success(isRTL ? "تم استعادة الإعدادات الأصلية" : "Reset to defaults");
+      sendThemeToIframe();
+    },
+    onError: (err) => showError(err),
+  });
+
   const publishMutation = useMutation({
     mutationFn: async () => {
       if (!localData || Object.keys(allTemplates).length === 0) throw new Error("No data");
@@ -926,6 +954,12 @@ export default function ThemeEditor() {
           </Badge>
         )}
 
+        <Button variant="ghost" size="sm" className="h-8 text-[13px] text-muted-foreground hover:text-destructive" data-testid="theme-editor-reset"
+          onClick={() => setResetDialogOpen(true)} disabled={isBusy}
+          title={isRTL ? "إعادة للإعدادات الأصلية" : "Reset to defaults"}>
+          <RotateCcw className="h-3.5 w-3.5 me-1.5" />
+          {isRTL ? "استعادة الأصلية" : "Reset"}
+        </Button>
         <Button variant="outline" size="sm" className="h-8 text-[13px]" data-testid="theme-editor-save"
           onClick={() => saveMutation.mutate()} disabled={isBusy || !isDirty}>
           {saveMutation.isPending && <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />}
@@ -936,6 +970,38 @@ export default function ThemeEditor() {
           {publishMutation.isPending ? <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" /> : <Globe className="h-3.5 w-3.5 me-1.5" />}
           {isRTL ? "نشر" : "Publish"}
         </Button>
+
+        {/* Reset confirm dialog — destructive action, double-tap guard. */}
+        <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {isRTL ? "استعادة الإعدادات الأصلية؟" : "Reset to default settings?"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {isRTL
+                  ? "هنرجّع كل التخصيصات (الهوية، الألوان، الرأس، التذييل، الأقسام) للإعدادات الأصلية للثيم. الثيم المختار هيفضل زي ما هو. التعديلات المنشورة على المتجر الحي مش هتتأثر لحد ما تضغط «نشر»."
+                  : "This replaces every customization (identity, colors, header, footer, sections) with this theme's fresh-start values. Your selected theme stays. The live storefront is not affected until you click Publish."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={resetMutation.isPending}>
+                {isRTL ? "إلغاء" : "Cancel"}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  resetMutation.mutate();
+                }}
+                disabled={resetMutation.isPending}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {resetMutation.isPending && <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />}
+                {isRTL ? "نعم، استعادة" : "Yes, reset"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </header>
 
       {/* ── Main area ─────────────────────────────────────────────── */}
