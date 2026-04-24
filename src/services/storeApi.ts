@@ -163,6 +163,85 @@ export async function fetchShippingSettings(
   return apiClient<ShippingSettings>(`/stores/${storeId}/settings/shipping`);
 }
 
+// ─── Payment settings (shape matches PaymentSettingsResponse) ───────
+
+export interface PaymentMethodStatus {
+  enabled: boolean;
+  is_configured: boolean;
+  last_configured: string | null;
+}
+
+/** Gateways that can carry a COD deposit. Must stay in sync with the
+ *  backend's `DepositGateway` literal. */
+export type DepositGateway =
+  | "paymob"
+  | "kashier"
+  | "fawry"
+  | "fawaterak"
+  | "instapay";
+
+export const DEPOSIT_GATEWAY_VALUES: DepositGateway[] = [
+  "paymob",
+  "kashier",
+  "fawry",
+  "fawaterak",
+  "instapay",
+];
+
+export interface CodDepositPolicy {
+  enabled: boolean;
+  amount_cents: number;
+  /** Minutes the customer has to complete the deposit before auto-cancel. */
+  ttl_minutes: number;
+  /** If true, cancelling an order with a paid deposit auto-refunds via the gateway. */
+  auto_refund_on_cancel: boolean;
+  /** Allowlist of gateways customers can use for the deposit. */
+  allowed_gateways: DepositGateway[];
+}
+
+export interface PaymentSettings {
+  cod: PaymentMethodStatus;
+  fawry: PaymentMethodStatus;
+  fawaterak: PaymentMethodStatus;
+  paymob: PaymentMethodStatus;
+  kashier: PaymentMethodStatus;
+  instapay: PaymentMethodStatus;
+  vodafone_cash: PaymentMethodStatus;
+  bank_transfer: PaymentMethodStatus;
+  bank_accounts_count: number;
+  cod_deposit_policy: CodDepositPolicy;
+}
+
+export async function fetchPaymentSettings(
+  storeId: string,
+): Promise<PaymentSettings> {
+  return apiClient<PaymentSettings>(`/stores/${storeId}/settings/payment`);
+}
+
+/**
+ * Partial update — only the fields present in `patch` are modified
+ * server-side. Mirrors the backend's `UpdatePaymentSettingsRequest`.
+ */
+export async function updatePaymentSettings(
+  storeId: string,
+  patch: {
+    cod_enabled?: boolean;
+    fawry_enabled?: boolean;
+    fawaterak_enabled?: boolean;
+    paymob_enabled?: boolean;
+    kashier_enabled?: boolean;
+    instapay_enabled?: boolean;
+    vodafone_cash_enabled?: boolean;
+    bank_transfer_enabled?: boolean;
+    cod_deposit_policy?: CodDepositPolicy;
+  },
+): Promise<PaymentSettings> {
+  return apiClient<PaymentSettings>(`/stores/${storeId}/settings/payment`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
 export async function updateShippingSettings(
   storeId: string,
   data: { free_shipping_threshold?: number; manual_enabled?: boolean }

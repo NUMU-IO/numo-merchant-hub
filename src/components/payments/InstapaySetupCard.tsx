@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { apiClient } from "@/services/api";
 import {
   deleteInstapayCredentials,
   fetchInstapayCredentials,
@@ -49,6 +50,38 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
   );
   const [dailyCount, setDailyCount] = useState<number>(DEFAULT_DAILY_COUNT);
   const [enabled, setEnabled] = useState(false);
+  const [togglingEnabled, setTogglingEnabled] = useState(false);
+
+  // Persist the "Offer at checkout" toggle independently of the creds
+  // Save button. Mirrors the PATCH /settings/payment flow used by the
+  // other gateway toggles — a single `instapay_enabled` boolean. The
+  // backend guards against toggling on without saved credentials.
+  const handleToggleEnabled = async (next: boolean) => {
+    setTogglingEnabled(true);
+    const previous = enabled;
+    // Optimistic — revert if the PATCH fails.
+    setEnabled(next);
+    try {
+      await apiClient(`/stores/${storeId}/settings/payment`, {
+        method: "PATCH",
+        body: JSON.stringify({ instapay_enabled: next }),
+      });
+      toast.success(
+        next
+          ? isAr
+            ? "تم تفعيل إنستاباي في الدفع"
+            : "InstaPay is now live at checkout"
+          : isAr
+            ? "تم إيقاف عرض إنستاباي"
+            : "InstaPay hidden from checkout",
+      );
+    } catch (err) {
+      setEnabled(previous);
+      showError(err);
+    } finally {
+      setTogglingEnabled(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -266,7 +299,11 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
                   : "Show InstaPay as a payment option to customers."}
               </p>
             </div>
-            <Switch checked={enabled} onCheckedChange={setEnabled} disabled />
+            <Switch
+              checked={enabled}
+              onCheckedChange={handleToggleEnabled}
+              disabled={togglingEnabled}
+            />
           </div>
         ) : null}
 

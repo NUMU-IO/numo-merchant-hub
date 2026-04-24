@@ -26,6 +26,7 @@ import {
   CheckCircle2, ArrowUpRight, ShieldCheck,
 } from "lucide-react";
 import InstapaySetupCard from "@/components/payments/InstapaySetupCard";
+import CodDepositPolicyCard from "@/components/payments/CodDepositPolicyCard";
 import { useNavigate } from "react-router-dom";
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -169,16 +170,26 @@ const PaymentSetup = () => {
   useEffect(() => {
     if (!storeId) return;
     setLoading(true);
+    // Hydrate codEnabled from the server — payment.cod.enabled is the
+    // source of truth that drives whether COD shows at checkout. Without
+    // this, the toggle defaults to `true` on every page load and
+    // silently disagrees with what the storefront actually sees.
     Promise.all([
       fetchPaymobCredentials(storeId).catch(() => null),
       fetchKashierCredentials(storeId).catch(() => null),
       fetchFawryCredentials(storeId).catch(() => null),
       fetchFawaterakCredentials(storeId).catch(() => null),
       fetchCodTrustSettings(storeId).catch(() => null),
+      apiClient<{ payment: { cod?: { enabled?: boolean } } }>(
+        `/stores/${storeId}/settings`,
+      ).catch(() => null),
     ])
-      .then(([p, k, f, fw, ct]) => {
+      .then(([p, k, f, fw, ct, settings]) => {
         setPaymobCreds(p); setKashierCreds(k); setFawryCreds(f); setFawaterakCreds(fw);
         if (ct) setCodTrust(ct);
+        if (settings?.payment?.cod?.enabled !== undefined) {
+          setCodEnabled(Boolean(settings.payment.cod.enabled));
+        }
         const configured = [
           p?.is_configured ? { key: "paymob" as const, time: p.last_configured ? new Date(p.last_configured).getTime() : 0 } : null,
           k?.is_configured ? { key: "kashier" as const, time: k.last_configured ? new Date(k.last_configured).getTime() : 0 } : null,
@@ -188,6 +199,29 @@ const PaymentSetup = () => {
         if (configured.length > 0) setEnabledGateway(configured.sort((a, b) => b.time - a.time)[0].key);
       }).finally(() => setLoading(false));
   }, [storeId]);
+
+  // Persist COD toggle on change. Optimistic — rolls back on failure.
+  // The storefront's GET /payment-methods gates COD on this same flag,
+  // so changes here are reflected at checkout immediately (no cache).
+  const handleToggleCod = async (next: boolean) => {
+    if (!storeId) return;
+    const previous = codEnabled;
+    setCodEnabled(next);
+    try {
+      await apiClient(`/stores/${storeId}/settings/payment`, {
+        method: "PATCH",
+        body: JSON.stringify({ cod_enabled: next }),
+      });
+      toast.success(
+        next
+          ? (isAr ? "تم تفعيل الدفع عند الاستلام" : "Cash on delivery enabled")
+          : (isAr ? "تم إيقاف الدفع عند الاستلام" : "Cash on delivery disabled"),
+      );
+    } catch (err) {
+      setCodEnabled(previous);
+      showError(err);
+    }
+  };
 
   const handleUpdateCodTrust = async (patch: Partial<CodTrustSettings>) => {
     if (!storeId) return;
@@ -330,8 +364,17 @@ const PaymentSetup = () => {
                 <p className="text-xs text-muted-foreground mt-0.5">{isAr ? "العميل يدفع نقداً عند الاستلام" : "Customer pays on delivery"}</p>
               </div>
             </div>
-            <Switch checked={codEnabled} onCheckedChange={setCodEnabled} />
+            <Switch checked={codEnabled} onCheckedChange={handleToggleCod} />
           </div>
+
+          {/* COD Deposit-to-confirm policy */}
+          {storeId ? (
+            <CodDepositPolicyCard
+              storeId={storeId}
+              isAr={isAr}
+              codEnabled={codEnabled}
+            />
+          ) : null}
 
           {/* COD Fraud Protection */}
           <div className="rounded-xl border bg-background p-5">
