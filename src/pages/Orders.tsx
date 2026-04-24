@@ -37,6 +37,8 @@ import { downloadInvoicePdf } from "@/services/invoiceApi";
 import { apiClient } from "@/services/api";
 import { showError } from "@/lib/show-error";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
+import InstapayProofReview from "@/components/payments/InstapayProofReview";
+import { fetchPendingInstapayOrders } from "@/services/storeApi";
 
 type FulfillmentStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
 const WORKFLOW: FulfillmentStatus[] = ["pending", "processing", "shipped", "delivered"];
@@ -51,6 +53,9 @@ const Orders = () => {
 
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<"all" | FulfillmentStatus>("all");
+  // Secondary view: InstaPay orders with an awaiting-review proof. Mutually
+  // exclusive with statusFilter — clicking this chip clears statusFilter.
+  const [pendingInstapay, setPendingInstapay] = useState(false);
 
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<ApiOrder | null>(null);
   const [orderTimeline, setOrderTimeline] = useState<TimelineEvent[]>([]);
@@ -79,12 +84,54 @@ const Orders = () => {
       if (statusFilter !== "all") params.status = statusFilter;
       return listOrders(storeId!, params);
     },
-    enabled: !!storeId,
+    enabled: !!storeId && !pendingInstapay,
     placeholderData: keepPreviousData,
   });
 
-  const orders = ordersQuery.data?.items ?? [];
-  const totalOrders = ordersQuery.data?.total ?? 0;
+  // Lightweight badge query — always runs at page=1&limit=1 just to pull
+  // the total count for the "Pending verification" chip so merchants can
+  // see the queue size without clicking in.
+  const pendingInstapayBadgeQuery = useQuery({
+    queryKey: ["instapay-pending-count", storeId],
+    queryFn: () => fetchPendingInstapayOrders(storeId!, { page: 1, limit: 1 }),
+    enabled: !!storeId,
+    refetchInterval: 60_000,
+  });
+  const pendingInstapayCount = pendingInstapayBadgeQuery.data?.total ?? 0;
+
+  // Actual page fetch when the chip is active.
+  const pendingInstapayQuery = useQuery({
+    queryKey: ["instapay-pending-orders", storeId, page],
+    queryFn: () => fetchPendingInstapayOrders(storeId!, { page, limit: 20 }),
+    enabled: !!storeId && pendingInstapay,
+    placeholderData: keepPreviousData,
+  });
+
+  // Map pending items into the shape the orders table renders. Pending
+  // rows are always payment_method=instapay & payment_status=pending so
+  // the existing InstapayProofReview block fires automatically.
+  const pendingAsOrders: ApiOrder[] = (pendingInstapayQuery.data?.items ?? []).map(
+    (p) =>
+      ({
+        id: p.order_id,
+        order_number: p.order_number,
+        customer_id: p.customer_id,
+        total: p.amount_cents,
+        currency: p.currency,
+        status: "pending",
+        payment_status: "pending",
+        payment_method: "instapay",
+        fulfillment_status: "unfulfilled",
+        created_at: p.created_at,
+      }) as unknown as ApiOrder,
+  );
+
+  const orders = pendingInstapay
+    ? pendingAsOrders
+    : (ordersQuery.data?.items ?? []);
+  const totalOrders = pendingInstapay
+    ? pendingInstapayQuery.data?.total ?? 0
+    : ordersQuery.data?.total ?? 0;
 
   const formatCurrency = (cents: number) => {
     const val = cents / 100;
@@ -459,6 +506,16 @@ const Orders = () => {
                     {language === "ar" ? "تحميل الفاتورة" : "Download Invoice"}
                   </Button>
                 )}
+                {o.payment_method === "instapay" && currentStore?.id && (
+                  <div className="mt-3">
+                    <InstapayProofReview
+                      storeId={currentStore.id}
+                      orderId={o.id}
+                      isAr={language === "ar"}
+                      onPaid={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -781,11 +838,11 @@ const Orders = () => {
               { v: "delivered", l: isAr ? "مُكتمل" : "Delivered" },
               { v: "cancelled", l: isAr ? "مُلغى" : "Cancelled" },
             ] as { v: "all" | FulfillmentStatus; l: string; count?: number }[]).map(f => {
-              const active = statusFilter === f.v;
+              const active = statusFilter === f.v && !pendingInstapay;
               return (
                 <button
                   key={f.v}
-                  onClick={() => { setStatusFilter(f.v); setPage(1); setSelected(new Set()); }}
+                  onClick={() => { setStatusFilter(f.v); setPendingInstapay(false); setPage(1); setSelected(new Set()); }}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border whitespace-nowrap cursor-pointer ${
                     active
                       ? "border-foreground/20 bg-foreground text-background shadow-sm"
@@ -793,7 +850,7 @@ const Orders = () => {
                   }`}
                 >
                   {f.l}
-                  {f.v === "all" && totalOrders > 0 && (
+                  {f.v === "all" && totalOrders > 0 && !pendingInstapay && (
                     <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold tabular-nums ms-1.5 ${active ? "bg-background/20 text-background" : "bg-primary text-primary-foreground"}`}>
                       {totalOrders > 99 ? "99+" : totalOrders}
                     </span>
@@ -801,6 +858,32 @@ const Orders = () => {
                 </button>
               );
             })}
+
+            {/* Pending InstaPay review — orange badge when queue is non-empty */}
+            <button
+              type="button"
+              onClick={() => {
+                setPendingInstapay(true);
+                setPage(1);
+                setSelected(new Set());
+              }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border whitespace-nowrap cursor-pointer ${
+                pendingInstapay
+                  ? "border-amber-500/30 bg-amber-600 text-white shadow-sm"
+                  : "border-transparent bg-amber-50 text-amber-800 hover:bg-amber-100"
+              }`}
+            >
+              {isAr ? "قيد المراجعة" : "Pending verification"}
+              {pendingInstapayCount > 0 && (
+                <span
+                  className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold tabular-nums ms-1.5 ${
+                    pendingInstapay ? "bg-white/25 text-white" : "bg-amber-600 text-white"
+                  }`}
+                >
+                  {pendingInstapayCount > 99 ? "99+" : pendingInstapayCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 

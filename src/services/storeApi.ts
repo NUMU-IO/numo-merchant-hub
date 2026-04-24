@@ -334,6 +334,143 @@ export async function deleteFawryCredentials(
   });
 }
 
+// ─── InstaPay Credentials ──────────────────────────────────────────────────
+
+export interface InstapayCredentialsResponse {
+  is_configured: boolean;
+  enabled?: boolean;
+  ipa_masked: string | null;
+  ipa_display_name: string | null;
+  fallback_phone: string | null;
+  auto_approve_threshold_cents: number | null;
+  auto_approve_daily_cap_cents: number | null;
+  auto_approve_daily_count: number | null;
+  last_configured: string | null;
+}
+
+export interface SaveInstapayCredentialsPayload {
+  ipa: string;
+  ipa_display_name?: string | null;
+  fallback_phone?: string | null;
+  auto_approve_threshold_cents: number;
+  auto_approve_daily_cap_cents: number;
+  auto_approve_daily_count: number;
+}
+
+export async function fetchInstapayCredentials(
+  storeId: string,
+): Promise<InstapayCredentialsResponse> {
+  return apiClient<InstapayCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/instapay/credentials`,
+  );
+}
+
+export async function saveInstapayCredentials(
+  storeId: string,
+  data: SaveInstapayCredentialsPayload,
+): Promise<InstapayCredentialsResponse> {
+  return apiClient<InstapayCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/instapay/credentials`,
+    { method: "PUT", body: JSON.stringify(data) },
+  );
+}
+
+export async function deleteInstapayCredentials(
+  storeId: string,
+): Promise<InstapayCredentialsResponse> {
+  return apiClient<InstapayCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/instapay/credentials`,
+    { method: "DELETE" },
+  );
+}
+
+// ─── InstaPay Payment Proofs (merchant review) ────────────────────────────
+
+// Mirrors PaymentProofStatus (Python). Narrow union so switch statements
+// that branch on proof status are checked for exhaustiveness.
+export type PaymentProofStatus =
+  | "awaiting_review"
+  | "auto_approved"
+  | "approved"
+  | "rejected"
+  | "expired";
+
+export interface PaymentProof {
+  id: string;
+  order_id: string;
+  transaction_ref: string;
+  declared_amount_cents: number | null;
+  status: PaymentProofStatus;
+  rejection_reason: string | null;
+  review_decision_by: string | null;
+  review_decision_at: string | null;
+  signed_image_url: string;
+  created_at: string;
+}
+
+export async function fetchPaymentProofs(
+  storeId: string,
+  orderId: string,
+): Promise<PaymentProof[]> {
+  return apiClient<PaymentProof[]>(
+    `/stores/${storeId}/orders/${orderId}/payment-proofs`,
+  );
+}
+
+export async function approvePaymentProof(
+  storeId: string,
+  proofId: string,
+): Promise<PaymentProof> {
+  return apiClient<PaymentProof>(
+    `/stores/${storeId}/payment-proofs/${proofId}/approve`,
+    { method: "POST" },
+  );
+}
+
+export async function rejectPaymentProof(
+  storeId: string,
+  proofId: string,
+  reason: string,
+): Promise<PaymentProof> {
+  return apiClient<PaymentProof>(
+    `/stores/${storeId}/payment-proofs/${proofId}/reject`,
+    { method: "POST", body: JSON.stringify({ reason }) },
+  );
+}
+
+export interface PendingInstapayOrder {
+  order_id: string;
+  order_number: string;
+  customer_id: string;
+  amount_cents: number;
+  currency: string;
+  created_at: string;
+  proof_id: string;
+  proof_created_at: string;
+  transaction_ref: string;
+  declared_amount_cents: number | null;
+}
+
+export interface PendingInstapayPage {
+  items: PendingInstapayOrder[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export async function fetchPendingInstapayOrders(
+  storeId: string,
+  opts: { page?: number; limit?: number } = {},
+): Promise<PendingInstapayPage> {
+  const q = new URLSearchParams();
+  if (opts.page) q.set("page", String(opts.page));
+  if (opts.limit) q.set("limit", String(opts.limit));
+  const qs = q.toString();
+  return apiClient<PendingInstapayPage>(
+    `/stores/${storeId}/orders/pending-instapay-review${qs ? `?${qs}` : ""}`,
+  );
+}
+
 // ─── Fawaterak Credentials ─────────────────────────────────────────────────
 
 export interface FawaterakCredentialsResponse {

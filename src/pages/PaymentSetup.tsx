@@ -25,6 +25,7 @@ import {
   Trash2, ArrowLeft, Zap, CircleDollarSign, Link2,
   CheckCircle2, ArrowUpRight, ShieldCheck,
 } from "lucide-react";
+import InstapaySetupCard from "@/components/payments/InstapaySetupCard";
 import { useNavigate } from "react-router-dom";
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -308,6 +309,11 @@ const PaymentSetup = () => {
           </div>
         </div>
       </div>
+
+      {/* ── Section: InstaPay ── */}
+      {storeId ? (
+        <InstapaySetupCard storeId={storeId} isAr={isAr} />
+      ) : null}
 
       {/* ── Section: COD ── */}
       <div className="rounded-xl border bg-card">

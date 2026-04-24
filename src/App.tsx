@@ -33,6 +33,8 @@ const WalletPage = lazy(() => import("@/pages/Wallet"));
 const StoreBalancePage = lazy(() => import("@/pages/StoreBalance"));
 const PaymentSetup = lazy(() => import("@/pages/PaymentSetup"));
 const Logistics = lazy(() => import("@/pages/Logistics"));
+const ShippingZones = lazy(() => import("@/pages/shipping/ZonesPage"));
+const ShippingZoneEditor = lazy(() => import("@/pages/shipping/ZoneEditorPage"));
 const CODReconciliation = lazy(() => import("@/pages/CODReconciliation"));
 const SocialImport = lazy(() => import("@/pages/SocialImport"));
 const Customers = lazy(() => import("@/pages/Customers"));
@@ -209,6 +211,9 @@ const App = () => (
                     <Route path="/store-balance" element={<StoreBalancePage />} />
                     <Route path="/payment-setup" element={<PaymentSetup />} />
                     <Route path="/logistics" element={<Logistics />} />
+                    <Route path="/shipping/zones" element={<ShippingZones />} />
+                    <Route path="/shipping/zones/new" element={<ShippingZoneEditor />} />
+                    <Route path="/shipping/zones/:zoneId" element={<ShippingZoneEditor />} />
                     <Route path="/store" element={<StoreSettings />} />
                     <Route path="/online-store" element={<Navigate to="/online-store/themes" replace />} />
                     <Route path="/online-store/themes" element={<OnlineStoreThemes />} />

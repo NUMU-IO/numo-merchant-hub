@@ -383,6 +383,7 @@ const AppSidebar = () => {
                 {[
                   { key: "payment-setup", title: isRTL ? "إعداد الدفع" : "Payment Setup", url: "/payment-setup", icon: Wallet },
                   { key: "logistics", title: isRTL ? "الشحن والتوصيل" : "Logistics", url: "/logistics", icon: Truck },
+                  { key: "shipping-zones", title: isRTL ? "مناطق الشحن" : "Shipping Zones", url: "/shipping/zones", icon: Truck },
                   { key: "cod", title: isRTL ? "الدفع عند الاستلام" : "COD", url: "/cod", icon: Banknote },
                   { key: "social", title: isRTL ? "السوشيال ميديا" : "Social", url: "/social", icon: Share2 },
                   { key: "invoices", title: isRTL ? "الفواتير" : "Invoices", url: "/invoices", icon: Receipt },
