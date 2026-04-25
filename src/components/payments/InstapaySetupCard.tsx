@@ -121,8 +121,14 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
     }
     setSaving(true);
     try {
+      // On first-time setup we must send the IPA. On update, leave it
+      // null so the backend preserves the encrypted value — we can't
+      // reconstruct the full IPA from the masked form, and sending a
+      // stripped-masked placeholder would (a) fail the min-length
+      // validator and (b) corrupt the stored credential if it passed.
+      const trimmedIpa = ipa.trim();
       const saved = await saveInstapayCredentials(storeId, {
-        ipa: ipa.trim() || creds?.ipa_masked?.replace(/\*+/g, "") || "",
+        ipa: trimmedIpa ? trimmedIpa : null,
         ipa_display_name: displayName.trim() || null,
         fallback_phone: fallbackPhone.trim() || null,
         auto_approve_threshold_cents: Math.round(thresholdEgp * 100),

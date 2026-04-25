@@ -168,6 +168,9 @@ const Orders = () => {
     processing: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     pending: "bg-muted text-muted-foreground",
     cancelled: "bg-destructive/10 text-destructive",
+    // Distinct from cancelled: order was shipped but customer refused.
+    // Orange to distinguish from cancelled red and shipped blue.
+    returned: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   };
 
   const paymentColor: Record<string, string> = {
@@ -196,6 +199,7 @@ const Orders = () => {
     delivered: <CheckCircle2 className="h-4 w-4" />,
     fulfilled: <CheckCircle2 className="h-4 w-4" />,
     cancelled: <XCircle className="h-4 w-4" />,
+    returned: <RotateCcw className="h-4 w-4" />,
     paid: <CheckCircle2 className="h-4 w-4" />,
     refunded: <XCircle className="h-4 w-4" />,
   };
@@ -344,6 +348,33 @@ const Orders = () => {
     }
   };
 
+  // Mark a single shipped order as returned (RTO). Sends a network signal
+  // to شبكة نمو and is irreversible — confirm first.
+  const handleMarkReturned = async (orderId: string) => {
+    if (!storeId) return;
+    const ok = window.confirm(
+      language === "ar"
+        ? "تحديد الطلب كمرتجع؟ سيتم إرسال إشارة إلى شبكة نمو ولا يمكن التراجع."
+        : "Mark order as returned? This sends a return-to-origin signal to شبكة نمو and cannot be undone.",
+    );
+    if (!ok) return;
+    await handleUpdateStatus(orderId, "returned");
+  };
+
+  // Bulk variant: mark all selected SHIPPED orders as returned. Backend
+  // rejects items in the wrong status; surface failures inline via the
+  // existing bulkUpdateStatus error path.
+  const handleBulkMarkReturned = async () => {
+    if (!storeId || selected.size === 0) return;
+    const ok = window.confirm(
+      language === "ar"
+        ? `تحديد ${selected.size} طلب كمرتجع؟ سيتم إرسال إشارات إلى شبكة نمو.`
+        : `Mark ${selected.size} order(s) as returned? Network signals will be sent.`,
+    );
+    if (!ok) return;
+    await handleBulkStatus("returned");
+  };
+
   const toggleSelect = (id: string) => {
     setSelected(prev => { const n = new Set(prev); if (n.has(id)) { n.delete(id); } else { n.add(id); } return n; });
   };
@@ -404,6 +435,20 @@ const Orders = () => {
               <Button size="sm" className="gap-1.5" onClick={() => handleUpdateStatus(o.id, nextStatus)}>
                 <ArrowRightCircle className="h-3.5 w-3.5" />
                 {t("orders.moveTo")} {t(`orders.${nextStatus}`)}
+              </Button>
+            )}
+            {/* Manual-ship merchants record an RTO outcome. Shipped is the
+                only state where a return is meaningful — earlier states
+                use Cancel; later states are terminal. */}
+            {o.status === "shipped" && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => handleMarkReturned(o.id)}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                {language === "ar" ? "تحديد كمرتجع" : "Mark as Returned"}
               </Button>
             )}
           </div>
@@ -907,6 +952,15 @@ const Orders = () => {
                 <SelectTrigger className="w-[140px] h-7 text-[11px]"><SelectValue placeholder={t("orders.bulkStatus")} /></SelectTrigger>
                 <SelectContent>{(["processing", "shipped", "delivered", "cancelled"] as const).map(s => <SelectItem key={s} value={s}>{t(`orders.${s}`)}</SelectItem>)}</SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-[11px] gap-1"
+                onClick={handleBulkMarkReturned}
+              >
+                <RotateCcw className="h-3 w-3" />
+                {isAr ? "تحديد كمرتجع" : "Mark Returned"}
+              </Button>
               <Button variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => setSelected(new Set())}>{isAr ? "إلغاء" : "Clear"}</Button>
             </div>
           </div>
@@ -974,13 +1028,15 @@ const Orders = () => {
                         o.status === "shipped" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50" :
                         o.status === "processing" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
                         o.status === "cancelled" ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50" :
+                        o.status === "returned" ? "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200/50" :
                         "bg-muted text-muted-foreground border-border"
                       }`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${
                           o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500" :
                           o.status === "shipped" ? "bg-blue-500" :
                           o.status === "processing" ? "bg-amber-500" :
-                          o.status === "cancelled" ? "bg-red-500" : "bg-muted-foreground/40"
+                          o.status === "cancelled" ? "bg-red-500" :
+                          o.status === "returned" ? "bg-orange-500" : "bg-muted-foreground/40"
                         }`} />
                         {t(`orders.${o.status}`)}
                       </Badge>
@@ -1062,13 +1118,15 @@ const Orders = () => {
                         o.status === "shipped" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50" :
                         o.status === "processing" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
                         o.status === "cancelled" ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50" :
+                        o.status === "returned" ? "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200/50" :
                         "bg-muted text-muted-foreground border-border"
                       }`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${
                           o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500" :
                           o.status === "shipped" ? "bg-blue-500" :
                           o.status === "processing" ? "bg-amber-500" :
-                          o.status === "cancelled" ? "bg-red-500" : "bg-muted-foreground/40"
+                          o.status === "cancelled" ? "bg-red-500" :
+                          o.status === "returned" ? "bg-orange-500" : "bg-muted-foreground/40"
                         }`} />
                         {t(`orders.${o.status}`)}
                       </Badge>

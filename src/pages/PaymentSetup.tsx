@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import InstapaySetupCard from "@/components/payments/InstapaySetupCard";
 import CodDepositPolicyCard from "@/components/payments/CodDepositPolicyCard";
+import CodTrustDecisions from "@/components/payments/CodTrustDecisions";
 import { useNavigate } from "react-router-dom";
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -164,6 +165,8 @@ const PaymentSetup = () => {
     threshold: 70,
     min_confidence: "medium",
     action: "block",
+    auto_rto_days: 14,
+    auto_rto_disabled: false,
   });
   const [loading, setLoading] = useState(true);
 
@@ -469,9 +472,108 @@ const PaymentSetup = () => {
                       : (isAr ? "رفض الطلب واقتراح الدفع الإلكتروني." : "Reject the order and suggest online payment.")}
                   </p>
                 </div>
+
+                {/* Auto-RTO sweep — flags stale SHIPPED orders so manual-ship
+                    merchants who forget to mark outcomes still feed network signals. */}
+                <div className="rounded-lg border bg-muted/20 p-3">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <Label className="text-xs font-medium block">
+                        {isAr ? "تحديد المرتجعات تلقائياً" : "Auto-mark stale orders as returned"}
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {isAr
+                          ? "إذا تشحن الطلبات بنفسك ونسيت تحديثها، سنُعلِّم الطلبات الراكدة كمرتجعة لتغذية الشبكة بإشاراتها."
+                          : "If you ship manually and forget to update, we'll auto-flag stale orders so the network learns from them."}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={!codTrust.auto_rto_disabled}
+                      onCheckedChange={(v) => handleUpdateCodTrust({ auto_rto_disabled: !v })}
+                    />
+                  </div>
+                  {!codTrust.auto_rto_disabled && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <Label className="text-[11px] text-muted-foreground shrink-0">
+                        {isAr ? "بعد كم يوم؟" : "After how many days?"}
+                      </Label>
+                      <input
+                        type="number"
+                        min={7}
+                        max={60}
+                        value={codTrust.auto_rto_days}
+                        onChange={(e) => {
+                          const n = Number(e.target.value);
+                          if (n >= 7 && n <= 60) {
+                            handleUpdateCodTrust({ auto_rto_days: n });
+                          }
+                        }}
+                        className="w-16 h-7 px-2 rounded border bg-background text-xs tabular-nums"
+                        title={isAr ? "أيام قبل تحديد المرتجع تلقائياً" : "Days before auto-RTO"}
+                        aria-label={isAr ? "أيام قبل تحديد المرتجع تلقائياً" : "Days before auto-RTO"}
+                      />
+                      <span className="text-[11px] text-muted-foreground">
+                        {isAr ? "يوم (٧-٦٠)" : "days (7-60)"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Minimum confidence selector */}
+                <div>
+                  <Label className="text-xs font-medium mb-2 block">
+                    {isAr ? "الحد الأدنى للثقة" : "Minimum confidence to act"}
+                  </Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["low", "medium", "high"] as const).map((level) => {
+                      const active = codTrust.min_confidence === level;
+                      const labelAr =
+                        level === "low" ? "منخفض" : level === "medium" ? "متوسط" : "عالٍ";
+                      const labelEn =
+                        level === "low" ? "Low" : level === "medium" ? "Medium" : "High";
+                      return (
+                        <button
+                          key={level}
+                          type="button"
+                          onClick={() => handleUpdateCodTrust({ min_confidence: level })}
+                          className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                            active
+                              ? "border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+                              : "border-border bg-background text-muted-foreground hover:bg-muted"
+                          }`}
+                        >
+                          {isAr ? labelAr : labelEn}
+                          {level === "medium" && (
+                            <span className="ml-1 text-[9px] uppercase tracking-wider opacity-70">
+                              {isAr ? "موصى به" : "Recommended"}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    {codTrust.min_confidence === "low"
+                      ? (isAr
+                          ? "حظر العملاء الجدد بناءً على إشارات الموقع وحدها (لا يحتاج تاريخ سابق)."
+                          : "Block first-time customers using location signals alone — strongest at pre-launch scale.")
+                      : codTrust.min_confidence === "medium"
+                      ? (isAr
+                          ? "الانتظار حتى يكون لدى العميل ٣ طلبات على الأقل قبل التصرف."
+                          : "Wait for at least 3 orders of history before acting.")
+                      : (isAr
+                          ? "حظر فقط العملاء ذوي السجل الطويل من الإساءة (١٠ طلبات أو أكثر)."
+                          : "Only block established serial abusers with 10+ orders of history.")}
+                  </p>
+                </div>
               </div>
             )}
           </div>
+
+          {/* Decisions feed — visible whenever the merchant has the panel open */}
+          {storeId && codTrust.enabled ? (
+            <CodTrustDecisions storeId={storeId} isAr={isAr} />
+          ) : null}
         </div>
       </div>
 

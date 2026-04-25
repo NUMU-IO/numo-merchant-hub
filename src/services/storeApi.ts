@@ -278,6 +278,10 @@ export interface CodTrustSettings {
   threshold: number;
   min_confidence: "low" | "medium" | "high";
   action: "block" | "warn";
+  /** Days a COD order can sit in SHIPPED before the auto-RTO sweep flags it. 7-60. */
+  auto_rto_days: number;
+  /** Skip the auto-RTO sweep entirely for this store. */
+  auto_rto_disabled: boolean;
 }
 
 export async function fetchCodTrustSettings(
@@ -428,7 +432,9 @@ export interface InstapayCredentialsResponse {
 }
 
 export interface SaveInstapayCredentialsPayload {
-  ipa: string;
+  /** Omit (or send null) when updating an already-configured store to keep
+   *  the previously-saved IPA. Required on first-time setup. */
+  ipa?: string | null;
   ipa_display_name?: string | null;
   fallback_phone?: string | null;
   auto_approve_threshold_cents: number;
