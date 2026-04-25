@@ -429,6 +429,14 @@ export interface InstapayCredentialsResponse {
   auto_approve_daily_cap_cents: number | null;
   auto_approve_daily_count: number | null;
   last_configured: string | null;
+  /** Public URL of the merchant-uploaded InstaPay QR image. The
+   *  customer-facing /instapay/:orderId page renders this when set;
+   *  otherwise it falls back to IPA + reference text only. */
+  qr_image_url?: string | null;
+  /** Merchant-pasted InstaPay "Share link" URL. The storefront
+   *  generates a QR from this on the fly. Takes priority over
+   *  qr_image_url when both are set. */
+  qr_link_url?: string | null;
 }
 
 export interface SaveInstapayCredentialsPayload {
@@ -440,6 +448,9 @@ export interface SaveInstapayCredentialsPayload {
   auto_approve_threshold_cents: number;
   auto_approve_daily_cap_cents: number;
   auto_approve_daily_count: number;
+  /** InstaPay "Share link" URL. Send empty string to clear, null/omit
+   *  to leave unchanged, any string to set. */
+  qr_link_url?: string | null;
 }
 
 export async function fetchInstapayCredentials(
@@ -465,6 +476,27 @@ export async function deleteInstapayCredentials(
 ): Promise<InstapayCredentialsResponse> {
   return apiClient<InstapayCredentialsResponse>(
     `/stores/${storeId}/settings/payment/instapay/credentials`,
+    { method: "DELETE" },
+  );
+}
+
+export async function uploadInstapayQrImage(
+  storeId: string,
+  file: File,
+): Promise<InstapayCredentialsResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiClient<InstapayCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/instapay/qr-image`,
+    { method: "POST", body: formData },
+  );
+}
+
+export async function deleteInstapayQrImage(
+  storeId: string,
+): Promise<InstapayCredentialsResponse> {
+  return apiClient<InstapayCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/instapay/qr-image`,
     { method: "DELETE" },
   );
 }

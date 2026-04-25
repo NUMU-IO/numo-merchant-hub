@@ -7,8 +7,9 @@
  * the simpler mental model better than a detail sub-view.
  */
 
-import { useEffect, useState } from "react";
-import { Loader2, CheckCircle2, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, CheckCircle2, Trash2, Upload, QrCode, Link as LinkIcon } from "lucide-react";
+import QRCode from "qrcode";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -18,8 +19,10 @@ import { Switch } from "@/components/ui/switch";
 import { apiClient } from "@/services/api";
 import {
   deleteInstapayCredentials,
+  deleteInstapayQrImage,
   fetchInstapayCredentials,
   saveInstapayCredentials,
+  uploadInstapayQrImage,
   type InstapayCredentialsResponse,
 } from "@/services/storeApi";
 import { showError } from "@/lib/show-error";
@@ -51,6 +54,17 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
   const [dailyCount, setDailyCount] = useState<number>(DEFAULT_DAILY_COUNT);
   const [enabled, setEnabled] = useState(false);
   const [togglingEnabled, setTogglingEnabled] = useState(false);
+
+  const [uploadingQr, setUploadingQr] = useState(false);
+  const [removingQr, setRemovingQr] = useState(false);
+  const qrInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [qrLinkUrl, setQrLinkUrl] = useState("");
+  // Live QR preview rendered from `qrLinkUrl`. Re-encoded as the
+  // merchant types — keeps the feedback loop tight without a save
+  // round-trip. Bail to null when the input is empty so the preview
+  // box hides.
+  const [qrLinkPreview, setQrLinkPreview] = useState<string | null>(null);
 
   // Persist the "Offer at checkout" toggle independently of the creds
   // Save button. Mirrors the PATCH /settings/payment flow used by the
@@ -100,6 +114,7 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
           (c.auto_approve_daily_cap_cents ?? DEFAULT_DAILY_CAP_CENTS) / 100,
         );
         setDailyCount(c.auto_approve_daily_count ?? DEFAULT_DAILY_COUNT);
+        setQrLinkUrl(c.qr_link_url || "");
       })
       .catch(() => setCreds({ is_configured: false } as InstapayCredentialsResponse))
       .finally(() => {
@@ -109,6 +124,32 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
       cancelled = true;
     };
   }, [storeId]);
+
+  // Re-encode the live preview whenever the link changes. Keeps the
+  // feedback synchronous from the merchant's perspective — they paste
+  // a link, see the QR they're about to ship to customers.
+  useEffect(() => {
+    let cancelled = false;
+    const trimmed = qrLinkUrl.trim();
+    if (!trimmed) {
+      setQrLinkPreview(null);
+      return;
+    }
+    QRCode.toDataURL(trimmed, {
+      width: 256,
+      margin: 1,
+      errorCorrectionLevel: "M",
+    })
+      .then((url) => {
+        if (!cancelled) setQrLinkPreview(url);
+      })
+      .catch(() => {
+        if (!cancelled) setQrLinkPreview(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [qrLinkUrl]);
 
   const handleSave = async () => {
     if (!ipa.trim() && !creds?.is_configured) {
@@ -134,6 +175,8 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
         auto_approve_threshold_cents: Math.round(thresholdEgp * 100),
         auto_approve_daily_cap_cents: Math.round(dailyCapEgp * 100),
         auto_approve_daily_count: Math.max(0, Math.floor(dailyCount)),
+        // Empty string → backend clears; non-empty → backend stores.
+        qr_link_url: qrLinkUrl.trim(),
       });
       setCreds(saved);
       setIpa("");
@@ -145,6 +188,47 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
       showError(err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleQrFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    // Always reset the input so picking the same file twice still fires.
+    e.target.value = "";
+    if (!file) return;
+    setUploadingQr(true);
+    try {
+      const updated = await uploadInstapayQrImage(storeId, file);
+      setCreds(updated);
+      toast.success(isAr ? "تم رفع رمز QR" : "QR uploaded");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setUploadingQr(false);
+    }
+  };
+
+  const handleRemoveQr = async () => {
+    if (
+      !confirm(
+        isAr
+          ? "إزالة رمز QR لإنستاباي؟"
+          : "Remove the InstaPay QR image?",
+      )
+    ) {
+      return;
+    }
+    setRemovingQr(true);
+    try {
+      const updated = await deleteInstapayQrImage(storeId);
+      setCreds(updated);
+      toast.success(isAr ? "تم حذف رمز QR" : "QR removed");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setRemovingQr(false);
     }
   };
 
@@ -290,6 +374,136 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
                 onChange={(e) => setDailyCount(Number(e.target.value) || 0)}
               />
             </div>
+          </div>
+        </div>
+
+        {/* ── Customer-facing QR ──────────────────────────────────────
+             Two ways the merchant can supply a working QR:
+               1. Paste their InstaPay "Share link" URL — we render
+                  the QR client-side. Customers scan with their phone
+                  camera; the URL deep-links into the InstaPay app.
+                  Easiest path; no upload, no friction.
+               2. Upload a screenshot of the QR they generated inside
+                  the InstaPay app's "Receive" screen. Fallback for
+                  merchants who don't have a share link.
+             Link wins over upload at checkout if both are set.
+        */}
+        <div className="border-t pt-4 space-y-4">
+          <div>
+            <p className="text-sm font-semibold flex items-center gap-2 mb-1">
+              <QrCode className="w-4 h-4" />
+              {isAr ? "رمز QR للعملاء" : "Customer-facing QR"}
+            </p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {isAr
+                ? "اختياري — اعرض رمز QR للعملاء ليفتحوا تطبيق إنستاباي مباشرة. ألصق رابط الدفع، أو ارفع صورة من تطبيق إنستاباي."
+                : "Optional — show customers a QR that opens the InstaPay app for them. Paste your share link, or upload a screenshot from the InstaPay app."}
+            </p>
+          </div>
+
+          {/* ── Path A: paste link ── */}
+          <div>
+            <Label className="flex items-center gap-2 text-xs">
+              <LinkIcon className="w-3.5 h-3.5" />
+              {isAr ? "رابط الدفع لإنستاباي" : "InstaPay payment link"}
+            </Label>
+            <Input
+              value={qrLinkUrl}
+              onChange={(e) => setQrLinkUrl(e.target.value)}
+              placeholder="https://ipn.eg/QR/…"
+              autoComplete="off"
+              dir="ltr"
+              className="mt-1"
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              {isAr
+                ? "افتح تطبيق إنستاباي → استلام → مشاركة الرابط، الصق هنا. سنحول الرابط إلى رمز QR للعملاء."
+                : "InstaPay app → Receive → Share link. Paste here and we'll turn it into a QR for customers."}
+            </p>
+            {qrLinkPreview ? (
+              <div className="mt-3 flex items-center gap-3">
+                <img
+                  src={qrLinkPreview}
+                  alt="QR preview"
+                  className="w-24 h-24 border rounded bg-white"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {isAr
+                    ? "هذا ما سيراه العميل عند الدفع. اضغط حفظ لتفعيله."
+                    : "This is what customers will see at checkout. Click Save to apply."}
+                </p>
+              </div>
+            ) : null}
+          </div>
+
+          {/* ── Path B: upload image (fallback) ── */}
+          <div className="border-t pt-4">
+            <div className="flex items-start justify-between mb-2 gap-4">
+              <Label className="flex items-center gap-2 text-xs">
+                <Upload className="w-3.5 h-3.5" />
+                {isAr ? "أو ارفع صورة QR (احتياطي)" : "Or upload a QR image (fallback)"}
+              </Label>
+              {creds?.qr_image_url ? (
+                <img
+                  src={creds.qr_image_url}
+                  alt="InstaPay QR"
+                  className="w-16 h-16 object-contain border rounded shrink-0"
+                />
+              ) : null}
+            </div>
+            <input
+              ref={qrInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              aria-label={isAr ? "رفع رمز QR لإنستاباي" : "Upload InstaPay QR image"}
+              title={isAr ? "رفع رمز QR لإنستاباي" : "Upload InstaPay QR image"}
+              onChange={handleQrFileChange}
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => qrInputRef.current?.click()}
+                disabled={uploadingQr || removingQr}
+              >
+                {uploadingQr ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Upload className="w-4 h-4 mr-2" />
+                )}
+                {creds?.qr_image_url
+                  ? isAr
+                    ? "استبدال"
+                    : "Replace"
+                  : isAr
+                    ? "رفع صورة"
+                    : "Upload image"}
+              </Button>
+              {creds?.qr_image_url ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRemoveQr}
+                  disabled={uploadingQr || removingQr}
+                >
+                  {removingQr ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                </Button>
+              ) : null}
+            </div>
+            {creds?.qr_link_url && creds?.qr_image_url ? (
+              <p className="text-[11px] text-muted-foreground mt-2">
+                {isAr
+                  ? "ملاحظة: الرابط أعلاه يُعرض على العملاء بدلاً من الصورة المرفوعة."
+                  : "Note: the link above takes priority over the uploaded image at checkout."}
+              </p>
+            ) : null}
           </div>
         </div>
 
