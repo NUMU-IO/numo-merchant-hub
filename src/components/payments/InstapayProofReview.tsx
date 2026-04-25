@@ -16,7 +16,9 @@ import { useState } from "react";
 import {
   AlertCircle,
   Check,
+  ImageOff,
   Loader2,
+  RefreshCw,
   X as XIcon,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -115,6 +117,17 @@ export default function InstapayProofReview({
   // Lightbox state — the proof image is small on the card but the
   // merchant often needs to zoom to read tiny bank-app receipt text.
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  // Tracks proof IDs whose signed URL failed to load. Signed URLs are
+  // 1-hour TTL; a merchant who leaves the drawer open longer (or whose
+  // browser blocks the storage origin) sees a broken-image icon. We
+  // swap the broken image for an explicit "image unavailable" panel
+  // with a Refresh button that re-fetches the URL.
+  const [imageFailed, setImageFailed] = useState<Record<string, boolean>>({});
+
+  const refreshSignedUrl = () => {
+    setImageFailed({});
+    proofsQuery.refetch();
+  };
 
   const openReject = (proofId: string) => {
     setActiveProofId(proofId);
@@ -173,18 +186,47 @@ export default function InstapayProofReview({
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setLightboxUrl(latest.signed_image_url)}
-          className="block w-full cursor-zoom-in"
-          aria-label={isAr ? "فتح الصورة بالحجم الكامل" : "Open image full size"}
-        >
-          <img
-            src={latest.signed_image_url}
-            alt="Payment proof"
-            className="w-full max-h-48 object-contain rounded border bg-muted/10"
-          />
-        </button>
+        {latest.signed_image_url && !imageFailed[latest.id] ? (
+          <button
+            type="button"
+            onClick={() => setLightboxUrl(latest.signed_image_url)}
+            className="block w-full cursor-zoom-in"
+            aria-label={isAr ? "فتح الصورة بالحجم الكامل" : "Open image full size"}
+          >
+            <img
+              src={latest.signed_image_url}
+              alt="Payment proof"
+              className="w-full max-h-48 object-contain rounded border bg-muted/10"
+              onError={() =>
+                setImageFailed((prev) => ({ ...prev, [latest.id]: true }))
+              }
+            />
+          </button>
+        ) : (
+          <div className="w-full max-h-48 rounded border bg-muted/20 p-6 flex flex-col items-center gap-2 text-center">
+            <ImageOff className="w-6 h-6 text-muted-foreground" />
+            <div className="text-xs text-muted-foreground">
+              {isAr
+                ? "تعذر تحميل صورة الإثبات. قد يكون الرابط الموقّع قد انتهى."
+                : "Could not load the proof image. The signed URL may have expired."}
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 text-[11px]"
+              onClick={refreshSignedUrl}
+              disabled={proofsQuery.isFetching}
+            >
+              {proofsQuery.isFetching ? (
+                <Loader2 className="w-3 h-3 animate-spin mr-1" />
+              ) : (
+                <RefreshCw className="w-3 h-3 mr-1" />
+              )}
+              {isAr ? "تحديث" : "Refresh"}
+            </Button>
+          </div>
+        )}
 
         <div className="text-xs">
           <div>

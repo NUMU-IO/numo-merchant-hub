@@ -26,6 +26,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   ArrowLeft, CheckCircle2, Circle, Clock, Package, Truck, XCircle,
   MoreHorizontal, Printer, FileDown, FileUp, ChevronRight, ArrowRightCircle, Loader2,
   RotateCcw, AlertCircle, FileText, ArrowUpDown, ListFilter, LayoutList, Search,
@@ -348,31 +352,42 @@ const Orders = () => {
     }
   };
 
-  // Mark a single shipped order as returned (RTO). Sends a network signal
-  // to شبكة نمو and is irreversible — confirm first.
-  const handleMarkReturned = async (orderId: string) => {
+  // RTO is destructive + sends a cross-merchant network signal, so we
+  // gate it behind a styled AlertDialog rather than the browser's
+  // native confirm — the latter is jarring (different chrome, ignores
+  // the app's RTL/typography) and also blocked by some ad-blockers.
+  // The intent encodes which flow opened the dialog so a single
+  // dialog instance covers both single + bulk.
+  const [rtoIntent, setRtoIntent] = useState<
+    | { kind: "single"; orderId: string }
+    | { kind: "bulk"; count: number }
+    | null
+  >(null);
+  const [rtoSubmitting, setRtoSubmitting] = useState(false);
+
+  const handleMarkReturned = (orderId: string) => {
     if (!storeId) return;
-    const ok = window.confirm(
-      language === "ar"
-        ? "تحديد الطلب كمرتجع؟ سيتم إرسال إشارة إلى شبكة نمو ولا يمكن التراجع."
-        : "Mark order as returned? This sends a return-to-origin signal to شبكة نمو and cannot be undone.",
-    );
-    if (!ok) return;
-    await handleUpdateStatus(orderId, "returned");
+    setRtoIntent({ kind: "single", orderId });
   };
 
-  // Bulk variant: mark all selected SHIPPED orders as returned. Backend
-  // rejects items in the wrong status; surface failures inline via the
-  // existing bulkUpdateStatus error path.
-  const handleBulkMarkReturned = async () => {
+  const handleBulkMarkReturned = () => {
     if (!storeId || selected.size === 0) return;
-    const ok = window.confirm(
-      language === "ar"
-        ? `تحديد ${selected.size} طلب كمرتجع؟ سيتم إرسال إشارات إلى شبكة نمو.`
-        : `Mark ${selected.size} order(s) as returned? Network signals will be sent.`,
-    );
-    if (!ok) return;
-    await handleBulkStatus("returned");
+    setRtoIntent({ kind: "bulk", count: selected.size });
+  };
+
+  const handleRtoConfirm = async () => {
+    if (!rtoIntent) return;
+    setRtoSubmitting(true);
+    try {
+      if (rtoIntent.kind === "single") {
+        await handleUpdateStatus(rtoIntent.orderId, "returned");
+      } else {
+        await handleBulkStatus("returned");
+      }
+      setRtoIntent(null);
+    } finally {
+      setRtoSubmitting(false);
+    }
   };
 
   const toggleSelect = (id: string) => {
@@ -1156,6 +1171,52 @@ const Orders = () => {
           </div>
         )}
       </div>
+
+      <AlertDialog
+        open={rtoIntent !== null}
+        onOpenChange={(open) => {
+          if (!open && !rtoSubmitting) setRtoIntent(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {isAr ? "تحديد كمرتجع" : "Mark as returned"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {rtoIntent?.kind === "bulk"
+                ? isAr
+                  ? `سيتم تحديد ${rtoIntent.count} طلب كمرتجع وإرسال إشارة RTO إلى شبكة نمو. لا يمكن التراجع عن هذا الإجراء.`
+                  : `This will mark ${rtoIntent.count} order(s) as returned and send an RTO signal to شبكة نمو. This cannot be undone.`
+                : isAr
+                  ? "سيتم تحديد الطلب كمرتجع وإرسال إشارة RTO إلى شبكة نمو. لا يمكن التراجع عن هذا الإجراء."
+                  : "This will mark the order as returned and send an RTO signal to شبكة نمو. This cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={rtoSubmitting}>
+              {isAr ? "إلغاء" : "Cancel"}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                // Stop the default close so we keep the dialog open while
+                // the request is in flight; the handler closes on success.
+                e.preventDefault();
+                handleRtoConfirm();
+              }}
+              disabled={rtoSubmitting}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {rtoSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <RotateCcw className="w-4 h-4 mr-2" />
+              )}
+              {isAr ? "تأكيد المرتجع" : "Confirm RTO"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
