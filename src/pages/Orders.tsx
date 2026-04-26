@@ -390,6 +390,58 @@ const Orders = () => {
     }
   };
 
+  // Rendered identically in both the list-view and order-detail-view
+  // returns. The detail view returns early before the list-view JSX,
+  // so a single dialog at the end of the file would never mount when
+  // a merchant clicks "Mark as Returned" from the detail screen — the
+  // button at o.status === "shipped" is on that branch.
+  const isAr_ = language === "ar";
+  const rtoDialog = (
+    <AlertDialog
+      open={rtoIntent !== null}
+      onOpenChange={(open) => {
+        if (!open && !rtoSubmitting) setRtoIntent(null);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {isAr_ ? "تحديد كمرتجع" : "Mark as returned"}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {rtoIntent?.kind === "bulk"
+              ? isAr_
+                ? `سيتم تحديد ${rtoIntent.count} طلب كمرتجع وإرسال إشارة RTO إلى شبكة نمو. لا يمكن التراجع عن هذا الإجراء.`
+                : `This will mark ${rtoIntent.count} order(s) as returned and send an RTO signal to شبكة نمو. This cannot be undone.`
+              : isAr_
+                ? "سيتم تحديد الطلب كمرتجع وإرسال إشارة RTO إلى شبكة نمو. لا يمكن التراجع عن هذا الإجراء."
+                : "This will mark the order as returned and send an RTO signal to شبكة نمو. This cannot be undone."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={rtoSubmitting}>
+            {isAr_ ? "إلغاء" : "Cancel"}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              handleRtoConfirm();
+            }}
+            disabled={rtoSubmitting}
+            className="bg-orange-600 hover:bg-orange-700 text-white"
+          >
+            {rtoSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <RotateCcw className="w-4 h-4 mr-2" />
+            )}
+            {isAr_ ? "تأكيد المرتجع" : "Confirm RTO"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   const toggleSelect = (id: string) => {
     setSelected(prev => { const n = new Set(prev); if (n.has(id)) { n.delete(id); } else { n.add(id); } return n; });
   };
@@ -838,6 +890,7 @@ const Orders = () => {
             </Card>
           </div>
         </div>
+        {rtoDialog}
       </div>
     );
   }
@@ -1172,51 +1225,7 @@ const Orders = () => {
         )}
       </div>
 
-      <AlertDialog
-        open={rtoIntent !== null}
-        onOpenChange={(open) => {
-          if (!open && !rtoSubmitting) setRtoIntent(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {isAr ? "تحديد كمرتجع" : "Mark as returned"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {rtoIntent?.kind === "bulk"
-                ? isAr
-                  ? `سيتم تحديد ${rtoIntent.count} طلب كمرتجع وإرسال إشارة RTO إلى شبكة نمو. لا يمكن التراجع عن هذا الإجراء.`
-                  : `This will mark ${rtoIntent.count} order(s) as returned and send an RTO signal to شبكة نمو. This cannot be undone.`
-                : isAr
-                  ? "سيتم تحديد الطلب كمرتجع وإرسال إشارة RTO إلى شبكة نمو. لا يمكن التراجع عن هذا الإجراء."
-                  : "This will mark the order as returned and send an RTO signal to شبكة نمو. This cannot be undone."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={rtoSubmitting}>
-              {isAr ? "إلغاء" : "Cancel"}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                // Stop the default close so we keep the dialog open while
-                // the request is in flight; the handler closes on success.
-                e.preventDefault();
-                handleRtoConfirm();
-              }}
-              disabled={rtoSubmitting}
-              className="bg-orange-600 hover:bg-orange-700 text-white"
-            >
-              {rtoSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <RotateCcw className="w-4 h-4 mr-2" />
-              )}
-              {isAr ? "تأكيد المرتجع" : "Confirm RTO"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {rtoDialog}
     </div>
   );
 };
