@@ -70,6 +70,12 @@ function actionLabel(action: string | null, isAr: boolean): string {
       return isAr ? "عميل جديد" : "New customer";
     case "low_confidence":
       return isAr ? "ثقة منخفضة" : "Low confidence";
+    case "disabled":
+      return isAr ? "الفلتر متوقف" : "Filter off";
+    case "no_phone":
+      return isAr ? "بدون رقم هاتف" : "No phone";
+    case "lookup_error":
+      return isAr ? "تعذر البحث" : "Lookup error";
     default:
       return action || "—";
   }
