@@ -33,6 +33,7 @@ import {
   ArrowLeft, CheckCircle2, Circle, Clock, Package, Truck, XCircle,
   MoreHorizontal, Printer, FileDown, FileUp, ChevronRight, ArrowRightCircle, Loader2,
   RotateCcw, AlertCircle, FileText, ArrowUpDown, ListFilter, LayoutList, Search,
+  RefreshCw,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -926,6 +927,19 @@ const Orders = () => {
               <DropdownMenuItem onClick={handleExportCSV}><FileDown className="me-2 h-3.5 w-3.5" />{isAr ? "تصدير الطلبات" : "Export Orders"}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => invalidateOrders()}
+            disabled={ordersQuery.isFetching}
+            aria-label={isAr ? "تحديث الطلبات" : "Refresh orders"}
+            title={isAr ? "تحديث القائمة" : "Refresh list"}
+          >
+            <RefreshCw className={`h-3 w-3 ${ordersQuery.isFetching ? "animate-spin" : ""}`} />
+            {isAr ? "تحديث" : "Refresh"}
+          </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={handleExportCSV}>
             <FileDown className="h-3 w-3" />{isAr ? "تصدير الطلبات" : "Export"}
           </Button>

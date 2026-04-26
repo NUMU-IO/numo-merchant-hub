@@ -134,15 +134,6 @@ const Dashboard = () => {
   const showSetup = !!onboardingData && !onboardingData.is_completed && !onboardingData.is_dismissed && !hasOrders;
 
 
-  // Floating demo order notification for new merchants
-  const [showDemoOrder, setShowDemoOrder] = useState(false);
-  useEffect(() => {
-    if (!showSetup) return;
-    const timer = setTimeout(() => setShowDemoOrder(true), 4000);
-    const hide = setTimeout(() => setShowDemoOrder(false), 11000);
-    return () => { clearTimeout(timer); clearTimeout(hide); };
-  }, [showSetup]);
-
   const handleDismissOnboarding = async () => {
     if (!storeId) return;
     try {
@@ -1118,24 +1109,6 @@ const Dashboard = () => {
         </Card>
       </div>
       </>
-      )}
-
-      {/* Floating demo order notification */}
-      {showSetup && (
-        <div
-          className={`fixed z-50 transition-all duration-500 ease-out ${isAr ? "left-4 sm:left-6" : "right-4 sm:right-6"} bottom-6 ${showDemoOrder ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0 pointer-events-none"}`}
-        >
-          <div className="flex items-center gap-3 rounded-2xl bg-background/95 backdrop-blur-md border border-border/60 shadow-2xl shadow-black/10 dark:shadow-black/30 px-4 py-3 min-w-[260px]">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 shrink-0">
-              <ShoppingCart className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold leading-tight">{isAr ? "طلب جديد!" : "New Order!"}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{isAr ? "حلوان - القاهرة" : "Helwan - Cairo"}</p>
-            </div>
-            <span className="text-[10px] text-muted-foreground/60 shrink-0">{isAr ? "الآن" : "now"}</span>
-          </div>
-        </div>
       )}
 
     </div>
