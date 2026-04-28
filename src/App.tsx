@@ -81,6 +81,8 @@ const Channels = lazy(() => import("@/pages/Channels"));
 const WhatsAppTemplates = lazy(() => import("@/pages/WhatsAppTemplates"));
 const NewWhatsAppTemplate = lazy(() => import("@/pages/NewWhatsAppTemplate"));
 const MetaOAuthCallback = lazy(() => import("@/pages/MetaOAuthCallback"));
+const EmailTemplates = lazy(() => import("@/pages/EmailTemplates"));
+const EmailTemplateEditor = lazy(() => import("@/pages/EmailTemplateEditor"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -240,6 +242,9 @@ const App = () => (
                     <Route path="/analytics/journey" element={<AnalyticsJourney />} />
                     <Route path="/health-score" element={<HealthScore />} />
                     <Route path="/marketing" element={<Marketing />} />
+                    <Route path="/email-templates" element={<EmailTemplates />} />
+                    <Route path="/email-templates/new" element={<EmailTemplateEditor />} />
+                    <Route path="/email-templates/:id" element={<EmailTemplateEditor />} />
                     <Route path="/categories" element={<Categories />} />
                     <Route path="/invoices" element={<Invoices />} />
                     <Route path="/profile" element={<Profile />} />

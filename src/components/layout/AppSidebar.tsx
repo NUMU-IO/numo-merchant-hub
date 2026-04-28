@@ -6,7 +6,7 @@ import {
   Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
   Palette, FileText, Navigation2, SlidersHorizontal, ClipboardList, ChevronLeft, Filter, Radio,
   Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
-  UserCog, User, Inbox, PlugZap,
+  UserCog, User, Inbox, PlugZap, Mail,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -250,6 +250,18 @@ const AppSidebar = () => {
                   </SidebarMenuItem>
                 </NavItemGate>
 
+                {/* Email Templates */}
+                <NavItemGate navKey="email-templates">
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive("/email-templates")} tooltip={isRTL ? "قوالب البريد" : "Email Templates"} className="h-10 rounded-lg px-3">
+                      <NavLink to="/email-templates">
+                        <Mail className="h-[18px] w-[18px] opacity-70" />
+                        <span className="text-[13px] font-medium">{isRTL ? "قوالب البريد" : "Email Templates"}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </NavItemGate>
+
                 {/* WhatsApp */}
                 <NavItemGate navKey="whatsapp">
                   <SidebarMenuItem>
@@ -387,7 +399,6 @@ const AppSidebar = () => {
                 {[
                   { key: "payment-setup", title: isRTL ? "إعداد الدفع" : "Payment Setup", url: "/payment-setup", icon: Wallet },
                   { key: "logistics", title: isRTL ? "الشحن والتوصيل" : "Logistics", url: "/logistics", icon: Truck },
-                  { key: "shipping-zones", title: isRTL ? "مناطق الشحن" : "Shipping Zones", url: "/shipping/zones", icon: Truck },
                   { key: "cod", title: isRTL ? "الدفع عند الاستلام" : "COD", url: "/cod", icon: Banknote },
                   { key: "social", title: isRTL ? "السوشيال ميديا" : "Social", url: "/social", icon: Share2 },
                   { key: "invoices", title: isRTL ? "الفواتير" : "Invoices", url: "/invoices", icon: Receipt },

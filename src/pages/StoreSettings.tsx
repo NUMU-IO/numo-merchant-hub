@@ -66,6 +66,7 @@ import {
   ChevronUp,
   ChevronDown,
   CreditCard,
+  Clock,
 } from "lucide-react";
 import { ThemePreview } from "@/components/ThemePreview";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
@@ -113,6 +114,12 @@ import {
 } from "@/components/theme-editor";
 import type { SettingValue } from "@/components/theme-editor/SettingControl";
 import { updateStore, uploadStoreAsset } from "@/services/storeApi";
+import {
+  PagesAndHoursPanel,
+  type FooterSection,
+  type ShippingPageConfig,
+  type BusinessHours,
+} from "@/components/store-settings/PagesAndHoursPanel";
 import { apiClient } from "@/services/api";
 import { getStoreUrl, getStoreDomainSuffix } from "@/lib/storefront";
 import { FontGallery } from "@/components/theme-editor/FontGallery";
@@ -611,6 +618,15 @@ const StoreSettings = () => {
   const [navLinks, setNavLinks] = useState<
     Array<{ label: string; to: string }>
   >([]);
+
+  // ─── Pages & Hours panel state ───────────────────────────────────────────
+  const [footerSections, setFooterSections] = useState<FooterSection[]>([]);
+  const [shippingConfig, setShippingConfig] = useState<ShippingPageConfig>({});
+  const [businessHours, setBusinessHours] = useState<BusinessHours>({
+    timezone: "Africa/Cairo",
+    days: {},
+  });
+  const [isSavingPages, setIsSavingPages] = useState(false);
   const [homeSections, setHomeSections] = useState<
     Array<{ id: string; label: string; enabled: boolean }>
   >([
@@ -815,6 +831,12 @@ const StoreSettings = () => {
       privacy: (s.privacy_policy as string) || "",
       terms: (s.terms_of_service as string) || "",
     });
+    // Business hours live at the store level, not in theme_settings
+    const bh = (currentStore.business_hours || {}) as BusinessHours;
+    setBusinessHours({
+      timezone: bh.timezone || "Africa/Cairo",
+      days: bh.days || {},
+    });
   }, [currentStore?.id]);
 
   // Fetch available themes
@@ -860,8 +882,20 @@ const StoreSettings = () => {
         if (data.hero) setHeroState({ ...data.hero });
         if (data.products) setProductsState({ ...data.products });
         if (data.footer) {
-          const { social_links, ...rest } = data.footer;
-          setFooterState({ ...rest, ...(social_links || {}) });
+          const { social_links, sections, ...rest } = data.footer as Record<
+            string,
+            unknown
+          > & {
+            social_links?: Record<string, string>;
+            sections?: FooterSection[];
+          };
+          setFooterState({ ...(rest as Record<string, SettingValue>), ...(social_links || {}) });
+          if (Array.isArray(sections)) setFooterSections(sections);
+        }
+        // Shipping page config (theme_settings.shipping)
+        const shippingData = (data as { shipping?: ShippingPageConfig }).shipping;
+        if (shippingData && typeof shippingData === "object") {
+          setShippingConfig(shippingData);
         }
         if (data.navigation) {
           const { links, ...navRest } = data.navigation;
@@ -1162,8 +1196,19 @@ const StoreSettings = () => {
       footer: {
         ...footerRest,
         ...(social_links ? { social_links } : {}),
+        ...(footerSections.length > 0 ? { sections: footerSections } : {}),
       },
       navigation: Object.keys(navPayload).length > 0 ? navPayload : undefined,
+      shipping:
+        shippingConfig &&
+        ((shippingConfig.delivery_areas?.length ?? 0) > 0 ||
+          (shippingConfig.schedule_notes?.length ?? 0) > 0 ||
+          shippingConfig.title ||
+          shippingConfig.intro ||
+          shippingConfig.free_shipping_threshold !== undefined ||
+          shippingConfig.show_contact_section !== undefined)
+          ? shippingConfig
+          : undefined,
       labels: extractNonEmpty(labelsState),
       layout: Object.keys(layoutPayload).length > 0 ? layoutPayload : undefined,
     };
@@ -1189,7 +1234,51 @@ const StoreSettings = () => {
     navLinks,
     homeSections,
     templateConfig,
+    footerSections,
+    shippingConfig,
   ]);
+
+  // Save handler for the Pages & Hours panel — flushes:
+  //   • theme_settings.footer.sections + theme_settings.shipping  via updateCustomization
+  //   • business_hours                                            via updateStore
+  const savePagesAndHours = useCallback(async () => {
+    if (!currentStore?.id) return;
+    setIsSavingPages(true);
+    try {
+      await Promise.all([
+        updateCustomization(currentStore.id, buildFullPayload()),
+        updateStore(currentStore.id, { business_hours: businessHours }),
+      ]);
+      await refetchStores();
+      setIsDirty(false);
+      toast.success(t("store.saved"));
+    } catch (err) {
+      showError(err, language);
+    } finally {
+      setIsSavingPages(false);
+    }
+  }, [
+    currentStore?.id,
+    buildFullPayload,
+    businessHours,
+    refetchStores,
+    language,
+    t,
+  ]);
+
+  // Mark dirty whenever any pages-panel field changes
+  const handleFooterSectionsChange = useCallback((s: FooterSection[]) => {
+    setFooterSections(s);
+    setIsDirty(true);
+  }, []);
+  const handleShippingConfigChange = useCallback((c: ShippingPageConfig) => {
+    setShippingConfig(c);
+    setIsDirty(true);
+  }, []);
+  const handleBusinessHoursChange = useCallback((h: BusinessHours) => {
+    setBusinessHours(h);
+    setIsDirty(true);
+  }, []);
 
   const saveProfile = useCallback(async () => {
     if (!currentStore?.id) return;
@@ -1308,6 +1397,11 @@ const StoreSettings = () => {
         { value: "profile", label: t("store.profile"), icon: Settings2 },
         { value: "domain", label: t("store.domain"), icon: Globe },
         { value: "policies", label: t("store.policies"), icon: ScrollText },
+        {
+          value: "pages",
+          label: language === "ar" ? "الصفحات والساعات" : "Pages & Hours",
+          icon: Clock,
+        },
         { value: "status", label: t("store.status"), icon: Lock },
       ],
     },
@@ -3321,6 +3415,23 @@ const StoreSettings = () => {
               </div>
             );
           })()}
+
+        {/* ─── Pages & Hours ─── */}
+        {activeSection === "pages" && (
+          <div key="pages" className="settings-section-enter">
+            <PagesAndHoursPanel
+              language={language as "ar" | "en"}
+              footerSections={footerSections}
+              onFooterSectionsChange={handleFooterSectionsChange}
+              shippingConfig={shippingConfig}
+              onShippingConfigChange={handleShippingConfigChange}
+              businessHours={businessHours}
+              onBusinessHoursChange={handleBusinessHoursChange}
+              isSaving={isSavingPages}
+              onSave={savePagesAndHours}
+            />
+          </div>
+        )}
 
         {/* ─── Status ─── */}
         {activeSection === "status" && (

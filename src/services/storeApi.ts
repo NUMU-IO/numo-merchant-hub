@@ -25,6 +25,7 @@ export interface StoreData {
   social_links: Record<string, string> | null;
   settings: Record<string, unknown> | null;
   theme_settings: Record<string, unknown> | null;
+  business_hours: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
@@ -91,6 +92,7 @@ export interface UpdateStoreData {
   status?: string;
   settings?: Record<string, unknown>;
   theme_settings?: Record<string, unknown>;
+  business_hours?: Record<string, unknown> | null;
 }
 
 export async function updateStore(

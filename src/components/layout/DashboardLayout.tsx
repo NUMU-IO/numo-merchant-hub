@@ -13,6 +13,7 @@ import AppHeader from "./AppHeader";
 import MobileBottomNav from "./MobileBottomNav";
 import DemoBanner from "@/components/demo/DemoBanner";
 import { ImpersonationBanner } from "./ImpersonationBanner";
+import { NewOrderNotifier } from "@/components/NewOrderNotifier";
 
 function PageFallback() {
   return (
@@ -100,6 +101,9 @@ const DashboardLayout = () => {
         </div>
       </div>
       <MobileBottomNav />
+      {/* Polls /orders and toasts whenever a new one arrives. Mounted at the
+          layout level so it runs on every dashboard page. */}
+      <NewOrderNotifier />
     </SidebarProvider>
   );
 };
