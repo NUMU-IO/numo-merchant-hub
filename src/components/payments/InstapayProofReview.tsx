@@ -15,6 +15,7 @@
 import { useState } from "react";
 import {
   AlertCircle,
+  AlertTriangle,
   Check,
   ImageOff,
   Loader2,
@@ -36,8 +37,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   approvePaymentProof,
   fetchPaymentProofs,
+  fetchSimilarPaymentProofs,
   rejectPaymentProof,
+  type OcrStatus,
   type PaymentProof,
+  type SimilarProof,
 } from "@/services/storeApi";
 import { showError } from "@/lib/show-error";
 
@@ -54,6 +58,62 @@ const proofStatusColor: Record<string, string> = {
   approved: "bg-emerald-100 text-emerald-900",
   rejected: "bg-red-100 text-red-900",
   expired: "bg-slate-100 text-slate-700",
+};
+
+// Friendly text + tone class per OCR status discriminator. Kept
+// outside the component so the bilingual lookup is a pure function;
+// the UI just renders ocrStatusCopy[status][lang].
+const ocrStatusCopy: Record<
+  OcrStatus,
+  { en: string; ar: string; tone: "ok" | "warn" | "muted" }
+> = {
+  ok: { en: "Verified", ar: "تم التحقق", tone: "ok" },
+  skipped: {
+    en: "OCR not run",
+    ar: "لم يتم التحقق",
+    tone: "muted",
+  },
+  failed: {
+    en: "Couldn't read image",
+    ar: "تعذرت قراءة الصورة",
+    tone: "warn",
+  },
+  failed_gpu: {
+    en: "OCR engine busy — try again in a minute",
+    ar: "محرك التحقق مشغول — حاول بعد دقيقة",
+    tone: "warn",
+  },
+  failed_timeout: {
+    en: "OCR engine timed out",
+    ar: "انتهت مهلة محرك التحقق",
+    tone: "warn",
+  },
+  failed_auth: {
+    en: "OCR engine authentication failed",
+    ar: "فشل المصادقة مع محرك التحقق",
+    tone: "warn",
+  },
+  failed_transport: {
+    en: "Couldn't reach OCR engine",
+    ar: "تعذر الوصول إلى محرك التحقق",
+    tone: "warn",
+  },
+  failed_parse: {
+    en: "OCR engine returned an unexpected response",
+    ar: "استجابة غير متوقعة من محرك التحقق",
+    tone: "warn",
+  },
+  failed_empty: {
+    en: "OCR found no readable text",
+    ar: "لم يجد محرك التحقق نصاً مقروءاً",
+    tone: "muted",
+  },
+};
+
+const ocrToneClass: Record<"ok" | "warn" | "muted", string> = {
+  ok: "border-emerald-300 bg-emerald-50/60 text-emerald-900",
+  warn: "border-amber-300 bg-amber-50/60 text-amber-900",
+  muted: "border-border bg-muted/30 text-muted-foreground",
 };
 
 export const paymentProofsQueryKey = (storeId: string, orderId: string) =>
@@ -75,6 +135,27 @@ export default function InstapayProofReview({
     // window avoids refetching on every drawer re-open yet still
     // picks up auto-approvals that fire after the customer uploads.
     staleTime: 30_000,
+  });
+
+  // Latest proof drives the similarity panel — the older ones are
+  // historical retries, not what the merchant is reviewing right now.
+  // Pulled out before the SimilarProof query is set up so the query's
+  // ``enabled`` guard and ``queryKey`` can both reference it.
+  const latestProofId = proofsQuery.data?.length
+    ? proofsQuery.data[proofsQuery.data.length - 1].id
+    : undefined;
+
+  const similarQuery = useQuery<SimilarProof[]>({
+    queryKey: ["paymentProofs", storeId, "similar", latestProofId],
+    queryFn: () => fetchSimilarPaymentProofs(storeId, latestProofId!),
+    // Skip pre-Phase-A proofs (no perceptual_hash → backend returns []
+    // anyway, but skipping the call avoids a wasted request) — and
+    // wait for the proofs list so we know what to ask about.
+    enabled: !!storeId && !!latestProofId,
+    // Similarity is a function of the historical corpus, which only
+    // grows. Cache for the lifetime of the drawer; the hits aren't
+    // sensitive enough to justify aggressive refetching.
+    staleTime: 5 * 60_000,
   });
 
   const invalidateRelated = () => {
@@ -252,6 +333,168 @@ export default function InstapayProofReview({
             </div>
           ) : null}
         </div>
+
+        {/* ── OCR readout (Phase C) ─────────────────────────────────
+             Renders only when an OCR provider was active for this
+             store at submission time. Carries the verifier's verdict
+             on the customer's screenshot — useful both for "OCR
+             confirms 62 EGP matches order" and for "engine busy,
+             retry the review later". The friendly copy comes from
+             ``ocrStatusCopy``. */}
+        {latest.ocr_status ? (
+          <div
+            className={`rounded-md border p-3 space-y-1 text-[11px] ${
+              ocrToneClass[
+                ocrStatusCopy[latest.ocr_status as OcrStatus]?.tone ?? "muted"
+              ]
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold">
+                {isAr
+                  ? ocrStatusCopy[latest.ocr_status as OcrStatus]?.ar ??
+                    latest.ocr_status
+                  : ocrStatusCopy[latest.ocr_status as OcrStatus]?.en ??
+                    latest.ocr_status}
+              </span>
+              {latest.ocr_provider ? (
+                <span className="font-mono text-[9px] uppercase opacity-70">
+                  {latest.ocr_provider}
+                </span>
+              ) : null}
+            </div>
+            {(latest.ocr_extracted_amount_cents != null ||
+              latest.ocr_extracted_ipa ||
+              latest.ocr_extracted_note ||
+              latest.ocr_extracted_transaction_ref ||
+              latest.ocr_extracted_recipient_name) && (
+              <div className="space-y-0.5 pt-1 border-t border-current/20">
+                {latest.ocr_extracted_amount_cents != null ? (
+                  <div>
+                    <span className="opacity-70">
+                      {isAr ? "المبلغ المقروء: " : "Amount read: "}
+                    </span>
+                    <span className="tabular-nums">
+                      {(latest.ocr_extracted_amount_cents / 100).toFixed(2)} EGP
+                    </span>
+                  </div>
+                ) : null}
+                {latest.ocr_extracted_ipa ? (
+                  <div>
+                    <span className="opacity-70">
+                      {isAr ? "المستلم المقروء: " : "Recipient IPA: "}
+                    </span>
+                    <span className="font-mono">
+                      {latest.ocr_extracted_ipa}
+                    </span>
+                  </div>
+                ) : null}
+                {latest.ocr_extracted_recipient_name ? (
+                  <div>
+                    <span className="opacity-70">
+                      {isAr ? "اسم المستلم: " : "Recipient name: "}
+                    </span>
+                    {/* Pre-wrap so RTL Arabic + masking asterisks
+                        don't get reflowed by the browser into a
+                        misleading shape. The OCR'd block is the
+                        ground truth. */}
+                    <span className="whitespace-pre-wrap break-words">
+                      {latest.ocr_extracted_recipient_name}
+                    </span>
+                  </div>
+                ) : null}
+                {latest.ocr_extracted_transaction_ref ? (
+                  <div>
+                    <span className="opacity-70">
+                      {isAr ? "الرقم المرجعي المقروء: " : "Txn ref read: "}
+                    </span>
+                    <span className="font-mono tabular-nums">
+                      {latest.ocr_extracted_transaction_ref}
+                    </span>
+                  </div>
+                ) : null}
+                {latest.ocr_extracted_note ? (
+                  <div>
+                    <span className="opacity-70">
+                      {isAr ? "الملاحظة: " : "Note: "}
+                    </span>
+                    <span className="whitespace-pre-wrap break-words">
+                      {latest.ocr_extracted_note}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {/* ── Possibly Related Submissions (Phase B) ────────────────
+             Lists prior proofs in this store within Hamming distance
+             ≤ 8. Surfaces e.g. the same screenshot resubmitted across
+             two orders so the merchant can spot replay attacks before
+             approving. Empty state → panel hides; loading state is
+             silent so a slow query doesn't push the CTA buttons down. */}
+        {similarQuery.data && similarQuery.data.length > 0 ? (
+          <div className="rounded-md border border-amber-300 bg-amber-50/60 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-amber-900">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              {isAr
+                ? `قد تكون مرتبطة بـ ${similarQuery.data.length} إثبات سابق`
+                : `Possibly related to ${similarQuery.data.length} prior submission${
+                    similarQuery.data.length === 1 ? "" : "s"
+                  }`}
+            </div>
+            <ul className="space-y-1.5">
+              {similarQuery.data.map((sim) => (
+                <li
+                  key={sim.proof_id}
+                  className="flex items-center gap-2 text-[11px]"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setLightboxUrl(sim.signed_image_url)}
+                    className="shrink-0 cursor-zoom-in"
+                    aria-label={
+                      isAr
+                        ? `فتح صورة الطلب ${sim.order_number}`
+                        : `Open image for order ${sim.order_number}`
+                    }
+                  >
+                    <img
+                      src={sim.signed_image_url}
+                      alt=""
+                      className="w-10 h-10 object-cover rounded border bg-muted/20"
+                    />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">
+                      #{sim.order_number}
+                    </div>
+                    <div className="text-muted-foreground truncate font-mono">
+                      {sim.transaction_ref}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span
+                      className={`inline-block px-1.5 py-0.5 rounded text-[9px] uppercase ${
+                        proofStatusColor[sim.status] || "bg-muted"
+                      }`}
+                    >
+                      {sim.status}
+                    </span>
+                    {/* Distance is the actionable fraud signal: 0 means
+                        identical bytes (post-sanitisation), low single
+                        digits mean re-saved/cropped, higher means
+                        coincidental similarity. */}
+                    <div className="text-[9px] text-muted-foreground tabular-nums mt-0.5">
+                      Δ {sim.hamming_distance}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {canReview ? (
           <div className="flex gap-2">

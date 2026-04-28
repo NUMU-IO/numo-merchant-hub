@@ -46,7 +46,6 @@ export interface CreateStoreData {
   default_language?: string;
   contact_email?: string;
   contact_phone?: string;
-  invite_code?: string;
 }
 
 export interface CheckSubdomainResult {
@@ -437,6 +436,21 @@ export interface InstapayCredentialsResponse {
    *  generates a QR from this on the fly. Takes priority over
    *  qr_image_url when both are set. */
   qr_link_url?: string | null;
+  /** Phase C — OCR provider assigned by an admin. The merchant
+   *  hub renders this read-only; admins switch via the backoffice.
+   *  Null/undefined means OCR is disabled for this store. */
+  ocr_provider?: string | null;
+  require_ocr_amount_match?: boolean;
+  require_ocr_ipa_match?: boolean;
+  ocr_amount_tolerance_bps?: number;
+  // Phase C extras
+  require_note_contains_reference?: boolean;
+  require_transaction_ref_match?: boolean;
+  require_recipient_name_match?: boolean;
+  /** Token that appears in the recipient block of bank-app receipts
+   *  (typically the merchant's first name in Arabic or Latin). The
+   *  recipient-name rule does case-insensitive substring matching. */
+  recipient_name_token?: string | null;
 }
 
 export interface SaveInstapayCredentialsPayload {
@@ -451,6 +465,17 @@ export interface SaveInstapayCredentialsPayload {
   /** InstaPay "Share link" URL. Send empty string to clear, null/omit
    *  to leave unchanged, any string to set. */
   qr_link_url?: string | null;
+  /** Phase C — merchant opt-in flags + tolerance. The
+   *  ``ocr_provider`` is admin-managed and the backend silently
+   *  drops it if a merchant tries to PUT it via this endpoint. */
+  require_ocr_amount_match?: boolean;
+  require_ocr_ipa_match?: boolean;
+  ocr_amount_tolerance_bps?: number;
+  // Phase C extras
+  require_note_contains_reference?: boolean;
+  require_transaction_ref_match?: boolean;
+  require_recipient_name_match?: boolean;
+  recipient_name_token?: string | null;
 }
 
 export async function fetchInstapayCredentials(
@@ -512,6 +537,20 @@ export type PaymentProofStatus =
   | "rejected"
   | "expired";
 
+/** Phase C — backend stamps one of these into ``ocr_status`` so the
+ *  merchant review pane can render a specific message (GPU busy, auth
+ *  failure, etc.) instead of a flat "OCR didn't run". */
+export type OcrStatus =
+  | "ok"
+  | "skipped"
+  | "failed"
+  | "failed_gpu"
+  | "failed_timeout"
+  | "failed_auth"
+  | "failed_transport"
+  | "failed_parse"
+  | "failed_empty";
+
 export interface PaymentProof {
   id: string;
   order_id: string;
@@ -523,6 +562,16 @@ export interface PaymentProof {
   review_decision_at: string | null;
   signed_image_url: string;
   created_at: string;
+  // Phase C — populated when an OCR provider was configured for the
+  // store at submission time. Pre-Phase-C / Noop rows leave these
+  // null and the merchant pane hides the OCR section.
+  ocr_status?: OcrStatus | null;
+  ocr_provider?: string | null;
+  ocr_extracted_amount_cents?: number | null;
+  ocr_extracted_ipa?: string | null;
+  ocr_extracted_note?: string | null;
+  ocr_extracted_transaction_ref?: string | null;
+  ocr_extracted_recipient_name?: string | null;
 }
 
 export async function fetchPaymentProofs(
@@ -585,6 +634,34 @@ export async function fetchPendingInstapayOrders(
   const qs = q.toString();
   return apiClient<PendingInstapayPage>(
     `/stores/${storeId}/orders/pending-instapay-review${qs ? `?${qs}` : ""}`,
+  );
+}
+
+// ─── Similar payment proofs (Phase B reverse-image lookup) ────────────────
+
+/** One match returned by the per-store pHash neighbour scan. The
+ *  `hamming_distance` is the number of differing bits between this
+ *  proof's perceptual hash and the proof the merchant is reviewing
+ *  (lower = more similar; the dedup gate uses ≤ 5, the review panel
+ *  shows ≤ 8). */
+export interface SimilarProof {
+  proof_id: string;
+  order_id: string;
+  order_number: string;
+  status: PaymentProofStatus;
+  transaction_ref: string;
+  declared_amount_cents: number | null;
+  created_at: string;
+  signed_image_url: string;
+  hamming_distance: number;
+}
+
+export async function fetchSimilarPaymentProofs(
+  storeId: string,
+  proofId: string,
+): Promise<SimilarProof[]> {
+  return apiClient<SimilarProof[]>(
+    `/stores/${storeId}/payment-proofs/${proofId}/similar`,
   );
 }
 

@@ -156,6 +156,8 @@ export default {
     updateStatus: "Update Status",
     refunded: "Refunded",
     partially_refunded: "Partially Refunded",
+    returned: "Returned",
+    pending_deposit: "Pending Deposit",
   },
   refunds: {
     title: "Refunds",

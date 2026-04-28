@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -11,7 +11,7 @@ import { createStore, checkSubdomain } from "@/services/storeApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, CheckCircle2, XCircle, ArrowRight, Ticket } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
 import { getStoreDomainSuffix } from "@/lib/storefront";
 import { ApiError } from "@/lib/api-error";
 import { z } from "zod";
@@ -32,7 +32,6 @@ export default function CreateStore() {
 
   const [name, setName] = useState("");
   const [subdomain, setSubdomain] = useState("");
-  const [betaCode, setBetaCode] = useState("");
   const [subdomainStatus, setSubdomainStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
   const [subdomainMsg, setSubdomainMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -76,7 +75,7 @@ export default function CreateStore() {
     setError(null);
     setLoading(true);
     try {
-      await createStore({ name, subdomain, invite_code: betaCode || undefined });
+      await createStore({ name, subdomain });
       await refetchStores();
       navigate("/onboarding-wizard", { replace: true });
     } catch (err: unknown) {
@@ -158,28 +157,6 @@ export default function CreateStore() {
                 <p className={`text-xs ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>{subdomainMsg}</p>
               )}
               {fieldErrors.subdomain && <p className="text-xs text-destructive">{fieldErrors.subdomain}</p>}
-            </div>
-
-            {/* Beta invite code — always visible */}
-            <div className="space-y-2">
-              <Label className="text-[13px] font-medium flex items-center gap-1.5">
-                <Ticket className="h-3.5 w-3.5 text-amber-500" />
-                {isAr ? "كود الدعوة (بيتا)" : "Beta Invite Code"}
-              </Label>
-              <Input
-                value={betaCode}
-                onChange={(e) => setBetaCode(e.target.value.trim())}
-                placeholder={isAr ? "أدخل كود الدعوة" : "Enter your invite code"}
-                className={`${inputCls("invite_code")} font-mono tracking-widest`}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                {isAr ? "مطلوب للوصول الفوري للمنصة." : "Required for instant platform access."}
-                {" "}
-                <Link to="/waitlist" className="text-primary hover:underline">
-                  {isAr ? "ليس لديك كود؟ انضم لقائمة الانتظار" : "No code? Join the waitlist"}
-                </Link>
-              </p>
-              {fieldErrors.invite_code && <p className="text-xs text-destructive">{fieldErrors.invite_code}</p>}
             </div>
 
             {error && (

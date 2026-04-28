@@ -299,23 +299,23 @@ export default function OnboardingWizard() {
 
   const renderWelcome = () => (
     <div className="text-center space-y-6">
-      <div className="w-20 h-20 mx-auto rounded-2xl bg-primary/10 flex items-center justify-center">
-        <Sparkles className="h-10 w-10 text-primary" />
+      <div className="w-20 h-20 mx-auto rounded-[14px] bg-[var(--b-saffron)]/15 border border-[var(--b-saffron)]/40 flex items-center justify-center">
+        <Sparkles className="h-10 w-10 text-[var(--b-saffron)]" />
       </div>
       <div>
-        <h1 className="text-3xl font-bold">
+        <h1 className="brand-display text-3xl font-bold tracking-tight text-[var(--b-ink)] leading-tight">
           {isAr ? `أهلاً ${user?.first_name || ""}!` : `Welcome, ${user?.first_name || ""}!`}
         </h1>
-        <p className="text-lg text-muted-foreground mt-2">
+        <p className="text-lg text-[var(--b-ink-soft)] mt-2">
           {isAr ? "خلينا نجهز متجرك في دقائق" : "Let's get your store ready in minutes"}
         </p>
       </div>
       <div className="flex flex-col gap-3 max-w-xs mx-auto">
-        <Button size="lg" onClick={() => setStep(1)} className="gap-2">
+        <Button size="lg" onClick={() => setStep(1)} className="brand-btn-primary gap-2 rounded-[4px]">
           {isAr ? "يلا نبدأ" : "Let's go!"}
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="brand-btn-arrow h-4 w-4 rtl:rotate-180" />
         </Button>
-        <button type="button" className="text-sm text-muted-foreground hover:text-foreground transition-colors" onClick={handleSkip}>
+        <button type="button" className="text-sm text-[var(--b-ink-soft)] hover:text-[var(--b-navy)] transition-colors" onClick={handleSkip}>
           {isAr ? "تخطي الإعداد" : "Skip setup"}
         </button>
       </div>
@@ -632,18 +632,35 @@ export default function OnboardingWizard() {
   return (
     <div
       dir={isAr ? "rtl" : "ltr"}
-      className="min-h-screen auth-page auth-dot-grid relative flex flex-col items-center justify-center p-4 sm:p-6 lg:p-10"
+      className="min-h-screen auth-page auth-dot-grid brand-surface paper-grain relative flex flex-col items-center justify-center p-4 sm:p-6 lg:p-10"
     >
-      <div className="w-full max-w-[580px]">
-        {/* ── Header ── */}
-        <div className="text-center mb-4">
-          <span className="text-base font-black tracking-[0.18em] text-primary-foreground/70">
-            NUMU
-          </span>
+      <div className="w-full max-w-[580px] relative z-10">
+        {/* ── Brand header — real logo image + Reem Kufi wordmark + § eyebrow ── */}
+        <div className="flex flex-col items-center mb-5">
+          <div className="flex items-center gap-2.5 mb-2">
+            <img
+              src="/numu-mark.webp"
+              alt=""
+              className="h-9 w-auto object-contain"
+              width="36"
+              height="36"
+              fetchPriority="high"
+            />
+            {isAr ? (
+              <span className="auth-wordmark text-xl font-bold tracking-tight text-[var(--b-ink)]">
+                نُمُو
+              </span>
+            ) : (
+              <span className="auth-wordmark text-xl font-semibold tracking-tight text-[var(--b-ink)] lowercase">
+                numu
+              </span>
+            )}
+          </div>
+          <p className="auth-card-eyebrow">§ STORE SETUP</p>
         </div>
 
         {/* ── Card ── */}
-        <div className="auth-glass rounded-2xl p-7 sm:p-9 auth-enter">
+        <div className="auth-card auth-enter p-7 sm:p-9">
           {/* Progress bar + step indicator — only show after welcome */}
           {step > 0 && (
             <div className="mb-8">
@@ -654,14 +671,14 @@ export default function OnboardingWizard() {
                     <div key={s.key} className="flex items-center gap-1">
                       <div className={cn(
                         "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors",
-                        i + 1 < step ? "bg-foreground text-background" :
-                        i + 1 === step ? "bg-foreground/80 text-background" :
-                        "bg-muted text-muted-foreground"
+                        i + 1 < step ? "bg-[var(--b-sage)] text-[var(--b-cream)]" :
+                        i + 1 === step ? "bg-[var(--b-navy)] text-[var(--b-cream)]" :
+                        "bg-[var(--b-bone)] text-[var(--b-ink-soft)]"
                       )}>
                         {i + 1 < step ? <Check className="h-3 w-3" /> : i + 1}
                       </div>
                       {i < STEP_LABELS.length - 1 && (
-                        <div className={cn("w-3 h-px", i + 1 < step ? "bg-foreground/40" : "bg-muted")} />
+                        <div className={cn("w-3 h-px", i + 1 < step ? "bg-[var(--b-sage)]/60" : "bg-[var(--b-bone)]")} />
                       )}
                     </div>
                   ))}
@@ -669,7 +686,7 @@ export default function OnboardingWizard() {
                 <button
                   type="button"
                   onClick={handleSkip}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-1 text-xs text-[var(--b-ink-soft)] hover:text-[var(--b-navy)] transition-colors"
                 >
                   <SkipForward className="h-3 w-3" />
                   {isAr ? "تخطي" : "Skip"}
@@ -689,7 +706,7 @@ export default function OnboardingWizard() {
 
           {/* Error */}
           {error && (
-            <p className="mt-4 text-sm text-destructive bg-destructive/[0.04] border border-destructive/10 rounded-lg px-3 py-2.5">
+            <p className="mt-4 text-sm text-[var(--b-terracotta)] bg-[var(--b-terracotta)]/[0.08] border border-[var(--b-terracotta)]/30 rounded-[4px] px-3 py-2.5">
               {error}
             </p>
           )}
@@ -717,34 +734,34 @@ export default function OnboardingWizard() {
                   type="button"
                   variant="outline"
                   onClick={() => setStep(TOTAL_STEPS)}
-                  className="gap-2"
+                  className="gap-2 rounded-[4px] border-[var(--b-line)] text-[var(--b-ink)] hover:bg-[var(--b-cream)]"
                 >
                   {isAr ? "تخطي — أضيف بعدين" : "Skip — add later"}
-                  <ArrowLeft className="h-4 w-4" />
+                  <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
                 </Button>
               ) : (
                 <Button
                   type="button"
                   onClick={handleStepTransition}
                   disabled={!canAdvance() || loading}
-                  className="gap-2 min-w-[140px]"
+                  className="brand-btn-primary gap-2 min-w-[140px] rounded-[4px]"
                 >
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : step === TOTAL_STEPS ? (
                     <>
                       {isAr ? "ابدأ البيع" : "Start Selling"}
-                      <Check className="h-4 w-4" />
+                      <Check className="brand-btn-arrow h-4 w-4" />
                     </>
                   ) : step === 5 ? (
                     <>
                       {isAr ? "أضف المنتج" : "Add Product"}
-                      <Package className="h-4 w-4" />
+                      <Package className="brand-btn-arrow h-4 w-4" />
                     </>
                   ) : (
                     <>
                       {isAr ? "التالي" : "Next"}
-                      <ArrowLeft className="h-4 w-4" />
+                      <ArrowLeft className="brand-btn-arrow h-4 w-4 rtl:rotate-180" />
                     </>
                   )}
                 </Button>
@@ -753,8 +770,8 @@ export default function OnboardingWizard() {
           )}
         </div>
 
-        <p className="text-center text-[11px] text-primary-foreground/20 mt-6">
-          &copy; 2026 NUMU
+        <p className="text-center text-[11px] text-[var(--b-ink-soft)] mt-6">
+          &copy; 2026 {isAr ? "نُمُو" : "numu"}
         </p>
       </div>
     </div>

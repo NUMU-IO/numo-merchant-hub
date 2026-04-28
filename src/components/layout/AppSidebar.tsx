@@ -163,9 +163,13 @@ const AppSidebar = () => {
       <SidebarContent>
         {/* Brand */}
         <div className="flex h-14 items-center gap-2.5 px-4 group-data-[collapsible=icon]:justify-center border-b border-sidebar-border/40">
-          <img src="/numu-symbol-navy-transparent.webp" alt="NUMU" className="h-7 w-7 object-contain shrink-0" />
+          <img src="/numu-mark.webp" alt="" className="h-7 w-7 object-contain shrink-0" />
           <div className="group-data-[collapsible=icon]:hidden">
-            <span className="text-[14px] font-extrabold tracking-[0.08em]">NUMU</span>
+            {isRTL ? (
+              <span className="auth-wordmark text-lg font-bold tracking-tight">نُمُو</span>
+            ) : (
+              <span className="auth-wordmark text-lg font-semibold tracking-tight lowercase">numu</span>
+            )}
           </div>
         </div>
 

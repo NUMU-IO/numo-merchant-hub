@@ -12,7 +12,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { NumuLoadingScreen } from "@/components/NumuLoader";
 import { PageLoader } from "@/components/PageLoader";
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
+import { lazyWithRetry as lazy } from "@/lib/lazy-with-retry";
 
 // Lazy-loaded pages for code splitting
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
@@ -71,6 +72,7 @@ const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
 const WhatsAppInbox = lazy(() => import("@/pages/WhatsAppInbox"));
 const WhatsAppCampaigns = lazy(() => import("@/pages/WhatsAppCampaigns"));
 const AcceptInvitation = lazy(() => import("@/pages/AcceptInvitation"));
+const AcceptBetaInvite = lazy(() => import("@/pages/AcceptBetaInvite"));
 const Staff = lazy(() => import("@/pages/Staff"));
 const Roles = lazy(() => import("@/pages/Roles"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -146,6 +148,7 @@ const App = () => (
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/waitlist" element={<Waitlist />} />
+                  <Route path="/accept-invite" element={<AcceptBetaInvite />} />
                   <Route path="/token-handoff" element={<TokenHandoff />} />
                   <Route path="/staff/invite/accept" element={<AcceptInvitation />} />
 

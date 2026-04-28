@@ -156,6 +156,8 @@
     updateStatus: "حدّث الحالة",
     refunded: "مسترد",
     partially_refunded: "مسترد جزئياً",
+    returned: "مرتجع",
+    pending_deposit: "بانتظار الإيداع",
   },
   refunds: {
     title: "الاستردادات",
