@@ -116,6 +116,53 @@ const ocrToneClass: Record<"ok" | "warn" | "muted", string> = {
   muted: "border-border bg-muted/30 text-muted-foreground",
 };
 
+// Phase D — friendly bilingual copy per auto-approval block reason.
+// Keys must match the backend rule tags emitted in
+// ``auto_approval.py``. Unknown tags fall back to the raw string so
+// a new rule isn't invisible while a frontend deploy catches up.
+const blockReasonCopy: Record<string, { en: string; ar: string }> = {
+  intent_expired: {
+    en: "Payment window expired before the proof was submitted",
+    ar: "انتهت مهلة الدفع قبل إرسال الإثبات",
+  },
+  amount_above_auto_approve_threshold: {
+    en: "Order total is above your auto-approve threshold",
+    ar: "إجمالي الطلب أعلى من حد الموافقة التلقائية",
+  },
+  declared_amount_mismatch: {
+    en: "Customer-declared amount doesn't match the order total",
+    ar: "المبلغ الذي أدخله العميل لا يطابق إجمالي الطلب",
+  },
+  daily_auto_approve_count_exceeded: {
+    en: "Today's auto-approval count cap has been reached",
+    ar: "تم الوصول لحد عدد الموافقات التلقائية اليومي",
+  },
+  daily_auto_approve_amount_exceeded: {
+    en: "Today's auto-approval amount cap has been reached",
+    ar: "تم الوصول لحد مبلغ الموافقات التلقائية اليومي",
+  },
+  ocr_amount_mismatch: {
+    en: "Amount on the screenshot doesn't match the order total",
+    ar: "المبلغ في الصورة لا يطابق إجمالي الطلب",
+  },
+  ocr_ipa_mismatch: {
+    en: "Recipient IPA on the screenshot doesn't match yours",
+    ar: "حساب المستلم في الصورة لا يطابق حسابك",
+  },
+  ocr_note_missing_reference: {
+    en: "Customer didn't include your reference code in the bank-app note",
+    ar: "العميل لم يكتب رمز المرجع في خانة الملاحظات",
+  },
+  ocr_transaction_ref_mismatch: {
+    en: "Transaction reference the customer typed doesn't match the screenshot",
+    ar: "الرقم المرجعي الذي كتبه العميل لا يطابق ما في الصورة",
+  },
+  ocr_recipient_name_mismatch: {
+    en: "Recipient name on the screenshot doesn't match yours",
+    ar: "اسم المستلم في الصورة لا يطابق اسمك",
+  },
+};
+
 export const paymentProofsQueryKey = (storeId: string, orderId: string) =>
   ["paymentProofs", storeId, orderId] as const;
 
@@ -425,6 +472,31 @@ export default function InstapayProofReview({
                 ) : null}
               </div>
             )}
+          </div>
+        ) : null}
+
+        {/* ── Auto-approval block reasons (Phase D) ────────────────
+             Persisted at submission time; surfaces every rule the
+             engine tripped on the latest proof so the merchant can
+             see exactly what to verify before approving manually.
+             Hidden when the array is empty / null (approved proofs
+             and pre-Phase-D rows). */}
+        {latest.auto_approval_block_reasons &&
+        latest.auto_approval_block_reasons.length > 0 ? (
+          <div className="rounded-md border border-amber-300 bg-amber-50/60 p-3 space-y-1.5 text-[11px] text-amber-900">
+            <div className="flex items-center gap-2 font-semibold">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              {isAr
+                ? "لم تتم الموافقة التلقائية"
+                : "Auto-approval was blocked"}
+            </div>
+            <ul className="list-disc ms-4 space-y-0.5">
+              {latest.auto_approval_block_reasons.map((r) => {
+                const copy = blockReasonCopy[r];
+                const text = copy ? (isAr ? copy.ar : copy.en) : r;
+                return <li key={r}>{text}</li>;
+              })}
+            </ul>
           </div>
         ) : null}
 

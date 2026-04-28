@@ -574,6 +574,10 @@ export interface PaymentProof {
   ocr_extracted_note?: string | null;
   ocr_extracted_transaction_ref?: string | null;
   ocr_extracted_recipient_name?: string | null;
+  // Phase D — rule-engine tags captured at submission. Empty / null
+  // for auto-approved proofs. Strings (not a closed enum) so backend
+  // can grow new rules without forcing a frontend deploy.
+  auto_approval_block_reasons?: string[] | null;
 }
 
 export async function fetchPaymentProofs(
