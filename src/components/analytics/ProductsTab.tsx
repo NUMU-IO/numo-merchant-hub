@@ -13,7 +13,9 @@ import {
 } from "recharts";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { getProductPerformance } from "@/services/analyticsApi";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAnalyticsContext } from "./AnalyticsLayout";
+import { downloadCsv } from "@/lib/csvDownload";
 
 interface ProductsTabProps {
   period: number;
@@ -72,9 +74,37 @@ export function ProductsTab({ period, formatCurrency }: ProductsTabProps) {
     queryFn: () => getProductPerformance(storeId!, period, sortBy),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
+    // 3 SQL aggregations + a catalog fetch — not free. The data lags by
+    // a few minutes anyway given the rollup pipeline.
+    staleTime: 5 * 60 * 1000,
   });
 
   const data = perfQuery.data ?? null;
+
+  // Wire CSV export. Registers a callback the AnalyticsLayout's
+  // download button calls. Null while loading so the button hides.
+  const { registerExport } = useAnalyticsContext();
+  useEffect(() => {
+    if (!data) {
+      registerExport(null);
+      return;
+    }
+    registerExport(() => {
+      downloadCsv(
+        `products-${new Date().toISOString().slice(0, 10)}`,
+        ["Product", "SKU", "Revenue (cents)", "Units sold", "In stock", "Profit (cents)"],
+        data.products.map((p) => [
+          p.name,
+          p.sku ?? "",
+          p.revenue,
+          p.quantity_sold,
+          p.current_stock,
+          p.profit ?? "",
+        ]),
+      );
+    });
+    return () => registerExport(null);
+  }, [data, registerExport]);
 
   const inventoryData = data
     ? [

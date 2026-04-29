@@ -1,19 +1,29 @@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
-import { useState, createContext, useContext } from "react";
+import { Download, RefreshCw } from "lucide-react";
+import { createContext, useCallback, useContext, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 
 type Period = 7 | 30 | 90;
+
+const VALID_PERIODS: readonly Period[] = [7, 30, 90] as const;
+
+/** Pages register a callback so the layout's Export button knows what
+ *  CSV to build. Returning `null` from the callback disables the
+ *  button (e.g. while data is still loading). */
+type ExportHandler = () => void | Promise<void> | null;
 
 interface AnalyticsContextValue {
   period: Period;
   formatCurrency: (cents: number) => string;
+  registerExport: (handler: ExportHandler | null) => void;
 }
 
 const AnalyticsContext = createContext<AnalyticsContextValue>({
   period: 30,
   formatCurrency: () => "",
+  registerExport: () => {},
 });
 
 export const useAnalyticsContext = () => useContext(AnalyticsContext);
@@ -35,13 +45,41 @@ export function AnalyticsLayout({
   const isAr = language === "ar";
   const queryClient = useQueryClient();
 
-  const [period, setPeriod] = useState<Period>(30);
+  // Period lives in the URL so it survives back/forward navigation,
+  // deep links, and tab switches between analytics pages.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawPeriod = Number(searchParams.get("period"));
+  const period: Period = (
+    VALID_PERIODS.includes(rawPeriod as Period) ? rawPeriod : 30
+  ) as Period;
+  const setPeriod = (next: Period) => {
+    const params = new URLSearchParams(searchParams);
+    if (next === 30) {
+      params.delete("period");
+    } else {
+      params.set("period", String(next));
+    }
+    setSearchParams(params, { replace: true });
+  };
+
   const [isRefetching, setIsRefetching] = useState(false);
+  const exportHandlerRef = useRef<ExportHandler | null>(null);
+  const [hasExport, setHasExport] = useState(false);
+
+  const registerExport = useCallback((handler: ExportHandler | null) => {
+    exportHandlerRef.current = handler;
+    setHasExport(handler !== null);
+  }, []);
 
   const handleRefresh = async () => {
     setIsRefetching(true);
     await queryClient.invalidateQueries({ queryKey: ["analytics"] });
     setIsRefetching(false);
+  };
+
+  const handleExport = async () => {
+    const fn = exportHandlerRef.current;
+    if (fn) await fn();
   };
 
   const formatCurrency = (cents: number) => {
@@ -56,7 +94,7 @@ export function AnalyticsLayout({
   };
 
   return (
-    <AnalyticsContext.Provider value={{ period, formatCurrency }}>
+    <AnalyticsContext.Provider value={{ period, formatCurrency, registerExport }}>
       <div className="space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -83,6 +121,17 @@ export function AnalyticsLayout({
                   </Button>
                 ))}
               </div>
+            )}
+            {hasExport && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-lg"
+                onClick={handleExport}
+                title={isAr ? "تصدير CSV" : "Export CSV"}
+              >
+                <Download className="h-3.5 w-3.5" />
+              </Button>
             )}
             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={handleRefresh} disabled={isRefetching}>
               <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`} />

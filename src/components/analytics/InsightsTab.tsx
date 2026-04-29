@@ -67,7 +67,7 @@ export function InsightsTab({ formatCurrency }: InsightsTabProps) {
     queryFn: () => getInsights(storeId!, isAr ? "ar" : "en"),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
-    staleTime: 10 * 60 * 1000, // 10 min — insights don't change frequently
+    staleTime: 60 * 60 * 1000, // 1 hour — LLM-generated, server regenerates daily
   });
 
   const data = insightsQuery.data ?? null;
@@ -81,6 +81,39 @@ export function InsightsTab({ formatCurrency }: InsightsTabProps) {
   const criticalCount = sortedSignals.filter((s) => s.severity === "critical").length;
   const warningCount = sortedSignals.filter((s) => s.severity === "warning").length;
   const successCount = sortedSignals.filter((s) => s.severity === "success").length;
+
+  // Loading + error fallbacks. Insights are LLM-backed; if generation
+  // times out (server caps at 20s) the rule-based signals still come
+  // through, but a hard error means we render nothing — surface that
+  // explicitly so the page doesn't look broken.
+  if (insightsQuery.isLoading && !data) {
+    return (
+      <div className="rounded-lg border border-border/60 p-8 text-center text-sm text-muted-foreground">
+        {isAr ? "جاري إعداد التحليل..." : "Generating insights..."}
+      </div>
+    );
+  }
+  if (insightsQuery.isError && !data) {
+    return (
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.04] p-6 text-center">
+        <p className="text-sm font-medium mb-2">
+          {isAr ? "تعذّر تحميل التحليل" : "Insights unavailable"}
+        </p>
+        <p className="text-[12px] text-muted-foreground mb-3">
+          {isAr
+            ? "نعتذر، حدث خطأ أثناء توليد التحليل. حاول مرة أخرى."
+            : "We couldn't load the AI analysis right now. Try again."}
+        </p>
+        <button
+          type="button"
+          onClick={() => insightsQuery.refetch()}
+          className="text-[12px] font-semibold text-violet-600 hover:underline"
+        >
+          {isAr ? "إعادة المحاولة" : "Retry"}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

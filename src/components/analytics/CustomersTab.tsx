@@ -40,6 +40,9 @@ export function CustomersTab({ period, formatCurrency }: CustomersTabProps) {
     queryFn: () => getCustomerSegments(storeId!, period),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
+    // RFM + cohort + CLV is expensive (multi-CTE SQL). Cohort
+    // membership doesn't move minute-to-minute; 5 min is plenty.
+    staleTime: 5 * 60 * 1000,
   });
 
   const data = segmentsQuery.data ?? null;

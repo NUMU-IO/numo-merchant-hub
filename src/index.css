@@ -7,6 +7,17 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* recharts axis labels, ticks, and tooltips don't auto-flip with the
+   document direction. Force the chart canvas to render LTR even in
+   AR mode — matches industry convention (Shopify, Stripe, Salla all
+   keep charts LTR regardless of UI direction). Cards and surrounding
+   text still flip via the parent dir="rtl". */
+[dir="rtl"] .recharts-wrapper,
+[dir="rtl"] .recharts-surface,
+[dir="rtl"] .recharts-tooltip-wrapper {
+  direction: ltr;
+}
+
 /* NUMU Design System — Modern SaaS Dashboard
    Inspired by Stripe, Linear, Vercel.
    All colors in HSL. */

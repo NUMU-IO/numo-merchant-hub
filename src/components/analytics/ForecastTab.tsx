@@ -32,7 +32,7 @@ export function ForecastTab({ formatCurrency }: ForecastTabProps) {
     queryFn: () => getForecast(storeId!, horizon),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
-    staleTime: 30 * 60 * 1000, // 30 min cache
+    staleTime: 6 * 60 * 60 * 1000, // 6 h — underlying daily rollup updates once a day
   });
 
   const data = forecastQuery.data ?? null;
