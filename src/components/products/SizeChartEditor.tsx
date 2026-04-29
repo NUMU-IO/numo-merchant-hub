@@ -6,7 +6,7 @@
  *     enabled: boolean,
  *     column_headers: string[],   // measurement columns; "Size" is implicit first
  *     rows: [{ size: string, values: string[] }],
- *     unit?: "cm" | "in",
+ *     unit?: "cm" | "in" | "kg",
  *     notes?: string,
  *     image_url?: string,
  *   }
@@ -44,7 +44,7 @@ export interface SizeChart {
   mode: SizeChartMode;
   column_headers: string[];
   rows: Array<{ size: string; values: string[] }>;
-  unit: "cm" | "in";
+  unit: "cm" | "in" | "kg";
   notes: string;
   image_url: string;
 }
@@ -143,7 +143,7 @@ function coerceChart(raw: unknown): SizeChart {
       ? (r.column_headers.filter((c) => typeof c === "string") as string[])
       : [],
     rows,
-    unit: r.unit === "in" ? "in" : "cm",
+    unit: r.unit === "in" ? "in" : r.unit === "kg" ? "kg" : "cm",
     notes: typeof r.notes === "string" ? r.notes : "",
     image_url: typeof r.image_url === "string" ? r.image_url : "",
   };
@@ -394,11 +394,12 @@ export function SizeChartEditor({
             </Button>
             <div className="ms-auto flex items-center gap-2">
               <Label className="text-[11px] text-muted-foreground">{isAr ? "الوحدة" : "Unit"}</Label>
-              <Select value={value.unit} onValueChange={(u) => set({ unit: u as "cm" | "in" })}>
+              <Select value={value.unit} onValueChange={(u) => set({ unit: u as "cm" | "in" | "kg" })}>
                 <SelectTrigger className="h-8 w-[80px] text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cm">cm</SelectItem>
                   <SelectItem value="in">in</SelectItem>
+                  <SelectItem value="kg">kg</SelectItem>
                 </SelectContent>
               </Select>
             </div>

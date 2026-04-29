@@ -29,10 +29,9 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { getDashboardStats } from "@/services/analyticsApi";
 import { getStoreUrl } from "@/lib/storefront";
 import { SearchPalette } from "@/components/layout/SearchPalette";
+import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
 
 const AppHeader = () => {
   const { t } = useTranslation();
@@ -46,17 +45,14 @@ const AppHeader = () => {
   );
   const [searchOpen, setSearchOpen] = useState(false);
 
-  // Pending orders count for notification badge
-  const statsQuery = useQuery({
-    queryKey: ["header-stats", storeId],
-    queryFn: () => getDashboardStats(storeId!, 7),
-    enabled: !!storeId,
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-  });
-  const pendingCount =
-    (statsQuery.data?.pending_orders ?? 0) +
-    (statsQuery.data?.processing_orders ?? 0);
+  // Bell-badge count = unread notifications, computed from the SAME data
+  // the Notifications page renders (recent orders + the localStorage
+  // read-id set). Previously this was `pending_orders + processing_orders`
+  // from the dashboard-stats query — a totally different metric, which is
+  // why marking a notification as read on the page did nothing for the
+  // badge. The shared hook listens for mark-as-read events so the badge
+  // updates the moment the user taps a notification.
+  const unreadCount = useUnreadNotificationCount(storeId);
 
   const toggleDark = () => {
     const next = !isDark;
@@ -237,9 +233,9 @@ const AppHeader = () => {
             onClick={() => navigate("/notifications")}
           >
             <Bell className="h-3.5 w-3.5" />
-            {pendingCount > 0 && (
+            {unreadCount > 0 && (
               <span className="absolute -top-0.5 -end-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground px-1">
-                {pendingCount > 9 ? "9+" : pendingCount}
+                {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
           </Button>
