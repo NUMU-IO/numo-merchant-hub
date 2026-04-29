@@ -396,9 +396,23 @@ const SocialImport = () => {
                           <p className="mt-0.5 font-medium">
                             {r.name}
                             {r.images ? (
-                              <span className="ms-2 text-xs opacity-60">
-                                <ImageIcon className="h-3 w-3 inline me-0.5" />
-                                {r.images} {language === "ar" ? "صور" : "images"}
+                              <span className="ms-2 text-xs opacity-60 inline-flex items-center gap-0.5">
+                                <ImageIcon className="h-3 w-3" />
+                                {/* Arabic singular: "صورة" not "صور";
+                                    English: "image" not "images". Anything
+                                    past 1 stays as the simple plural form
+                                    in both — Arabic dual ("صورتان") is
+                                    overkill for a count-of-photos label. */}
+                                <span dir="ltr">{r.images}</span>
+                                <span>
+                                  {language === "ar"
+                                    ? r.images === 1
+                                      ? "صورة"
+                                      : "صور"
+                                    : r.images === 1
+                                      ? "image"
+                                      : "images"}
+                                </span>
                               </span>
                             ) : null}
                           </p>
