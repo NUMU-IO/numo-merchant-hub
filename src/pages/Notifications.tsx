@@ -12,6 +12,10 @@ import {
   CreditCard, Info, Settings2, Loader2,
 } from "lucide-react";
 import { listOrders, type OrderListItem } from "@/services/orderApi";
+import {
+  loadReadNotificationIds,
+  saveReadNotificationIds,
+} from "@/hooks/useUnreadNotifications";
 
 interface Notification {
   id: string;
@@ -84,12 +88,9 @@ export default function Notifications() {
 
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [readIds, setReadIds] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem("numu-read-notifications");
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch { return new Set(); }
-  });
+  const [readIds, setReadIds] = useState<Set<string>>(() =>
+    loadReadNotificationIds(),
+  );
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [tab, setTab] = useState<"notifications" | "preferences">("notifications");
 
@@ -127,7 +128,11 @@ export default function Notifications() {
 
   const persistReadIds = (ids: Set<string>) => {
     setReadIds(ids);
-    try { localStorage.setItem("numu-read-notifications", JSON.stringify([...ids])); } catch { /* ignore */ }
+    // Goes through the shared helper so the header bell's
+    // useUnreadNotificationCount hook receives the custom event and
+    // re-reads localStorage in the same tick — that's what closes the
+    // gap where the page showed "read" but the badge stayed lit.
+    saveReadNotificationIds(ids);
   };
 
   const markAllRead = () => {
