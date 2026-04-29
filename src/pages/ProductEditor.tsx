@@ -1020,7 +1020,7 @@ const ProductEditor = () => {
             {/* Image area */}
             <div className="aspect-[4/3] bg-muted/20 relative overflow-hidden">
               {previewImage ? (
-                <img src={previewImage} alt="" className="h-full w-full object-cover transition-all duration-300" />
+                <img src={previewImage} alt="" className="h-full w-full object-contain transition-all duration-300" />
               ) : (
                 <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-muted-foreground/20">
                   <ImagePlus className="h-12 w-12" />
