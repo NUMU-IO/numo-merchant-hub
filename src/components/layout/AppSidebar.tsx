@@ -49,6 +49,7 @@ const AppSidebar = () => {
   // Analytics sub-items
   const analyticsSubItems = [
     { title: isRTL ? "نظرة عامة" : "Overview", url: "/analytics/overview", icon: BarChart3 },
+    { title: isRTL ? "التقارير" : "Reports", url: "/analytics/reports", icon: FileText },
     { title: isRTL ? "المبيعات" : "Sales", url: "/analytics/sales", icon: CreditCard },
     { title: isRTL ? "الطلبات" : "Orders", url: "/analytics/orders", icon: ShoppingCart },
     { title: isRTL ? "العملاء" : "Customers", url: "/analytics/customers", icon: Users },

@@ -50,6 +50,7 @@ const AnalyticsLive = lazy(() => import("@/pages/analytics/LivePage"));
 const AnalyticsInsights = lazy(() => import("@/pages/analytics/InsightsPage"));
 const AnalyticsForecast = lazy(() => import("@/pages/analytics/ForecastPage"));
 const AnalyticsJourney = lazy(() => import("@/pages/analytics/JourneyPage"));
+const AnalyticsReports = lazy(() => import("@/pages/analytics/ReportsPage"));
 const HealthScore = lazy(() => import("@/pages/HealthScore"));
 const Marketing = lazy(() => import("@/pages/Marketing"));
 const Categories = lazy(() => import("@/pages/Categories"));
@@ -240,6 +241,7 @@ const App = () => (
                     <Route path="/analytics/insights" element={<AnalyticsInsights />} />
                     <Route path="/analytics/forecast" element={<AnalyticsForecast />} />
                     <Route path="/analytics/journey" element={<AnalyticsJourney />} />
+                    <Route path="/analytics/reports" element={<AnalyticsReports />} />
                     <Route path="/health-score" element={<HealthScore />} />
                     <Route path="/marketing" element={<Marketing />} />
                     <Route path="/email-templates" element={<EmailTemplates />} />
