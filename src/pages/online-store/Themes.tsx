@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useTrialPaywall } from "@/contexts/TrialPaywallContext";
+import { canUnlockTheme, type Tier } from "@/lib/themePlan";
+import { LockedThemeBadge } from "./LockedThemeBadge";
+import { UpgradeCTAButton } from "./UpgradeCTAButton";
+import { ThemePreviewModal } from "./ThemePreviewModal";
 import {
   fetchThemes,
   fetchCustomization,
@@ -48,6 +53,7 @@ import { getStoreUrl } from "@/lib/storefront";
 import {
   Pencil, MoreHorizontal, ExternalLink, Eye, Copy, Sparkles,
   CheckCircle2, Clock, Loader2, ArrowUpRight, Layers, Github, Trash2, RefreshCw, ShieldCheck,
+  Search, Palette, Lock,
 } from "lucide-react";
 
 // ─── Theme visual palettes ───────────────────────────────────────────────────
@@ -85,64 +91,59 @@ const LAYOUT_LABELS: Record<string, { en: string; ar: string }> = {
   "saw-saw":         { en: "Saw Saw",        ar: "ساو ساو"        },
 };
 
-// ─── Mini theme preview SVG ───────────────────────────────────────────────────
-function ThemePreviewSVG({ themeId, palette }: { themeId: string; palette: typeof THEME_PALETTES[string] }) {
-  const isBrut = themeId === "neo-brutalism";
-  const isElegant = themeId === "elegant";
+// ─── Theme preview image ──────────────────────────────────────────────────────
+// Falls back to the palette gradient when the screenshot isn't deployed yet
+// for this slug — keeps the layout intact so cards never look broken.
+function ThemePreviewImage({
+  theme,
+  palette,
+  className,
+}: {
+  theme: AvailableTheme;
+  palette: typeof THEME_PALETTES[string];
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const src = theme.preview_image_url || `/themes/${theme.id}/preview.png`;
+  if (failed || !src) {
+    return (
+      <div
+        className={`w-full h-full ${className ?? ""}`}
+        style={{
+          background: `linear-gradient(135deg, ${palette.bg}, ${palette.accent}33)`,
+        }}
+      />
+    );
+  }
   return (
-    <svg viewBox="0 0 240 140" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      {/* Background */}
-      <rect width="240" height="140" fill={palette.bg} />
-      {/* Header bar */}
-      <rect width="240" height={isElegant ? 22 : 20} fill={isElegant ? palette.card : palette.accent} opacity={isElegant ? 1 : 0.92} />
-      {/* Logo dot */}
-      <circle cx={isBrut ? 14 : 16} cy={10} r={isBrut ? 5 : 4} fill={isElegant ? palette.accent : palette.card} opacity="0.9" />
-      {/* Nav links */}
-      {[50, 75, 100].map((x, i) => (
-        <rect key={i} x={x} y={8} width={isBrut ? 16 : 14} height={isBrut ? 4 : 3} rx={isBrut ? 0 : 1.5}
-          fill={isElegant ? palette.accent : palette.card} opacity={i === 0 ? 0.9 : 0.55} />
-      ))}
-      {/* Hero area */}
-      <rect x="0" y={isElegant ? 22 : 20} width="240" height={isElegant ? 50 : 46}
-        fill={isElegant ? "#16202e" : isBrut ? palette.accent : palette.card}
-        stroke={isBrut ? palette.text : "none"} strokeWidth={isBrut ? 2 : 0} />
-      <rect x={isBrut ? 14 : 20} y={isElegant ? 32 : 30} width={isBrut ? 80 : 70} height={isBrut ? 6 : 5}
-        rx={isBrut ? 0 : 2} fill={isElegant ? palette.accent : isBrut ? palette.text : palette.accent} opacity="0.85" />
-      <rect x={isBrut ? 14 : 20} y={isElegant ? 42 : 40} width={isBrut ? 55 : 50} height={isBrut ? 4 : 3}
-        rx={isBrut ? 0 : 1.5} fill={isElegant ? palette.text : palette.text} opacity="0.35" />
-      <rect x={isBrut ? 14 : 20} y={isElegant ? 52 : 50} width={isBrut ? 40 : 36} height={isBrut ? 10 : 9}
-        rx={isBrut ? 0 : 3} fill={isBrut ? palette.text : palette.accent} />
-      {/* Product grid */}
-      {[0, 1, 2, 3].map((i) => {
-        const col = i % 4;
-        const x = 14 + col * 56;
-        const y = isElegant ? 80 : 76;
-        return (
-          <g key={i}>
-            <rect x={x} y={y} width="48" height="40" rx={isBrut ? 0 : 4}
-              fill={palette.card} stroke={isBrut ? palette.text : palette.bg}
-              strokeWidth={isBrut ? 2 : 1} />
-            <rect x={x + 4} y={y + 4} width="40" height="22" rx={isBrut ? 0 : 2}
-              fill={palette.accent} opacity="0.18" />
-            <rect x={x + 4} y={y + 30} width="28" height="3" rx={1}
-              fill={palette.text} opacity="0.4" />
-            <rect x={x + 4} y={y + 35} width="18" height="2.5" rx={1}
-              fill={palette.accent} opacity="0.7" />
-          </g>
-        );
-      })}
-    </svg>
+    <img
+      src={src}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      className={`absolute inset-0 w-full h-full object-cover ${className ?? ""}`}
+      onError={() => setFailed(true)}
+    />
   );
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function OnlineStoreThemes() {
   const { isRTL } = useLanguage();
+  const { tenant } = useAuth();
   const { currentStore } = useDashboardStore();
   const { requireTrial } = useTrialPaywall();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [switchTarget, setSwitchTarget] = useState<AvailableTheme | null>(null);
+  // Live-preview modal target. ``null`` while closed; setting a theme opens
+  // the fullscreen iframe (or the screenshot fallback if no demo is deployed).
+  const [previewTheme, setPreviewTheme] = useState<AvailableTheme | null>(null);
+  // Library toolbar — search by name, filter by required-plan tier.
+  const [searchQuery, setSearchQuery] = useState("");
+  const [tierFilter, setTierFilter] = useState<"all" | Tier>("all");
+
+  const merchantPlan = tenant?.plan;
 
   // ─── External theme (BYOT) state ─────────────────────────────────────
   const [submitOpen, setSubmitOpen] = useState(false);
@@ -332,87 +333,232 @@ export default function OnlineStoreThemes() {
 
   const activeThemeId = customization?.theme?.base_theme ?? themes[0]?.id;
   const activeTheme = themes.find((t) => t.id === activeThemeId) ?? themes[0];
-  const libraryThemes = themes.filter((t) => t.id !== activeThemeId);
+  const libraryThemes = themes
+    .filter((t) => t.id !== activeThemeId)
+    .sort((a, b) => (a.display_order ?? 100) - (b.display_order ?? 100));
   const isLoading = themesLoading || custLoading;
   const isExternalActive = externalThemeFromStore?.id === activeThemeId;
 
+  // Apply toolbar filters. Search runs against both EN and AR names so the
+  // input works regardless of the merchant's locale.
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredLibrary = libraryThemes.filter((t) => {
+    const matchesQuery =
+      !normalizedQuery ||
+      t.name.toLowerCase().includes(normalizedQuery) ||
+      t.nameAr.toLowerCase().includes(normalizedQuery);
+    const tier = (t.required_plan ?? "free") as Tier;
+    const matchesTier = tierFilter === "all" || tier === tierFilter;
+    return matchesQuery && matchesTier;
+  });
+
+  const tierFilters: { value: "all" | Tier; labelEn: string; labelAr: string }[] = [
+    { value: "all",        labelEn: "All",        labelAr: "الكل" },
+    { value: "free",       labelEn: "Free",       labelAr: "مجاني" },
+    { value: "starter",    labelEn: "Starter",    labelAr: "ستارتر" },
+    { value: "pro",        labelEn: "Pro",        labelAr: "برو" },
+    { value: "enterprise", labelEn: "Enterprise", labelAr: "إنتربرايز" },
+  ];
+
   return (
-    <div className="space-y-8 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+    <div className="space-y-10 max-w-6xl mx-auto pb-12">
+      {/* ─── Page header ─────────────────────────────────────────────── */}
+      <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">{isRTL ? "الثيمات" : "Themes"}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isRTL ? "إدارة مظهر متجرك الإلكتروني" : "Manage the look and feel of your online store"}
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 mb-2 flex items-center gap-2">
+            <Palette className="h-3 w-3" />
+            {isRTL ? "متجرك الإلكتروني" : "Online store"}
+          </p>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+            {isRTL ? "الثيمات" : "Themes"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
+            {isRTL
+              ? "اختر مظهر متجرك. عاين أي ثيم بشكل مباشر قبل تفعيله، وخصّص الألوان والخطوط والقسمات لتطابق هويتك."
+              : "Pick how your storefront looks. Preview any theme live before activating, then customize colors, fonts, and sections to match your brand."}
           </p>
         </div>
         {storeUrl && (
-          <Button variant="outline" size="sm" onClick={() => window.open(storeUrl, "_blank")}>
-            <Eye className="h-3.5 w-3.5 me-1.5" />
-            {isRTL ? "عرض المتجر" : "View store"}
-            <ArrowUpRight className="h-3 w-3 ms-1 opacity-50" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => window.open(storeUrl, "_blank")}
+          >
+            <Eye className="h-3.5 w-3.5" />
+            {isRTL ? "عرض المتجر" : "View live store"}
+            <ArrowUpRight className="h-3 w-3 opacity-50" />
           </Button>
         )}
       </div>
 
-      {/* Current theme */}
-      <section className="space-y-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">
-          {isRTL ? "الثيم النشط" : "Active theme"}
-        </p>
+      {/* ─── Active theme hero ───────────────────────────────────────── */}
+      <section>
         {isLoading ? (
-          <Skeleton className="h-48 w-full rounded-2xl" />
+          <Skeleton className="h-72 sm:h-80 w-full rounded-3xl" />
         ) : activeTheme ? (
-          <ActiveThemeCard
+          <ActiveThemeHero
             theme={activeTheme}
             customization={customization}
             isRTL={isRTL}
             onCustomize={() => navigate("/online-store/themes/editor")}
-            onPreview={() => storeUrl && window.open(storeUrl, "_blank")}
+            onPreview={() => setPreviewTheme(activeTheme)}
           />
         ) : (
-          <div className="rounded-2xl border-2 border-dashed p-12 text-center">
-            <Layers className="mx-auto h-8 w-8 text-muted-foreground/25 mb-3" />
-            <p className="text-sm text-muted-foreground">{isRTL ? "لا يوجد ثيم نشط" : "No active theme"}</p>
+          <div className="rounded-3xl border-2 border-dashed p-16 text-center">
+            <Layers className="mx-auto h-10 w-10 text-muted-foreground/25 mb-3" />
+            <p className="text-sm text-muted-foreground">
+              {isRTL ? "لا يوجد ثيم نشط" : "No active theme"}
+            </p>
           </div>
         )}
       </section>
 
-      {/* Theme library */}
+      {/* ─── Library: heading + toolbar + grid ───────────────────────── */}
       {(isLoading || libraryThemes.length > 0) && (
-        <section className="space-y-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">
-            {isRTL ? "مكتبة الثيمات" : "Theme library"}
-          </p>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {isLoading
-              ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-2xl" />)
-              : libraryThemes.map((theme) => (
+        <section className="space-y-5">
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">
+                {isRTL ? "تصفّح الثيمات" : "Browse themes"}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isRTL
+                  ? `${libraryThemes.length} ثيم متاح`
+                  : `${libraryThemes.length} themes available`}
+              </p>
+            </div>
+            {filteredLibrary.length !== libraryThemes.length ? (
+              <p className="text-xs text-muted-foreground">
+                {isRTL
+                  ? `يعرض ${filteredLibrary.length} من ${libraryThemes.length}`
+                  : `Showing ${filteredLibrary.length} of ${libraryThemes.length}`}
+              </p>
+            ) : null}
+          </div>
+
+          {/* Toolbar — search + tier chips */}
+          <div className="rounded-2xl border bg-muted/30 p-3 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="relative flex-1 min-w-0">
+              <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none ${isRTL ? "right-3" : "left-3"}`} />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={isRTL ? "ابحث عن ثيم…" : "Search themes…"}
+                className={`bg-background h-9 ${isRTL ? "pr-9" : "pl-9"}`}
+              />
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {tierFilters.map((f) => {
+                const isActive = tierFilter === f.value;
+                return (
+                  <button
+                    key={f.value}
+                    type="button"
+                    onClick={() => setTierFilter(f.value)}
+                    className={`h-8 px-3 rounded-full text-xs font-medium transition-colors ${
+                      isActive
+                        ? "bg-foreground text-background"
+                        : "bg-background border border-border/60 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {isRTL ? f.labelAr : f.labelEn}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Grid */}
+          {isLoading ? (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="aspect-[4/3] rounded-2xl" />
+              ))}
+            </div>
+          ) : filteredLibrary.length === 0 ? (
+            <div className="rounded-2xl border-2 border-dashed p-12 text-center">
+              <Search className="mx-auto h-8 w-8 text-muted-foreground/25 mb-3" />
+              <p className="text-sm font-medium">
+                {isRTL ? "لا توجد ثيمات مطابقة" : "No themes match your filters"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isRTL
+                  ? "جرّب تعديل البحث أو إزالة المرشحات"
+                  : "Try a different search term or clear the filters"}
+              </p>
+              {(searchQuery || tierFilter !== "all") ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setTierFilter("all");
+                  }}
+                >
+                  {isRTL ? "مسح المرشحات" : "Clear filters"}
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredLibrary.map((theme) => {
+                const requiredPlan = theme.required_plan as Tier | undefined;
+                const locked = !canUnlockTheme(merchantPlan, requiredPlan);
+                return (
                   <LibraryThemeCard
                     key={theme.id}
                     theme={theme}
                     isRTL={isRTL}
                     isSwitching={switchMutation.isPending && switchTarget?.id === theme.id}
+                    locked={locked}
+                    requiredPlan={requiredPlan}
                     onActivate={() => setSwitchTarget(theme)}
                     onCustomize={() => navigate(`/online-store/themes/editor?theme=${theme.id}`)}
+                    onPreview={() => setPreviewTheme(theme)}
                   />
-                ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </section>
       )}
 
-      {/* External theme (BYOT) section */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">
-            {isRTL ? "الثيمات المخصصة (BYOT)" : "Custom themes (BYOT)"}
-          </p>
+      {/* External theme (BYOT) section — quieter footer treatment, separated
+          by a divider from the main library so it reads as "advanced" and
+          doesn't compete with the curated themes above. Auto-expanded when
+          an external theme is installed (so the merchant can manage it),
+          collapsed by default otherwise (most merchants never need this). */}
+      <details
+        className="group/byot pt-2 border-t border-border/60"
+        open={!!externalThemeFromStore}
+      >
+        <summary className="cursor-pointer list-none py-4 flex items-center justify-between gap-4 group-open/byot:mb-2">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-transform group-open/byot:rotate-180">
+              <ArrowUpRight className="h-4 w-4 -rotate-45" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">
+                {isRTL ? "الثيمات المخصصة (BYOT)" : "Custom themes (BYOT)"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {isRTL
+                  ? "اربط مستودع GitHub أو خادم تطوير محلي لتشغيل ثيم خاص بك"
+                  : "Connect a GitHub repo or local dev server to run a custom theme"}
+              </p>
+            </div>
+          </div>
           {externalThemeFromStore && (
             <Button
               variant="ghost"
               size="sm"
               className="h-7 text-xs text-destructive hover:text-destructive"
-              onClick={() => removeExternalMutation.mutate()}
+              onClick={(e) => {
+                e.preventDefault();
+                removeExternalMutation.mutate();
+              }}
               disabled={removeExternalMutation.isPending}
             >
               {removeExternalMutation.isPending ? (
@@ -420,10 +566,11 @@ export default function OnlineStoreThemes() {
               ) : (
                 <Trash2 className="h-3 w-3 me-1.5" />
               )}
-              {isRTL ? "إزالة الثيم الخارجي" : "Remove external theme"}
+              {isRTL ? "إزالة" : "Remove"}
             </Button>
           )}
-        </div>
+        </summary>
+        <div className="space-y-3 pb-2">
 
         {externalThemeFromStore ? (
           <div className="relative overflow-hidden rounded-2xl border bg-card p-5">
@@ -550,7 +697,8 @@ export default function OnlineStoreThemes() {
             </div>
           </div>
         )}
-      </section>
+        </div>
+      </details>
 
       {/* Switch confirmation */}
       <Dialog open={!!switchTarget} onOpenChange={() => setSwitchTarget(null)}>
@@ -778,12 +926,23 @@ npx numu-theme dev`}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Live theme preview — full-screen iframe with desktop/mobile toggle.
+          Falls back to a "coming soon" panel when the theme has no demo
+          deployed (theme.demo_url is null). Shared by ActiveThemeHero's
+          dropdown Preview action and LibraryThemeCard's eye button. */}
+      <ThemePreviewModal
+        theme={previewTheme}
+        isOpen={!!previewTheme}
+        onClose={() => setPreviewTheme(null)}
+        isRTL={isRTL}
+      />
     </div>
   );
 }
 
-// ─── Active theme card ────────────────────────────────────────────────────────
-interface ActiveThemeCardProps {
+// ─── Active theme hero ────────────────────────────────────────────────────────
+interface ActiveThemeHeroProps {
   theme: AvailableTheme;
   customization: CustomizationData | undefined;
   isRTL: boolean;
@@ -791,49 +950,76 @@ interface ActiveThemeCardProps {
   onPreview: () => void;
 }
 
-function ActiveThemeCard({ theme, customization, isRTL, onCustomize, onPreview }: ActiveThemeCardProps) {
+/**
+ * Hero treatment for the merchant's currently-active theme. Big screenshot
+ * panel paired with theme metadata + primary CTAs. Replaces the prior
+ * compact card layout — this is the page's anchor element so it earns the
+ * vertical real estate.
+ */
+function ActiveThemeHero({ theme, customization, isRTL, onCustomize, onPreview }: ActiveThemeHeroProps) {
   const palette = THEME_PALETTES[theme.id] ?? THEME_PALETTES.default;
   const layoutLabel = LAYOUT_LABELS[theme.layout]?.[isRTL ? "ar" : "en"] ?? theme.layout;
   const isPublished = customization?.is_published ?? false;
   const lastPublished = customization?.last_published_at;
-
-  // Use actual theme colors if available
-  const previewPalette = {
-    ...palette,
-    accent: customization?.theme?.primary_color || palette.accent,
-    bg: customization?.theme?.background_color || palette.bg,
-    text: customization?.theme?.text_color || palette.text,
-  };
+  const swatches = customization?.theme
+    ? [
+        customization.theme.primary_color,
+        customization.theme.secondary_color,
+        customization.theme.accent_color,
+        customization.theme.background_color,
+      ].filter(Boolean)
+    : [];
 
   return (
-    <div className="group rounded-2xl border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
-      <div className="grid sm:grid-cols-[2fr_1fr]">
-        {/* Preview */}
-        <div className="relative h-44 sm:h-auto overflow-hidden border-b sm:border-b-0 sm:border-e" style={{ background: palette.bg }}>
-          <ThemePreviewSVG themeId={theme.id} palette={previewPalette} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+    <div className="relative rounded-3xl border bg-card overflow-hidden shadow-sm">
+      <div className="grid lg:grid-cols-[3fr_2fr]">
+        {/* Preview imagery */}
+        <div
+          className="relative aspect-[16/10] lg:aspect-auto lg:min-h-[420px] overflow-hidden"
+          style={{ background: palette.bg }}
+        >
+          <ThemePreviewImage theme={theme} palette={palette} />
+          {/* Active badge floating top-start */}
+          <div className={`absolute top-4 ${isRTL ? "right-4" : "left-4"}`}>
+            <Badge className="gap-1.5 bg-emerald-500/15 text-emerald-700 border-emerald-500/30 backdrop-blur-sm">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75 animate-ping" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+              </span>
+              <span className="text-[10px] font-semibold tracking-wider uppercase">
+                {isRTL ? "نشط" : "Active"}
+              </span>
+            </Badge>
+          </div>
+          {/* Subtle bottom gradient for legibility on light screenshots */}
+          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/15 to-transparent pointer-events-none" />
         </div>
 
-        {/* Info */}
-        <div className="flex flex-col p-5 gap-4">
-          <div className="space-y-2">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="font-semibold text-base leading-tight">
+        {/* Info + CTAs */}
+        <div className="flex flex-col p-6 sm:p-8 gap-6">
+          <div className="space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70 mb-1.5">
+                  {isRTL ? "الثيم النشط" : "Currently active"}
+                </p>
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight">
                   {isRTL ? theme.nameAr : theme.name}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">{layoutLabel}</p>
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {layoutLabel}
+                </p>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 px-0 shrink-0">
-                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  <Button variant="ghost" size="sm" className="h-8 w-8 px-0 shrink-0">
+                    <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuContent align="end" className="w-44">
                   <DropdownMenuItem onClick={onPreview}>
                     <Eye className="h-3.5 w-3.5 me-2" />
-                    {isRTL ? "معاينة" : "Preview"}
+                    {isRTL ? "معاينة" : "Live preview"}
                     <ExternalLink className="h-3 w-3 ms-auto opacity-40" />
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -845,52 +1031,62 @@ function ActiveThemeCard({ theme, customization, isRTL, onCustomize, onPreview }
               </DropdownMenu>
             </div>
 
-            {/* Status */}
-            <div className="flex items-center gap-1.5">
+            {theme.description ? (
+              <p className="text-sm text-muted-foreground line-clamp-3">
+                {theme.description}
+              </p>
+            ) : null}
+
+            {/* Status chip */}
+            <div className="pt-1">
               {isPublished ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                <Badge variant="outline" className="gap-1.5 border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400">
                   <CheckCircle2 className="h-3 w-3" />
-                  {isRTL ? "منشور" : "Published"}
-                </span>
+                  <span className="text-[11px]">
+                    {isRTL ? "منشور" : "Published"}
+                    {lastPublished
+                      ? ` · ${new Date(lastPublished).toLocaleDateString(isRTL ? "ar-EG" : "en-US", { month: "short", day: "numeric" })}`
+                      : ""}
+                  </span>
+                </Badge>
               ) : (
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                <Badge variant="outline" className="gap-1.5 border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400">
                   <Clock className="h-3 w-3" />
-                  {isRTL ? "مسودة غير منشورة" : "Unpublished draft"}
-                </span>
+                  <span className="text-[11px]">
+                    {isRTL ? "مسودة غير منشورة" : "Unpublished draft"}
+                  </span>
+                </Badge>
               )}
             </div>
 
-            {lastPublished && (
-              <p className="text-[11px] text-muted-foreground/70">
-                {isRTL ? "آخر نشر" : "Published"}{" "}
-                {new Date(lastPublished).toLocaleDateString(isRTL ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" })}
-              </p>
-            )}
-
             {/* Color swatches */}
-            {customization?.theme && (
-              <div className="flex items-center gap-1 pt-1">
-                {[
-                  customization.theme.primary_color,
-                  customization.theme.secondary_color,
-                  customization.theme.accent_color,
-                  customization.theme.background_color,
-                ].filter(Boolean).map((color, i) => (
-                  <div
-                    key={i}
-                    className="h-4 w-4 rounded-full border border-black/10 shadow-sm"
-                    style={{ background: color }}
-                    title={color}
-                  />
-                ))}
+            {swatches.length > 0 ? (
+              <div className="pt-3 border-t border-border/50">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70 mb-2">
+                  {isRTL ? "لوحة الألوان" : "Palette"}
+                </p>
+                <div className="flex items-center gap-2">
+                  {swatches.map((color, i) => (
+                    <div
+                      key={i}
+                      className="h-7 w-7 rounded-full border border-black/10 shadow-sm"
+                      style={{ background: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
               </div>
-            )}
+            ) : null}
           </div>
 
-          <div className="mt-auto">
-            <Button size="sm" className="w-full" onClick={onCustomize}>
-              <Pencil className="h-3.5 w-3.5 me-1.5" />
+          <div className="mt-auto flex flex-col sm:flex-row gap-2">
+            <Button className="flex-1 gap-1.5" onClick={onCustomize}>
+              <Pencil className="h-3.5 w-3.5" />
               {isRTL ? "تخصيص الثيم" : "Customize"}
+            </Button>
+            <Button variant="outline" className="gap-1.5" onClick={onPreview}>
+              <Eye className="h-3.5 w-3.5" />
+              {isRTL ? "معاينة مباشرة" : "Live preview"}
             </Button>
           </div>
         </div>
@@ -904,58 +1100,156 @@ interface LibraryThemeCardProps {
   theme: AvailableTheme;
   isRTL: boolean;
   isSwitching: boolean;
+  /** Merchant's plan tier doesn't meet the theme's required_plan. */
+  locked: boolean;
+  /** Required plan tier — surfaces in the lock badge / upgrade CTA copy. */
+  requiredPlan: Tier | undefined;
   onActivate: () => void;
   onCustomize: () => void;
+  /** Open the live-preview modal. Available regardless of lock state — locked
+   *  themes are still previewable so the merchant sees what they'd unlock. */
+  onPreview: () => void;
 }
 
-function LibraryThemeCard({ theme, isRTL, isSwitching, onActivate, onCustomize }: LibraryThemeCardProps) {
+function LibraryThemeCard({
+  theme,
+  isRTL,
+  isSwitching,
+  locked,
+  requiredPlan,
+  onActivate,
+  onCustomize,
+  onPreview,
+}: LibraryThemeCardProps) {
   const palette = THEME_PALETTES[theme.id] ?? THEME_PALETTES.default;
   const layoutLabel = LAYOUT_LABELS[theme.layout]?.[isRTL ? "ar" : "en"] ?? theme.layout;
+  const tier = (theme.required_plan ?? "free") as Tier;
+  const showTierChip = tier !== "free";
+  // Tier-tinted accent on the chip — keeps the visual hierarchy at a glance.
+  const tierChipClass =
+    tier === "enterprise"
+      ? "bg-purple-500/10 text-purple-700 border-purple-500/20"
+      : tier === "pro"
+      ? "bg-amber-500/10 text-amber-700 border-amber-500/20"
+      : "bg-blue-500/10 text-blue-700 border-blue-500/20";
 
   return (
-    <div className="group rounded-2xl border bg-card overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-      {/* Preview */}
-      <div className="relative h-40 overflow-hidden" style={{ background: palette.bg }}>
-        <ThemePreviewSVG themeId={theme.id} palette={palette} />
-        {/* Hover overlay with actions */}
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+    <div className="group relative rounded-2xl border bg-card overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200 ease-out">
+      {/* Preview — 4:3 ratio gives screenshots the room they need */}
+      <div
+        className="relative aspect-[4/3] overflow-hidden"
+        style={{ background: palette.bg }}
+      >
+        <ThemePreviewImage theme={theme} palette={palette} />
+
+        {/* Top-bar overlays (lock badge + tier chip) */}
+        <div className={`absolute top-3 inset-x-3 flex items-center justify-between gap-2 z-10`}>
+          {locked ? (
+            <LockedThemeBadge requiredPlan={requiredPlan} isRTL={isRTL} />
+          ) : (
+            <span />
+          )}
+          {showTierChip && !locked ? (
+            <Badge variant="outline" className={`${tierChipClass} text-[10px] font-semibold uppercase tracking-wider`}>
+              {tier}
+            </Badge>
+          ) : null}
+        </div>
+
+        {/* Hover overlay with primary action + preview button */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-black/10 flex items-end justify-between p-4 gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          {locked ? (
+            <UpgradeCTAButton
+              requiredPlan={requiredPlan}
+              isRTL={isRTL}
+              size="sm"
+              className="h-9 text-xs font-medium shadow-lg flex-1 sm:flex-none"
+            />
+          ) : (
+            <Button
+              size="sm"
+              className="h-9 text-xs font-medium shadow-lg flex-1 sm:flex-none gap-1.5"
+              onClick={onActivate}
+              disabled={isSwitching}
+            >
+              {isSwitching ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {isRTL ? "تفعيل" : "Activate"}
+            </Button>
+          )}
           <Button
             size="sm"
             variant="secondary"
-            className="h-8 text-xs font-medium shadow-lg"
-            onClick={onActivate}
-            disabled={isSwitching}
+            className="h-9 px-3 text-xs gap-1.5 shadow-lg bg-white/90 hover:bg-white text-foreground border-0"
+            onClick={onPreview}
           >
-            {isSwitching ? <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" /> : null}
-            {isRTL ? "تفعيل" : "Activate"}
-          </Button>
-          <Button size="sm" variant="outline" className="h-8 w-8 px-0 shadow-lg" onClick={onCustomize}>
             <Eye className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">
+              {isRTL ? "معاينة" : "Preview"}
+            </span>
           </Button>
         </div>
       </div>
 
-      {/* Info */}
-      <div className="p-3.5">
-        <div className="flex items-center justify-between gap-2">
+      {/* Info footer */}
+      <div className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-semibold truncate">{isRTL ? theme.nameAr : theme.name}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">{layoutLabel}</p>
+            <p className="text-sm font-semibold truncate">
+              {isRTL ? theme.nameAr : theme.name}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+              {layoutLabel}
+            </p>
           </div>
-          {/* Color dots */}
-          <div className="flex gap-1 shrink-0">
+          {/* Color dots — three accent / bg / text dots */}
+          <div className="flex gap-1 shrink-0 pt-0.5">
             {[palette.accent, palette.bg, palette.text].map((c, i) => (
-              <div key={i} className="h-3 w-3 rounded-full border border-black/10" style={{ background: c }} />
+              <div
+                key={i}
+                className="h-3 w-3 rounded-full border border-black/10"
+                style={{ background: c }}
+              />
             ))}
           </div>
         </div>
-        {/* Mobile fallback buttons */}
-        <div className="flex gap-2 mt-3 sm:hidden">
-          <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" onClick={onActivate} disabled={isSwitching}>
-            {isSwitching && <Loader2 className="h-3 w-3 me-1.5 animate-spin" />}
-            {isRTL ? "تفعيل" : "Activate"}
-          </Button>
-          <Button size="sm" variant="ghost" className="h-8 w-8 px-0" onClick={onCustomize}>
+
+        {theme.description ? (
+          <p className="text-xs text-muted-foreground/80 line-clamp-2 leading-relaxed">
+            {theme.description}
+          </p>
+        ) : null}
+
+        {/* Mobile fallback row — hover overlay is invisible on touch */}
+        <div className="flex gap-2 sm:hidden">
+          {locked ? (
+            <UpgradeCTAButton
+              requiredPlan={requiredPlan}
+              isRTL={isRTL}
+              size="sm"
+              className="flex-1 h-8 text-xs"
+            />
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 h-8 text-xs gap-1.5"
+              onClick={onActivate}
+              disabled={isSwitching}
+            >
+              {isSwitching && <Loader2 className="h-3 w-3 animate-spin" />}
+              {isRTL ? "تفعيل" : "Activate"}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 px-0"
+            onClick={onPreview}
+          >
             <Eye className="h-3.5 w-3.5" />
           </Button>
         </div>

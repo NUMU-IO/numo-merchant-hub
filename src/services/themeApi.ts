@@ -10,6 +10,14 @@ export interface AvailableTheme {
   nameAr: string;
   layout: "default" | "skeuomorphic" | "neo-brutalism" | "editorial" | "luxury-minimal";
   description: string;
+  /** Minimum tenant plan required to activate. Default "free". */
+  required_plan?: "free" | "starter" | "pro" | "enterprise";
+  /** Sort key for the merchant theme grid (ascending). */
+  display_order?: number;
+  /** Absolute URL to the theme's preview screenshot (PNG). */
+  preview_image_url?: string;
+  /** Absolute URL to a hosted demo storefront for live iframe preview. */
+  demo_url?: string | null;
 }
 
 export interface CustomizationTheme {
