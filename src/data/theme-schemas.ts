@@ -202,6 +202,7 @@ export const headerSettings: SettingDefinition[] = [
 
 export const heroSettings: SettingDefinition[] = [
   { key: "hero_image_url", type: "image", label: "Hero Image", labelAr: "صورة البطل", default: "", group: "Hero", groupAr: "القسم الرئيسي" },
+  { key: "hero_image_mobile", type: "image", label: "Hero Image (Mobile)", labelAr: "صورة البانر للهاتف", default: "", group: "Hero", groupAr: "القسم الرئيسي" },
   { key: "headline", type: "text", label: "Headline", labelAr: "العنوان الرئيسي", default: "", group: "Hero", groupAr: "القسم الرئيسي" },
   { key: "subtitle", type: "text", label: "Subtitle", labelAr: "العنوان الفرعي", default: "", group: "Hero", groupAr: "القسم الرئيسي" },
   { key: "cta_text", type: "text", label: "CTA Button Text", labelAr: "نص زر الدعوة", default: "", group: "Hero", groupAr: "القسم الرئيسي" },
@@ -451,6 +452,7 @@ export const themeSchemas: Record<string, ThemeSchema> = {
       { key: "hero_subtitle", type: "text", label: "Hero Subtitle", labelAr: "عنوان فرعي للبانر", default: "Curated Excellence & Timeless Precision", group: "Hero", groupAr: "البانر" },
       { key: "hero_cta_text", type: "text", label: "Hero Button Text", labelAr: "نص زر البانر", default: "Discover Collection", group: "Hero", groupAr: "البانر" },
       { key: "hero_image_url", type: "image", label: "Hero Background Image", labelAr: "صورة خلفية البانر", default: "", group: "Hero", groupAr: "البانر" },
+      { key: "hero_image_mobile", type: "image", label: "Hero Image (Mobile)", labelAr: "صورة البانر للهاتف", default: "", group: "Hero", groupAr: "البانر" },
 
       // Content
       { key: "new_badge_text", type: "text", label: "New Product Badge", labelAr: "نص شارة المنتج الجديد", default: "New Arrival", group: "Content", groupAr: "المحتوى" },
