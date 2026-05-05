@@ -53,7 +53,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { useCustomizerStore } from "../../store/customizerStore";
+import {
+  useCustomizerStore,
+  selectCanUndo,
+  selectCanRedo,
+} from "../../store/customizerStore";
 import type { DeviceMode, EditorLocale } from "../../types";
 
 // ─── Device buttons config ──────────────────────────────────────────────────
@@ -66,8 +70,10 @@ const DEVICES: { mode: DeviceMode; icon: typeof Monitor; label: Record<EditorLoc
 
 // ─── Page options ───────────────────────────────────────────────────────────
 
+// Template keys must match the backend's PageTemplate map keys produced by
+// `generate_initial_v3_customization` and `normalize_legacy_to_v3`.
 const PAGES: { value: string; label: Record<EditorLocale, string> }[] = [
-  { value: "index", label: { en: "Home", ar: "الرئيسية" } },
+  { value: "home", label: { en: "Home", ar: "الرئيسية" } },
   { value: "product", label: { en: "Product", ar: "المنتج" } },
   { value: "collection", label: { en: "Collection", ar: "المجموعة" } },
   { value: "cart", label: { en: "Cart", ar: "السلة" } },
@@ -93,8 +99,8 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
   const isDirty = useCustomizerStore((s) => s.isDirty);
   const isSaving = useCustomizerStore((s) => s.isSaving);
   const isPublishing = useCustomizerStore((s) => s.isPublishing);
-  const canUndo = useCustomizerStore((s) => s.canUndo);
-  const canRedo = useCustomizerStore((s) => s.canRedo);
+  const canUndo = useCustomizerStore(selectCanUndo);
+  const canRedo = useCustomizerStore(selectCanRedo);
   const undo = useCustomizerStore((s) => s.undo);
   const redo = useCustomizerStore((s) => s.redo);
   const publish = useCustomizerStore((s) => s.publish);
@@ -253,6 +259,7 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
           {/* Bilingual toggle */}
           <div className="flex items-center rounded-md border bg-muted/50 p-0.5">
             <button
+              type="button"
               className={cn(
                 "rounded px-2 py-1 text-xs font-medium transition-colors",
                 locale === "en" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
@@ -262,6 +269,7 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
               EN
             </button>
             <button
+              type="button"
               className={cn(
                 "rounded px-2 py-1 text-xs font-medium transition-colors",
                 locale === "ar" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",

@@ -4,6 +4,16 @@
  * Communicates with the backend V3 theme editor endpoints.
  * All endpoints live under `/stores/{storeId}/themes/v3/editor/*`.
  *
+ * Routes match the backend exactly (NUMU-api PR #204):
+ *   GET  /draft               — current draft (or normalized legacy)
+ *   PUT  /autosave            — autosave a V3 payload (debounced from client)
+ *   POST /publish             — publish draft, dual-write, revalidate
+ *   POST /discard             — drop the draft, revert to published
+ *   GET  /versions            — paginated version history
+ *   POST /versions/{id}/restore — bring an older version back into the draft
+ *   GET  /resolve             — published settings (no draft) for SDKs
+ *   GET  /schemas             — section/block schemas for the active theme
+ *
  * This service is additive — it does NOT modify or replace the existing
  * themeApi.ts service. The old V2 endpoints remain fully functional.
  */
@@ -12,112 +22,104 @@ import { apiClient } from "@/services/api";
 import type {
   ThemeSettingsV3,
   ThemeSchemaBundle,
-  AutosaveResponse,
-  PublishResponse,
+  AutosaveDraftResponse,
+  PublishDraftResponse,
+  DiscardDraftResponse,
   VersionListResponse,
-  CustomizationVersion,
+  RestoreVersionResponse,
 } from "../types";
 
 const BASE = (storeId: string) => `/stores/${storeId}/themes/v3/editor`;
 
-// ─── Draft (auto-save) ─────────────────────────────────────────────────────
+// ─── Draft ───────────────────────────────────────────────────────────────────
 
 /**
  * Fetch the current V3 draft. If no V3 data exists yet, the backend
- * runs resolve_theme_settings() to normalize V1/V2 → V3 on the fly.
+ * normalizes V1/V2 → V3 on the fly via resolve_theme_settings(). When
+ * there is no active theme at all, the backend returns `{}`.
  */
-export function fetchDraftV3(storeId: string): Promise<ThemeSettingsV3> {
-  return apiClient<ThemeSettingsV3>(`${BASE(storeId)}/draft`);
-}
-
-/**
- * Auto-save the V3 draft. Uses Dual-Write: writes to both
- * draft_customization_v3 AND draft_customization (legacy).
- * Debounced on the client side (2s), but the backend accepts any cadence.
- */
-export function saveDraftV3(
+export function fetchDraftV3(
   storeId: string,
-  payload: ThemeSettingsV3,
-): Promise<AutosaveResponse> {
-  return apiClient<AutosaveResponse>(`${BASE(storeId)}/draft`, {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
-}
-
-// ─── Publish ────────────────────────────────────────────────────────────────
-
-/**
- * Publish the current V3 draft to the live storefront.
- * Uses Dual-Write: writes to both customization_v3 AND theme_settings (legacy).
- * Creates a version history entry with source="publish".
- */
-export function publishV3(storeId: string): Promise<PublishResponse> {
-  return apiClient<PublishResponse>(`${BASE(storeId)}/publish`, {
-    method: "POST",
-  });
-}
-
-// ─── Version History ────────────────────────────────────────────────────────
-
-/**
- * Fetch paginated version history for the store's theme customization.
- */
-export function fetchVersionsV3(
-  storeId: string,
-  page: number = 1,
-  pageSize: number = 20,
-): Promise<VersionListResponse> {
-  return apiClient<VersionListResponse>(
-    `${BASE(storeId)}/versions?page=${page}&page_size=${pageSize}`,
+): Promise<ThemeSettingsV3 | Record<string, never>> {
+  return apiClient<ThemeSettingsV3 | Record<string, never>>(
+    `${BASE(storeId)}/draft`,
   );
 }
 
 /**
- * Restore a specific version as the current draft.
- * Creates a new version entry with source="restore".
+ * Autosave V3 draft with Dual-Write to legacy columns.
+ * Body shape matches AutosaveDraftRequest on the backend.
+ */
+export function saveDraftV3(
+  storeId: string,
+  payload: ThemeSettingsV3,
+  changeSummary?: string,
+): Promise<AutosaveDraftResponse> {
+  return apiClient<AutosaveDraftResponse>(`${BASE(storeId)}/autosave`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ payload, change_summary: changeSummary }),
+  });
+}
+
+// ─── Publish ─────────────────────────────────────────────────────────────────
+
+/** Publish the current V3 draft. Triggers Next.js cache invalidation. */
+export function publishV3(storeId: string): Promise<PublishDraftResponse> {
+  return apiClient<PublishDraftResponse>(`${BASE(storeId)}/publish`, {
+    method: "POST",
+  });
+}
+
+/** Discard the V3 draft and revert to the published state. */
+export function discardDraftV3(
+  storeId: string,
+): Promise<DiscardDraftResponse> {
+  return apiClient<DiscardDraftResponse>(`${BASE(storeId)}/discard`, {
+    method: "POST",
+  });
+}
+
+// ─── Version History ─────────────────────────────────────────────────────────
+
+/**
+ * Fetch paginated version history. Backend uses `per_page` (not `page_size`).
+ */
+export function fetchVersionsV3(
+  storeId: string,
+  page: number = 1,
+  perPage: number = 20,
+): Promise<VersionListResponse> {
+  const qs = new URLSearchParams({
+    page: String(page),
+    per_page: String(perPage),
+  });
+  return apiClient<VersionListResponse>(
+    `${BASE(storeId)}/versions?${qs.toString()}`,
+  );
+}
+
+/**
+ * Restore a previous version as the current draft. Backend returns the
+ * restored V3 payload under `draft`.
  */
 export function restoreVersionV3(
   storeId: string,
   versionId: string,
-): Promise<{ status: string; restored_version: number }> {
-  return apiClient<{ status: string; restored_version: number }>(
+): Promise<RestoreVersionResponse> {
+  return apiClient<RestoreVersionResponse>(
     `${BASE(storeId)}/versions/${versionId}/restore`,
     { method: "POST" },
   );
 }
 
-// ─── Schemas ────────────────────────────────────────────────────────────────
+// ─── Schemas ─────────────────────────────────────────────────────────────────
 
 /**
- * Fetch the V3 theme schema bundle for the store's active theme.
- * For built-in themes: reads from filesystem.
- * For BYOT/marketplace themes: reads from the themes table JSONB columns.
+ * Fetch the active theme's settings/section/block schemas.
+ * For built-in themes: from `theme.settings_schema` / `theme.section_schemas`.
+ * For BYOT themes: from the marketplace_theme_versions row.
  */
 export function fetchSchemasV3(storeId: string): Promise<ThemeSchemaBundle> {
   return apiClient<ThemeSchemaBundle>(`${BASE(storeId)}/schemas`);
-}
-
-// ─── Initialize ─────────────────────────────────────────────────────────────
-
-/**
- * Initialize V3 customization for a store that has never used V3.
- * The backend runs generate_initial_v3_customization() and returns the result.
- * This is idempotent — if V3 data already exists, it returns the existing draft.
- */
-export function initializeV3(storeId: string): Promise<ThemeSettingsV3> {
-  return apiClient<ThemeSettingsV3>(`${BASE(storeId)}/initialize`, {
-    method: "POST",
-  });
-}
-
-// ─── Discard Draft ──────────────────────────────────────────────────────────
-
-/**
- * Discard the current V3 draft and revert to the last published version.
- */
-export function discardDraftV3(storeId: string): Promise<ThemeSettingsV3> {
-  return apiClient<ThemeSettingsV3>(`${BASE(storeId)}/draft/discard`, {
-    method: "POST",
-  });
 }

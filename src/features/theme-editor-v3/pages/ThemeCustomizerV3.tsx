@@ -5,27 +5,23 @@
  *  ┌─────────────────────────────────────────────────────────────────┐
  *  │                         TopBar                                  │
  *  ├──────────────┬──────────────────────────────┬───────────────────┤
- *  │              │                              │                   │
  *  │  Left Panel  │       Live Preview           │  Version History  │
  *  │  (320px)     │       (flex-1)               │  (optional, 280px)│
- *  │              │                              │                   │
  *  └──────────────┴──────────────────────────────┴───────────────────┘
  *
- * Left Panel navigates between:
- *  - SectionListPanel (default)
- *  - SectionEditorPanel (when a section is selected)
- *  - BlockEditorPanel (when a block is selected)
- *  - GroupEditorPanel (when a section group is selected)
+ * Left Panel routes between SectionListPanel / SectionEditorPanel /
+ * BlockEditorPanel / GroupEditorPanel based on store.activePanel.
  *
  * Soft Migration:
- *  - This page is mounted alongside the existing ThemeEditor.tsx
- *  - The route uses /online-store/customize-v3 (or feature flag)
- *  - The old ThemeEditor remains fully functional at /online-store/customize
+ *  - Mounted alongside the existing V2 ThemeEditor.tsx — no breaking changes.
+ *  - Reads `currentStore` from the dashboard StoreContext (no :storeId
+ *    route param needed; matches the V2 editor's pattern).
  */
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useDashboardStore } from "@/contexts/StoreContext";
 import { useCustomizerStore } from "../store/customizerStore";
 import { TopBar } from "../components/toolbar/TopBar";
 import { LivePreview } from "../components/preview/LivePreview";
@@ -50,7 +46,7 @@ function LeftPanelRouter() {
       return <BlockEditorPanel />;
     case "group-editor":
       return <GroupEditorPanel />;
-    case "section-list":
+    case "sections":
     default:
       return <SectionListPanel />;
   }
@@ -59,34 +55,78 @@ function LeftPanelRouter() {
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export function ThemeCustomizerV3() {
-  const { storeId } = useParams<{ storeId: string }>();
   const navigate = useNavigate();
+  const { currentStore, isLoading: storeLoading } = useDashboardStore();
+  const storeId = currentStore?.id ?? null;
 
   const initialize = useCustomizerStore((s) => s.initialize);
-  const cleanup = useCustomizerStore((s) => s.cleanup);
+  const reset = useCustomizerStore((s) => s.reset);
   const isLoading = useCustomizerStore((s) => s.isLoading);
   const error = useCustomizerStore((s) => s.error);
   const locale = useCustomizerStore((s) => s.locale);
+  const setLocale = useCustomizerStore((s) => s.setLocale);
 
   const [showVersionHistory, setShowVersionHistory] = useState(false);
 
-  // Initialize the customizer on mount
+  // Default editor locale to the store's preferred language on first mount.
+  useEffect(() => {
+    const lang = currentStore?.default_language;
+    if (lang === "ar" || lang === "en") {
+      setLocale(lang);
+    }
+  }, [currentStore?.default_language, setLocale]);
+
+  // Initialize the customizer when the active store is known.
   useEffect(() => {
     if (storeId) {
       initialize(storeId);
     }
     return () => {
-      cleanup();
+      reset();
     };
-  }, [storeId, initialize, cleanup]);
+  }, [storeId, initialize, reset]);
 
   const handleBack = useCallback(() => {
-    navigate(-1);
+    // navigate(-1) leaves the app if the user opened the editor via direct
+    // link. Fall back to the themes overview.
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/online-store/themes");
+    }
   }, [navigate]);
 
   const handleToggleVersionHistory = useCallback(() => {
     setShowVersionHistory((prev) => !prev);
   }, []);
+
+  // ── Waiting on store context ──
+  if (storeLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!storeId) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <h2 className="text-lg font-semibold">
+            {locale === "ar" ? "لا يوجد متجر نشط" : "No active store"}
+          </h2>
+          <button
+            type="button"
+            className="mt-4 text-sm text-primary underline hover:no-underline"
+            onClick={handleBack}
+          >
+            {locale === "ar" ? "العودة" : "Go back"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ── Loading state ──
   if (isLoading) {
@@ -114,9 +154,12 @@ export function ThemeCustomizerV3() {
             <h2 className="text-lg font-semibold">
               {locale === "ar" ? "حدث خطأ" : "Something went wrong"}
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground max-w-md">{error}</p>
+            <p className="mt-1 max-w-md text-sm text-muted-foreground">
+              {error}
+            </p>
           </div>
           <button
+            type="button"
             className="text-sm text-primary underline hover:no-underline"
             onClick={handleBack}
           >
@@ -144,7 +187,7 @@ export function ThemeCustomizerV3() {
         {/* Left Panel */}
         <div
           className={cn(
-            "w-80 shrink-0 border-e overflow-hidden bg-background transition-all",
+            "w-80 shrink-0 overflow-hidden border-e bg-background transition-all",
           )}
         >
           <LeftPanelRouter />
@@ -158,8 +201,10 @@ export function ThemeCustomizerV3() {
         {/* Version History (conditional) */}
         <div
           className={cn(
-            "w-72 shrink-0 border-s overflow-hidden bg-background transition-all duration-300",
-            showVersionHistory ? "translate-x-0" : "translate-x-full w-0 border-0",
+            "w-72 shrink-0 overflow-hidden border-s bg-background transition-all duration-300",
+            showVersionHistory
+              ? "translate-x-0"
+              : "w-0 translate-x-full border-0",
           )}
         >
           {showVersionHistory && <VersionHistoryPanel />}

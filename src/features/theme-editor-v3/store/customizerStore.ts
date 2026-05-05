@@ -3,11 +3,11 @@
  *
  * Central state management for the V3 customizer. Handles:
  *  - Draft state (ThemeSettingsV3)
- *  - Auto-save with 2s debounce (Dual-Write to backend)
- *  - Undo/redo stack (50 entries max)
+ *  - Auto-save with 3s debounce (Dual-Write to backend)
+ *  - Undo/redo stack (50 entries; consecutive same-target writes coalesce)
  *  - Section/block CRUD operations
  *  - Editor UI state (selection, locale, device, panel)
- *  - Dirty tracking
+ *  - Dirty tracking + concurrent-save dedup
  *
  * This store is completely independent of the V2 ThemeEditor.tsx state.
  * The old editor continues to work alongside this one.
@@ -18,10 +18,10 @@ import { immer } from "zustand/middleware/immer";
 import type {
   ThemeSettingsV3,
   ThemeSchemaBundle,
+  NormalizedSchemas,
+  SectionSchemaDefinition,
   SectionInstance,
   BlockInstance,
-  PageTemplate,
-  SectionGroup,
   EditorLocale,
   DeviceMode,
   SidebarPanel,
@@ -32,19 +32,26 @@ import {
   saveDraftV3,
   publishV3,
   fetchSchemasV3,
-  initializeV3,
   discardDraftV3,
+  restoreVersionV3,
 } from "../services/themeEditorV3Api";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
+/** Max history entries; older ones are evicted FIFO. */
 const MAX_HISTORY = 50;
-const AUTOSAVE_DEBOUNCE_MS = 2000;
+/** Debounce window for autosave round-trips. */
+const AUTOSAVE_DEBOUNCE_MS = 3000;
+/** Time within which consecutive same-target writes coalesce into one undo
+ *  entry. Avoids the "type one character → one entry" problem. */
+const HISTORY_COALESCE_MS = 1500;
 
 // ─── History Entry ──────────────────────────────────────────────────────────
 
 interface HistoryEntry {
   data: ThemeSettingsV3;
+  /** Stable key used to coalesce consecutive writes (e.g. setting path). */
+  coalesceKey: string;
   label: string;
   timestamp: number;
 }
@@ -52,26 +59,26 @@ interface HistoryEntry {
 // ─── Store State ────────────────────────────────────────────────────────────
 
 interface CustomizerState {
-  // ── Core data ──
+  // Core data
   storeId: string | null;
   draft: ThemeSettingsV3 | null;
-  schemas: ThemeSchemaBundle | null;
+  schemas: NormalizedSchemas | null;
 
-  // ── Loading / error ──
+  // Loading / error
   isLoading: boolean;
   isSaving: boolean;
   isPublishing: boolean;
   error: string | null;
 
-  // ── Dirty tracking ──
+  // Dirty tracking
   isDirty: boolean;
   lastSavedAt: string | null;
 
-  // ── Undo/redo ──
+  // Undo/redo
   past: HistoryEntry[];
   future: HistoryEntry[];
 
-  // ── UI state ──
+  // UI state
   locale: EditorLocale;
   deviceMode: DeviceMode;
   activePanel: SidebarPanel;
@@ -80,23 +87,35 @@ interface CustomizerState {
   showAddSection: boolean;
   insertAfterSectionId: string | null;
 
-  // ── Auto-save timer ──
+  // Internal — autosave timer + in-flight save promise (dedup)
   _autosaveTimer: ReturnType<typeof setTimeout> | null;
+  _savingPromise: Promise<void> | null;
 }
 
 // ─── Store Actions ──────────────────────────────────────────────────────────
 
 interface CustomizerActions {
-  // ── Initialization ──
+  // Initialization
   initialize: (storeId: string) => Promise<void>;
   reset: () => void;
 
-  // ── Draft mutations (all push to undo stack + trigger autosave) ──
+  // Draft mutations (push to undo stack + trigger autosave)
   updateGlobalSetting: (key: string, value: unknown) => void;
-  updateSectionSetting: (sectionId: string, key: string, value: unknown, groupId?: string) => void;
-  updateBlockSetting: (sectionId: string, blockId: string, key: string, value: unknown, groupId?: string) => void;
+  updateSectionSetting: (
+    sectionId: string,
+    key: string,
+    value: unknown,
+    groupId?: string,
+  ) => void;
+  updateBlockSetting: (
+    sectionId: string,
+    blockId: string,
+    key: string,
+    value: unknown,
+    groupId?: string,
+  ) => void;
 
-  // ── Section CRUD ──
+  // Section CRUD
   addSection: (sectionType: string, presetIndex?: number) => void;
   removeSection: (sectionId: string) => void;
   moveSection: (sectionId: string, direction: "up" | "down") => void;
@@ -104,28 +123,51 @@ interface CustomizerActions {
   toggleSection: (sectionId: string) => void;
   duplicateSection: (sectionId: string) => void;
 
-  // ── Block CRUD ──
+  // Block CRUD
   addBlock: (sectionId: string, blockType: string, groupId?: string) => void;
-  removeBlock: (sectionId: string, blockId: string, groupId?: string) => void;
-  moveBlock: (sectionId: string, blockId: string, direction: "up" | "down", groupId?: string) => void;
-  reorderBlocks: (sectionId: string, newOrder: string[], groupId?: string) => void;
-  toggleBlock: (sectionId: string, blockId: string, groupId?: string) => void;
+  removeBlock: (
+    sectionId: string,
+    blockId: string,
+    groupId?: string,
+  ) => void;
+  moveBlock: (
+    sectionId: string,
+    blockId: string,
+    direction: "up" | "down",
+    groupId?: string,
+  ) => void;
+  reorderBlocks: (
+    sectionId: string,
+    newOrder: string[],
+    groupId?: string,
+  ) => void;
+  toggleBlock: (
+    sectionId: string,
+    blockId: string,
+    groupId?: string,
+  ) => void;
 
-  // ── Section Group operations ──
-  updateSectionGroupSetting: (groupId: string, sectionId: string, key: string, value: unknown) => void;
+  // Section Group operations
+  updateSectionGroupSetting: (
+    groupId: string,
+    sectionId: string,
+    key: string,
+    value: unknown,
+  ) => void;
   addSectionToGroup: (groupId: string, sectionType: string) => void;
   removeSectionFromGroup: (groupId: string, sectionId: string) => void;
 
-  // ── Undo/redo ──
+  // Undo/redo (computed via selectors `canUndo` / `canRedo` below)
   undo: () => void;
   redo: () => void;
 
-  // ── Save / Publish ──
+  // Save / Publish
   save: () => Promise<void>;
-  publish: () => Promise<void>;
+  publish: (label?: string) => Promise<void>;
   discardDraft: () => Promise<void>;
+  restoreVersion: (versionId: string) => Promise<void>;
 
-  // ── UI state ──
+  // UI state
   setLocale: (locale: EditorLocale) => void;
   setDeviceMode: (mode: DeviceMode) => void;
   setActivePanel: (panel: SidebarPanel) => void;
@@ -137,14 +179,68 @@ interface CustomizerActions {
 
 type CustomizerStore = CustomizerState & CustomizerActions;
 
+// ── Selectors (compose with useCustomizerStore in components/tests) ─────────
+//
+// Zustand's middleware doesn't preserve Object getters across set() calls,
+// so we expose canUndo/canRedo as plain selectors. Use:
+//   const canUndo = useCustomizerStore(selectCanUndo);
+export const selectCanUndo = (s: CustomizerStore): boolean => s.past.length > 0;
+export const selectCanRedo = (s: CustomizerStore): boolean =>
+  s.future.length > 0;
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function generateId(prefix = "s"): string {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+  // crypto.randomUUID is widely available; fall back to a timestamped random.
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}_${(crypto as Crypto).randomUUID().split("-")[0]}`;
+  }
+  return `${prefix}_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 6)}`;
 }
 
+/** Deep clone the JSON-serializable subset of `obj`. Settings are always
+ *  JSON values (the backend stores them in a JSONB column) so the JSON
+ *  round-trip is correct here, plus it handles Immer proxies that
+ *  structuredClone refuses to clone. */
 function cloneDeep<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
+}
+
+/**
+ * Normalize the backend `ThemeSchemaBundle` (settings_schema + section_schemas
+ * map) into the editor's flatter shape (sections array + section_groups map).
+ * The dashboard editor treats header/footer as virtual groups whose schemas
+ * come from the same section_schemas pool, filtered by tag.
+ */
+function normalizeSchemas(raw: ThemeSchemaBundle): NormalizedSchemas {
+  const sectionsMap = (raw.section_schemas ?? {}) as Record<
+    string,
+    SectionSchemaDefinition
+  >;
+  const sections: SectionSchemaDefinition[] = Object.entries(sectionsMap).map(
+    ([type, def]) => ({ ...def, type: def.type ?? type }),
+  );
+
+  // Group eligibility: section schemas with tag === "header" / "footer"
+  // are allowed in the corresponding section_group. Everything else lives
+  // in templates only.
+  const groupOf = (s: SectionSchemaDefinition): string | null =>
+    s.tag === "header" || s.tag === "footer" ? s.tag : null;
+
+  const headerSections = sections.filter((s) => groupOf(s) === "header");
+  const footerSections = sections.filter((s) => groupOf(s) === "footer");
+  const templateSections = sections.filter((s) => groupOf(s) === null);
+
+  return {
+    global_settings: raw.settings_schema ?? [],
+    sections: templateSections,
+    section_groups: {
+      header: { sections: headerSections },
+      footer: { sections: footerSections },
+    },
+  };
 }
 
 // ─── Initial State ──────────────────────────────────────────────────────────
@@ -161,7 +257,7 @@ const initialState: CustomizerState = {
   lastSavedAt: null,
   past: [],
   future: [],
-  locale: "ar",
+  locale: "en",
   deviceMode: "desktop",
   activePanel: "sections",
   activePage: "home",
@@ -169,125 +265,182 @@ const initialState: CustomizerState = {
   showAddSection: false,
   insertAfterSectionId: null,
   _autosaveTimer: null,
+  _savingPromise: null,
 };
 
 // ─── Store ──────────────────────────────────────────────────────────────────
 
 export const useCustomizerStore = create<CustomizerStore>()(
   immer((set, get) => {
-    // ── Private: push current state to undo stack ──
-    function pushHistory(label: string) {
-      const { draft, past } = get();
+    /**
+     * Push the *current* draft onto the undo stack, coalescing consecutive
+     * writes that share `coalesceKey` within HISTORY_COALESCE_MS. Burst
+     * keystrokes on the same setting collapse into one entry.
+     */
+    function pushHistory(coalesceKey: string, label: string) {
+      const { draft } = get();
       if (!draft) return;
+      const now = Date.now();
       const entry: HistoryEntry = {
         data: cloneDeep(draft),
+        coalesceKey,
         label,
-        timestamp: Date.now(),
+        timestamp: now,
       };
       set((state) => {
+        const last = state.past[state.past.length - 1];
+        // Coalesce: same target within window → drop the prior entry,
+        // pretend this entry is the only "before" snapshot for the chain.
+        if (
+          last &&
+          last.coalesceKey === coalesceKey &&
+          now - last.timestamp < HISTORY_COALESCE_MS
+        ) {
+          // Replace the previous entry's timestamp; the snapshot itself
+          // already represents "before the burst", so we keep that data
+          // and only update the timestamp + label.
+          last.timestamp = now;
+          last.label = label;
+          return;
+        }
         state.past = [...state.past.slice(-(MAX_HISTORY - 1)), entry];
         state.future = [];
       });
     }
 
-    // ── Private: schedule autosave ──
-    function scheduleAutosave() {
+    /** Cancel any pending autosave (used on manual save/publish). */
+    function cancelAutosaveTimer() {
       const timer = get()._autosaveTimer;
       if (timer) clearTimeout(timer);
+      set((s) => {
+        s._autosaveTimer = null;
+      });
+    }
 
-      const newTimer = setTimeout(async () => {
-        const { storeId, draft, isDirty } = get();
-        if (!storeId || !draft || !isDirty) return;
+    /**
+     * Persist the current draft. Single in-flight promise: a concurrent
+     * call awaits the same promise instead of issuing a new request.
+     * Returns when the request settles.
+     */
+    async function performSave(): Promise<void> {
+      const inflight = get()._savingPromise;
+      if (inflight) return inflight;
+
+      const { storeId, draft } = get();
+      if (!storeId || !draft) return;
+
+      const promise = (async () => {
         try {
-          set((s) => { s.isSaving = true; });
-          const result = await saveDraftV3(storeId, draft);
+          set((s) => {
+            s.isSaving = true;
+          });
+          await saveDraftV3(storeId, draft);
           set((s) => {
             s.isSaving = false;
             s.isDirty = false;
-            s.lastSavedAt = result.saved_at;
+            s.lastSavedAt = new Date().toISOString();
           });
         } catch (err) {
-          set((s) => { s.isSaving = false; });
+          set((s) => {
+            s.isSaving = false;
+          });
+          throw err;
+        } finally {
+          set((s) => {
+            s._savingPromise = null;
+          });
+        }
+      })();
+
+      set((s) => {
+        s._savingPromise = promise;
+      });
+      return promise;
+    }
+
+    function scheduleAutosave() {
+      cancelAutosaveTimer();
+      const newTimer = setTimeout(() => {
+        const { storeId, draft, isDirty } = get();
+        if (!storeId || !draft || !isDirty) return;
+        performSave().catch((err) => {
+          // Non-fatal: autosaves should never throw out of the timer.
           console.error("[V3 Autosave] Failed:", err);
-        }
+        });
       }, AUTOSAVE_DEBOUNCE_MS);
-
-      set((s) => { s._autosaveTimer = newTimer; });
+      set((s) => {
+        s._autosaveTimer = newTimer;
+      });
     }
 
-    // ── Private: mark dirty + schedule save ──
     function markDirty() {
-      set((s) => { s.isDirty = true; });
+      set((s) => {
+        s.isDirty = true;
+      });
       scheduleAutosave();
-    }
-
-    // ── Private: get the active template or section group ──
-    function getActiveContainer(state: CustomizerState): PageTemplate | SectionGroup | null {
-      if (!state.draft) return null;
-      return state.draft.templates[state.activePage] ?? null;
-    }
-
-    // ── Private: resolve section from template or group ──
-    function resolveSection(
-      draft: ThemeSettingsV3,
-      sectionId: string,
-      groupId?: string,
-    ): { container: PageTemplate | SectionGroup; section: SectionInstance } | null {
-      if (groupId) {
-        const group = draft.section_groups[groupId];
-        if (!group?.sections[sectionId]) return null;
-        return { container: group, section: group.sections[sectionId] };
-      }
-      for (const tpl of Object.values(draft.templates)) {
-        if (tpl.sections[sectionId]) {
-          return { container: tpl, section: tpl.sections[sectionId] };
-        }
-      }
-      return null;
     }
 
     return {
       ...initialState,
 
-      // ── Initialization ──────────────────────────────────────────────
+      // ── Initialization ───────────────────────────────────────────────
 
       initialize: async (storeId: string) => {
-        set((s) => { s.isLoading = true; s.error = null; s.storeId = storeId; });
+        // Guard re-init against the same store
+        if (get().storeId === storeId && get().draft) return;
+
+        set((s) => {
+          s.isLoading = true;
+          s.error = null;
+          s.storeId = storeId;
+        });
         try {
-          // Fetch draft and schemas in parallel
-          const [draft, schemas] = await Promise.all([
-            fetchDraftV3(storeId).catch(async () => {
-              // If no V3 draft exists, initialize one
-              return initializeV3(storeId);
-            }),
+          const [draftRaw, schemasRaw] = await Promise.all([
+            fetchDraftV3(storeId),
             fetchSchemasV3(storeId),
           ]);
+          // Backend returns `{}` (empty dict) when the store has no V3 draft
+          // *and* no legacy data to normalize. Treat as "needs a theme" by
+          // surfacing an error the page can route on.
+          const draftOk =
+            draftRaw &&
+            typeof draftRaw === "object" &&
+            (draftRaw as ThemeSettingsV3).schema_version === 3;
+          if (!draftOk) {
+            set((s) => {
+              s.isLoading = false;
+              s.error =
+                "No theme is active for this store yet. Install a theme from the marketplace, then re-open the editor.";
+            });
+            return;
+          }
           set((s) => {
-            s.draft = draft;
-            s.schemas = schemas;
+            s.draft = draftRaw as ThemeSettingsV3;
+            s.schemas = normalizeSchemas(schemasRaw);
             s.isLoading = false;
             s.isDirty = false;
             s.past = [];
             s.future = [];
+            s.lastSavedAt = new Date().toISOString();
           });
         } catch (err) {
           set((s) => {
             s.isLoading = false;
-            s.error = err instanceof Error ? err.message : "Failed to load editor";
+            s.error =
+              err instanceof Error ? err.message : "Failed to load editor";
           });
         }
       },
 
       reset: () => {
-        const timer = get()._autosaveTimer;
-        if (timer) clearTimeout(timer);
+        cancelAutosaveTimer();
         set(initialState);
       },
 
-      // ── Global Settings ─────────────────────────────────────────────
+      // ── Global Settings ──────────────────────────────────────────────
 
-      updateGlobalSetting: (key: string, value: unknown) => {
-        pushHistory(`Update global: ${key}`);
+      updateGlobalSetting: (key, value) => {
+        pushHistory(`global:${key}`, `Update ${key}`);
         set((s) => {
           if (!s.draft) return;
           s.draft.global_settings[key] = value;
@@ -295,10 +448,13 @@ export const useCustomizerStore = create<CustomizerStore>()(
         markDirty();
       },
 
-      // ── Section Settings ────────────────────────────────────────────
+      // ── Section Settings ─────────────────────────────────────────────
 
-      updateSectionSetting: (sectionId: string, key: string, value: unknown, groupId?: string) => {
-        pushHistory(`Update section setting: ${key}`);
+      updateSectionSetting: (sectionId, key, value, groupId) => {
+        pushHistory(
+          `section:${groupId ?? "tpl"}:${sectionId}:${key}`,
+          `Update section ${key}`,
+        );
         set((s) => {
           if (!s.draft) return;
           if (groupId) {
@@ -316,10 +472,13 @@ export const useCustomizerStore = create<CustomizerStore>()(
         markDirty();
       },
 
-      // ── Block Settings ──────────────────────────────────────────────
+      // ── Block Settings ───────────────────────────────────────────────
 
-      updateBlockSetting: (sectionId: string, blockId: string, key: string, value: unknown, groupId?: string) => {
-        pushHistory(`Update block setting: ${key}`);
+      updateBlockSetting: (sectionId, blockId, key, value, groupId) => {
+        pushHistory(
+          `block:${groupId ?? "tpl"}:${sectionId}:${blockId}:${key}`,
+          `Update block ${key}`,
+        );
         set((s) => {
           if (!s.draft) return;
           let section: SectionInstance | undefined;
@@ -335,16 +494,16 @@ export const useCustomizerStore = create<CustomizerStore>()(
         markDirty();
       },
 
-      // ── Section CRUD ────────────────────────────────────────────────
+      // ── Section CRUD ─────────────────────────────────────────────────
 
-      addSection: (sectionType: string, presetIndex: number = 0) => {
+      addSection: (sectionType, presetIndex = 0) => {
         const { schemas, draft, activePage, insertAfterSectionId } = get();
         if (!schemas || !draft) return;
 
         const schema = schemas.sections.find((s) => s.type === sectionType);
         if (!schema) return;
 
-        pushHistory(`Add section: ${sectionType}`);
+        pushHistory(`add-section:${Date.now()}`, `Add section ${sectionType}`);
 
         const newId = generateId("sec");
         const defaults: Record<string, unknown> = {};
@@ -354,21 +513,21 @@ export const useCustomizerStore = create<CustomizerStore>()(
         const preset = schema.presets?.[presetIndex];
         const presetSettings = preset?.settings ?? {};
 
-        // Build default blocks from preset
         const blocks: Record<string, BlockInstance> = {};
         const blockOrder: string[] = [];
         if (preset?.blocks) {
           for (const presetBlock of preset.blocks) {
             const blockId = generateId("blk");
-            const blockSchema = schema.blocks?.find((b) => b.type === presetBlock.type);
+            const blockSchema = schema.blocks?.find(
+              (b) => b.type === presetBlock.type,
+            );
             const blockDefaults: Record<string, unknown> = {};
             blockSchema?.settings.forEach((s) => {
               if (s.default !== undefined) blockDefaults[s.id] = s.default;
             });
             blocks[blockId] = {
-              id: blockId,
               type: presetBlock.type,
-              settings: { ...blockDefaults, ...presetBlock.settings },
+              settings: { ...blockDefaults, ...(presetBlock.settings ?? {}) },
             };
             blockOrder.push(blockId);
           }
@@ -396,7 +555,12 @@ export const useCustomizerStore = create<CustomizerStore>()(
           } else {
             tpl.order.push(newId);
           }
-          s.selection = { type: "section", sectionId: newId, blockId: null, groupId: null };
+          s.selection = {
+            type: "section",
+            sectionId: newId,
+            blockId: null,
+            groupId: null,
+          };
           s.activePanel = "section-editor";
           s.showAddSection = false;
           s.insertAfterSectionId = null;
@@ -404,8 +568,8 @@ export const useCustomizerStore = create<CustomizerStore>()(
         markDirty();
       },
 
-      removeSection: (sectionId: string) => {
-        pushHistory(`Remove section: ${sectionId}`);
+      removeSection: (sectionId) => {
+        pushHistory(`remove-section:${sectionId}`, `Remove section`);
         set((s) => {
           if (!s.draft) return;
           const tpl = s.draft.templates[s.activePage];
@@ -413,15 +577,23 @@ export const useCustomizerStore = create<CustomizerStore>()(
           delete tpl.sections[sectionId];
           tpl.order = tpl.order.filter((id) => id !== sectionId);
           if (s.selection.sectionId === sectionId) {
-            s.selection = { type: null, sectionId: null, blockId: null, groupId: null };
+            s.selection = {
+              type: null,
+              sectionId: null,
+              blockId: null,
+              groupId: null,
+            };
             s.activePanel = "sections";
           }
         });
         markDirty();
       },
 
-      moveSection: (sectionId: string, direction: "up" | "down") => {
-        pushHistory(`Move section ${direction}: ${sectionId}`);
+      moveSection: (sectionId, direction) => {
+        pushHistory(
+          `move-section:${sectionId}`,
+          `Move section ${direction}`,
+        );
         set((s) => {
           if (!s.draft) return;
           const tpl = s.draft.templates[s.activePage];
@@ -429,13 +601,16 @@ export const useCustomizerStore = create<CustomizerStore>()(
           const idx = tpl.order.indexOf(sectionId);
           const target = direction === "up" ? idx - 1 : idx + 1;
           if (target < 0 || target >= tpl.order.length) return;
-          [tpl.order[idx], tpl.order[target]] = [tpl.order[target], tpl.order[idx]];
+          [tpl.order[idx], tpl.order[target]] = [
+            tpl.order[target],
+            tpl.order[idx],
+          ];
         });
         markDirty();
       },
 
-      reorderSections: (newOrder: string[]) => {
-        pushHistory("Reorder sections");
+      reorderSections: (newOrder) => {
+        pushHistory(`reorder-sections:${Date.now()}`, "Reorder sections");
         set((s) => {
           if (!s.draft) return;
           const tpl = s.draft.templates[s.activePage];
@@ -444,19 +619,23 @@ export const useCustomizerStore = create<CustomizerStore>()(
         markDirty();
       },
 
-      toggleSection: (sectionId: string) => {
-        pushHistory(`Toggle section: ${sectionId}`);
+      toggleSection: (sectionId) => {
+        pushHistory(`toggle-section:${sectionId}`, `Toggle section`);
         set((s) => {
           if (!s.draft) return;
           const tpl = s.draft.templates[s.activePage];
           if (!tpl?.sections[sectionId]) return;
-          tpl.sections[sectionId].disabled = !tpl.sections[sectionId].disabled;
+          tpl.sections[sectionId].disabled =
+            !tpl.sections[sectionId].disabled;
         });
         markDirty();
       },
 
-      duplicateSection: (sectionId: string) => {
-        pushHistory(`Duplicate section: ${sectionId}`);
+      duplicateSection: (sectionId) => {
+        pushHistory(
+          `duplicate-section:${sectionId}`,
+          `Duplicate section`,
+        );
         set((s) => {
           if (!s.draft) return;
           const tpl = s.draft.templates[s.activePage];
@@ -466,15 +645,20 @@ export const useCustomizerStore = create<CustomizerStore>()(
           tpl.sections[newId] = cloneDeep(original);
           const idx = tpl.order.indexOf(sectionId);
           tpl.order.splice(idx + 1, 0, newId);
-          s.selection = { type: "section", sectionId: newId, blockId: null, groupId: null };
+          s.selection = {
+            type: "section",
+            sectionId: newId,
+            blockId: null,
+            groupId: null,
+          };
         });
         markDirty();
       },
 
-      // ── Block CRUD ──────────────────────────────────────────────────
+      // ── Block CRUD ───────────────────────────────────────────────────
 
-      addBlock: (sectionId: string, blockType: string, groupId?: string) => {
-        pushHistory(`Add block: ${blockType}`);
+      addBlock: (sectionId, blockType, groupId) => {
+        pushHistory(`add-block:${sectionId}:${Date.now()}`, `Add block`);
         const { schemas } = get();
         set((s) => {
           if (!s.draft || !schemas) return;
@@ -486,32 +670,43 @@ export const useCustomizerStore = create<CustomizerStore>()(
           }
           if (!section) return;
 
-          // Find block schema defaults
-          const sectionSchema = schemas.sections.find((sc) => sc.type === section!.type);
-          const blockSchema = sectionSchema?.blocks?.find((b) => b.type === blockType);
+          const sectionSchema = schemas.sections.find(
+            (sc) => sc.type === section!.type,
+          );
+          const blockSchema = sectionSchema?.blocks?.find(
+            (b) => b.type === blockType,
+          );
           const defaults: Record<string, unknown> = {};
           blockSchema?.settings.forEach((bs) => {
             if (bs.default !== undefined) defaults[bs.id] = bs.default;
           });
 
-          // Check max_blocks limit
           const currentBlockCount = section.block_order?.length ?? 0;
-          if (sectionSchema?.max_blocks && currentBlockCount >= sectionSchema.max_blocks) return;
+          if (
+            sectionSchema?.max_blocks &&
+            currentBlockCount >= sectionSchema.max_blocks
+          )
+            return;
 
           const blockId = generateId("blk");
           if (!section.blocks) section.blocks = {};
           if (!section.block_order) section.block_order = [];
-          section.blocks[blockId] = { id: blockId, type: blockType, settings: defaults };
+          section.blocks[blockId] = { type: blockType, settings: defaults };
           section.block_order.push(blockId);
 
-          s.selection = { type: "block", sectionId, blockId, groupId: groupId ?? null };
+          s.selection = {
+            type: "block",
+            sectionId,
+            blockId,
+            groupId: groupId ?? null,
+          };
           s.activePanel = "block-editor";
         });
         markDirty();
       },
 
-      removeBlock: (sectionId: string, blockId: string, groupId?: string) => {
-        pushHistory(`Remove block: ${blockId}`);
+      removeBlock: (sectionId, blockId, groupId) => {
+        pushHistory(`remove-block:${blockId}`, `Remove block`);
         set((s) => {
           if (!s.draft) return;
           let section: SectionInstance | undefined;
@@ -522,17 +717,24 @@ export const useCustomizerStore = create<CustomizerStore>()(
           }
           if (!section?.blocks) return;
           delete section.blocks[blockId];
-          section.block_order = (section.block_order ?? []).filter((id) => id !== blockId);
+          section.block_order = (section.block_order ?? []).filter(
+            (id) => id !== blockId,
+          );
           if (s.selection.blockId === blockId) {
-            s.selection = { type: "section", sectionId, blockId: null, groupId: groupId ?? null };
+            s.selection = {
+              type: "section",
+              sectionId,
+              blockId: null,
+              groupId: groupId ?? null,
+            };
             s.activePanel = "section-editor";
           }
         });
         markDirty();
       },
 
-      moveBlock: (sectionId: string, blockId: string, direction: "up" | "down", groupId?: string) => {
-        pushHistory(`Move block ${direction}: ${blockId}`);
+      moveBlock: (sectionId, blockId, direction, groupId) => {
+        pushHistory(`move-block:${blockId}`, `Move block ${direction}`);
         set((s) => {
           if (!s.draft) return;
           let section: SectionInstance | undefined;
@@ -551,8 +753,8 @@ export const useCustomizerStore = create<CustomizerStore>()(
         markDirty();
       },
 
-      reorderBlocks: (sectionId: string, newOrder: string[], groupId?: string) => {
-        pushHistory("Reorder blocks");
+      reorderBlocks: (sectionId, newOrder, groupId) => {
+        pushHistory(`reorder-blocks:${sectionId}`, "Reorder blocks");
         set((s) => {
           if (!s.draft) return;
           let section: SectionInstance | undefined;
@@ -566,8 +768,8 @@ export const useCustomizerStore = create<CustomizerStore>()(
         markDirty();
       },
 
-      toggleBlock: (sectionId: string, blockId: string, groupId?: string) => {
-        pushHistory(`Toggle block: ${blockId}`);
+      toggleBlock: (sectionId, blockId, groupId) => {
+        pushHistory(`toggle-block:${blockId}`, "Toggle block");
         set((s) => {
           if (!s.draft) return;
           let section: SectionInstance | undefined;
@@ -577,16 +779,20 @@ export const useCustomizerStore = create<CustomizerStore>()(
             section = s.draft.templates[s.activePage]?.sections[sectionId];
           }
           if (section?.blocks?.[blockId]) {
-            section.blocks[blockId].disabled = !section.blocks[blockId].disabled;
+            section.blocks[blockId].disabled =
+              !section.blocks[blockId].disabled;
           }
         });
         markDirty();
       },
 
-      // ── Section Group operations ────────────────────────────────────
+      // ── Section Group operations ─────────────────────────────────────
 
-      updateSectionGroupSetting: (groupId: string, sectionId: string, key: string, value: unknown) => {
-        pushHistory(`Update group section setting: ${key}`);
+      updateSectionGroupSetting: (groupId, sectionId, key, value) => {
+        pushHistory(
+          `group-setting:${groupId}:${sectionId}:${key}`,
+          `Update group ${key}`,
+        );
         set((s) => {
           if (!s.draft) return;
           const group = s.draft.section_groups[groupId];
@@ -597,14 +803,19 @@ export const useCustomizerStore = create<CustomizerStore>()(
         markDirty();
       },
 
-      addSectionToGroup: (groupId: string, sectionType: string) => {
+      addSectionToGroup: (groupId, sectionType) => {
         const { schemas } = get();
         if (!schemas) return;
         const groupSchemas = schemas.section_groups[groupId];
-        const schema = groupSchemas?.sections.find((s) => s.type === sectionType);
+        const schema = groupSchemas?.sections.find(
+          (s) => s.type === sectionType,
+        );
         if (!schema) return;
 
-        pushHistory(`Add to group ${groupId}: ${sectionType}`);
+        pushHistory(
+          `add-group-section:${groupId}:${Date.now()}`,
+          `Add to ${groupId}`,
+        );
         const newId = generateId("grp");
         const defaults: Record<string, unknown> = {};
         schema.settings.forEach((s) => {
@@ -621,8 +832,11 @@ export const useCustomizerStore = create<CustomizerStore>()(
         markDirty();
       },
 
-      removeSectionFromGroup: (groupId: string, sectionId: string) => {
-        pushHistory(`Remove from group ${groupId}: ${sectionId}`);
+      removeSectionFromGroup: (groupId, sectionId) => {
+        pushHistory(
+          `remove-group-section:${groupId}:${sectionId}`,
+          `Remove from ${groupId}`,
+        );
         set((s) => {
           if (!s.draft) return;
           const group = s.draft.section_groups[groupId];
@@ -633,18 +847,30 @@ export const useCustomizerStore = create<CustomizerStore>()(
         markDirty();
       },
 
-      // ── Undo / Redo ─────────────────────────────────────────────────
+      // ── Undo / Redo ──────────────────────────────────────────────────
+      //
+      // Note: undo/redo do NOT call markDirty(). Stepping through history
+      // is not a "new change" — autosave should fire only when the user
+      // actively edits after settling on a history position.
 
       undo: () => {
         const { past, draft } = get();
         if (past.length === 0 || !draft) return;
         const previous = past[past.length - 1];
         set((s) => {
-          s.future.unshift({ data: cloneDeep(draft), label: "undo", timestamp: Date.now() });
+          s.future.unshift({
+            data: cloneDeep(draft),
+            coalesceKey: "redo",
+            label: previous.label,
+            timestamp: Date.now(),
+          });
           s.past.pop();
           s.draft = previous.data;
+          s.isDirty = true;
         });
-        markDirty();
+        // Snap-save the current draft so server state matches what the
+        // user sees, but skip the autosave debounce queue — call directly.
+        scheduleAutosave();
       },
 
       redo: () => {
@@ -652,52 +878,89 @@ export const useCustomizerStore = create<CustomizerStore>()(
         if (future.length === 0 || !draft) return;
         const next = future[0];
         set((s) => {
-          s.past.push({ data: cloneDeep(draft), label: "redo", timestamp: Date.now() });
+          s.past.push({
+            data: cloneDeep(draft),
+            coalesceKey: "undo",
+            label: next.label,
+            timestamp: Date.now(),
+          });
           s.future.shift();
           s.draft = next.data;
+          s.isDirty = true;
         });
-        markDirty();
+        scheduleAutosave();
       },
 
-      // ── Save / Publish ──────────────────────────────────────────────
+      // ── Save / Publish ───────────────────────────────────────────────
 
       save: async () => {
+        cancelAutosaveTimer();
+        await performSave();
+      },
+
+      publish: async (label?: string) => {
         const { storeId, draft } = get();
         if (!storeId || !draft) return;
-        // Cancel pending autosave
-        const timer = get()._autosaveTimer;
-        if (timer) clearTimeout(timer);
+
+        cancelAutosaveTimer();
         try {
-          set((s) => { s.isSaving = true; });
-          const result = await saveDraftV3(storeId, draft);
           set((s) => {
-            s.isSaving = false;
-            s.isDirty = false;
-            s.lastSavedAt = result.saved_at;
+            s.isPublishing = true;
           });
+          // Ensure the latest draft is on the server first (will dedup if
+          // an autosave is already in flight).
+          await performSave();
+          await publishV3(storeId);
+          set((s) => {
+            s.isPublishing = false;
+            s.isDirty = false;
+            s.lastSavedAt = new Date().toISOString();
+          });
+          // Server-side version row gets `change_summary = "Published"`
+          // — the optional label here is forwarded with the autosave that
+          // ran moments ago and is preserved as the most recent autosave's
+          // change_summary. (Kept for forward-compat; not yet used by
+          // backend's publish endpoint.)
+          if (label && import.meta.env.DEV) {
+            console.debug("[V3 publish] label:", label);
+          }
         } catch (err) {
-          set((s) => { s.isSaving = false; });
+          set((s) => {
+            s.isPublishing = false;
+          });
           throw err;
         }
       },
 
-      publish: async () => {
-        const { storeId, draft } = get();
-        if (!storeId || !draft) return;
-        // Save first, then publish
-        const timer = get()._autosaveTimer;
-        if (timer) clearTimeout(timer);
+      restoreVersion: async (versionId: string) => {
+        const { storeId } = get();
+        if (!storeId) return;
+        cancelAutosaveTimer();
         try {
-          set((s) => { s.isPublishing = true; });
-          await saveDraftV3(storeId, draft);
-          const result = await publishV3(storeId);
           set((s) => {
-            s.isPublishing = false;
-            s.isDirty = false;
-            s.lastSavedAt = result.published_at;
+            s.isLoading = true;
           });
+          const result = await restoreVersionV3(storeId, versionId);
+          const restored = result.draft;
+          if (restored && restored.schema_version === 3) {
+            set((s) => {
+              s.draft = restored;
+              s.isLoading = false;
+              // The backend wrote a fresh autosave row; treat as clean.
+              s.isDirty = false;
+              s.lastSavedAt = new Date().toISOString();
+              s.past = [];
+              s.future = [];
+            });
+          } else {
+            set((s) => {
+              s.isLoading = false;
+            });
+          }
         } catch (err) {
-          set((s) => { s.isPublishing = false; });
+          set((s) => {
+            s.isLoading = false;
+          });
           throw err;
         }
       },
@@ -705,37 +968,69 @@ export const useCustomizerStore = create<CustomizerStore>()(
       discardDraft: async () => {
         const { storeId } = get();
         if (!storeId) return;
+        cancelAutosaveTimer();
         try {
-          set((s) => { s.isLoading = true; });
-          const restored = await discardDraftV3(storeId);
           set((s) => {
-            s.draft = restored;
+            s.isLoading = true;
+          });
+          const result = await discardDraftV3(storeId);
+          const restored = (result.published ?? null) as
+            | ThemeSettingsV3
+            | null;
+          set((s) => {
+            if (restored && (restored as ThemeSettingsV3).schema_version === 3) {
+              s.draft = restored;
+            }
             s.isLoading = false;
             s.isDirty = false;
             s.past = [];
             s.future = [];
           });
         } catch (err) {
-          set((s) => { s.isLoading = false; });
+          set((s) => {
+            s.isLoading = false;
+          });
           throw err;
         }
       },
 
-      // ── UI State ────────────────────────────────────────────────────
+      // ── UI State ─────────────────────────────────────────────────────
 
-      setLocale: (locale) => set((s) => { s.locale = locale; }),
-      setDeviceMode: (mode) => set((s) => { s.deviceMode = mode; }),
-      setActivePanel: (panel) => set((s) => { s.activePanel = panel; }),
-      setActivePage: (page) => set((s) => { s.activePage = page; }),
-      setSelection: (selection) => set((s) => { s.selection = selection; }),
-      clearSelection: () => set((s) => {
-        s.selection = { type: null, sectionId: null, blockId: null, groupId: null };
-        s.activePanel = "sections";
-      }),
-      setShowAddSection: (show, insertAfter = null) => set((s) => {
-        s.showAddSection = show;
-        s.insertAfterSectionId = insertAfter ?? null;
-      }),
+      setLocale: (locale) =>
+        set((s) => {
+          s.locale = locale;
+        }),
+      setDeviceMode: (mode) =>
+        set((s) => {
+          s.deviceMode = mode;
+        }),
+      setActivePanel: (panel) =>
+        set((s) => {
+          s.activePanel = panel;
+        }),
+      setActivePage: (page) =>
+        set((s) => {
+          s.activePage = page;
+        }),
+      setSelection: (selection) =>
+        set((s) => {
+          s.selection = selection;
+        }),
+      clearSelection: () =>
+        set((s) => {
+          s.selection = {
+            type: null,
+            sectionId: null,
+            blockId: null,
+            groupId: null,
+          };
+          s.activePanel = "sections";
+        }),
+      setShowAddSection: (show, insertAfter = null) =>
+        set((s) => {
+          s.showAddSection = show;
+          s.insertAfterSectionId = insertAfter ?? null;
+        }),
     };
   }),
 );
