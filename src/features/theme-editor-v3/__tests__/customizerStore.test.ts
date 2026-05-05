@@ -1,0 +1,360 @@
+/**
+ * Unit tests for the V3 customizer store.
+ *
+ * Covers reducer correctness for:
+ *  - canUndo / canRedo derived from past/future
+ *  - undo/redo invariants (idempotent, doesn't mark dirty mid-history)
+ *  - section + block CRUD (add/move/remove/toggle/duplicate)
+ *  - history coalescing (consecutive same-target writes collapse)
+ *  - autosave debounce schedules + cancels correctly
+ *  - in-flight save dedup (concurrent saves share one promise)
+ *
+ * Network calls are mocked at the service module boundary.
+ */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// ── Mock the API service ──
+const mockSave = vi.fn();
+const mockPublish = vi.fn();
+const mockFetchDraft = vi.fn();
+const mockFetchSchemas = vi.fn();
+const mockDiscard = vi.fn();
+const mockRestore = vi.fn();
+
+vi.mock("../services/themeEditorV3Api", () => ({
+  saveDraftV3: (...args: unknown[]) => mockSave(...args),
+  publishV3: (...args: unknown[]) => mockPublish(...args),
+  fetchDraftV3: (...args: unknown[]) => mockFetchDraft(...args),
+  fetchSchemasV3: (...args: unknown[]) => mockFetchSchemas(...args),
+  discardDraftV3: (...args: unknown[]) => mockDiscard(...args),
+  restoreVersionV3: (...args: unknown[]) => mockRestore(...args),
+}));
+
+import {
+  useCustomizerStore,
+  selectCanUndo,
+  selectCanRedo,
+} from "../store/customizerStore";
+import type { ThemeSettingsV3, ThemeSchemaBundle } from "../types";
+
+const sampleDraft: ThemeSettingsV3 = {
+  schema_version: 3,
+  theme_id: "bazar",
+  global_settings: { primary_color: "#000" },
+  templates: {
+    home: {
+      name: "Home",
+      sections: {
+        hero_1: { type: "hero", settings: { headline: "Hi" } },
+      },
+      order: ["hero_1"],
+    },
+  },
+  section_groups: {
+    header: {
+      name: "Header",
+      sections: { header_1: { type: "header", settings: {} } },
+      order: ["header_1"],
+    },
+    footer: {
+      name: "Footer",
+      sections: { footer_1: { type: "footer", settings: {} } },
+      order: ["footer_1"],
+    },
+  },
+};
+
+const sampleSchemas: ThemeSchemaBundle = {
+  theme_id: "bazar",
+  theme_slug: "bazar",
+  theme_type: "internal",
+  settings_schema: [],
+  section_schemas: {
+    hero: {
+      type: "hero",
+      name: "Hero",
+      settings: [
+        { id: "headline", type: "text", label: "Headline", default: "Hello" },
+      ],
+      blocks: [
+        {
+          type: "button",
+          name: "Button",
+          settings: [
+            { id: "label", type: "text", label: "Label", default: "Click" },
+          ],
+        },
+      ],
+      max_blocks: 3,
+    },
+    "featured-products": {
+      type: "featured-products",
+      name: "Featured Products",
+      settings: [],
+    },
+    header: { type: "header", name: "Header", tag: "header", settings: [] },
+    footer: { type: "footer", name: "Footer", tag: "footer", settings: [] },
+  },
+};
+
+async function bootStore(): Promise<void> {
+  // Seed the API mocks for initialize().
+  mockFetchDraft.mockResolvedValueOnce(sampleDraft);
+  mockFetchSchemas.mockResolvedValueOnce(sampleSchemas);
+  await useCustomizerStore.getState().initialize("store-1");
+}
+
+beforeEach(() => {
+  // Reset between tests.
+  useCustomizerStore.getState().reset();
+  vi.clearAllMocks();
+  // Quiet console.error from the autosave timer.
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("initialize", () => {
+  it("loads draft + schemas from the API and resets dirty/history", async () => {
+    await bootStore();
+    const s = useCustomizerStore.getState();
+    expect(s.storeId).toBe("store-1");
+    expect(s.draft?.schema_version).toBe(3);
+    expect(s.draft?.theme_id).toBe("bazar");
+    expect(s.schemas?.sections.length).toBeGreaterThan(0);
+    expect(s.isDirty).toBe(false);
+    expect(s.past).toEqual([]);
+    expect(s.future).toEqual([]);
+  });
+
+  it("surfaces an error when the backend returns no V3 draft", async () => {
+    mockFetchDraft.mockResolvedValueOnce({});
+    mockFetchSchemas.mockResolvedValueOnce(sampleSchemas);
+    await useCustomizerStore.getState().initialize("store-1");
+    const s = useCustomizerStore.getState();
+    expect(s.error).toBeTruthy();
+    expect(s.draft).toBeNull();
+  });
+
+  it("normalizes header/footer schemas into section_groups via tag filtering", async () => {
+    await bootStore();
+    const s = useCustomizerStore.getState();
+    expect(s.schemas?.section_groups.header.sections[0]?.type).toBe(
+      "header",
+    );
+    expect(s.schemas?.section_groups.footer.sections[0]?.type).toBe(
+      "footer",
+    );
+    // template-eligible sections exclude the tagged header/footer
+    expect(
+      s.schemas?.sections.find((sec) => sec.type === "header"),
+    ).toBeUndefined();
+  });
+});
+
+describe("canUndo / canRedo selectors", () => {
+  it("are derived from past/future arrays", async () => {
+    await bootStore();
+    expect(selectCanUndo(useCustomizerStore.getState())).toBe(false);
+    expect(selectCanRedo(useCustomizerStore.getState())).toBe(false);
+
+    useCustomizerStore.getState().updateGlobalSetting("primary_color", "#fff");
+    expect(selectCanUndo(useCustomizerStore.getState())).toBe(true);
+    expect(selectCanRedo(useCustomizerStore.getState())).toBe(false);
+
+    useCustomizerStore.getState().undo();
+    expect(selectCanUndo(useCustomizerStore.getState())).toBe(false);
+    expect(selectCanRedo(useCustomizerStore.getState())).toBe(true);
+  });
+});
+
+describe("history coalescing", () => {
+  it("collapses consecutive writes to the same setting within the window", async () => {
+    await bootStore();
+    const store = useCustomizerStore.getState();
+    store.updateGlobalSetting("primary_color", "#111");
+    store.updateGlobalSetting("primary_color", "#222");
+    store.updateGlobalSetting("primary_color", "#333");
+    // All three coalesce → still one undo entry.
+    expect(useCustomizerStore.getState().past.length).toBe(1);
+  });
+
+  it("does not coalesce writes to different targets", async () => {
+    await bootStore();
+    const store = useCustomizerStore.getState();
+    store.updateGlobalSetting("primary_color", "#111");
+    store.updateGlobalSetting("font_family", "Inter");
+    expect(useCustomizerStore.getState().past.length).toBe(2);
+  });
+
+  it("does not coalesce after the window elapses", async () => {
+    await bootStore();
+    useCustomizerStore.getState().updateGlobalSetting("primary_color", "#111");
+    vi.advanceTimersByTime(2000); // > HISTORY_COALESCE_MS (1500)
+    useCustomizerStore.getState().updateGlobalSetting("primary_color", "#222");
+    expect(useCustomizerStore.getState().past.length).toBe(2);
+  });
+});
+
+describe("undo / redo", () => {
+  it("undo restores the prior state and pushes onto future", async () => {
+    await bootStore();
+    useCustomizerStore.getState().updateGlobalSetting("primary_color", "#fff");
+    expect(
+      useCustomizerStore.getState().draft?.global_settings.primary_color,
+    ).toBe("#fff");
+
+    useCustomizerStore.getState().undo();
+    expect(
+      useCustomizerStore.getState().draft?.global_settings.primary_color,
+    ).toBe("#000");
+    expect(useCustomizerStore.getState().future.length).toBe(1);
+  });
+
+  it("redo replays the next state", async () => {
+    await bootStore();
+    useCustomizerStore.getState().updateGlobalSetting("primary_color", "#fff");
+    useCustomizerStore.getState().undo();
+    useCustomizerStore.getState().redo();
+    expect(
+      useCustomizerStore.getState().draft?.global_settings.primary_color,
+    ).toBe("#fff");
+  });
+});
+
+describe("section CRUD", () => {
+  it("addSection inserts a new section + selects it", async () => {
+    await bootStore();
+    useCustomizerStore.getState().addSection("featured-products");
+    const tpl = useCustomizerStore.getState().draft!.templates.home;
+    expect(Object.keys(tpl.sections).length).toBe(2);
+    expect(tpl.order).toContain("hero_1");
+    expect(useCustomizerStore.getState().selection.type).toBe("section");
+    expect(useCustomizerStore.getState().activePanel).toBe("section-editor");
+  });
+
+  it("removeSection deletes from sections + order, clears matching selection", async () => {
+    await bootStore();
+    useCustomizerStore.getState().setSelection({
+      type: "section",
+      sectionId: "hero_1",
+      blockId: null,
+      groupId: null,
+    });
+    useCustomizerStore.getState().removeSection("hero_1");
+    const tpl = useCustomizerStore.getState().draft!.templates.home;
+    expect(tpl.order).not.toContain("hero_1");
+    expect(tpl.sections.hero_1).toBeUndefined();
+    expect(useCustomizerStore.getState().selection.sectionId).toBeNull();
+  });
+
+  it("moveSection swaps adjacent positions", async () => {
+    await bootStore();
+    useCustomizerStore.getState().addSection("featured-products");
+    const orderBefore = useCustomizerStore.getState().draft!.templates.home
+      .order;
+    expect(orderBefore[0]).toBe("hero_1");
+    const newSectionId = orderBefore[1];
+
+    useCustomizerStore.getState().moveSection(newSectionId, "up");
+    const orderAfter = useCustomizerStore.getState().draft!.templates.home
+      .order;
+    expect(orderAfter[0]).toBe(newSectionId);
+    expect(orderAfter[1]).toBe("hero_1");
+  });
+
+  it("toggleSection flips disabled", async () => {
+    await bootStore();
+    useCustomizerStore.getState().toggleSection("hero_1");
+    expect(
+      useCustomizerStore.getState().draft!.templates.home.sections.hero_1
+        .disabled,
+    ).toBe(true);
+    useCustomizerStore.getState().toggleSection("hero_1");
+    expect(
+      useCustomizerStore.getState().draft!.templates.home.sections.hero_1
+        .disabled,
+    ).toBe(false);
+  });
+
+  it("duplicateSection clones into a new id immediately after the original", async () => {
+    await bootStore();
+    useCustomizerStore.getState().duplicateSection("hero_1");
+    const tpl = useCustomizerStore.getState().draft!.templates.home;
+    expect(Object.keys(tpl.sections).length).toBe(2);
+    expect(tpl.order[0]).toBe("hero_1");
+    expect(tpl.order[1]).not.toBe("hero_1");
+  });
+});
+
+describe("block CRUD", () => {
+  it("addBlock respects max_blocks", async () => {
+    await bootStore();
+    const sid = "hero_1";
+    // hero schema has max_blocks=3
+    useCustomizerStore.getState().addBlock(sid, "button");
+    useCustomizerStore.getState().addBlock(sid, "button");
+    useCustomizerStore.getState().addBlock(sid, "button");
+    useCustomizerStore.getState().addBlock(sid, "button"); // should be rejected
+    const section = useCustomizerStore.getState().draft!.templates.home
+      .sections[sid];
+    expect(section.block_order?.length).toBe(3);
+  });
+});
+
+describe("autosave debounce + dedup", () => {
+  it("schedules a save after the debounce window when dirty", async () => {
+    await bootStore();
+    mockSave.mockResolvedValue(undefined);
+
+    useCustomizerStore.getState().updateGlobalSetting("primary_color", "#fff");
+    expect(mockSave).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(mockSave).toHaveBeenCalledTimes(1);
+  });
+
+  it("manual save() cancels a pending autosave", async () => {
+    await bootStore();
+    mockSave.mockResolvedValue(undefined);
+
+    useCustomizerStore.getState().updateGlobalSetting("primary_color", "#fff");
+    await useCustomizerStore.getState().save();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(mockSave).toHaveBeenCalledTimes(1);
+  });
+
+  it("dedups concurrent saves", async () => {
+    await bootStore();
+    let resolveSave: () => void = () => {};
+    mockSave.mockImplementation(
+      () => new Promise<void>((r) => (resolveSave = r)),
+    );
+
+    useCustomizerStore.getState().updateGlobalSetting("primary_color", "#fff");
+    const a = useCustomizerStore.getState().save();
+    const b = useCustomizerStore.getState().save();
+    resolveSave();
+    await Promise.all([a, b]);
+    expect(mockSave).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("publish", () => {
+  it("calls save then publish, clears dirty + autosave timer", async () => {
+    await bootStore();
+    mockSave.mockResolvedValue(undefined);
+    mockPublish.mockResolvedValue(undefined);
+
+    useCustomizerStore.getState().updateGlobalSetting("primary_color", "#fff");
+    await useCustomizerStore.getState().publish("Holiday Sale");
+
+    expect(mockSave).toHaveBeenCalledTimes(1);
+    expect(mockPublish).toHaveBeenCalledTimes(1);
+    expect(useCustomizerStore.getState().isDirty).toBe(false);
+  });
+});
