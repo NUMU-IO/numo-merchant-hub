@@ -29,6 +29,7 @@ const OnlineStoreNavigation = lazy(() => import("@/pages/online-store/Navigation
 const OnlineStorePreferences = lazy(() => import("@/pages/online-store/Preferences"));
 const OnlineStoreCheckoutFields = lazy(() => import("@/pages/online-store/CheckoutFields"));
 const ThemeEditor = lazy(() => import("@/pages/online-store/ThemeEditor"));
+const ThemeCustomizerV3 = lazy(() => import("@/features/theme-editor-v3/pages/ThemeCustomizerV3"));
 const Payments = lazy(() => import("@/pages/Payments"));
 const WalletPage = lazy(() => import("@/pages/Wallet"));
 const StoreBalancePage = lazy(() => import("@/pages/StoreBalance"));
@@ -193,6 +194,16 @@ const App = () => (
                     element={
                       <RouteResolver>
                         <ThemeEditor />
+                      </RouteResolver>
+                    }
+                  />
+
+                  {/* V3 Theme Customizer — full-screen, outside DashboardLayout */}
+                  <Route
+                    path="/online-store/themes/editor-v3"
+                    element={
+                      <RouteResolver>
+                        <ThemeCustomizerV3 />
                       </RouteResolver>
                     }
                   />
