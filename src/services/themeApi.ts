@@ -58,6 +58,10 @@ export interface CustomizationIdentity {
   footer_logo_filter_mode: "none" | "white" | "invert";
 }
 
+export interface CustomizationAuth {
+  hero_image_url: string;
+}
+
 export interface CustomizationHeader {
   nav_layout: string;
   show_search_bar: boolean;
@@ -135,6 +139,7 @@ export interface CustomizationData {
   navigation?: CustomizationNavigation;
   labels?: CustomizationLabels;
   layout?: CustomizationLayout;
+  auth?: CustomizationAuth;
   is_published: boolean;
   last_published_at: string | null;
 }
@@ -163,6 +168,7 @@ export function updateCustomization(
     navigation: Partial<CustomizationNavigation>;
     labels: Partial<CustomizationLabels>;
     layout: Partial<CustomizationLayout>;
+    auth: Partial<CustomizationAuth>;
     // V2 section engine fields
     schema_version: number;
     templates: Record<string, TemplateConfigData>;

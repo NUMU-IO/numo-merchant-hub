@@ -48,11 +48,19 @@ import {
   Loader2, Layout, Package, Navigation2, Image, AlignLeft,
   Palette, Store, RefreshCw, Plus, Trash2, Eye, EyeOff,
   ChevronUp, ChevronDown, GripVertical, CreditCard, MessageCircle, CheckCircle, User,
-  Upload, RotateCcw,
+  Upload, RotateCcw, Lock, Truck, Clock,
 } from "lucide-react";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
-import { uploadStoreAsset } from "@/services/storeApi";
+import { uploadStoreAsset, updateStore } from "@/services/storeApi";
 import { listProducts } from "@/services/productApi";
+import {
+  FooterSectionsEditor,
+  ShippingPageEditor,
+  BusinessHoursEditor,
+  type FooterSection,
+  type ShippingPageConfig,
+  type BusinessHours,
+} from "@/components/store-settings/PagesAndHoursPanel";
 
 // ─── Global settings (identity, header, footer) ────────────────────────────
 
@@ -128,6 +136,12 @@ const GLOBAL_SECTIONS: GlobalSection[] = [
       { key: "footer.social_links.whatsapp", label: "WhatsApp", labelAr: "واتساب", type: "text", placeholder: "+20XXXXXXXXXX" },
     ],
   },
+  {
+    id: "auth", name: "Sign-in page", nameAr: "صفحة تسجيل الدخول", icon: Lock,
+    fields: [
+      { key: "auth.hero_image_url", label: "Sign-in hero image", labelAr: "صورة صفحة تسجيل الدخول", type: "image_picker" },
+    ],
+  },
 ];
 
 // Theme-level settings (colors, fonts, style)
@@ -201,6 +215,9 @@ const EDITABLE_PAGES: PageDef[] = [
   { id: "checkout", name: "Checkout", nameAr: "الدفع", icon: CreditCard, previewPath: "/checkout" },
   { id: "contact", name: "Contact", nameAr: "التواصل", icon: MessageCircle, previewPath: "/contact" },
   { id: "about", name: "About", nameAr: "من نحن", icon: Layout, previewPath: "/about" },
+  { id: "shipping", name: "Shipping & Delivery", nameAr: "الشحن والتوصيل", icon: Truck, previewPath: "/shipping" },
+  { id: "returns", name: "Returns", nameAr: "الإرجاع", icon: RefreshCw, previewPath: "/returns" },
+  { id: "track", name: "Track Order", nameAr: "تتبع الطلب", icon: Truck, previewPath: "/track" },
   { id: "auth", name: "Auth", nameAr: "تسجيل الدخول", icon: User, previewPath: "/auth" },
   { id: "order-confirmation", name: "Order Confirmation", nameAr: "تأكيد الطلب", icon: CheckCircle, previewPath: "/order-confirmation" },
   { id: "profile", name: "Profile", nameAr: "الحساب", icon: User, previewPath: "/profile" },
@@ -310,6 +327,20 @@ export default function ThemeEditor() {
   const [mediaPickerTarget, setMediaPickerTarget] = useState<{ sectionId?: string; path?: string; settingKey?: string; type: "section" | "global" } | null>(null);
   const [showLinkEditor, setShowLinkEditor] = useState(false);
   const [linkEditorTarget, setLinkEditorTarget] = useState<{ sectionId: string; textKey: string; urlKey: string; type: "section" } | null>(null);
+
+  // ── Business hours state (top-level on the store, not theme_settings) ──
+  const [businessHours, setBusinessHours] = useState<BusinessHours>({
+    timezone: "Africa/Cairo",
+    days: {},
+  });
+  // Pre-populate from current store every time the loaded store changes
+  useEffect(() => {
+    const bh = (currentStore?.business_hours || {}) as BusinessHours;
+    setBusinessHours({
+      timezone: bh.timezone || "Africa/Cairo",
+      days: bh.days || {},
+    });
+  }, [currentStore?.id, currentStore?.business_hours]);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initializedRef = useRef(false);
@@ -433,9 +464,14 @@ export default function ThemeEditor() {
           navigation: localData.navigation,
           labels: localData.labels,
           layout: localData.layout,
+          auth: localData.auth,
+          shipping: (localData as CustomizationData & { shipping?: unknown }).shipping,
           schema_version: 2,
           templates: allTemplates,
         },
+        // Top-level fields (not theme_settings) ride alongside `settings` so
+        // the storefront can update them in live preview without a refetch.
+        business_hours: businessHours,
       }, "*");
 
       if (template && schemaBundle) {
@@ -466,7 +502,7 @@ export default function ThemeEditor() {
       }
     } catch { /* iframe not ready */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localData, allTemplates]);
+  }, [localData, allTemplates, businessHours]);
 
   useEffect(() => {
     clearTimeout(sendPreviewUpdate.current);
@@ -798,25 +834,40 @@ export default function ThemeEditor() {
   }
 
   // ── Save / Publish ───────────────────────────────────────────────
+  // Build the payload shared by save + publish so both stay in sync.
+  const buildCustomizationPayload = useCallback(() => {
+    if (!localData || Object.keys(allTemplates).length === 0) throw new Error("No data");
+    const ext = localData as CustomizationData & { shipping?: unknown };
+    return {
+      identity: localData.identity,
+      theme: localData.theme,
+      header: localData.header,
+      hero: localData.hero,
+      products: localData.products,
+      footer: localData.footer,
+      navigation: localData.navigation,
+      labels: localData.labels,
+      layout: localData.layout,
+      auth: localData.auth,
+      // theme_settings.shipping (configurable Shipping & Delivery page)
+      ...(ext.shipping ? { shipping: ext.shipping } : {}),
+      schema_version: 2,
+      templates: allTemplates,
+    };
+  }, [localData, allTemplates]);
+
   const saveMutation = useMutation({
-    mutationFn: () => {
-      if (!localData || Object.keys(allTemplates).length === 0) throw new Error("No data");
-      return updateCustomization(storeId, {
-        identity: localData.identity,
-        theme: localData.theme,
-        header: localData.header,
-        hero: localData.hero,
-        products: localData.products,
-        footer: localData.footer,
-        navigation: localData.navigation,
-        labels: localData.labels,
-        layout: localData.layout,
-        schema_version: 2,
-        templates: allTemplates,
-      });
+    mutationFn: async () => {
+      const payload = buildCustomizationPayload();
+      // theme_settings update + business_hours update in parallel
+      await Promise.all([
+        updateCustomization(storeId, payload),
+        updateStore(storeId, { business_hours: businessHours }),
+      ]);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customization", storeId] });
+      queryClient.invalidateQueries({ queryKey: ["stores"] });
       toast.success(isRTL ? "تم حفظ التغييرات" : "Changes saved");
       setIsDirty(false);
       sendThemeToIframe();
@@ -844,20 +895,11 @@ export default function ThemeEditor() {
 
   const publishMutation = useMutation({
     mutationFn: async () => {
-      if (!localData || Object.keys(allTemplates).length === 0) throw new Error("No data");
-      await updateCustomization(storeId, {
-        identity: localData.identity,
-        theme: localData.theme,
-        header: localData.header,
-        hero: localData.hero,
-        products: localData.products,
-        footer: localData.footer,
-        navigation: localData.navigation,
-        labels: localData.labels,
-        layout: localData.layout,
-        schema_version: 2,
-        templates: allTemplates,
-      });
+      const payload = buildCustomizationPayload();
+      await Promise.all([
+        updateCustomization(storeId, payload),
+        updateStore(storeId, { business_hours: businessHours }),
+      ]);
       return publishCustomization(storeId);
     },
     onSuccess: () => {
@@ -1026,7 +1068,13 @@ export default function ThemeEditor() {
               showAddPicker={showAddPicker}
               availableSections={availableSections}
               onSelectSection={(id) => { setSelectedId(id); setSelectedType("section"); }}
-              onSelectGlobal={(id) => { setSelectedId(id); setSelectedType("global"); }}
+              onSelectGlobal={(id) => {
+                setSelectedId(id);
+                setSelectedType("global");
+                // Auto-jump the iframe preview to the relevant page so the
+                // merchant immediately sees what they're editing.
+                if (id === "shipping_page" && activePage !== "shipping") setActivePage("shipping");
+              }}
               onMove={moveSection}
               onToggle={toggleSection}
               onRemove={removeSection}
@@ -1127,6 +1175,70 @@ export default function ThemeEditor() {
                   />
                 );
               })()
+            ) : selectedType === "global" && selectedId === "footer_sections" ? (
+              <div className="py-3" data-testid="theme-editor-footer-sections-panel">
+                <div className="px-4 pb-3 border-b flex items-center gap-2">
+                  <Layout className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold">{isRTL ? "أعمدة التذييل" : "Footer columns"}</h3>
+                </div>
+                <div className="px-2 py-3">
+                  <FooterSectionsEditor
+                    language={isRTL ? "ar" : "en"}
+                    sections={
+                      ((localData?.footer as { sections?: FooterSection[] } | undefined)?.sections) || []
+                    }
+                    onChange={(sections) => {
+                      setLocalData((prev) => {
+                        if (!prev) return prev;
+                        return {
+                          ...prev,
+                          footer: { ...(prev.footer || {}), sections },
+                        } as CustomizationData;
+                      });
+                      setIsDirty(true);
+                    }}
+                  />
+                </div>
+              </div>
+            ) : selectedType === "global" && selectedId === "shipping_page" ? (
+              <div className="py-3" data-testid="theme-editor-shipping-page-panel">
+                <div className="px-4 pb-3 border-b flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold">{isRTL ? "صفحة الشحن" : "Shipping page"}</h3>
+                </div>
+                <div className="px-2 py-3">
+                  <ShippingPageEditor
+                    language={isRTL ? "ar" : "en"}
+                    config={
+                      ((localData as (CustomizationData & { shipping?: ShippingPageConfig }) | null)?.shipping) || {}
+                    }
+                    onChange={(shipping) => {
+                      setLocalData((prev) => {
+                        if (!prev) return prev;
+                        return { ...prev, shipping } as CustomizationData;
+                      });
+                      setIsDirty(true);
+                    }}
+                  />
+                </div>
+              </div>
+            ) : selectedType === "global" && selectedId === "business_hours" ? (
+              <div className="py-3" data-testid="theme-editor-business-hours-panel">
+                <div className="px-4 pb-3 border-b flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold">{isRTL ? "ساعات العمل" : "Business hours"}</h3>
+                </div>
+                <div className="px-2 py-3">
+                  <BusinessHoursEditor
+                    language={isRTL ? "ar" : "en"}
+                    hours={businessHours}
+                    onChange={(h) => {
+                      setBusinessHours(h);
+                      setIsDirty(true);
+                    }}
+                  />
+                </div>
+              </div>
             ) : selectedType === "global" ? (
               <GlobalSettingsPanel
                 sectionId={selectedId}
@@ -1251,8 +1363,38 @@ function SectionsPanel({
                 <Layout className="h-3.5 w-3.5 shrink-0" />
                 {isRTL ? "إعدادات التذييل" : "Footer settings"}
               </button>
+              <button key="footer-sections" onClick={() => onSelectGlobal("footer_sections")}
+                data-testid={`theme-editor-global-footer-sections`}
+                className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] font-medium transition-colors mb-0.5",
+                  selectedType === "global" && selectedId === "footer_sections" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                <Layout className="h-3.5 w-3.5 shrink-0" />
+                {isRTL ? "أعمدة التذييل" : "Footer columns"}
+              </button>
             </div>
           )}
+        </div>
+
+        {/* Pages & Hours group */}
+        <div className="border-b">
+          <p className="px-2.5 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50">
+            {isRTL ? "الصفحات والساعات" : "Pages & Hours"}
+          </p>
+          <div className="pb-1">
+            <button key="shipping-page" onClick={() => onSelectGlobal("shipping_page")}
+              data-testid={`theme-editor-global-shipping-page`}
+              className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] font-medium transition-colors mb-0.5",
+                selectedType === "global" && selectedId === "shipping_page" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+              <Truck className="h-3.5 w-3.5 shrink-0" />
+              {isRTL ? "صفحة الشحن" : "Shipping page"}
+            </button>
+            <button key="business-hours" onClick={() => onSelectGlobal("business_hours")}
+              data-testid={`theme-editor-global-business-hours`}
+              className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] font-medium transition-colors mb-0.5",
+                selectedType === "global" && selectedId === "business_hours" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              {isRTL ? "ساعات العمل" : "Business hours"}
+            </button>
+          </div>
         </div>
       </div>
 
