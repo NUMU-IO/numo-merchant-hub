@@ -67,6 +67,7 @@ import {
   ChevronDown,
   CreditCard,
   Clock,
+  BarChart3,
 } from "lucide-react";
 import { ThemePreview } from "@/components/ThemePreview";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
@@ -142,6 +143,7 @@ import {
   type KashierCredentialsResponse,
   type FawryCredentialsResponse,
 } from "@/services/storeApi";
+import { MetaTrackingPanel } from "@/components/settings/MetaTrackingPanel";
 
 import { useTrialPaywall } from "@/contexts/TrialPaywallContext";
 
@@ -1397,6 +1399,11 @@ const StoreSettings = () => {
         { value: "profile", label: t("store.profile"), icon: Settings2 },
         { value: "domain", label: t("store.domain"), icon: Globe },
         { value: "policies", label: t("store.policies"), icon: ScrollText },
+        {
+          value: "marketing",
+          label: t("metaTracking.navLabel"),
+          icon: BarChart3,
+        },
         {
           value: "pages",
           label: language === "ar" ? "الصفحات والساعات" : "Pages & Hours",
@@ -3415,6 +3422,9 @@ const StoreSettings = () => {
               </div>
             );
           })()}
+
+        {/* ─── Marketing & Tracking ─── */}
+        {activeSection === "marketing" && <MetaTrackingPanel />}
 
         {/* ─── Pages & Hours ─── */}
         {activeSection === "pages" && (

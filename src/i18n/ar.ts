@@ -264,6 +264,84 @@
     free: "ببلاش",
     premium: "مميز",
   },
+  metaTracking: {
+    navLabel: "التسويق والتتبع",
+    title: "Meta Pixel و Conversions API",
+    subtitle:
+      "تتبّع نشاط العملاء من متجرك إلى Meta Ads Manager. ريتارجيتنج أذكى وزيادة دقة الجمهور.",
+    pixelIdLabel: "رقم Meta Pixel",
+    pixelIdHelp:
+      "الرقم اللي طوله 15 أو 16 خانة من Events Manager → Pixel → Settings.",
+    pixelIdInvalid: "رقم البكسل لازم يكون 15 أو 16 رقم.",
+    modeTitle: "وضع التفعيل",
+    modeSubtitle:
+      "اختار إزاي NUMU يبعت الأحداث لـ Meta. تقدر تغيّر الوضع في أي وقت.",
+    modes: {
+      pixel_only: {
+        title: "Pixel بس — تفعيل سريع",
+        description:
+          "بيتتبّع العملاء من المتصفح. ممكن يتقفل بمانعات الإعلانات وإعدادات الخصوصية في iOS. الأنسب للبدء.",
+        requirement: "المطلوب: رقم البكسل",
+      },
+      capi_only: {
+        title: "Conversions API بس — أعلى دقة",
+        description:
+          "بيبعت الأحداث مباشرة من سيرفر NUMU لـ Meta. مفيش سكريبت في المتصفح — بيتجاوز مانعات الإعلانات. محتاج توكن CAPI من Meta Business Manager.",
+        requirement: "المطلوب: رقم البكسل + توكن CAPI",
+      },
+      both: {
+        title: "الاتنين — أحسن مطابقة",
+        description:
+          "متصفح + سيرفر مع بعض، والأحداث بتتلغى تكرارها أوتوماتيك. الموصى به للمعلنين الجدّيين.",
+        requirement: "المطلوب: رقم البكسل + توكن CAPI",
+      },
+    },
+    tokenRequiredForMode: "محتاج توكن CAPI من Meta علشان تختار الوضع ده.",
+    capiTokenLabel: "توكن CAPI",
+    capiTokenHelp:
+      "تقدر تولّده من Meta Business Manager → System Users → Generate Token. بيتخزن مشفّر، ومش هيتعرض تاني بعد الحفظ.",
+    capiTokenTooShort: "التوكن قصير. راجعه تاني.",
+    showToken: "إظهار التوكن",
+    hideToken: "إخفاء التوكن",
+    domainLabel: "تحقق الدومين",
+    domainHelp:
+      "Meta بتطلبه لتفعيل أولوية الأحداث على iOS 14.5+ (Aggregated Event Measurement).",
+    domainAutoEmit:
+      "هنضيف الـ meta tag على متجرك أوتوماتيك بعد الحفظ — مش محتاج تعدّل الثيم.",
+    behaviourTitle: "السلوك",
+    debugLabel: "وضع التشخيص",
+    debugHelp:
+      "بيرفق كود الاختبار على كل الأحداث لمدة 60 دقيقة وبعدها بيتقفل. استخدمه أثناء الاختبار بس.",
+    consentLabel: "طلب موافقة العميل قبل تشغيل Pixel",
+    consentHelp:
+      "بيخلّي تشغيل البكسل في المتصفح مرهون بقبول العميل لباقة الكوكيز. CAPI بيشتغل في كل الحالات (مصلحة مشروعة للأحداث التجارية).",
+    testEventLabel: "كود الحدث التجريبي",
+    testEventHelp:
+      "بيُستخدم مع زرار «إرسال حدث تجريبي»، ولو وضع التشخيص مفعّل بيتضاف لكل الأحداث.",
+    testEventInvalid: "الكود لازم يبدأ بـ TEST وبعدها أرقام.",
+    save: "حفظ",
+    sendTestEvent: "إرسال حدث تجريبي",
+    disconnect: "قطع الاتصال",
+    saved: "تم حفظ إعدادات التتبع.",
+    recentEventsTitle: "آخر الأحداث",
+    recentEventsSubtitle:
+      "آخر 20 حدث اتبعتوا لـ Meta. اضغط على الصف لعرض البيانات المفلترة.",
+    recentEventsEmpty:
+      "مفيش أحداث لسه. هتظهر هنا أول ما متجرك يستقبل زيارات.",
+    eventCol: {
+      time: "الوقت",
+      event: "الحدث",
+      channel: "القناة",
+      status: "الحالة",
+      fbtrace: "fbtrace_id",
+    },
+    statusBadge: {
+      connected: "متصل",
+      configured_no_events: "مُعدّ · في انتظار الزيارات",
+      failing: "بيفشل",
+      disabled: "متوقف",
+    },
+  },
   cod: {
     title: "تسوية الدفع عند الاستلام",
     subtitle: "شوف الكاش اللي اتجمع واللي اتسوّى",

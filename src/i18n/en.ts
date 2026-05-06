@@ -264,6 +264,84 @@ export default {
     free: "Free",
     premium: "Premium",
   },
+  metaTracking: {
+    navLabel: "Marketing & Tracking",
+    title: "Meta Pixel & Conversions API",
+    subtitle:
+      "Track customer activity from your storefront to Meta Ads Manager. Power smarter retargeting and audience matching.",
+    pixelIdLabel: "Meta Pixel ID",
+    pixelIdHelp:
+      "The 15- or 16-digit number from Events Manager → Pixel → Settings.",
+    pixelIdInvalid: "Pixel ID must be 15 or 16 digits.",
+    modeTitle: "Activation mode",
+    modeSubtitle:
+      "Pick how NUMU sends events to Meta. You can switch modes any time.",
+    modes: {
+      pixel_only: {
+        title: "Pixel only — quick setup",
+        description:
+          "Tracks customers in their browser. May be blocked by ad-blockers and iOS privacy settings. Best for getting started.",
+        requirement: "Required: Pixel ID",
+      },
+      capi_only: {
+        title: "Conversions API only — most accurate",
+        description:
+          "Sends events directly from NUMU to Meta. No browser script — fully bypasses ad-blockers. Requires a CAPI access token from Meta Business Manager.",
+        requirement: "Required: Pixel ID + CAPI access token",
+      },
+      both: {
+        title: "Both — maximum match quality",
+        description:
+          "Browser + server-side together. Events automatically deduplicated. Recommended for serious advertisers.",
+        requirement: "Required: Pixel ID + CAPI access token",
+      },
+    },
+    tokenRequiredForMode: "CAPI access token required for this mode.",
+    capiTokenLabel: "CAPI access token",
+    capiTokenHelp:
+      "Generate from Meta Business Manager → System Users → Generate Token. Stored encrypted; never shown again after save.",
+    capiTokenTooShort: "Access token looks too short — double-check.",
+    showToken: "Show token",
+    hideToken: "Hide token",
+    domainLabel: "Domain verification",
+    domainHelp:
+      "Required by Meta for iOS 14.5+ event prioritization (Aggregated Event Measurement).",
+    domainAutoEmit:
+      "We'll auto-emit the meta tag on your storefront once you save — no theme edits needed.",
+    behaviourTitle: "Behaviour",
+    debugLabel: "Debug mode",
+    debugHelp:
+      "Tags every event with the test code for 60 minutes, then auto-disables. Use only while testing.",
+    consentLabel: "Require consent for browser Pixel",
+    consentHelp:
+      "Gate browser Pixel firing on a consent banner. CAPI fires regardless (legitimate interest for transactional events).",
+    testEventLabel: "Test event code",
+    testEventHelp:
+      "Used by Send Test Event and (when debug is on) attached to live events.",
+    testEventInvalid: "Test event code must look like TEST12345.",
+    save: "Save",
+    sendTestEvent: "Send test event",
+    disconnect: "Disconnect",
+    saved: "Tracking settings saved.",
+    recentEventsTitle: "Recent events",
+    recentEventsSubtitle:
+      "Last 20 events sent to Meta. Click a row to view the redacted payload.",
+    recentEventsEmpty:
+      "No events yet. They'll show up here as soon as your storefront receives traffic.",
+    eventCol: {
+      time: "Time",
+      event: "Event",
+      channel: "Channel",
+      status: "Status",
+      fbtrace: "fbtrace_id",
+    },
+    statusBadge: {
+      connected: "Connected",
+      configured_no_events: "Configured · awaiting traffic",
+      failing: "Failing",
+      disabled: "Disabled",
+    },
+  },
   cod: {
     title: "COD Reconciliation",
     subtitle: "Track cash on delivery collected vs. settled",
