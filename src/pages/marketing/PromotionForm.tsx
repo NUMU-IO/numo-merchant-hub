@@ -1,14 +1,16 @@
 /**
- * Shared create/edit form for `discount_code` and `automatic` surfaces.
+ * Unified create/edit form for every promotion surface.
  *
- * `discount_code` flow performs a 2-step submit: create the coupon via
- * the existing couponApi, then create the promotion that links to it.
- * `automatic` flow is a single create-promotion call. Both share the
- * same schedule + targeting + translations sections.
- *
- * Edit mode reads the existing promotion + linked coupon, and on submit
- * issues PATCH to /promotions/{id} (and an optional PATCH on the coupon
- * if any code-only fields changed). Optimistic locking via `version`.
+ * * `discount_code` flow performs a 2-step submit: first POST /coupons
+ *   to mint the underlying code, then POST /promotions linking the new
+ *   coupon. The other surfaces are a single POST /promotions call.
+ * * Visual surfaces (announcement_bar / popup / floating_widget /
+ *   cookie_banner) render `VisualContentPanel` for surface-specific
+ *   content; the iframe live-preview from step 08 lands once the
+ *   storefront-side handler (step 11) and preview-token endpoint
+ *   (step 05 §4.9, deferred) are in place.
+ * * Edit mode hydrates from `GET /promotions/:id` and submits PATCH
+ *   with the row's current `version` for optimistic locking.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -59,8 +61,33 @@ import type {
   UpdatePromotionRequest,
 } from "@/services/promotionApi";
 import { showError } from "@/lib/show-error";
+import {
+  buildVisualContent,
+  buildVisualTranslations,
+  EMPTY_VISUAL_CONTENT,
+  VisualContentPanel,
+  type VisualContentState,
+} from "@/components/marketing/VisualContentPanel";
 
-const VALID_SURFACES: PromotionSurface[] = ["discount_code", "automatic"];
+const VALID_SURFACES: PromotionSurface[] = [
+  "discount_code",
+  "automatic",
+  "announcement_bar",
+  "popup",
+  "floating_widget",
+  "cookie_banner",
+];
+
+const VISUAL_SURFACES: PromotionSurface[] = [
+  "announcement_bar",
+  "popup",
+  "floating_widget",
+  "cookie_banner",
+];
+
+function isVisual(surface: PromotionSurface): boolean {
+  return VISUAL_SURFACES.includes(surface);
+}
 
 interface FormState {
   name: string;
@@ -142,6 +169,7 @@ export default function PromotionForm() {
       : "discount_code");
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [visual, setVisual] = useState<VisualContentState>(EMPTY_VISUAL_CONTENT);
   const [submitting, setSubmitting] = useState(false);
 
   // Hydrate form when editing an existing promotion.
@@ -169,6 +197,47 @@ export default function PromotionForm() {
       labelAr: arLabel,
       activate: promo.status === "active",
     });
+    if (isVisual(promo.surface)) {
+      const c = (promo.content ?? {}) as Record<string, unknown>;
+      const enT = promo.translations?.en;
+      const arT = promo.translations?.ar;
+      setVisual({
+        ...EMPTY_VISUAL_CONTENT,
+        bg: (c.background as string) ?? EMPTY_VISUAL_CONTENT.bg,
+        fg: (c.text_color as string) ?? EMPTY_VISUAL_CONTENT.fg,
+        icon: (c.icon as string) ?? EMPTY_VISUAL_CONTENT.icon,
+        dismissible:
+          (c.dismissible as boolean | undefined) ??
+          EMPTY_VISUAL_CONTENT.dismissible,
+        linkUrl: (c.link_url as string) ?? "",
+        headlineEn: enT?.headline?.en ?? "",
+        headlineAr: arT?.headline?.ar ?? "",
+        bodyEn: enT?.body?.en ?? "",
+        bodyAr: arT?.body?.ar ?? "",
+        ctaLabelEn: enT?.cta_label?.en ?? "",
+        ctaLabelAr: arT?.cta_label?.ar ?? "",
+        popupLayout:
+          (c.layout as "centered" | "side") ??
+          EMPTY_VISUAL_CONTENT.popupLayout,
+        popupCodeReveal: (c.discount_code_to_reveal as string) ?? "",
+        popupShowAfterDays:
+          (c.show_after_dismiss_days as number | undefined) ??
+          EMPTY_VISUAL_CONTENT.popupShowAfterDays,
+        widgetPosition:
+          (c.position as VisualContentState["widgetPosition"]) ??
+          EMPTY_VISUAL_CONTENT.widgetPosition,
+        widgetIcon: (c.icon as string) ?? EMPTY_VISUAL_CONTENT.widgetIcon,
+        widgetExpanded:
+          (c.expanded_default as boolean | undefined) ?? false,
+        widgetBg: (c.color_bg as string) ?? EMPTY_VISUAL_CONTENT.widgetBg,
+        cookiePosition:
+          (c.position as "bottom" | "modal") ??
+          EMPTY_VISUAL_CONTENT.cookiePosition,
+        cookieAcceptRequired:
+          (c.accept_required as boolean | undefined) ?? false,
+        cookiePolicyUrl: (c.policy_url as string) ?? "",
+      });
+    }
   }, [isEdit, promotionQuery.data]);
 
   // Mutations
@@ -212,13 +281,16 @@ export default function PromotionForm() {
     if (surface === "discount_code" && !isEdit && !form.code.trim()) {
       return t("promotions.errors.code_required") as string;
     }
-    if (form.ruleKind === "percentage") {
-      const v = Number(form.valuePercent);
-      if (!v || v <= 0 || v > 100)
-        return t("promotions.errors.percent_range") as string;
-    }
-    if (form.ruleKind === "fixed" && !Number(form.valueCents)) {
-      return t("promotions.errors.fixed_required") as string;
+    // Discount-rule validation only applies to discount_code + automatic.
+    if (surface === "discount_code" || surface === "automatic") {
+      if (form.ruleKind === "percentage") {
+        const v = Number(form.valuePercent);
+        if (!v || v <= 0 || v > 100)
+          return t("promotions.errors.percent_range") as string;
+      }
+      if (form.ruleKind === "fixed" && !Number(form.valueCents)) {
+        return t("promotions.errors.fixed_required") as string;
+      }
     }
     if (
       form.startsAt &&
@@ -240,13 +312,27 @@ export default function PromotionForm() {
     if (!storeId) return;
     setSubmitting(true);
     try {
+      const visualSurface = isVisual(surface);
+
+      // Build content + translations payloads based on surface.
+      const content = visualSurface
+        ? buildVisualContent(surface, visual)
+        : { surface };
+      const labelTx = buildTranslations() ?? {};
+      const visualTx = visualSurface ? buildVisualTranslations(visual) : {};
+      const translations: CreatePromotionRequest["translations"] = {
+        ...labelTx,
+        ...visualTx,
+      };
+
       if (isEdit) {
         const payload: UpdatePromotionRequest = {
           version: promotionQuery.data!.version,
           name: form.name,
           discount_rule: surface === "automatic" ? buildDiscountRule() : null,
+          content,
           targets: buildTargets(),
-          translations: buildTranslations(),
+          translations,
           starts_at: toIsoOrNull(form.startsAt),
           ends_at: toIsoOrNull(form.endsAt),
         };
@@ -290,9 +376,9 @@ export default function PromotionForm() {
         status: form.activate ? "active" : "draft",
         coupon_id: couponId,
         discount_rule: surface === "automatic" ? buildDiscountRule() : null,
-        content: { surface },
+        content,
         targets: buildTargets(),
-        translations: buildTranslations(),
+        translations,
         starts_at: toIsoOrNull(form.startsAt),
         ends_at: toIsoOrNull(form.endsAt),
       };
@@ -312,14 +398,13 @@ export default function PromotionForm() {
   ) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const isAuto = surface === "automatic";
+  const isCode = surface === "discount_code";
+  const showDiscountSection = isAuto || isCode;
+  const showVisualPanel = isVisual(surface);
 
   const titleKey = isEdit
-    ? isAuto
-      ? "promotions.form.title_edit_auto"
-      : "promotions.form.title_edit_code"
-    : isAuto
-      ? "promotions.form.title_new_auto"
-      : "promotions.form.title_new_code";
+    ? `promotions.form.title_edit_${surface}`
+    : `promotions.form.title_new_${surface}`;
 
   const ruleKindOptions = useMemo<DiscountRuleKind[]>(
     () =>
@@ -385,7 +470,7 @@ export default function PromotionForm() {
               {t("promotions.form.name_hint")}
             </p>
           </div>
-          {!isAuto && !isEdit && (
+          {isCode && !isEdit && (
             <div className="grid gap-2">
               <Label htmlFor="promo-code">{t("promotions.form.code")}</Label>
               <div className="flex gap-2">
@@ -411,6 +496,15 @@ export default function PromotionForm() {
         </CardContent>
       </Card>
 
+      {showVisualPanel && (
+        <VisualContentPanel
+          surface={surface}
+          state={visual}
+          onChange={setVisual}
+        />
+      )}
+
+      {showDiscountSection && (
       <Card>
         <CardHeader>
           <CardTitle>{t("promotions.form.discount_rule")}</CardTitle>
@@ -505,6 +599,7 @@ export default function PromotionForm() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       <Card>
         <CardHeader>
