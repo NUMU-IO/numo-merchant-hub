@@ -518,6 +518,10 @@ export default {
       row_actions: "Row actions",
       empty_title: "No promotions yet",
       empty_body: "Create your first promotion to start running offers in your store.",
+      preview_cta: "Preview on storefront",
+    },
+    preview: {
+      error: "Couldn't open preview — please try again",
     },
     status: {
       draft: "Draft",
