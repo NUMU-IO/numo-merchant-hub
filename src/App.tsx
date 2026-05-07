@@ -54,6 +54,9 @@ const AnalyticsJourney = lazy(() => import("@/pages/analytics/JourneyPage"));
 const AnalyticsReports = lazy(() => import("@/pages/analytics/ReportsPage"));
 const HealthScore = lazy(() => import("@/pages/HealthScore"));
 const Marketing = lazy(() => import("@/pages/Marketing"));
+const PromotionsList = lazy(() => import("@/pages/marketing/PromotionsList"));
+const PromotionForm = lazy(() => import("@/pages/marketing/PromotionForm"));
+const PromotionDetail = lazy(() => import("@/pages/marketing/PromotionDetail"));
 const Categories = lazy(() => import("@/pages/Categories"));
 const Invoices = lazy(() => import("@/pages/Invoices"));
 const Profile = lazy(() => import("@/pages/Profile"));
@@ -255,6 +258,22 @@ const App = () => (
                     <Route path="/analytics/reports" element={<AnalyticsReports />} />
                     <Route path="/health-score" element={<HealthScore />} />
                     <Route path="/marketing" element={<Marketing />} />
+                    <Route
+                      path="/marketing/promotions"
+                      element={<PromotionsList />}
+                    />
+                    <Route
+                      path="/marketing/promotions/new"
+                      element={<PromotionForm />}
+                    />
+                    <Route
+                      path="/marketing/promotions/:id"
+                      element={<PromotionDetail />}
+                    />
+                    <Route
+                      path="/marketing/promotions/:id/edit"
+                      element={<PromotionForm />}
+                    />
                     <Route path="/email-templates" element={<EmailTemplates />} />
                     <Route path="/email-templates/new" element={<EmailTemplateEditor />} />
                     <Route path="/email-templates/:id" element={<EmailTemplateEditor />} />
