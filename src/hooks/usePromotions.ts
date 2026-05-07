@@ -24,12 +24,14 @@ import {
   getPromotionAnalytics,
   listPromotions,
   pausePromotion,
+  reorderPromotions,
   updatePromotion,
   type CreatePromotionRequest,
   type ListPromotionsParams,
   type Promotion,
   type PromotionAnalytics,
   type PromotionList,
+  type ReorderPromotionItem,
   type UpdatePromotionRequest,
 } from "@/services/promotionApi";
 
@@ -196,6 +198,22 @@ export function useDuplicatePromotion(
   return useMutation({
     mutationFn: (promotionId: string) =>
       duplicatePromotion(storeId!, promotionId),
+    ...options,
+    onSuccess: async (data, variables, context) => {
+      if (storeId) await invalidateAll(qc, storeId);
+      await options?.onSuccess?.(data, variables, context);
+    },
+  });
+}
+
+export function useReorderPromotions(
+  storeId: string | undefined,
+  options?: UseMutationOptions<void, Error, ReorderPromotionItem[]>,
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (items: ReorderPromotionItem[]) =>
+      reorderPromotions(storeId!, items),
     ...options,
     onSuccess: async (data, variables, context) => {
       if (storeId) await invalidateAll(qc, storeId);

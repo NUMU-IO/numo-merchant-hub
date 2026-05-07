@@ -523,6 +523,10 @@ export default {
     preview: {
       error: "Couldn't open preview — please try again",
     },
+    reorder: {
+      saved: "Order saved",
+      error: "Couldn't save the new order — please try again",
+    },
     status: {
       draft: "Draft",
       scheduled: "Scheduled",
