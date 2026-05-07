@@ -6,10 +6,11 @@ import {
   Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
   Palette, FileText, Navigation2, SlidersHorizontal, ClipboardList, ChevronLeft, Filter, Radio,
   Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
-  UserCog, User, Inbox, PlugZap, Mail,
+  UserCog, User, Inbox, PlugZap, Mail, Sparkles,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { listThreads } from "@/services/inboxApi";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -29,6 +30,9 @@ const AppSidebar = () => {
   const { isRTL } = useLanguage();
   const location = useLocation();
   const { currentStore } = useDashboardStore();
+  // Offers-v2 promotions surface — hidden until the platform flips the
+  // tenant flag during phased rollout. Off by default → invisible nav row.
+  const promotionsV2Enabled = useFeatureFlag("ff_promotions_v2");
 
   const { data: inboxData } = useQuery({
     queryKey: ["inbox", "threads", currentStore?.id],
@@ -242,7 +246,7 @@ const AppSidebar = () => {
                 {/* Marketing */}
                 <NavItemGate navKey="marketing">
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/marketing")} tooltip={isRTL ? "التسويق" : "Marketing"} className="h-10 rounded-lg px-3">
+                    <SidebarMenuButton asChild isActive={isActive("/marketing") && !isActive("/marketing/promotions")} tooltip={isRTL ? "التسويق" : "Marketing"} className="h-10 rounded-lg px-3">
                       <NavLink to="/marketing">
                         <Megaphone className="h-[18px] w-[18px] opacity-70" />
                         <span className="text-[13px] font-medium">{isRTL ? "التسويق" : "Marketing"}</span>
@@ -250,6 +254,20 @@ const AppSidebar = () => {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </NavItemGate>
+
+                {/* Promotions (offers-v2) — gated by per-tenant feature flag */}
+                {promotionsV2Enabled && (
+                  <NavItemGate navKey="promotions">
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={isActive("/marketing/promotions")} tooltip={isRTL ? "العروض" : "Promotions"} className="h-10 rounded-lg px-3">
+                        <NavLink to="/marketing/promotions">
+                          <Sparkles className="h-[18px] w-[18px] opacity-70" />
+                          <span className="text-[13px] font-medium">{isRTL ? "العروض" : "Promotions"}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </NavItemGate>
+                )}
 
                 {/* Email Templates */}
                 <NavItemGate navKey="email-templates">
