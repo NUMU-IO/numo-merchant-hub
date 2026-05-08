@@ -156,7 +156,16 @@ export function OverviewTab({
                 ))}
               </div>
             ) : (
-              <EmptyState icon={BarChart3} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
+              <EmptyState
+                icon={BarChart3}
+                title={isAr ? "مفيش مبيعات لسه" : "No sales yet"}
+                description={
+                  isAr
+                    ? "أول لما تتعمل أوردرات، أكتر منتج هيتباع هيظهر هنا"
+                    : "Once you have orders, your bestsellers will appear here"
+                }
+                className="py-6"
+              />
             )}
           </CardContent>
         </Card>
