@@ -69,6 +69,7 @@ const AppSidebar = () => {
     { title: isRTL ? "التنقل" : "Navigation", url: "/online-store/navigation", icon: Navigation2 },
     { title: isRTL ? "التفضيلات" : "Preferences", url: "/online-store/preferences", icon: SlidersHorizontal },
     { title: isRTL ? "حقول الدفع" : "Checkout fields", url: "/online-store/checkout-fields", icon: ClipboardList },
+    { title: isRTL ? "إصداراتي" : "My theme submissions", url: "/online-store/my-themes", icon: Package },
   ];
 
   // Staff sub-items

@@ -29,6 +29,9 @@ const OnlineStoreNavigation = lazy(() => import("@/pages/online-store/Navigation
 const OnlineStorePreferences = lazy(() => import("@/pages/online-store/Preferences"));
 const OnlineStoreCheckoutFields = lazy(() => import("@/pages/online-store/CheckoutFields"));
 const ThemeEditor = lazy(() => import("@/pages/online-store/ThemeEditor"));
+const MyThemeSubmissions = lazy(
+  () => import("@/pages/online-store/MyThemeSubmissions"),
+);
 const ThemeCustomizerV3 = lazy(() => import("@/features/theme-editor-v3/pages/ThemeCustomizerV3"));
 const Payments = lazy(() => import("@/pages/Payments"));
 const WalletPage = lazy(() => import("@/pages/Wallet"));
@@ -238,6 +241,7 @@ const App = () => (
                     <Route path="/online-store/navigation" element={<OnlineStoreNavigation />} />
                     <Route path="/online-store/preferences" element={<OnlineStorePreferences />} />
                     <Route path="/online-store/checkout-fields" element={<OnlineStoreCheckoutFields />} />
+                    <Route path="/online-store/my-themes" element={<MyThemeSubmissions />} />
                     <Route path="/social" element={<SocialImport />} />
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/analytics" element={<Navigate to="/analytics/overview" replace />} />

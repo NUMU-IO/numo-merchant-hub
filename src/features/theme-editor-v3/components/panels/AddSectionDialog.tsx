@@ -24,17 +24,51 @@ export function AddSectionDialog() {
 
   const [search, setSearch] = useState("");
 
-  const availableSections = useMemo(() => {
+  // Flatten section schemas → one entry per preset so merchants pick a
+  // STARTING VARIANT, not just a section type. A "Hero" section with
+  // three presets (image-left, image-right, full-bleed) shows up as
+  // three cards. When a section has only one preset its name is shown
+  // verbatim; when it has many we append the preset's name as a
+  // sub-label so the cards don't all read "Hero".
+  const presetCards = useMemo(() => {
     if (!schemas) return [];
-    return schemas.sections.filter((s) => {
-      // Only show sections that have presets (i.e., are addable by merchants)
-      if (!s.presets || s.presets.length === 0) return false;
-      if (!search) return true;
-      const name = locale === "ar"
+    type Card = {
+      sectionType: string;
+      presetIndex: number;
+      sectionName: string;
+      presetName: string;
+      hasMultiplePresets: boolean;
+    };
+    const cards: Card[] = [];
+    for (const s of schemas.sections) {
+      if (!s.presets || s.presets.length === 0) continue;
+      const sectionName = locale === "ar"
         ? s.locales?.ar?.name || s.name
         : s.locales?.en?.name || s.name;
-      return name.toLowerCase().includes(search.toLowerCase());
-    });
+      const hasMultiplePresets = s.presets.length > 1;
+      s.presets.forEach((preset, idx) => {
+        const presetName =
+          (locale === "ar"
+            ? preset.locales?.ar?.name
+            : preset.locales?.en?.name) ||
+          preset.name ||
+          (hasMultiplePresets ? `Variant ${idx + 1}` : sectionName);
+        cards.push({
+          sectionType: s.type,
+          presetIndex: idx,
+          sectionName,
+          presetName,
+          hasMultiplePresets,
+        });
+      });
+    }
+    if (!search) return cards;
+    const q = search.toLowerCase();
+    return cards.filter(
+      (c) =>
+        c.sectionName.toLowerCase().includes(q) ||
+        c.presetName.toLowerCase().includes(q),
+    );
   }, [schemas, search, locale]);
 
   if (!showAddSection) return null;
@@ -69,36 +103,38 @@ export function AddSectionDialog() {
           </div>
         </div>
 
-        {/* Section grid */}
+        {/* Section grid — one card per preset variant */}
         <div className="max-h-80 overflow-y-auto px-4 pb-4">
-          {availableSections.length === 0 ? (
+          {presetCards.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               {locale === "ar" ? "لا توجد أقسام متاحة." : "No sections available."}
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              {availableSections.map((schema) => {
-                const name = locale === "ar"
-                  ? schema.locales?.ar?.name || schema.name
-                  : schema.locales?.en?.name || schema.name;
-                return (
-                  <button
-                    key={schema.type}
-                    className={cn(
-                      "flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors",
-                      "hover:border-primary hover:bg-primary/5",
-                    )}
-                    onClick={() => {
-                      addSection(schema.type, 0);
-                    }}
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                      <LayoutGrid className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <span className="text-xs font-medium">{name}</span>
-                  </button>
-                );
-              })}
+              {presetCards.map((card) => (
+                <button
+                  key={`${card.sectionType}:${card.presetIndex}`}
+                  type="button"
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors",
+                    "hover:border-primary hover:bg-primary/5",
+                  )}
+                  onClick={() => {
+                    addSection(card.sectionType, card.presetIndex);
+                    setShowAddSection(false);
+                  }}
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                    <LayoutGrid className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <span className="text-xs font-medium">{card.presetName}</span>
+                  {card.hasMultiplePresets && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {card.sectionName}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
           )}
         </div>
