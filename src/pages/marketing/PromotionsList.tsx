@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  ExternalLink,
   Megaphone,
   MessageSquare,
   MoreHorizontal,
@@ -71,10 +72,11 @@ import {
   useLifecycleAction,
   usePromotions,
 } from "@/hooks/usePromotions";
-import type {
-  PromotionListItem,
-  PromotionStatus,
-  PromotionSurface,
+import {
+  issuePreviewToken,
+  type PromotionListItem,
+  type PromotionStatus,
+  type PromotionSurface,
 } from "@/services/promotionApi";
 import { showError } from "@/lib/show-error";
 
@@ -160,6 +162,26 @@ export default function PromotionsList() {
 
   const handleNew = (surface: PromotionSurface) => {
     navigate(`/marketing/promotions/new?surface=${surface}`);
+  };
+
+  const handlePreview = async () => {
+    if (!storeId || !currentStore) return;
+    try {
+      const { token } = await issuePreviewToken(storeId);
+      // Build the storefront URL from the store's subdomain. Custom
+      // domains are intentionally not used for preview — preview only
+      // makes sense on the canonical numueg.app subdomain so the
+      // backend's tenant + middleware resolution is unambiguous.
+      const subdomain = currentStore.subdomain;
+      const protocol = window.location.protocol;
+      const host = window.location.host.includes("localhost")
+        ? `${subdomain}.localhost:3000`
+        : `${subdomain}.numueg.app`;
+      const url = `${protocol}//${host}/?_npt=${encodeURIComponent(token)}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      showError(err, t("promotions.preview.error") as string);
+    }
   };
 
   const renderRow = (p: PromotionListItem) => (
@@ -261,26 +283,32 @@ export default function PromotionsList() {
             {t("promotions.list.subtitle")}
           </p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button>
-              <Plus className="me-2 h-4 w-4" />
-              {t("promotions.list.create_cta")}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>
-              {t("promotions.list.create_label")}
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {SURFACE_OPTIONS.map(({ value, icon: Icon }) => (
-              <DropdownMenuItem key={value} onClick={() => handleNew(value)}>
-                <Icon className="me-2 h-4 w-4" />
-                {t(`promotions.surface.${value}`)}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handlePreview} disabled={!storeId}>
+            <ExternalLink className="me-2 h-4 w-4" />
+            {t("promotions.list.preview_cta")}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button>
+                <Plus className="me-2 h-4 w-4" />
+                {t("promotions.list.create_cta")}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                {t("promotions.list.create_label")}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {SURFACE_OPTIONS.map(({ value, icon: Icon }) => (
+                <DropdownMenuItem key={value} onClick={() => handleNew(value)}>
+                  <Icon className="me-2 h-4 w-4" />
+                  {t(`promotions.surface.${value}`)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <Card>

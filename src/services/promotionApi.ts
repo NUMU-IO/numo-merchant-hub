@@ -392,3 +392,25 @@ export async function getPromotionAnalytics(
   );
   return res.data;
 }
+
+export interface PreviewToken {
+  token: string;
+  expires_at: string;
+  ttl_seconds: number;
+}
+
+/**
+ * Issue a short-lived JWT for previewing draft promotions on the
+ * storefront. Token lives for ~5 minutes — long enough to flip between
+ * editor and the preview iframe a few times. The merchant hub appends
+ * it as `?_npt=<token>` to the storefront URL; the storefront's Next.js
+ * middleware bridges the URL param into a header the SSR fetch path
+ * can read.
+ */
+export async function issuePreviewToken(storeId: string): Promise<PreviewToken> {
+  const res = await apiClient<SuccessEnvelope<PreviewToken>>(
+    `/stores/${storeId}/promotions/preview-token`,
+    { method: "POST" },
+  );
+  return res.data;
+}
