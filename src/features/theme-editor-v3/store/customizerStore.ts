@@ -910,20 +910,15 @@ export const useCustomizerStore = create<CustomizerStore>()(
           // Ensure the latest draft is on the server first (will dedup if
           // an autosave is already in flight).
           await performSave();
-          await publishV3(storeId);
+          // Forward the merchant-supplied label so the published version
+          // row carries it (named-versions UX). Backend that hasn't
+          // rolled out the label support yet drops it harmlessly.
+          await publishV3(storeId, label?.trim() || undefined);
           set((s) => {
             s.isPublishing = false;
             s.isDirty = false;
             s.lastSavedAt = new Date().toISOString();
           });
-          // Server-side version row gets `change_summary = "Published"`
-          // — the optional label here is forwarded with the autosave that
-          // ran moments ago and is preserved as the most recent autosave's
-          // change_summary. (Kept for forward-compat; not yet used by
-          // backend's publish endpoint.)
-          if (label && import.meta.env.DEV) {
-            console.debug("[V3 publish] label:", label);
-          }
         } catch (err) {
           set((s) => {
             s.isPublishing = false;

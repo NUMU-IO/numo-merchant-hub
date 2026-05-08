@@ -68,12 +68,21 @@ export interface ThemeSettingsV3 {
 
 // ─── Schema Types (for form generation) ─────────────────────────────────────
 
+/**
+ * Setting input types the V3 customizer renders. Lock-step with the
+ * SDK's SettingType union — when a new type lands it must be added in
+ * both places. Anything theme-side that's not in this list falls
+ * through to a plain text input (with a console warning during dev).
+ */
 export type SettingInputType =
+  // Foundational editors
   | "text"
   | "textarea"
   | "richtext"
+  | "inline_richtext" // single-line WYSIWYG (B/I only)
   | "number"
   | "range"
+  | "range_with_unit" // range slider + unit-options dropdown (e.g. px/rem/%)
   | "color"
   | "checkbox"
   | "select"
@@ -81,8 +90,28 @@ export type SettingInputType =
   | "font"
   | "image_picker"
   | "url"
+  // Static decorative
+  | "header"
+  | "paragraph"
+  | "html"
+  | "date"
+  | "time"
+  | "video_picker"
+  // Resource pickers — single
   | "product"
-  | "collection";
+  | "collection"
+  | "page_picker"
+  | "blog_picker"
+  | "link_list_picker"
+  | "variant_picker"
+  // Resource pickers — multi (value is string[])
+  | "product_list"
+  | "collection_list"
+  // Color schemes
+  | "color_scheme" // single picker — references the global color_scheme_group
+  | "color_scheme_group" // parent definition stored on global_settings
+  // Files
+  | "file_upload";
 
 export interface SettingDefinition {
   id: string;
@@ -107,9 +136,42 @@ export interface SettingDefinition {
   max?: number;
   step?: number;
   unit?: string;
+  /**
+   * For `range_with_unit`: list of unit options the merchant can flip
+   * between (e.g. px/rem/%). The setting's stored value is
+   *   { value: number, unit: string }
+   * so the resolver can render either as `${value}${unit}` or use the
+   * unit to compute responsive equivalents.
+   */
+  unit_options?: Array<{ value: string; label?: string }>;
+  /**
+   * For `product_list` / `collection_list`: cap the multi-select size.
+   * Defaults to 50 (Shopify ships 50 too). Themes that need more should
+   * either paginate at render time or fan out into multiple settings.
+   */
+  max_items?: number;
+  /**
+   * For `color_scheme_group`: per-scheme role keys the theme expects
+   * (e.g. ["background", "text", "primary", "accent"]). The picker
+   * surfaces an editor that lets merchants paint each role per scheme.
+   */
+  color_roles?: string[];
   /** Grouping */
   group?: string;
   group_locales?: { ar?: string; en?: string };
+}
+
+/**
+ * Stored shape for a single color scheme inside a `color_scheme_group`
+ * setting. Themes reference schemes by `id` from `color_scheme` settings;
+ * the V3 renderer materializes them as CSS custom properties at
+ * mount time.
+ */
+export interface ColorSchemeValue {
+  id: string;
+  name: string;
+  /** Per-role color hex; keys come from the parent setting's color_roles. */
+  colors: Record<string, string>;
 }
 
 export interface BlockSchemaDefinition {
