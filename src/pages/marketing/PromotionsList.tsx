@@ -7,7 +7,7 @@
  * editor pages.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Copy,
   ExternalLink,
+  GripVertical,
   Megaphone,
   MessageSquare,
   MoreHorizontal,
@@ -66,11 +67,13 @@ import { PromotionSurfaceLabel } from "@/components/marketing/PromotionSurfaceLa
 
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { cn } from "@/lib/utils";
 import {
   useArchivePromotion,
   useDuplicatePromotion,
   useLifecycleAction,
   usePromotions,
+  useReorderPromotions,
 } from "@/hooks/usePromotions";
 import {
   issuePreviewToken,
@@ -115,6 +118,14 @@ export default function PromotionsList() {
     "all",
   );
 
+  // Local override of the server-provided order while a drag is in
+  // flight. Cleared whenever a new fetch lands so React Query stays
+  // the source of truth.
+  const [localOrder, setLocalOrder] = useState<PromotionListItem[] | null>(
+    null,
+  );
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
   const params = useMemo(
     () => ({
       limit: PAGE_SIZE,
@@ -126,15 +137,39 @@ export default function PromotionsList() {
   );
 
   const promotionsQuery = usePromotions(storeId, params);
-  const items = promotionsQuery.data?.items ?? [];
+  const serverItems = promotionsQuery.data?.items ?? [];
   const total = promotionsQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Use the optimistic local order while the reorder mutation is in
+  // flight; otherwise fall back to whatever React Query has.
+  const items = localOrder ?? serverItems;
+
+  // Whenever a fresh server payload arrives (and we're not actively
+  // dragging), let it become the new source of truth. This clears any
+  // stale localOrder once the mutation's invalidate-and-refetch lands.
+  useEffect(() => {
+    if (!draggingId && !reorderMutation.isPending) {
+      setLocalOrder(null);
+    }
+  }, [serverItems, draggingId, reorderMutation.isPending]);
 
   const lifecycle = useLifecycleAction(storeId, {
     onSuccess: () => {
       toast.success(t("promotions.actions.success") as string);
     },
     onError: (err) => showError(err, t("promotions.actions.error") as string),
+  });
+  const reorderMutation = useReorderPromotions(storeId, {
+    onSuccess: () => {
+      toast.success(t("promotions.reorder.saved") as string);
+      // The fresh fetch invalidated by the mutation will land shortly;
+      // the effect below clears `localOrder` once the new list arrives.
+    },
+    onError: (err) => {
+      // Roll back the optimistic order so the UI stays consistent.
+      setLocalOrder(null);
+      showError(err, t("promotions.reorder.error") as string);
+    },
   });
   const duplicateMutation = useDuplicatePromotion(storeId, {
     onSuccess: (promo) => {
@@ -184,8 +219,55 @@ export default function PromotionsList() {
     }
   };
 
+  const handleDragStart = (id: string) => {
+    setDraggingId(id);
+  };
+
+  const handleDragOver = (
+    event: React.DragEvent<HTMLTableRowElement>,
+    targetId: string,
+  ) => {
+    if (!draggingId || draggingId === targetId) return;
+    event.preventDefault();
+    const current = (localOrder ?? serverItems).slice();
+    const fromIdx = current.findIndex((p) => p.id === draggingId);
+    const toIdx = current.findIndex((p) => p.id === targetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const [moved] = current.splice(fromIdx, 1);
+    current.splice(toIdx, 0, moved);
+    setLocalOrder(current);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+    if (!storeId || !localOrder) return;
+    // Higher index in the array == lower priority in the UI ordering
+    // the resolver applies (descending priority sort). Map the array
+    // index to a descending priority value so position 0 has the
+    // highest priority. Step in chunks of 10 to leave room for future
+    // single-row inserts without immediately re-balancing.
+    const items = localOrder.map((p, idx) => ({
+      promotion_id: p.id,
+      priority: (localOrder.length - idx) * 10,
+    }));
+    reorderMutation.mutate(items);
+  };
+
   const renderRow = (p: PromotionListItem) => (
-    <TableRow key={p.id} className="hover:bg-muted/30">
+    <TableRow
+      key={p.id}
+      className={cn(
+        "hover:bg-muted/30",
+        draggingId === p.id && "opacity-50",
+      )}
+      draggable
+      onDragStart={() => handleDragStart(p.id)}
+      onDragOver={(e) => handleDragOver(e, p.id)}
+      onDragEnd={handleDragEnd}
+    >
+      <TableCell className="w-8 cursor-grab text-muted-foreground/50">
+        <GripVertical className="h-4 w-4" />
+      </TableCell>
       <TableCell className="font-medium">
         <Link
           to={`/marketing/promotions/${p.id}`}
@@ -382,6 +464,7 @@ export default function PromotionsList() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8" />
                   <TableHead>{t("promotions.list.column_name")}</TableHead>
                   <TableHead>
                     {t("promotions.list.column_surface")}

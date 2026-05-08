@@ -414,3 +414,24 @@ export async function issuePreviewToken(storeId: string): Promise<PreviewToken> 
   );
   return res.data;
 }
+
+export interface ReorderPromotionItem {
+  promotion_id: string;
+  priority: number;
+}
+
+/**
+ * Bulk-update promotion priorities — used by the drag-to-reorder UI.
+ * Caller sends the full reordered list; the server overwrites each
+ * row's priority in one transaction. Promotions belonging to a
+ * different store are silently skipped.
+ */
+export async function reorderPromotions(
+  storeId: string,
+  items: ReorderPromotionItem[],
+): Promise<void> {
+  await apiClient<void>(`/stores/${storeId}/promotions/reorder`, {
+    method: "PATCH",
+    body: JSON.stringify({ items }),
+  });
+}
