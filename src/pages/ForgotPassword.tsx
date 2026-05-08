@@ -52,7 +52,7 @@ export default function ForgotPassword() {
             className="h-9 w-auto object-contain"
             width="36"
             height="36"
-            fetchPriority="high"
+            fetchpriority="high"
           />
           {isAr ? (
             <span className="auth-wordmark text-xl font-bold tracking-tight text-[var(--b-ink)]">نُمُو</span>

@@ -43,6 +43,13 @@ const registerSchema = z.object({
 
 type FieldErrors = Record<string, string>;
 
+// Read the Google OAuth client ID once at module load. Empty string when
+// the env var is unset → the Google block on the login form is hidden.
+// (App.tsx still mounts `<GoogleOAuthProvider clientId="">`, but with the
+// button hidden it never renders an iframe so Google's 400-on-empty-id
+// request never fires.)
+const GOOGLE_SIGN_IN_ENABLED = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+
 export default function Login() {
   const { t } = useTranslation();
   const { login, complete2FALogin, register, googleLogin } = useAuth();
@@ -227,7 +234,7 @@ export default function Login() {
               className="h-10 w-auto object-contain"
               width="40"
               height="40"
-              fetchPriority="high"
+              fetchpriority="high"
             />
             {isAr ? (
               <span className="auth-wordmark text-2xl font-bold tracking-tight text-[var(--b-ink)]">
@@ -442,44 +449,53 @@ export default function Login() {
                   </Button>
                 </form>
 
-                {/* Divider */}
-                <div className="relative mt-7 mb-5">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[var(--b-line)]" /></div>
-                  <div className="relative flex justify-center text-xs">
-                    <span className="bg-[var(--b-paper)] px-3 text-[var(--b-ink-soft)] font-mono uppercase tracking-[0.18em]">
-                      {isAr ? "أو" : "or"}
-                    </span>
-                  </div>
-                </div>
+                {/* Google Sign-In — only render when a Google OAuth client ID
+                    is configured. Without `VITE_GOOGLE_CLIENT_ID`, Google's
+                    iframe makes a request with an empty `client_id` and the
+                    button renders broken (HTTP 400 from accounts.google.com).
+                    Hiding the whole block (divider + button) avoids the
+                    broken-button visual until the env var is set. */}
+                {GOOGLE_SIGN_IN_ENABLED && (
+                  <>
+                    {/* Divider */}
+                    <div className="relative mt-7 mb-5">
+                      <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[var(--b-line)]" /></div>
+                      <div className="relative flex justify-center text-xs">
+                        <span className="bg-[var(--b-paper)] px-3 text-[var(--b-ink-soft)] font-mono uppercase tracking-[0.18em]">
+                          {isAr ? "أو" : "or"}
+                        </span>
+                      </div>
+                    </div>
 
-                {/* Google Sign-In */}
-                <div className="flex justify-center [&_iframe]:!rounded-md">
-                  <GoogleLogin
-                    onSuccess={async (credentialResponse) => {
-                      if (!credentialResponse.credential) return;
-                      setLoading(true);
-                      setError(null);
-                      try {
-                        await googleLogin(credentialResponse.credential);
-                        navigate("/", { replace: true });
-                      } catch (err: unknown) {
-                        if (err instanceof ApiError) {
-                          setError(err.toUserMessage(language));
-                        } else {
-                          setError(err instanceof Error ? err.message : "Google login failed");
-                        }
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                    onError={() => setError(isAr ? "فشل تسجيل الدخول بجوجل" : "Google sign-in failed")}
-                    size="large"
-                    width="100%"
-                    text={isRegister ? "signup_with" : "signin_with"}
-                    shape="rectangular"
-                    theme="outline"
-                  />
-                </div>
+                    <div className="flex justify-center [&_iframe]:!rounded-md">
+                      <GoogleLogin
+                        onSuccess={async (credentialResponse) => {
+                          if (!credentialResponse.credential) return;
+                          setLoading(true);
+                          setError(null);
+                          try {
+                            await googleLogin(credentialResponse.credential);
+                            navigate("/", { replace: true });
+                          } catch (err: unknown) {
+                            if (err instanceof ApiError) {
+                              setError(err.toUserMessage(language));
+                            } else {
+                              setError(err instanceof Error ? err.message : "Google login failed");
+                            }
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}
+                        onError={() => setError(isAr ? "فشل تسجيل الدخول بجوجل" : "Google sign-in failed")}
+                        size="large"
+                        width="100%"
+                        text={isRegister ? "signup_with" : "signin_with"}
+                        shape="rectangular"
+                        theme="outline"
+                      />
+                    </div>
+                  </>
+                )}
 
                 <p className="mt-7 text-sm text-center text-[var(--b-ink-soft)]">
                   {isRegister ? t("auth.hasAccount") : t("auth.noAccount")}{" "}
