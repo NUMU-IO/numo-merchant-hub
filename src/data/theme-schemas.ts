@@ -475,6 +475,66 @@ export const themeSchemas: Record<string, ThemeSchema> = {
       { key: "enable_animations", type: "checkbox", label: "Enable Animations", labelAr: "تفعيل الحركات", default: true, group: "Effects", groupAr: "التأثيرات" },
     ],
   },
+  "vionne": {
+    themeId: "vionne",
+    settings: [
+      { key: "primary_color", type: "color", label: "Primary (Black)", labelAr: "الأساسي", default: "#050505", group: "Colors", groupAr: "الألوان" },
+      { key: "secondary_color", type: "color", label: "Section Band (Light Gray)", labelAr: "خلفية القسم", default: "#F4F4F4", group: "Colors", groupAr: "الألوان" },
+      { key: "accent_color", type: "color", label: "Header / Footer Surface", labelAr: "هيدر/فوتر", default: "#3A3A3A", group: "Colors", groupAr: "الألوان" },
+      { key: "background_color", type: "color", label: "Page Background", labelAr: "خلفية الصفحة", default: "#FFFFFF", group: "Colors", groupAr: "الألوان" },
+      { key: "text_color", type: "color", label: "Text Color", labelAr: "لون النص", default: "#050505", group: "Colors", groupAr: "الألوان" },
+      { key: "color_border", type: "color", label: "Border", labelAr: "الحدود", default: "#DADADA", group: "Colors", groupAr: "الألوان" },
+      { key: "color_muted", type: "color", label: "Muted Text", labelAr: "نص ثانوي", default: "#8B8B8B", group: "Colors", groupAr: "الألوان" },
+      { key: "color_sale", type: "color", label: "Sale Badge", labelAr: "شارة التخفيض", default: "#A20000", group: "Colors", groupAr: "الألوان" },
+
+      {
+        key: "heading_font", type: "font", label: "Heading Font", labelAr: "خط العناوين", default: "Neue Haas Grotesk Display Pro",
+        group: "Typography", groupAr: "الخطوط",
+        options: [
+          { label: "Neue Haas Grotesk Display Pro", labelAr: "Neue Haas Grotesk Display Pro", value: "Neue Haas Grotesk Display Pro" },
+          { label: "Helvetica Neue", labelAr: "Helvetica Neue", value: "Helvetica Neue" },
+          { label: "Inter", labelAr: "Inter", value: "Inter" },
+          { label: "Cairo", labelAr: "Cairo", value: "Cairo" },
+        ],
+      },
+      {
+        key: "body_font", type: "font", label: "Body Font", labelAr: "خط النص", default: "Neue Haas Grotesk Text Pro",
+        group: "Typography", groupAr: "الخطوط",
+        options: [
+          { label: "Neue Haas Grotesk Text Pro", labelAr: "Neue Haas Grotesk Text Pro", value: "Neue Haas Grotesk Text Pro" },
+          { label: "Helvetica Neue", labelAr: "Helvetica Neue", value: "Helvetica Neue" },
+          { label: "Inter", labelAr: "Inter", value: "Inter" },
+          { label: "Cairo", labelAr: "Cairo", value: "Cairo" },
+        ],
+      },
+
+      { key: "announcement_text", type: "text", label: "Announcement Marquee", labelAr: "نص الشريط العلوي", default: "FREE SHIPPING ABOVE 1500 EGP   •   NEW COLLECTION   •   WORLDWIDE DELIVERY   •", group: "Header", groupAr: "الهيدر" },
+      { key: "announcement_speed", type: "range", label: "Marquee duration (s)", labelAr: "مدة التمرير (ث)", default: 25, min: 10, max: 60, step: 5, group: "Header", groupAr: "الهيدر" },
+      { key: "show_mobile_dock", type: "checkbox", label: "Show Mobile Bottom Dock", labelAr: "شريط الموبايل السفلي", default: true, group: "Header", groupAr: "الهيدر" },
+      { key: "show_about_link", type: "checkbox", label: "Show About Link", labelAr: "رابط من نحن", default: true, group: "Header", groupAr: "الهيدر" },
+      { key: "show_contact_link", type: "checkbox", label: "Show Contact Link", labelAr: "رابط اتصل بنا", default: true, group: "Header", groupAr: "الهيدر" },
+
+      { key: "footer_about_text", type: "textarea", label: "Footer Tagline", labelAr: "نص الفوتر", default: "Modest, refined, made to be lived in.", group: "Footer", groupAr: "الفوتر" },
+      { key: "newsletter_title", type: "text", label: "Newsletter Title", labelAr: "عنوان النشرة", default: "Stay in the loop", group: "Footer", groupAr: "الفوتر" },
+      { key: "newsletter_subtitle", type: "text", label: "Newsletter Subtitle", labelAr: "وصف النشرة", default: "Be first to know about new arrivals and exclusive drops.", group: "Footer", groupAr: "الفوتر" },
+
+      { key: "popup_enabled", type: "checkbox", label: "Enable Newsletter Popup", labelAr: "تفعيل نافذة النشرة", default: false, group: "Popups", groupAr: "النوافذ" },
+      { key: "popup_delay_seconds", type: "range", label: "Popup Delay (s)", labelAr: "تأخير النافذة (ث)", default: 8, min: 1, max: 30, step: 1, group: "Popups", groupAr: "النوافذ" },
+      { key: "popup_title", type: "text", label: "Popup Title", labelAr: "عنوان النافذة", default: "Welcome to Vionne", group: "Popups", groupAr: "النوافذ" },
+      { key: "popup_subtitle", type: "text", label: "Popup Subtitle", labelAr: "وصف النافذة", default: "Subscribe to receive 10% off your first order.", group: "Popups", groupAr: "النوافذ" },
+      { key: "popup_button_text", type: "text", label: "Popup Button Text", labelAr: "نص زر النافذة", default: "Subscribe", group: "Popups", groupAr: "النوافذ" },
+      { key: "popup_image", type: "image", label: "Popup Image", labelAr: "صورة النافذة", default: "", group: "Popups", groupAr: "النوافذ" },
+
+      { key: "cookie_enabled", type: "checkbox", label: "Enable Cookie Banner", labelAr: "شريط الكوكيز", default: true, group: "Popups", groupAr: "النوافذ" },
+      { key: "cookie_message", type: "textarea", label: "Cookie Message", labelAr: "نص الكوكيز", default: "We use cookies to improve your experience and analyze site usage.", group: "Popups", groupAr: "النوافذ" },
+      { key: "cookie_accept_text", type: "text", label: "Accept text", labelAr: "نص القبول", default: "Accept", group: "Popups", groupAr: "النوافذ" },
+      { key: "cookie_decline_text", type: "text", label: "Decline text", labelAr: "نص الرفض", default: "Decline", group: "Popups", groupAr: "النوافذ" },
+
+      { key: "border_radius", type: "range", label: "Border Radius", labelAr: "زوايا منحنية", default: 4, min: 0, max: 20, step: 2, unit: "px", group: "Layout", groupAr: "التخطيط" },
+      { key: "enable_animations", type: "checkbox", label: "Enable Animations", labelAr: "تفعيل الحركات", default: true, group: "Effects", groupAr: "التأثيرات" },
+      { key: "enableHideOnScroll", type: "checkbox", label: "Hide header on scroll down", labelAr: "إخفاء الهيدر عند التمرير", default: true, group: "Effects", groupAr: "التأثيرات" },
+    ],
+  },
 };
 
 /** Group the settings by their `group` field. */

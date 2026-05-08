@@ -145,6 +145,11 @@ const Orders = () => {
 
   const invalidateOrders = () => {
     queryClient.invalidateQueries({ queryKey: ["orders", storeId] });
+    // Bust analytics so Top Products / Customer Stats / Sales Chart
+    // reflect the newly created or status-changed order without waiting
+    // for the next nightly rollup.
+    queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
   const openOrderDetail = async (orderId: string) => {
@@ -625,7 +630,11 @@ const Orders = () => {
                       storeId={currentStore.id}
                       orderId={o.id}
                       isAr={language === "ar"}
-                      onPaid={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
+                      onPaid={() => {
+                        queryClient.invalidateQueries({ queryKey: ["orders"] });
+                        queryClient.invalidateQueries({ queryKey: ["analytics"] });
+                        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+                      }}
                     />
                   </div>
                 )}
