@@ -89,6 +89,16 @@ function isVisual(surface: PromotionSurface): boolean {
   return VISUAL_SURFACES.includes(surface);
 }
 
+/**
+ * One row of a tiered discount: "spend X cents, get Y% off". The form
+ * stores them as strings so the user can clear an input mid-edit
+ * without committing NaN; we coerce to ints in `buildDiscountRule`.
+ */
+interface TierFormRow {
+  threshold_cents: string;
+  percent: string;
+}
+
 interface FormState {
   name: string;
   code: string;
@@ -97,6 +107,15 @@ interface FormState {
   valueCents: string;
   minSubtotalCents: string;
   maxDiscountCents: string;
+  // BOGO fields — only sent when ruleKind === "bogo".
+  // `getDiscountPercent` defaults to 100 (= "free") on first paint
+  // because that's the most common BOGO shape; merchant can lower it
+  // (e.g. "buy 2 get 1 50% off") without having to re-type the value.
+  buyQuantity: string;
+  getQuantity: string;
+  getDiscountPercent: string;
+  // TIERED fields — at least one row required when ruleKind === "tiered".
+  tiers: TierFormRow[];
   startsAt: string;
   endsAt: string;
   audienceKind: "all" | "new_visitor" | "returning" | "logged_in" | "guest";
@@ -113,6 +132,10 @@ const EMPTY_FORM: FormState = {
   valueCents: "",
   minSubtotalCents: "",
   maxDiscountCents: "",
+  buyQuantity: "",
+  getQuantity: "",
+  getDiscountPercent: "100",
+  tiers: [{ threshold_cents: "", percent: "" }],
   startsAt: "",
   endsAt: "",
   audienceKind: "all",
@@ -179,6 +202,7 @@ export default function PromotionForm() {
     const audience = promo.targets.find((t) => t.target_kind === "audience");
     const enLabel = promo.translations?.en?.label?.en ?? "";
     const arLabel = promo.translations?.ar?.label?.ar ?? "";
+    const savedTiers = promo.discount_rule?.tiers ?? [];
     setForm({
       name: promo.name,
       code: "",
@@ -187,6 +211,17 @@ export default function PromotionForm() {
       valueCents: promo.discount_rule?.value_cents?.toString() ?? "",
       minSubtotalCents: promo.discount_rule?.min_subtotal_cents?.toString() ?? "",
       maxDiscountCents: promo.discount_rule?.max_discount_cents?.toString() ?? "",
+      buyQuantity: promo.discount_rule?.buy_quantity?.toString() ?? "",
+      getQuantity: promo.discount_rule?.get_quantity?.toString() ?? "",
+      getDiscountPercent:
+        promo.discount_rule?.get_discount_percent?.toString() ?? "100",
+      tiers:
+        savedTiers.length > 0
+          ? savedTiers.map((t) => ({
+              threshold_cents: t.threshold_cents.toString(),
+              percent: t.percent.toString(),
+            }))
+          : [{ threshold_cents: "", percent: "" }],
       startsAt: fromIso(promo.starts_at),
       endsAt: fromIso(promo.ends_at),
       audienceKind:
@@ -284,6 +319,22 @@ export default function PromotionForm() {
       rule.value_percent = Number(form.valuePercent) || 0;
     } else if (form.ruleKind === "fixed") {
       rule.value_cents = Number(form.valueCents) || 0;
+    } else if (form.ruleKind === "bogo") {
+      // The API's domain validator requires both quantities; the form
+      // validator catches missing values before we get here, but we
+      // still parse defensively so `Number("") || 1` doesn't ship a
+      // misconfigured rule on a stale state.
+      rule.buy_quantity = Number(form.buyQuantity) || 1;
+      rule.get_quantity = Number(form.getQuantity) || 1;
+      rule.get_discount_percent = Number(form.getDiscountPercent || "100");
+    } else if (form.ruleKind === "tiered") {
+      rule.tiers = form.tiers
+        .map((row) => ({
+          threshold_cents: Number(row.threshold_cents) || 0,
+          percent: Number(row.percent) || 0,
+        }))
+        // Drop any tier the merchant left blank.
+        .filter((t) => t.threshold_cents > 0 || t.percent > 0);
     }
     if (form.minSubtotalCents)
       rule.min_subtotal_cents = Number(form.minSubtotalCents);
@@ -324,6 +375,27 @@ export default function PromotionForm() {
       }
       if (form.ruleKind === "fixed" && !Number(form.valueCents)) {
         return t("promotions.errors.fixed_required") as string;
+      }
+      if (form.ruleKind === "bogo") {
+        const b = Number(form.buyQuantity);
+        const g = Number(form.getQuantity);
+        if (!b || b < 1) return t("promotions.errors.buy_quantity_required") as string;
+        if (!g || g < 1) return t("promotions.errors.get_quantity_required") as string;
+        const pct = Number(form.getDiscountPercent);
+        if (Number.isNaN(pct) || pct < 0 || pct > 100)
+          return t("promotions.errors.get_discount_percent_range") as string;
+      }
+      if (form.ruleKind === "tiered") {
+        const realRows = form.tiers.filter(
+          (r) => r.threshold_cents.trim() !== "" && r.percent.trim() !== "",
+        );
+        if (realRows.length === 0)
+          return t("promotions.errors.tiers_required") as string;
+        for (const row of realRows) {
+          const pct = Number(row.percent);
+          if (Number.isNaN(pct) || pct < 0 || pct > 100)
+            return t("promotions.errors.tiers_percent_range") as string;
+        }
       }
     }
     if (
@@ -440,12 +512,14 @@ export default function PromotionForm() {
     ? `promotions.form.title_edit_${surface}`
     : `promotions.form.title_new_${surface}`;
 
+  // Both `automatic` and `discount_code` surfaces now offer the full
+  // rule-kind set. The API's storefront `/cart/discounts` endpoint
+  // routes BOGO/tiered codes through the unified discount calculator
+  // (the legacy `Coupon.calculate_discount` only handles the simple
+  // three, but it's bypassed when the linked promotion has a rule).
   const ruleKindOptions = useMemo<DiscountRuleKind[]>(
-    () =>
-      isAuto
-        ? ["percentage", "fixed", "free_shipping", "bogo", "tiered"]
-        : ["percentage", "fixed", "free_shipping"],
-    [isAuto],
+    () => ["percentage", "fixed", "free_shipping", "bogo", "tiered"],
+    [],
   );
 
   if (isEdit && promotionQuery.isLoading) {
@@ -599,6 +673,146 @@ export default function PromotionForm() {
               />
               <p className="text-xs text-muted-foreground">
                 {t("promotions.form.cents_help")}
+              </p>
+            </div>
+          )}
+          {form.ruleKind === "bogo" && (
+            <div className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="rule-buy-qty">
+                    {t("promotions.form.bogo_buy_quantity")}
+                  </Label>
+                  <Input
+                    id="rule-buy-qty"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={form.buyQuantity}
+                    onChange={(e) => updateField("buyQuantity", e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="rule-get-qty">
+                    {t("promotions.form.bogo_get_quantity")}
+                  </Label>
+                  <Input
+                    id="rule-get-qty"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={form.getQuantity}
+                    onChange={(e) => updateField("getQuantity", e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="rule-get-pct">
+                    {t("promotions.form.bogo_get_percent")}
+                  </Label>
+                  <Input
+                    id="rule-get-pct"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={form.getDiscountPercent}
+                    onChange={(e) =>
+                      updateField("getDiscountPercent", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("promotions.form.bogo_help")}
+              </p>
+            </div>
+          )}
+          {form.ruleKind === "tiered" && (
+            <div className="space-y-3">
+              <Label>{t("promotions.form.tiered_label")}</Label>
+              <div className="space-y-2">
+                {form.tiers.map((row, idx) => (
+                  <div
+                    key={idx}
+                    className="grid gap-2 grid-cols-[1fr_1fr_auto] items-end"
+                  >
+                    <div className="grid gap-1">
+                      <Label
+                        htmlFor={`tier-thresh-${idx}`}
+                        className="text-xs text-muted-foreground"
+                      >
+                        {t("promotions.form.tier_threshold")}
+                      </Label>
+                      <Input
+                        id={`tier-thresh-${idx}`}
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={row.threshold_cents}
+                        onChange={(e) => {
+                          const next = [...form.tiers];
+                          next[idx] = {
+                            ...next[idx],
+                            threshold_cents: e.target.value,
+                          };
+                          updateField("tiers", next);
+                        }}
+                      />
+                    </div>
+                    <div className="grid gap-1">
+                      <Label
+                        htmlFor={`tier-pct-${idx}`}
+                        className="text-xs text-muted-foreground"
+                      >
+                        {t("promotions.form.tier_percent")}
+                      </Label>
+                      <Input
+                        id={`tier-pct-${idx}`}
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={row.percent}
+                        onChange={(e) => {
+                          const next = [...form.tiers];
+                          next[idx] = { ...next[idx], percent: e.target.value };
+                          updateField("tiers", next);
+                        }}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={form.tiers.length === 1}
+                      onClick={() => {
+                        const next = form.tiers.filter((_, i) => i !== idx);
+                        updateField("tiers", next);
+                      }}
+                      aria-label={t("promotions.form.tier_remove") as string}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  updateField("tiers", [
+                    ...form.tiers,
+                    { threshold_cents: "", percent: "" },
+                  ])
+                }
+              >
+                + {t("promotions.form.tier_add")}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                {t("promotions.form.tiered_help")}
               </p>
             </div>
           )}
