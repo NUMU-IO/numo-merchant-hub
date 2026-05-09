@@ -299,10 +299,15 @@ export function SectionEditorPanel() {
               </p>
             )}
 
-            {/* Add block button */}
-            {canAddBlock && (
-              <div className="mt-2">
-                {availableBlockTypes.length === 1 ? (
+            {/* Add block button — disabled when max_blocks reached.
+                Hard-enforce the schema limit at the customizer so a
+                merchant can never produce a payload the storefront
+                later refuses to render. The disabled state + hint is
+                clearer than silently hiding the button when the limit
+                kicks in. */}
+            <div className="mt-2">
+              {canAddBlock ? (
+                availableBlockTypes.length === 1 ? (
                   <Button
                     variant="outline"
                     size="sm"
@@ -318,9 +323,17 @@ export function SectionEditorPanel() {
                     locale={locale}
                     onAdd={(type) => addBlock(sectionId, type, groupId ?? undefined)}
                   />
-                )}
-              </div>
-            )}
+                )
+              ) : (
+                <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-center">
+                  <p className="text-xs text-muted-foreground">
+                    {locale === "ar"
+                      ? `تم بلوغ الحد الأقصى (${maxBlocks}). أزل عنصرًا لإضافة آخر.`
+                      : `Block limit reached (${maxBlocks}). Remove a block to add another.`}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

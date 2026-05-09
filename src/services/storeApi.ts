@@ -113,15 +113,28 @@ export interface UploadAssetResult {
   filename: string;
 }
 
+export type AssetType =
+  | "logo"
+  | "favicon"
+  | "hero_image"
+  | "profile_picture"
+  | "section_image"
+  | "social_image"
+  | "generic_file";
+
 export async function uploadStoreAsset(
   storeId: string,
   file: File,
-  assetType: "logo" | "favicon" | "hero_image" | "profile_picture" | "section_image" | "social_image",
+  assetType: AssetType,
 ): Promise<UploadAssetResult> {
   // Favicons must stay crisp at their native size — don't touch. Everything
   // else (logo, banner, hero, profile, section images) gets downscaled to
   // fit comfortably under the server cap so phone photos upload cleanly.
-  const prepared = assetType === "favicon" ? file : await compressImage(file);
+  // `generic_file` skips compression too — PDFs, fonts, video, audio aren't
+  // image candidates and would corrupt under the canvas-based path.
+  const isImageAsset =
+    assetType !== "favicon" && assetType !== "generic_file";
+  const prepared = isImageAsset ? await compressImage(file) : file;
 
   const formData = new FormData();
   formData.append("file", prepared);
