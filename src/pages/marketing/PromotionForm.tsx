@@ -201,6 +201,12 @@ export default function PromotionForm() {
       const c = (promo.content ?? {}) as Record<string, unknown>;
       const enT = promo.translations?.en;
       const arT = promo.translations?.ar;
+      // `cta_url` is locale-agnostic but stored on the per-locale block.
+      // Read whichever side has a value first.
+      const savedCtaUrl =
+        (arT?.cta_url as string | undefined) ??
+        (enT?.cta_url as string | undefined) ??
+        "";
       setVisual({
         ...EMPTY_VISUAL_CONTENT,
         bg: (c.background as string) ?? EMPTY_VISUAL_CONTENT.bg,
@@ -216,6 +222,7 @@ export default function PromotionForm() {
         bodyAr: arT?.body?.ar ?? "",
         ctaLabelEn: enT?.cta_label?.en ?? "",
         ctaLabelAr: arT?.cta_label?.ar ?? "",
+        ctaUrl: savedCtaUrl,
         popupLayout:
           (c.layout as "centered" | "side") ??
           EMPTY_VISUAL_CONTENT.popupLayout,
@@ -223,6 +230,33 @@ export default function PromotionForm() {
         popupShowAfterDays:
           (c.show_after_dismiss_days as number | undefined) ??
           EMPTY_VISUAL_CONTENT.popupShowAfterDays,
+        popupImageUrl: (c.image_url as string) ?? "",
+        popupCollectEmail: (c.collect_email as boolean | undefined) ?? false,
+        popupCollectPhone: (c.collect_phone as boolean | undefined) ?? false,
+        popupSuccessHeadlineAr:
+          (arT?.success_headline?.ar as string | undefined) ?? "",
+        popupSuccessHeadlineEn:
+          (enT?.success_headline?.en as string | undefined) ?? "",
+        popupSuccessBodyAr:
+          (arT?.success_body?.ar as string | undefined) ?? "",
+        popupSuccessBodyEn:
+          (enT?.success_body?.en as string | undefined) ?? "",
+        popupEmailLabelAr:
+          (arT?.email_label?.ar as string | undefined) ?? "",
+        popupEmailLabelEn:
+          (enT?.email_label?.en as string | undefined) ?? "",
+        popupPhoneLabelAr:
+          (arT?.phone_label?.ar as string | undefined) ?? "",
+        popupPhoneLabelEn:
+          (enT?.phone_label?.en as string | undefined) ?? "",
+        popupConsentLabelAr:
+          (arT?.consent_label?.ar as string | undefined) ?? "",
+        popupConsentLabelEn:
+          (enT?.consent_label?.en as string | undefined) ?? "",
+        popupSubmitLabelAr:
+          (arT?.submit_label?.ar as string | undefined) ?? "",
+        popupSubmitLabelEn:
+          (enT?.submit_label?.en as string | undefined) ?? "",
         widgetPosition:
           (c.position as VisualContentState["widgetPosition"]) ??
           EMPTY_VISUAL_CONTENT.widgetPosition,
@@ -501,6 +535,7 @@ export default function PromotionForm() {
           surface={surface}
           state={visual}
           onChange={setVisual}
+          storeId={storeId}
         />
       )}
 

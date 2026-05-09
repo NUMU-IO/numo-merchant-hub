@@ -97,7 +97,13 @@ export type PromotionContent =
       surface: "popup";
       layout?: "centered" | "side";
       image_url?: string | null;
+      // Legacy: older rows used a `form_fields` array; new builder
+      // writes `collect_email` / `collect_phone` booleans instead.
       form_fields?: ("email" | "phone" | "name")[];
+      /** True when the popup renders an inline lead-capture form. */
+      collect_email?: boolean;
+      /** Adds an Egyptian-phone field below email when true. */
+      collect_phone?: boolean;
       discount_code_to_reveal?: string | null;
       show_after_dismiss_days?: number;
     }
@@ -122,6 +128,14 @@ export interface LocalizedPromotionContent {
   cta_label?: { en?: string | null; ar?: string | null } | null;
   cta_url?: string | null;
   label?: { en?: string | null; ar?: string | null } | null;
+  // Popup form-capture fields — read by the storefront's PopupModal
+  // when `content.collect_email` is true. All four are localized.
+  email_label?: { en?: string | null; ar?: string | null } | null;
+  phone_label?: { en?: string | null; ar?: string | null } | null;
+  consent_label?: { en?: string | null; ar?: string | null } | null;
+  submit_label?: { en?: string | null; ar?: string | null } | null;
+  success_headline?: { en?: string | null; ar?: string | null } | null;
+  success_body?: { en?: string | null; ar?: string | null } | null;
 }
 
 export interface PromotionDisplayInput {
