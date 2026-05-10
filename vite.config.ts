@@ -66,7 +66,9 @@ export default defineConfig(({ mode }) => ({
     },
     proxy: {
       "/api": {
-        target: "https://numueg.app",
+        // Local FastAPI on :8021. Point at https://numueg.app to hit
+        // staging/prod instead.
+        target: "http://localhost:8021",
         changeOrigin: true,
         cookieDomainRewrite: "",
         secure: false,

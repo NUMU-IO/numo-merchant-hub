@@ -51,6 +51,10 @@ export function LivePreview() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const pendingUpdateRef = useRef<object | null>(null);
   const [ready, setReady] = useState(false);
+  // Bundle-error from the iframe (theme threw during render). Surfaced
+  // as a toast-style banner over the preview so the merchant sees what
+  // broke instead of a frozen iframe.
+  const [bundleError, setBundleError] = useState<string | null>(null);
 
   const { currentStore } = useDashboardStore();
 
@@ -65,21 +69,40 @@ export function LivePreview() {
   const setActivePage = useCustomizerStore((s) => s.setActivePage);
 
   // Build the storefront preview URL.
-  // Prefer the store's actual subdomain (matches what merchants see in
-  // production); fall back to the configured base URL in dev.
+  //
+  // numu-storefront resolves the store via either:
+  //   (a) the request hostname  → `<subdomain>.<platform-domain>`     (prod)
+  //   (b) the first path segment → `<base>/<subdomain>` via [domain]   (dev)
+  //
+  // VITE_STOREFRONT_URL controls dev/staging routing and accepts three
+  // forms:
+  //   - `http://localhost:3001`             → path-segment form
+  //                                           → http://localhost:3001/<sub>/
+  //   - `http://{subdomain}.numueg.local:3001` → template substitution
+  //                                              (set up /etc/hosts)
+  //   - missing → assume production-style host routing using
+  //     VITE_STOREFRONT_DOMAIN (default "numueg.app").
   const previewUrl = useMemo(() => {
     if (!storeId) return "about:blank";
 
     const configured = import.meta.env.VITE_STOREFRONT_URL as
       | string
       | undefined;
+    const subdomain = currentStore?.subdomain;
+
     let base: string;
-    if (currentStore?.subdomain) {
-      // Production: https://<subdomain>.numueg.app
+    if (configured && configured.includes("{subdomain}") && subdomain) {
+      // Template form — substitute the placeholder.
+      base = configured.replace(/\{subdomain\}/g, subdomain);
+    } else if (configured && subdomain) {
+      // Path-segment form — append /<subdomain>/.
+      base = `${configured.replace(/\/+$/, "")}/${subdomain}/`;
+    } else if (subdomain) {
+      // Production host pattern: https://<sub>.numueg.app
       const platformDomain =
         (import.meta.env.VITE_STOREFRONT_DOMAIN as string | undefined) ||
         "numueg.app";
-      base = `https://${currentStore.subdomain}.${platformDomain}`;
+      base = `https://${subdomain}.${platformDomain}`;
     } else if (configured) {
       base = configured;
     } else {
@@ -209,6 +232,15 @@ export function LivePreview() {
           if (page) setActivePage(page);
           break;
         }
+
+        case "numu:editor:bundle-error": {
+          const message =
+            typeof payload.message === "string"
+              ? payload.message
+              : "Theme bundle threw an error";
+          setBundleError(message);
+          break;
+        }
       }
     }
 
@@ -224,9 +256,10 @@ export function LivePreview() {
     setActivePage,
   ]);
 
-  // ── Reset ready state on URL change ──
+  // ── Reset ready state + clear any prior bundle error on URL change ──
   useEffect(() => {
     setReady(false);
+    setBundleError(null);
   }, [previewUrl]);
 
   return (
@@ -242,7 +275,7 @@ export function LivePreview() {
         }}
       >
         {/* Loading overlay — controlled by `ready` state, re-renders on flip */}
-        {!ready && (
+        {!ready && !bundleError && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80">
             <div className="flex flex-col items-center gap-3">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -255,15 +288,55 @@ export function LivePreview() {
           </div>
         )}
 
+        {/* Bundle error banner — surfaced over the iframe when the theme
+            posts `numu:editor:bundle-error`. The iframe itself shows the
+            ByotThemeBoundary fallback; this is the parent-side hint so
+            merchants spot the failure even if they're not watching the
+            iframe console. */}
+        {bundleError && (
+          <div className="absolute inset-x-0 top-0 z-20 m-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm">
+            <p className="font-semibold text-destructive">
+              {locale === "ar"
+                ? "ارتفع خطأ من الثيم"
+                : "Theme bundle threw an error"}
+            </p>
+            <p className="mt-1 text-xs text-destructive/80 break-all">
+              {bundleError}
+            </p>
+            <button
+              type="button"
+              className="mt-2 text-xs underline hover:no-underline"
+              onClick={() => setBundleError(null)}
+            >
+              {locale === "ar" ? "إغلاق" : "Dismiss"}
+            </button>
+          </div>
+        )}
+
         <iframe
           ref={iframeRef}
           src={previewUrl}
           className="h-full w-full border-0"
           title="Theme Preview"
-          // Note: NO `allow-same-origin`. Combining it with `allow-scripts`
-          // lets the iframe escape the sandbox (HTML spec). The storefront
-          // runs on a separate origin and uses postMessage only.
-          sandbox="allow-scripts allow-forms allow-popups"
+          // Sandbox notes:
+          //   Production: NO `allow-same-origin` — combining it with
+          //   `allow-scripts` is the HTML-spec sandbox-escape combo, and
+          //   the storefront is on a separate origin so postMessage is
+          //   the only interface needed.
+          //
+          //   Dev (import.meta.env.DEV): we DO add `allow-same-origin`
+          //   so Next.js's dev cross-origin block lets the iframe load
+          //   its own /_next/static/* assets. Without it, the sandbox
+          //   forces Origin: null on every request and Next 16 rejects
+          //   them — the storefront renders unstyled and PreviewBridge
+          //   never boots, so the parent stays stuck on "Loading
+          //   preview". Both apps run on localhost so the escape risk
+          //   is moot.
+          sandbox={
+            import.meta.env.DEV
+              ? "allow-scripts allow-forms allow-popups allow-same-origin"
+              : "allow-scripts allow-forms allow-popups"
+          }
         />
       </div>
     </div>

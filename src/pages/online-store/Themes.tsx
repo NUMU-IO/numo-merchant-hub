@@ -53,7 +53,7 @@ import { getStoreUrl } from "@/lib/storefront";
 import {
   Pencil, MoreHorizontal, ExternalLink, Eye, Copy, Sparkles,
   CheckCircle2, Clock, Loader2, ArrowUpRight, Layers, Github, Trash2, RefreshCw, ShieldCheck,
-  Search, Palette, Lock,
+  Search, Palette, Lock, ChevronDown,
 } from "lucide-react";
 
 // ─── Theme visual palettes ───────────────────────────────────────────────────
@@ -403,7 +403,13 @@ export default function OnlineStoreThemes() {
             theme={activeTheme}
             customization={customization}
             isRTL={isRTL}
-            onCustomize={() => navigate("/online-store/themes/editor")}
+            onCustomize={(version) =>
+              navigate(
+                version === "v3"
+                  ? "/online-store/themes/editor-v3"
+                  : "/online-store/themes/editor",
+              )
+            }
             onPreview={() => setPreviewTheme(activeTheme)}
           />
         ) : (
@@ -637,7 +643,7 @@ export default function OnlineStoreThemes() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => navigate(`/online-store/themes/editor?theme=${externalThemeFromStore.id}`)}
+                  onClick={() => navigate("/online-store/themes/editor-v3")}
                 >
                   <Pencil className="h-3.5 w-3.5 me-1.5" />
                   {isRTL ? "تخصيص" : "Customize"}
@@ -948,7 +954,11 @@ interface ActiveThemeHeroProps {
   theme: AvailableTheme;
   customization: CustomizationData | undefined;
   isRTL: boolean;
-  onCustomize: () => void;
+  /** Receives the editor flavor — V2 keeps the legacy single-page editor;
+   *  V3 opens the new section/block customizer. The hero is the only
+   *  call site that exposes V3 because V3 always edits the active theme;
+   *  library cards still use the V2 `?theme=ID` workflow. */
+  onCustomize: (version: "v2" | "v3") => void;
   onPreview: () => void;
 }
 
@@ -1025,7 +1035,7 @@ function ActiveThemeHero({ theme, customization, isRTL, onCustomize, onPreview }
                     <ExternalLink className="h-3 w-3 ms-auto opacity-40" />
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={onCustomize}>
+                  <DropdownMenuItem onClick={() => onCustomize("v2")}>
                     <Copy className="h-3.5 w-3.5 me-2" />
                     {isRTL ? "نسخ" : "Duplicate"}
                   </DropdownMenuItem>
@@ -1082,10 +1092,42 @@ function ActiveThemeHero({ theme, customization, isRTL, onCustomize, onPreview }
           </div>
 
           <div className="mt-auto flex flex-col sm:flex-row gap-2">
-            <Button className="flex-1 gap-1.5" onClick={onCustomize}>
-              <Pencil className="h-3.5 w-3.5" />
-              {isRTL ? "تخصيص الثيم" : "Customize"}
-            </Button>
+            {/* Customize is a split: classic V2 stays the primary entry point,
+                V3 (sections/blocks) is a single click away in the menu. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="flex-1 gap-1.5">
+                  <Pencil className="h-3.5 w-3.5" />
+                  {isRTL ? "تخصيص الثيم" : "Customize"}
+                  <ChevronDown className="h-3.5 w-3.5 ms-auto opacity-70" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-60">
+                <DropdownMenuItem onClick={() => onCustomize("v2")}>
+                  <Pencil className="h-3.5 w-3.5 me-2" />
+                  <div className="flex flex-col">
+                    <span>{isRTL ? "المحرر الكلاسيكي" : "Classic editor"}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {isRTL ? "تخصيص شامل لصفحة واحدة" : "Single-page customization"}
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onCustomize("v3")}>
+                  <Sparkles className="h-3.5 w-3.5 me-2" />
+                  <div className="flex flex-col">
+                    <span className="flex items-center gap-1.5">
+                      {isRTL ? "المحرر الجديد" : "New editor"}
+                      <Badge variant="secondary" className="h-4 text-[9px] px-1">
+                        Beta
+                      </Badge>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {isRTL ? "أقسام وكتل بمعاينة مباشرة" : "Sections & blocks with live preview"}
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="outline" className="gap-1.5" onClick={onPreview}>
               <Eye className="h-3.5 w-3.5" />
               {isRTL ? "معاينة مباشرة" : "Live preview"}

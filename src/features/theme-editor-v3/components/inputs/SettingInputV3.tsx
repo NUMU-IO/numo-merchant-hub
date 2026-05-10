@@ -20,8 +20,9 @@
  * All labels are bilingual (EN/AR) based on the editor locale.
  */
 
-import { useState, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import type { SettingDefinition, EditorLocale } from "../../types";
+import { uploadStoreAsset } from "@/services/storeApi";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -36,7 +37,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { ImageIcon, Link2, Package, FolderOpen, Type } from "lucide-react";
+import {
+  ImageIcon,
+  Link2,
+  Package,
+  FolderOpen,
+  Type,
+  Calendar,
+  Clock,
+  Code,
+  Film,
+  List,
+  Palette,
+  Upload,
+} from "lucide-react";
 
 // ─── Props ──────────────────────────────────────────────────────────────────
 
@@ -318,6 +332,190 @@ export function SettingInputV3({ setting, value, locale, onChange, storeId }: Se
         />,
       );
 
+    // ── 15. Header (visual divider in customizer) ─────────────────────
+    // Renders the label as a section header inside the form. Doesn't
+    // accept a value — this is purely organizational (Shopify uses it
+    // to break long settings_schemas into groups).
+    case "header":
+      return (
+        <div className="pt-3 mt-2 border-t" data-testid={testId}>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {label}
+          </p>
+          {info && <p className="text-xs text-muted-foreground mt-1">{info}</p>}
+        </div>
+      );
+
+    // ── 16. Paragraph (info text) ─────────────────────────────────────
+    // Static rich-but-plain explanatory text. No input. The label is
+    // shown small + the info field is the body.
+    case "paragraph":
+      return (
+        <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground" data-testid={testId}>
+          {label && <p className="font-medium text-foreground mb-1">{label}</p>}
+          {info && <p className="leading-relaxed whitespace-pre-line">{info}</p>}
+        </div>
+      );
+
+    // ── 17. HTML (raw HTML editor) ────────────────────────────────────
+    // Mono-spaced multi-line text input for HTML snippets. We don't
+    // sanitize at customize time (that's a runtime concern in the
+    // theme renderer); our job is to give merchants a comfortable
+    // editing surface.
+    case "html":
+      return wrapper(
+        <div className="space-y-1">
+          <Textarea
+            value={(value as string) ?? ""}
+            placeholder={placeholder || "<div>...</div>"}
+            onChange={(e) => onChange(e.target.value)}
+            rows={6}
+            className="font-mono text-xs"
+          />
+          <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+            <Code className="h-3 w-3" />
+            {locale === "ar"
+              ? "HTML خام — استخدم بحذر"
+              : "Raw HTML — use with care"}
+          </p>
+        </div>,
+      );
+
+    // ── 18. Date ──────────────────────────────────────────────────────
+    // ISO date (YYYY-MM-DD). Native input is good enough; calendar
+    // picker comes from the browser.
+    case "date":
+      return wrapper(
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <Input
+            type="date"
+            value={(value as string) ?? ""}
+            onChange={(e) => onChange(e.target.value)}
+            className="flex-1"
+          />
+        </div>,
+      );
+
+    // ── 19. Time ──────────────────────────────────────────────────────
+    case "time":
+      return wrapper(
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <Input
+            type="time"
+            value={(value as string) ?? ""}
+            onChange={(e) => onChange(e.target.value)}
+            className="flex-1"
+          />
+        </div>,
+      );
+
+    // ── 20. Video picker ──────────────────────────────────────────────
+    // Today: URL input pointed at a hosted video (YouTube/Vimeo/MP4).
+    // Future: full picker that uploads to R2 + gives back a CDN URL.
+    case "video_picker":
+      return wrapper(
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Film className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Input
+              type="url"
+              value={(value as string) ?? ""}
+              placeholder={placeholder || "https://youtu.be/... or https://cdn/video.mp4"}
+              onChange={(e) => onChange(e.target.value)}
+              className="flex-1"
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            {locale === "ar"
+              ? "ادعم YouTube و Vimeo و MP4 المباشر."
+              : "Supports YouTube, Vimeo, and direct MP4 URLs."}
+          </p>
+        </div>,
+      );
+
+    // ── 21. Color scheme ──────────────────────────────────────────────
+    // Selects from the theme's `color_schemes` global setting. Today
+    // we render as a free-text input (the theme defines schemes by id
+    // in settings_schema.json under a `color_scheme_group` setting,
+    // which we'll wire when that ships); merchants type the scheme id
+    // and the theme renders the matching palette.
+    case "color_scheme":
+      return wrapper(
+        <div className="flex items-center gap-2">
+          <Palette className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <Input
+            value={(value as string) ?? ""}
+            placeholder={placeholder || "scheme-1"}
+            onChange={(e) => onChange(e.target.value)}
+            className="flex-1"
+          />
+        </div>,
+      );
+
+    // ── 22. Page / blog / link-list pickers ───────────────────────────
+    // These reference dashboard-managed resources (CMS pages, blog
+    // posts, navigation menus) that we don't have a backend for yet.
+    // Today they accept a free-form handle string so themes that
+    // declare these settings don't crash; once the resource backends
+    // ship we'll swap in proper search-pickers.
+    case "page_picker":
+    case "blog_picker":
+    case "link_list_picker":
+      return wrapper(
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <List className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Input
+              value={(value as string) ?? ""}
+              placeholder={
+                placeholder ||
+                (setting.type === "link_list_picker" ? "main-menu" : "handle")
+              }
+              onChange={(e) => onChange(e.target.value)}
+              className="flex-1"
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            {locale === "ar"
+              ? "أدخل المعرّف (handle) للمورد. سيتم تحويله إلى منتقي بحث قريبًا."
+              : "Enter the resource handle. A searchable picker is coming."}
+          </p>
+        </div>,
+      );
+
+    // ── 23. Variant picker ────────────────────────────────────────────
+    // Like the product picker but for a specific variant id. Also
+    // a stub today — accepts the variant_id string.
+    case "variant_picker":
+      return wrapper(
+        <div className="flex items-center gap-2">
+          <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <Input
+            value={(value as string) ?? ""}
+            placeholder={placeholder || "variant_id"}
+            onChange={(e) => onChange(e.target.value)}
+            className="flex-1"
+          />
+        </div>,
+      );
+
+    // ── 24. File upload ───────────────────────────────────────────────
+    // Real upload via /stores/{id}/settings/customization/assets with
+    // asset_type=generic_file (PDFs, fonts, video, audio + images,
+    // 10MB cap). The inline URL input remains as a fallback for files
+    // already hosted elsewhere.
+    case "file_upload":
+      return wrapper(
+        <FileUploadPicker
+          value={(value as string) ?? ""}
+          locale={locale}
+          onChange={onChange}
+          storeId={storeId}
+        />,
+      );
+
     // ── Fallback ──────────────────────────────────────────────────────
     default:
       return wrapper(
@@ -498,6 +696,141 @@ function ResourcePickerButton({
           {locale === "ar" ? "إزالة" : "Remove"}
         </Button>
       )}
+    </div>
+  );
+}
+
+function FileUploadPicker({
+  value,
+  locale,
+  onChange,
+  storeId,
+}: {
+  value: string;
+  locale: EditorLocale;
+  onChange: (v: unknown) => void;
+  storeId?: string;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  // Track the original filename for display ("contract.pdf" beats showing
+  // a hashed CDN URL). We only know it post-upload and lose it on
+  // page refresh, but the URL itself is enough to render the picker
+  // in a sane state on subsequent visits.
+  const [filename, setFilename] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFile = async (file: File) => {
+    if (!storeId) {
+      setUploadError(
+        locale === "ar"
+          ? "تعذّر الرفع: المتجر غير معروف."
+          : "Upload failed: store context missing.",
+      );
+      return;
+    }
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const result = await uploadStoreAsset(storeId, file, "generic_file");
+      onChange(result.url);
+      setFilename(result.filename || file.name);
+    } catch (err) {
+      setUploadError(
+        err instanceof Error
+          ? err.message
+          : locale === "ar"
+            ? "فشل الرفع"
+            : "Upload failed",
+      );
+    } finally {
+      setUploading(false);
+      // Reset the input so picking the same file twice fires onChange.
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  const displayName = filename || (value ? value.split("/").pop() : "");
+
+  return (
+    <div className="space-y-2">
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleFile(file);
+        }}
+      />
+
+      {value && (
+        <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+          <div className="flex min-w-0 items-center gap-2">
+            <Upload className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <a
+              href={value}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="truncate underline-offset-2 hover:underline"
+              title={value}
+            >
+              {displayName || value}
+            </a>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            onClick={() => {
+              onChange("");
+              setFilename(null);
+            }}
+          >
+            {locale === "ar" ? "إزالة" : "Remove"}
+          </Button>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={uploading || !storeId}
+          onClick={() => inputRef.current?.click()}
+        >
+          <Upload className="mr-2 h-4 w-4" />
+          {uploading
+            ? locale === "ar"
+              ? "جاري الرفع..."
+              : "Uploading..."
+            : locale === "ar"
+              ? "اختر ملفاً"
+              : "Choose file"}
+        </Button>
+        <Input
+          type="url"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={
+            locale === "ar"
+              ? "أو الصق رابط ملف"
+              : "or paste a file URL"
+          }
+          className="flex-1"
+          disabled={uploading}
+        />
+      </div>
+
+      {uploadError && (
+        <p className="text-[11px] text-destructive">{uploadError}</p>
+      )}
+      <p className="text-[11px] text-muted-foreground">
+        {locale === "ar"
+          ? "يدعم PDF، الخطوط، الفيديو، الصوت، والصور (حد أقصى 10 ميجابايت)."
+          : "Supports PDFs, fonts, video, audio, and images (10MB max)."}
+      </p>
     </div>
   );
 }
