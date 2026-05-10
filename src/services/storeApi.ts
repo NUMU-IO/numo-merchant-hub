@@ -66,6 +66,29 @@ export async function createStore(data: CreateStoreData): Promise<StoreData> {
   });
 }
 
+/**
+ * Phase 5.11 — opt-in demo seed (5 products + 1 collection).
+ *
+ * Called from the CreateStore flow when the merchant toggles "Add
+ * sample products". Idempotent — re-running against an already-
+ * seeded store is a no-op (slug uniqueness covers it).
+ */
+export async function seedDemoCatalog(
+  storeId: string,
+): Promise<{ seeded: boolean; products: number; collections: number }> {
+  return apiClient(`/stores/${storeId}/seed-demo`, { method: "POST" });
+}
+
+/**
+ * Phase 5.11 — bulk delete demo-tagged products. Used by the
+ * "I'm ready to go live" / "Reset demo" button in Settings.
+ */
+export async function removeDemoCatalog(
+  storeId: string,
+): Promise<{ deleted: number }> {
+  return apiClient(`/stores/${storeId}/seed-demo`, { method: "DELETE" });
+}
+
 export async function checkSubdomain(
   subdomain: string
 ): Promise<CheckSubdomainResult> {

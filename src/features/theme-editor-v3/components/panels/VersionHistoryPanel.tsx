@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Check,
   Clock,
+  GitCompareArrows,
   History,
   Loader2,
   RotateCcw,
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { useCustomizerStore } from "../../store/customizerStore";
 import { fetchVersionsV3 } from "../../services/themeEditorV3Api";
 import type { CustomizationVersion } from "../../types";
+import { VersionDiffDialog } from "./VersionDiffDialog";
 
 export function VersionHistoryPanel() {
   const locale = useCustomizerStore((s) => s.locale);
@@ -39,6 +41,12 @@ export function VersionHistoryPanel() {
   const [restoring, setRestoring] = useState<string | null>(null);
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
   const [showAutosaves, setShowAutosaves] = useState(false);
+  // Diff dialog state. `compareWith` is the "before" version id; `after`
+  // is filled by the dialog from the most recent published row when not
+  // explicitly chosen.
+  const [diffOpen, setDiffOpen] = useState(false);
+  const [compareBeforeId, setCompareBeforeId] = useState<string | null>(null);
+  const [compareAfterId, setCompareAfterId] = useState<string | null>(null);
 
   const fetchVersions = useCallback(async () => {
     if (!storeId) return;
@@ -254,15 +262,32 @@ export function VersionHistoryPanel() {
                       </Button>
                     </>
                   ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 gap-1 text-xs"
-                      onClick={() => setConfirmRestore(version.id)}
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                      {locale === "ar" ? "استعادة" : "Restore"}
-                    </Button>
+                    <>
+                      {/* Compare with the previous published version. The
+                          dialog lets the merchant change either side. */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => {
+                          setCompareBeforeId(version.id);
+                          setCompareAfterId(null);
+                          setDiffOpen(true);
+                        }}
+                        title={locale === "ar" ? "مقارنة" : "Compare"}
+                      >
+                        <GitCompareArrows className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1 text-xs"
+                        onClick={() => setConfirmRestore(version.id)}
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        {locale === "ar" ? "استعادة" : "Restore"}
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -270,6 +295,18 @@ export function VersionHistoryPanel() {
           ))
         )}
       </div>
+
+      {storeId && (
+        <VersionDiffDialog
+          open={diffOpen}
+          onOpenChange={setDiffOpen}
+          storeId={storeId}
+          versions={versions}
+          defaultBeforeId={compareBeforeId ?? undefined}
+          defaultAfterId={compareAfterId ?? undefined}
+          locale={locale}
+        />
+      )}
     </div>
   );
 }

@@ -64,10 +64,25 @@ export function saveDraftV3(
 
 // ─── Publish ─────────────────────────────────────────────────────────────────
 
-/** Publish the current V3 draft. Triggers Next.js cache invalidation. */
-export function publishV3(storeId: string): Promise<PublishDraftResponse> {
+/**
+ * Publish the current V3 draft. Triggers Next.js cache invalidation.
+ *
+ * `versionLabel` is an optional merchant-supplied tag ("Spring sale 2026")
+ * stamped onto the resulting `theme_customization_versions` row so it
+ * shows up in Version History as a named entry. Backend is expected to
+ * accept the body — if it doesn't yet (rolling deploy window), the
+ * label is dropped server-side and the publish still succeeds.
+ */
+export function publishV3(
+  storeId: string,
+  versionLabel?: string,
+): Promise<PublishDraftResponse> {
   return apiClient<PublishDraftResponse>(`${BASE(storeId)}/publish`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: versionLabel
+      ? JSON.stringify({ version_label: versionLabel })
+      : undefined,
   });
 }
 
@@ -110,6 +125,27 @@ export function restoreVersionV3(
   return apiClient<RestoreVersionResponse>(
     `${BASE(storeId)}/versions/${versionId}/restore`,
     { method: "POST" },
+  );
+}
+
+/**
+ * Fetch a specific version's payload for read-only inspection (used by
+ * the diff view).
+ *
+ * Backend contract: GET /versions/{id} → { payload: ThemeSettingsV3 }.
+ * If the endpoint isn't deployed yet, callers must handle the 404 — we
+ * surface "diff requires latest backend" rather than crash.
+ */
+export interface VersionPayloadResponse {
+  payload: ThemeSettingsV3;
+}
+
+export function fetchVersionPayloadV3(
+  storeId: string,
+  versionId: string,
+): Promise<VersionPayloadResponse> {
+  return apiClient<VersionPayloadResponse>(
+    `${BASE(storeId)}/versions/${versionId}`,
   );
 }
 

@@ -143,10 +143,19 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
       <div className="flex h-14 items-center justify-between border-b bg-background px-3">
         {/* ── Left section ── */}
         <div className="flex items-center gap-2">
-          {/* Back button */}
+          {/* Back button.
+              Phase 5.7 — aria-label so screen readers announce the
+              action even when the tooltip is closed. Tooltip text
+              alone is only announced when the tooltip is open. */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onBack}
+                aria-label={locale === "ar" ? "رجوع" : "Back"}
+              >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -173,27 +182,46 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
 
         {/* ── Center section ── */}
         <div className="flex items-center gap-1">
-          {/* Device switcher */}
-          {DEVICES.map(({ mode, icon: Icon, label }) => (
-            <Tooltip key={mode}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={deviceMode === mode ? "secondary" : "ghost"}
-                  size="icon"
-                  className={cn("h-8 w-8", deviceMode === mode && "bg-accent")}
-                  onClick={() => setDeviceMode(mode)}
-                >
-                  <Icon className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{label[locale]}</TooltipContent>
-            </Tooltip>
-          ))}
+          {/* Device switcher — segmented control.
+              Phase 5.7 — wrapped in role="group" with an aria-label so
+              screen readers describe the cluster as a unit. Each
+              button gets aria-pressed to convey its toggle state and
+              an aria-label for the device name (the icon alone has
+              no accessible name). */}
+          <div
+            role="group"
+            aria-label={locale === "ar" ? "وضع الجهاز" : "Device mode"}
+            className="flex items-center gap-1"
+          >
+            {DEVICES.map(({ mode, icon: Icon, label }) => (
+              <Tooltip key={mode}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={deviceMode === mode ? "secondary" : "ghost"}
+                    size="icon"
+                    className={cn(
+                      "h-8 w-8",
+                      deviceMode === mode && "bg-accent",
+                    )}
+                    onClick={() => setDeviceMode(mode)}
+                    aria-pressed={deviceMode === mode ? "true" : "false"}
+                    aria-label={label[locale]}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{label[locale]}</TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
 
           {/* Separator */}
           <div className="h-6 w-px bg-border mx-1" />
 
-          {/* Undo/Redo */}
+          {/* Undo/Redo. Phase 5.7 — aria-label includes the keyboard
+              shortcut so users discover Cmd+Z without needing to
+              hover (matters for keyboard-only users who can't
+              discover via tooltip). */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -202,6 +230,8 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
                 className="h-8 w-8"
                 disabled={!canUndo}
                 onClick={undo}
+                aria-label={locale === "ar" ? "تراجع (Ctrl+Z)" : "Undo (Ctrl+Z)"}
+                aria-keyshortcuts="Control+Z"
               >
                 <Undo2 className="h-4 w-4" />
               </Button>
@@ -219,6 +249,8 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
                 className="h-8 w-8"
                 disabled={!canRedo}
                 onClick={redo}
+                aria-label={locale === "ar" ? "إعادة (Ctrl+Y)" : "Redo (Ctrl+Y)"}
+                aria-keyshortcuts="Control+Y"
               >
                 <Redo2 className="h-4 w-4" />
               </Button>
@@ -256,25 +288,40 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
           {/* Separator */}
           <div className="h-6 w-px bg-border" />
 
-          {/* Bilingual toggle */}
-          <div className="flex items-center rounded-md border bg-muted/50 p-0.5">
+          {/* Bilingual toggle — segmented control.
+              Phase 5.7 — role="group" + aria-label names the cluster;
+              each button uses aria-pressed for toggle semantics +
+              focus-visible ring for keyboard-only users. */}
+          <div
+            role="group"
+            aria-label={locale === "ar" ? "لغة التحرير" : "Editor language"}
+            className="flex items-center rounded-md border bg-muted/50 p-0.5"
+          >
             <button
               type="button"
               className={cn(
-                "rounded px-2 py-1 text-xs font-medium transition-colors",
-                locale === "en" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
+                "rounded px-2 py-1 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                locale === "en"
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
               )}
               onClick={() => setLocale("en")}
+              aria-pressed={locale === "en" ? "true" : "false"}
+              aria-label="English"
             >
               EN
             </button>
             <button
               type="button"
               className={cn(
-                "rounded px-2 py-1 text-xs font-medium transition-colors",
-                locale === "ar" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
+                "rounded px-2 py-1 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                locale === "ar"
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
               )}
               onClick={() => setLocale("ar")}
+              aria-pressed={locale === "ar" ? "true" : "false"}
+              aria-label="العربية"
             >
               AR
             </button>
@@ -288,6 +335,8 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
                 size="icon"
                 className="h-8 w-8"
                 onClick={onToggleVersionHistory}
+                aria-pressed={showVersionHistory ? "true" : "false"}
+                aria-label={locale === "ar" ? "سجل الإصدارات" : "Version History"}
               >
                 <History className="h-4 w-4" />
               </Button>

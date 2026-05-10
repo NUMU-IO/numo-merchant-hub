@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { createStore, checkSubdomain } from "@/services/storeApi";
+import { createStore, checkSubdomain, seedDemoCatalog } from "@/services/storeApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +37,11 @@ export default function CreateStore() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  // Phase 5.11 — opt-in demo catalog. Default ON because most
+  // first-time merchants benefit from seeing something on their
+  // storefront immediately. Power users (importers / migrators) can
+  // untick to skip.
+  const [seedDemo, setSeedDemo] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -75,7 +80,16 @@ export default function CreateStore() {
     setError(null);
     setLoading(true);
     try {
-      await createStore({ name, subdomain });
+      const created = await createStore({ name, subdomain });
+      // Phase 5.11 — fire-and-forget seed. We don't block navigation
+      // on it because the catalog inserts can take a couple of
+      // seconds and the merchant gets to the dashboard sooner.
+      // Failure is silent: the dashboard's onboarding nudge "Add
+      // your first product" still surfaces if the seed didn't land,
+      // so the merchant has a path forward either way.
+      if (seedDemo && created?.id) {
+        void seedDemoCatalog(created.id).catch(() => {});
+      }
       await refetchStores();
       navigate("/onboarding-wizard", { replace: true });
     } catch (err: unknown) {
@@ -158,6 +172,33 @@ export default function CreateStore() {
               )}
               {fieldErrors.subdomain && <p className="text-xs text-destructive">{fieldErrors.subdomain}</p>}
             </div>
+
+            {/* Phase 5.11 — demo seed toggle.
+                On by default; one click off for merchants who already
+                have their catalog ready to import. We use a real
+                <input type="checkbox"> with proper label association
+                instead of a custom switch so screen readers + Tab key
+                Just Work. */}
+            <label className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={seedDemo}
+                onChange={(e) => setSeedDemo(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-input accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              />
+              <span className="text-xs leading-relaxed">
+                <span className="font-medium block mb-0.5">
+                  {isAr
+                    ? "أضف 5 منتجات تجريبية"
+                    : "Add 5 sample products"}
+                </span>
+                <span className="text-muted-foreground">
+                  {isAr
+                    ? "يساعدك على معاينة متجرك قبل رفع كتالوجك. يمكنك حذفها لاحقًا بنقرة واحدة."
+                    : "Helps you preview your storefront before uploading your catalog. Delete them later with one click."}
+                </span>
+              </span>
+            </label>
 
             {error && (
               <p className="text-sm text-destructive bg-destructive/[0.04] border border-destructive/10 rounded-lg px-3 py-2.5">{error}</p>
