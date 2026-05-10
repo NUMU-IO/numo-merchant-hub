@@ -1,20 +1,19 @@
-name: Deploy to Production
+name: Deploy
 
 on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    branches: [prod]
+    branches: [dev, stage, prod]
 
 concurrency:
-  group: deploy-prod
+  group: deploy-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 env:
   NODE_VERSION: "20"
   DEPLOY_HOST: 188.166.156.151
   DEPLOY_USER: root
-  DEPLOY_PATH: /opt/numu/merchant-hub
 
 jobs:
   build-and-deploy:
@@ -35,21 +34,50 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Map the source branch → target environment.
+      # dev   → /opt/numu/merchant-hub-test    (merchant.test.numueg.app)
+      # stage → /opt/numu/merchant-hub-stage   (merchant.staging.numueg.app)
+      # prod  → /opt/numu/merchant-hub         (merchant.numueg.app, apex)
+      - name: Resolve deploy target for ${{ github.event.workflow_run.head_branch }}
+        id: target
+        run: |
+          case "${{ github.event.workflow_run.head_branch }}" in
+            dev)
+              echo "remote_path=/opt/numu/merchant-hub-test/" >> "$GITHUB_OUTPUT"
+              echo "storefront_url=https://{subdomain}.test.numueg.app" >> "$GITHUB_OUTPUT"
+              echo "sentry_env=test" >> "$GITHUB_OUTPUT"
+              ;;
+            stage)
+              echo "remote_path=/opt/numu/merchant-hub-stage/" >> "$GITHUB_OUTPUT"
+              echo "storefront_url=https://{subdomain}.staging.numueg.app" >> "$GITHUB_OUTPUT"
+              echo "sentry_env=staging" >> "$GITHUB_OUTPUT"
+              ;;
+            prod)
+              echo "remote_path=/opt/numu/merchant-hub/" >> "$GITHUB_OUTPUT"
+              echo "storefront_url=https://{subdomain}.numueg.app" >> "$GITHUB_OUTPUT"
+              echo "sentry_env=production" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Unsupported branch ${{ github.event.workflow_run.head_branch }}"
+              exit 1
+              ;;
+          esac
+
       - name: Build production bundle
         run: npm run build
         env:
           VITE_API_URL: /api/v1
-          VITE_STOREFRONT_URL: https://{subdomain}.numueg.app
+          VITE_STOREFRONT_URL: ${{ steps.target.outputs.storefront_url }}
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-          VITE_SENTRY_ENVIRONMENT: production
+          VITE_SENTRY_ENVIRONMENT: ${{ steps.target.outputs.sentry_env }}
 
       - name: Deploy to server via rsync
         uses: burnett01/rsync-deployments@7.0.1
         with:
           switches: -avz --delete
           path: dist/
-          remote_path: ${{ env.DEPLOY_PATH }}/
+          remote_path: ${{ steps.target.outputs.remote_path }}
           remote_host: ${{ env.DEPLOY_HOST }}
           remote_user: ${{ env.DEPLOY_USER }}
           remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -62,4 +90,4 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             docker exec numu-nginx-staging nginx -s reload
-            echo "Merchant hub deployed successfully"
+            echo "Merchant hub deployed (branch=${{ github.event.workflow_run.head_branch }}) → ${{ steps.target.outputs.remote_path }}"
