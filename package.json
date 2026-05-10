@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "npm@11.6.2",
   "scripts": {
     "kill-port": "npx kill-port 8080 || echo port 8080 already free",
     "predev": "npm run kill-port",
