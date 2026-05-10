@@ -35,26 +35,30 @@ jobs:
         run: npm ci
 
       # Map the source branch → target environment.
-      # dev   → /opt/numu/merchant-hub-test    (merchant.test.numueg.app)
-      # stage → /opt/numu/merchant-hub-stage   (merchant.staging.numueg.app)
+      # dev   → /opt/numu/merchant-hub-test    (merchant-test.numueg.app)
+      # stage → /opt/numu/merchant-hub-stage   (merchant-staging.numueg.app)
       # prod  → /opt/numu/merchant-hub         (merchant.numueg.app, apex)
+      #
+      # Storefront URLs are flat (level-1) on all envs because Cloudflare
+      # Universal SSL only covers `*.numueg.app`. Store subdomains carry
+      # the env suffix (e.g. `dev-shop-test`) which is appended on the
+      # frontend at create time (see src/lib/env.ts withEnvSuffix).
+      # So the URL template `https://{subdomain}.numueg.app` works for
+      # all envs — VITE_STOREFRONT_URL is the same everywhere.
       - name: Resolve deploy target for ${{ github.event.workflow_run.head_branch }}
         id: target
         run: |
           case "${{ github.event.workflow_run.head_branch }}" in
             dev)
               echo "remote_path=/opt/numu/merchant-hub-test/" >> "$GITHUB_OUTPUT"
-              echo "storefront_url=https://{subdomain}.test.numueg.app" >> "$GITHUB_OUTPUT"
               echo "sentry_env=test" >> "$GITHUB_OUTPUT"
               ;;
             stage)
               echo "remote_path=/opt/numu/merchant-hub-stage/" >> "$GITHUB_OUTPUT"
-              echo "storefront_url=https://{subdomain}.staging.numueg.app" >> "$GITHUB_OUTPUT"
               echo "sentry_env=staging" >> "$GITHUB_OUTPUT"
               ;;
             prod)
               echo "remote_path=/opt/numu/merchant-hub/" >> "$GITHUB_OUTPUT"
-              echo "storefront_url=https://{subdomain}.numueg.app" >> "$GITHUB_OUTPUT"
               echo "sentry_env=production" >> "$GITHUB_OUTPUT"
               ;;
             *)
@@ -67,7 +71,7 @@ jobs:
         run: npm run build
         env:
           VITE_API_URL: /api/v1
-          VITE_STOREFRONT_URL: ${{ steps.target.outputs.storefront_url }}
+          VITE_STOREFRONT_URL: https://{subdomain}.numueg.app
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           VITE_SENTRY_ENVIRONMENT: ${{ steps.target.outputs.sentry_env }}

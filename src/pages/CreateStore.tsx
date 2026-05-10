@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
 import { getStoreDomainSuffix } from "@/lib/storefront";
+import { getStoreSubdomainSuffix, withEnvSuffix } from "@/lib/env";
 import { ApiError } from "@/lib/api-error";
 import { z } from "zod";
 
@@ -50,7 +51,9 @@ export default function CreateStore() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const result = await checkSubdomain(subdomain);
+        // Check the env-suffixed value — that's what's actually written to
+        // the DB and what other test stores would collide with.
+        const result = await checkSubdomain(withEnvSuffix(subdomain));
         setSubdomainStatus(result.available ? "available" : "taken");
         setSubdomainMsg(result.message);
       } catch { setSubdomainStatus("invalid"); setSubdomainMsg("Could not check subdomain"); }
@@ -75,7 +78,11 @@ export default function CreateStore() {
     setError(null);
     setLoading(true);
     try {
-      await createStore({ name, subdomain });
+      // Save the env-suffixed subdomain (e.g. `dev-shop-test` on the test
+      // env), so it matches the host the storefront SSR app extracts from
+      // <store>-test.numueg.app. On prod the suffix is empty, so user
+      // input is saved as-is.
+      await createStore({ name, subdomain: withEnvSuffix(subdomain) });
       await refetchStores();
       navigate("/onboarding-wizard", { replace: true });
     } catch (err: unknown) {
@@ -151,7 +158,11 @@ export default function CreateStore() {
                   <Input value={subdomain} onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="mystore" className={`${inputCls("subdomain")} pe-9`} />
                   {subdomainIcon && <div className="absolute inset-y-0 end-3 flex items-center">{subdomainIcon}</div>}
                 </div>
-                {getStoreDomainSuffix() && <span className="text-sm text-muted-foreground whitespace-nowrap font-mono">{getStoreDomainSuffix()}</span>}
+                {getStoreDomainSuffix() && (
+                  <span className="text-sm text-muted-foreground whitespace-nowrap font-mono">
+                    {getStoreSubdomainSuffix()}{getStoreDomainSuffix()}
+                  </span>
+                )}
               </div>
               {subdomainStatus !== "idle" && subdomainStatus !== "checking" && (
                 <p className={`text-xs ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>{subdomainMsg}</p>
