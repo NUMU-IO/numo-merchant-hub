@@ -69,6 +69,11 @@ import {
   type VisualContentState,
 } from "@/components/marketing/VisualContentPanel";
 import { BogoSetPicker } from "@/components/marketing/BogoSetPicker";
+import { PromotionRulePreview } from "@/components/marketing/PromotionRulePreview";
+import {
+  RuleTemplateRow,
+  type RuleTemplate,
+} from "@/components/marketing/RuleTemplateRow";
 
 const VALID_SURFACES: PromotionSurface[] = [
   "discount_code",
@@ -455,6 +460,25 @@ export default function PromotionForm() {
     return targets;
   };
 
+  /** One-click prefill from a `RuleTemplateRow` chip. Doesn't touch the
+   *  set-targeting pickers or usage limits — those stay where the
+   *  merchant set them so a re-pick doesn't undo manual work. */
+  const applyRuleTemplate = (tpl: RuleTemplate) => {
+    setForm((prev) => ({
+      ...prev,
+      ruleKind: tpl.ruleKind,
+      buyQuantity: tpl.buyQuantity ?? "",
+      getQuantity: tpl.getQuantity ?? "",
+      getDiscountPercent: tpl.getDiscountPercent ?? "100",
+      valuePercent: tpl.valuePercent ?? "",
+      valueCents: tpl.valueCents ?? "",
+      tiers:
+        tpl.tiers && tpl.tiers.length > 0
+          ? tpl.tiers
+          : [{ threshold_cents: "", percent: "" }],
+    }));
+  };
+
   /** Parse the usage-limit string inputs into the API's int|null shape. */
   const buildUsageLimits = () => ({
     usage_limit_total: form.usageLimitTotal
@@ -736,6 +760,7 @@ export default function PromotionForm() {
           <CardTitle>{t("promotions.form.discount_rule")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RuleTemplateRow onApply={applyRuleTemplate} />
           <div className="grid gap-2">
             <Label htmlFor="rule-kind">
               {t("promotions.form.rule_kind_label")}
@@ -963,6 +988,7 @@ export default function PromotionForm() {
               />
             </div>
           </div>
+          <PromotionRulePreview rule={buildDiscountRule()} />
         </CardContent>
       </Card>
       )}
