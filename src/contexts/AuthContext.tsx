@@ -81,6 +81,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       .finally(() => setIsLoading(false));
   }, []);
 
+  // Refetch user when the tab regains focus so per-tenant feature flag
+  // flips made elsewhere (admin panel, another tab) propagate without
+  // needing a hard reload.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") {
+        getMe()
+          .then((u) => setUser(u))
+          .catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
     // Throws TwoFactorRequiredError if 2FA is enabled — caller should catch it
     const res = await loginApi(email, password);

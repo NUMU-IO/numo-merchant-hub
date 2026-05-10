@@ -155,6 +155,16 @@ export interface PromotionTargetInput {
   target_kind: TargetKind;
   target_value: Record<string, unknown>;
   inclusion?: boolean;
+  /**
+   * BOGO targeting role:
+   *   • "buy_set"  — products / categories that count toward `buy_quantity`
+   *   • "get_set"  — products / categories the discount is applied to
+   *   • undefined  — global eligibility filter (existing semantics)
+   *
+   * Role-tagged targets bypass the eligibility checker and feed the
+   * BOGO discount calculator's line filters instead.
+   */
+  role?: "buy_set" | "get_set" | null;
 }
 
 export interface PromotionTarget extends PromotionTargetInput {
@@ -191,6 +201,14 @@ export interface Promotion {
   starts_at: string | null;
   ends_at: string | null;
   version: number;
+  /**
+   * Per-promotion usage caps, both nullable. Caps automatic promos
+   * (BOGO, tiered, percent-off cart) where there's no Coupon row to
+   * carry a usage_limit. The eligibility checker enforces them by
+   * counting `convert` events.
+   */
+  usage_limit_total?: number | null;
+  usage_limit_per_customer?: number | null;
   created_at: string;
   updated_at: string;
   metrics: PromotionMetricsBlock;
@@ -230,6 +248,8 @@ export interface CreatePromotionRequest {
   priority?: number;
   starts_at?: string | null;
   ends_at?: string | null;
+  usage_limit_total?: number | null;
+  usage_limit_per_customer?: number | null;
 }
 
 export interface UpdatePromotionRequest {
@@ -242,6 +262,8 @@ export interface UpdatePromotionRequest {
   translations?: Record<string, LocalizedPromotionContent>;
   displays?: PromotionDisplayInput[];
   targets?: PromotionTargetInput[];
+  usage_limit_total?: number | null;
+  usage_limit_per_customer?: number | null;
   priority?: number;
   starts_at?: string | null;
   ends_at?: string | null;
