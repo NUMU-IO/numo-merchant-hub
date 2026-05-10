@@ -39,6 +39,8 @@ import type {
   PromotionSurface,
 } from "@/services/promotionApi";
 
+import { LinkPicker } from "./LinkPicker";
+
 export interface VisualContentState {
   // announcement bar
   bg: string;
@@ -53,10 +55,37 @@ export interface VisualContentState {
   bodyAr: string;
   ctaLabelEn: string;
   ctaLabelAr: string;
+  /**
+   * Where the CTA button on a popup or floating widget sends the
+   * visitor when clicked. Persisted as `cta_url` in `translated_content`
+   * (per-locale) on the storefront side; we keep one shared value here
+   * because the spec doesn't ask for per-locale destinations.
+   */
+  ctaUrl: string;
   // popup
   popupLayout: "centered" | "side";
   popupCodeReveal: string;
   popupShowAfterDays: number;
+  /** Optional hero image URL shown above the headline on a popup. */
+  popupImageUrl: string;
+  /** When true, the popup renders an inline email-capture form. */
+  popupCollectEmail: boolean;
+  /** Adds an optional Egyptian-phone field below email when true. */
+  popupCollectPhone: boolean;
+  /** Translated copy for the post-submit success state. */
+  popupSuccessHeadlineAr: string;
+  popupSuccessHeadlineEn: string;
+  popupSuccessBodyAr: string;
+  popupSuccessBodyEn: string;
+  /** Custom labels for the form's email/phone/consent/submit elements. */
+  popupEmailLabelAr: string;
+  popupEmailLabelEn: string;
+  popupPhoneLabelAr: string;
+  popupPhoneLabelEn: string;
+  popupConsentLabelAr: string;
+  popupConsentLabelEn: string;
+  popupSubmitLabelAr: string;
+  popupSubmitLabelEn: string;
   // floating widget
   widgetPosition: "bottom-right" | "bottom-left" | "top-right" | "top-left";
   widgetIcon: string;
@@ -80,9 +109,25 @@ export const EMPTY_VISUAL_CONTENT: VisualContentState = {
   bodyAr: "",
   ctaLabelEn: "",
   ctaLabelAr: "",
+  ctaUrl: "",
   popupLayout: "centered",
   popupCodeReveal: "",
   popupShowAfterDays: 30,
+  popupImageUrl: "",
+  popupCollectEmail: false,
+  popupCollectPhone: false,
+  popupSuccessHeadlineAr: "",
+  popupSuccessHeadlineEn: "",
+  popupSuccessBodyAr: "",
+  popupSuccessBodyEn: "",
+  popupEmailLabelAr: "",
+  popupEmailLabelEn: "",
+  popupPhoneLabelAr: "",
+  popupPhoneLabelEn: "",
+  popupConsentLabelAr: "",
+  popupConsentLabelEn: "",
+  popupSubmitLabelAr: "",
+  popupSubmitLabelEn: "",
   widgetPosition: "bottom-right",
   widgetIcon: "tag",
   widgetExpanded: false,
@@ -96,6 +141,8 @@ interface Props {
   surface: PromotionSurface;
   state: VisualContentState;
   onChange: (next: VisualContentState) => void;
+  /** Required by `LinkPicker` for product / category search. */
+  storeId: string | undefined;
 }
 
 /** Build the API `content` payload from form state. */
@@ -119,6 +166,12 @@ export function buildVisualContent(
         layout: s.popupLayout,
         discount_code_to_reveal: s.popupCodeReveal || null,
         show_after_dismiss_days: s.popupShowAfterDays,
+        // The next 3 fields are read by the storefront's PopupModal —
+        // image at the top of the card, plus the form-capture toggles
+        // that flip the popup body into the email/phone form.
+        image_url: s.popupImageUrl || null,
+        collect_email: s.popupCollectEmail || undefined,
+        collect_phone: s.popupCollectPhone || undefined,
       };
     case "floating_widget":
       return {
@@ -140,28 +193,95 @@ export function buildVisualContent(
   }
 }
 
-/** Build the bilingual translations object from the same state. */
+/** Build the bilingual translations object from the same state.
+ *
+ * The storefront popup / floating widget read `cta_url` from
+ * `translated_content` regardless of locale (a single click-through
+ * destination per promotion). Popup form-capture pulls `email_label`,
+ * `phone_label`, `consent_label`, `submit_label`, `success_headline`,
+ * `success_body` from the same translation block — the storefront
+ * `PopupModal` falls back to Egyptian-Arabic defaults when a field
+ * isn't filled, so it's safe to send only the fields the merchant
+ * actually customized.
+ */
 export function buildVisualTranslations(s: VisualContentState) {
-  const out: Record<
-    string,
-    { headline?: { en?: string; ar?: string }; body?: { en?: string; ar?: string }; cta_label?: { en?: string; ar?: string } }
-  > = {};
-  if (s.headlineEn || s.bodyEn || s.ctaLabelEn) {
+  type Block = {
+    headline?: { en?: string; ar?: string };
+    body?: { en?: string; ar?: string };
+    cta_label?: { en?: string; ar?: string };
+    cta_url?: string;
+    email_label?: { en?: string; ar?: string };
+    phone_label?: { en?: string; ar?: string };
+    consent_label?: { en?: string; ar?: string };
+    submit_label?: { en?: string; ar?: string };
+    success_headline?: { en?: string; ar?: string };
+    success_body?: { en?: string; ar?: string };
+  };
+  const out: Record<string, Block> = {};
+
+  const enHas =
+    s.headlineEn ||
+    s.bodyEn ||
+    s.ctaLabelEn ||
+    s.popupSuccessHeadlineEn ||
+    s.popupSuccessBodyEn ||
+    s.popupEmailLabelEn ||
+    s.popupPhoneLabelEn ||
+    s.popupConsentLabelEn ||
+    s.popupSubmitLabelEn;
+  if (enHas) {
     out.en = {};
     if (s.headlineEn) out.en.headline = { en: s.headlineEn };
     if (s.bodyEn) out.en.body = { en: s.bodyEn };
     if (s.ctaLabelEn) out.en.cta_label = { en: s.ctaLabelEn };
+    if (s.popupSuccessHeadlineEn)
+      out.en.success_headline = { en: s.popupSuccessHeadlineEn };
+    if (s.popupSuccessBodyEn) out.en.success_body = { en: s.popupSuccessBodyEn };
+    if (s.popupEmailLabelEn) out.en.email_label = { en: s.popupEmailLabelEn };
+    if (s.popupPhoneLabelEn) out.en.phone_label = { en: s.popupPhoneLabelEn };
+    if (s.popupConsentLabelEn)
+      out.en.consent_label = { en: s.popupConsentLabelEn };
+    if (s.popupSubmitLabelEn) out.en.submit_label = { en: s.popupSubmitLabelEn };
   }
-  if (s.headlineAr || s.bodyAr || s.ctaLabelAr) {
+
+  const arHas =
+    s.headlineAr ||
+    s.bodyAr ||
+    s.ctaLabelAr ||
+    s.popupSuccessHeadlineAr ||
+    s.popupSuccessBodyAr ||
+    s.popupEmailLabelAr ||
+    s.popupPhoneLabelAr ||
+    s.popupConsentLabelAr ||
+    s.popupSubmitLabelAr;
+  if (arHas) {
     out.ar = {};
     if (s.headlineAr) out.ar.headline = { ar: s.headlineAr };
     if (s.bodyAr) out.ar.body = { ar: s.bodyAr };
     if (s.ctaLabelAr) out.ar.cta_label = { ar: s.ctaLabelAr };
+    if (s.popupSuccessHeadlineAr)
+      out.ar.success_headline = { ar: s.popupSuccessHeadlineAr };
+    if (s.popupSuccessBodyAr) out.ar.success_body = { ar: s.popupSuccessBodyAr };
+    if (s.popupEmailLabelAr) out.ar.email_label = { ar: s.popupEmailLabelAr };
+    if (s.popupPhoneLabelAr) out.ar.phone_label = { ar: s.popupPhoneLabelAr };
+    if (s.popupConsentLabelAr)
+      out.ar.consent_label = { ar: s.popupConsentLabelAr };
+    if (s.popupSubmitLabelAr) out.ar.submit_label = { ar: s.popupSubmitLabelAr };
   }
+
+  // `cta_url` lives on translated_content per the storefront component
+  // contract, but the value itself is locale-agnostic. Drop it onto
+  // both blocks so both the AR-default and EN-fallback readers see it.
+  if (s.ctaUrl) {
+    if (out.ar) out.ar.cta_url = s.ctaUrl;
+    if (out.en) out.en.cta_url = s.ctaUrl;
+    if (!out.ar && !out.en) out.ar = { cta_url: s.ctaUrl };
+  }
+
   return out;
 }
 
-export function VisualContentPanel({ surface, state, onChange }: Props) {
+export function VisualContentPanel({ surface, state, onChange, storeId }: Props) {
   const { t } = useTranslation();
   const update = <K extends keyof VisualContentState>(
     key: K,
@@ -285,10 +405,11 @@ export function VisualContentPanel({ surface, state, onChange }: Props) {
               <Label htmlFor="bar-link">
                 {t("promotions.visual.link_url")}
               </Label>
-              <Input
+              <LinkPicker
                 id="bar-link"
+                storeId={storeId}
                 value={state.linkUrl}
-                onChange={(e) => update("linkUrl", e.target.value)}
+                onChange={(v) => update("linkUrl", v)}
                 placeholder="/products"
               />
             </div>
@@ -373,6 +494,98 @@ export function VisualContentPanel({ surface, state, onChange }: Props) {
                 }
               />
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="popup-image">
+                {t("promotions.visual.popup_image_url")}
+              </Label>
+              <Input
+                id="popup-image"
+                value={state.popupImageUrl}
+                onChange={(e) => update("popupImageUrl", e.target.value)}
+                placeholder="https://… (1200×600 recommended)"
+                dir="ltr"
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("promotions.visual.popup_image_hint")}
+              </p>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="popup-cta-url">
+                {t("promotions.visual.cta_url")}
+              </Label>
+              <LinkPicker
+                id="popup-cta-url"
+                storeId={storeId}
+                value={state.ctaUrl}
+                onChange={(v) => update("ctaUrl", v)}
+                placeholder="/products"
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("promotions.visual.popup_cta_hint")}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {surface === "popup" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("promotions.visual.popup_form_title")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="popup-collect-email" className="text-base">
+                  {t("promotions.visual.popup_collect_email")}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t("promotions.visual.popup_collect_email_hint")}
+                </p>
+              </div>
+              <Switch
+                id="popup-collect-email"
+                checked={state.popupCollectEmail}
+                onCheckedChange={(c) => update("popupCollectEmail", c)}
+              />
+            </div>
+            {state.popupCollectEmail && (
+              <>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="popup-collect-phone" className="text-base">
+                    {t("promotions.visual.popup_collect_phone")}
+                  </Label>
+                  <Switch
+                    id="popup-collect-phone"
+                    checked={state.popupCollectPhone}
+                    onCheckedChange={(c) => update("popupCollectPhone", c)}
+                  />
+                </div>
+
+                <Tabs defaultValue="ar">
+                  <TabsList>
+                    <TabsTrigger value="ar">العربية</TabsTrigger>
+                    <TabsTrigger value="en">English</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="ar" className="space-y-3 pt-3" dir="rtl">
+                    <PopupFormCopyFields
+                      lang="ar"
+                      state={state}
+                      update={update}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="en" className="space-y-3 pt-3" dir="ltr">
+                    <PopupFormCopyFields
+                      lang="en"
+                      state={state}
+                      update={update}
+                    />
+                  </TabsContent>
+                </Tabs>
+              </>
+            )}
           </CardContent>
         </Card>
       )}
@@ -427,6 +640,18 @@ export function VisualContentPanel({ surface, state, onChange }: Props) {
                 id="widget-expanded"
                 checked={state.widgetExpanded}
                 onCheckedChange={(c) => update("widgetExpanded", c)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="widget-cta-url">
+                {t("promotions.visual.cta_url")}
+              </Label>
+              <LinkPicker
+                id="widget-cta-url"
+                storeId={storeId}
+                value={state.ctaUrl}
+                onChange={(v) => update("ctaUrl", v)}
+                placeholder="/products"
               />
             </div>
           </CardContent>
@@ -487,5 +712,126 @@ export function VisualContentPanel({ surface, state, onChange }: Props) {
         </Card>
       )}
     </div>
+  );
+}
+
+// --------------------------------------------------------------------------- //
+// Popup form-capture copy fields (success state + form labels)                //
+// --------------------------------------------------------------------------- //
+
+interface PopupFormCopyFieldsProps {
+  lang: "en" | "ar";
+  state: VisualContentState;
+  update: <K extends keyof VisualContentState>(key: K, value: VisualContentState[K]) => void;
+}
+
+function PopupFormCopyFields({ lang, state, update }: PopupFormCopyFieldsProps) {
+  const { t } = useTranslation();
+  const isAr = lang === "ar";
+
+  // Map per-locale state keys so the same UI works for both tabs.
+  const keys = isAr
+    ? {
+        successHeadline: "popupSuccessHeadlineAr" as const,
+        successBody: "popupSuccessBodyAr" as const,
+        emailLabel: "popupEmailLabelAr" as const,
+        phoneLabel: "popupPhoneLabelAr" as const,
+        consentLabel: "popupConsentLabelAr" as const,
+        submitLabel: "popupSubmitLabelAr" as const,
+      }
+    : {
+        successHeadline: "popupSuccessHeadlineEn" as const,
+        successBody: "popupSuccessBodyEn" as const,
+        emailLabel: "popupEmailLabelEn" as const,
+        phoneLabel: "popupPhoneLabelEn" as const,
+        consentLabel: "popupConsentLabelEn" as const,
+        submitLabel: "popupSubmitLabelEn" as const,
+      };
+
+  return (
+    <>
+      <div className="grid gap-2">
+        <Label htmlFor={`popup-email-label-${lang}`}>
+          {t("promotions.visual.popup_email_label")}
+        </Label>
+        <Input
+          id={`popup-email-label-${lang}`}
+          value={state[keys.emailLabel]}
+          onChange={(e) => update(keys.emailLabel, e.target.value)}
+          placeholder={isAr ? "البريد الإلكتروني" : "Email address"}
+          dir={isAr ? "rtl" : "ltr"}
+        />
+      </div>
+      {state.popupCollectPhone && (
+        <div className="grid gap-2">
+          <Label htmlFor={`popup-phone-label-${lang}`}>
+            {t("promotions.visual.popup_phone_label")}
+          </Label>
+          <Input
+            id={`popup-phone-label-${lang}`}
+            value={state[keys.phoneLabel]}
+            onChange={(e) => update(keys.phoneLabel, e.target.value)}
+            placeholder={isAr ? "رقم الموبايل" : "Phone number"}
+            dir={isAr ? "rtl" : "ltr"}
+          />
+        </div>
+      )}
+      <div className="grid gap-2">
+        <Label htmlFor={`popup-consent-label-${lang}`}>
+          {t("promotions.visual.popup_consent_label")}
+        </Label>
+        <Input
+          id={`popup-consent-label-${lang}`}
+          value={state[keys.consentLabel]}
+          onChange={(e) => update(keys.consentLabel, e.target.value)}
+          placeholder={
+            isAr
+              ? "ابعتلي عروض وكوبونات على البريد"
+              : "Email me promos and coupons"
+          }
+          dir={isAr ? "rtl" : "ltr"}
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor={`popup-submit-label-${lang}`}>
+          {t("promotions.visual.popup_submit_label")}
+        </Label>
+        <Input
+          id={`popup-submit-label-${lang}`}
+          value={state[keys.submitLabel]}
+          onChange={(e) => update(keys.submitLabel, e.target.value)}
+          placeholder={isAr ? "احصل على الكود" : "Get my code"}
+          dir={isAr ? "rtl" : "ltr"}
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor={`popup-success-headline-${lang}`}>
+          {t("promotions.visual.popup_success_headline")}
+        </Label>
+        <Input
+          id={`popup-success-headline-${lang}`}
+          value={state[keys.successHeadline]}
+          onChange={(e) => update(keys.successHeadline, e.target.value)}
+          placeholder={isAr ? "تمام، اتسجلت!" : "You're in!"}
+          dir={isAr ? "rtl" : "ltr"}
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor={`popup-success-body-${lang}`}>
+          {t("promotions.visual.popup_success_body")}
+        </Label>
+        <Input
+          id={`popup-success-body-${lang}`}
+          value={state[keys.successBody]}
+          onChange={(e) => update(keys.successBody, e.target.value)}
+          placeholder={
+            isAr
+              ? "بعتنالك الكود — استخدمه عند الكاشير"
+              : "We've sent your code — use it at checkout"
+          }
+          dir={isAr ? "rtl" : "ltr"}
+        />
+      </div>
+    </>
   );
 }

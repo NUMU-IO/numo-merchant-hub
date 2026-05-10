@@ -97,7 +97,13 @@ export type PromotionContent =
       surface: "popup";
       layout?: "centered" | "side";
       image_url?: string | null;
+      // Legacy: older rows used a `form_fields` array; new builder
+      // writes `collect_email` / `collect_phone` booleans instead.
       form_fields?: ("email" | "phone" | "name")[];
+      /** True when the popup renders an inline lead-capture form. */
+      collect_email?: boolean;
+      /** Adds an Egyptian-phone field below email when true. */
+      collect_phone?: boolean;
       discount_code_to_reveal?: string | null;
       show_after_dismiss_days?: number;
     }
@@ -122,6 +128,14 @@ export interface LocalizedPromotionContent {
   cta_label?: { en?: string | null; ar?: string | null } | null;
   cta_url?: string | null;
   label?: { en?: string | null; ar?: string | null } | null;
+  // Popup form-capture fields — read by the storefront's PopupModal
+  // when `content.collect_email` is true. All four are localized.
+  email_label?: { en?: string | null; ar?: string | null } | null;
+  phone_label?: { en?: string | null; ar?: string | null } | null;
+  consent_label?: { en?: string | null; ar?: string | null } | null;
+  submit_label?: { en?: string | null; ar?: string | null } | null;
+  success_headline?: { en?: string | null; ar?: string | null } | null;
+  success_body?: { en?: string | null; ar?: string | null } | null;
 }
 
 export interface PromotionDisplayInput {
@@ -267,13 +281,23 @@ export interface PromotionAnalytics {
 
 // --------------------------------------------------------------------------
 // API methods
+//
+// Every NUMU API response is shaped `{success, data, message}`, but the
+// shared `apiClient` already unwraps the envelope and returns just the
+// `data` payload (see services/api.ts — the line with
+// `Object.prototype.hasOwnProperty.call(json, "data") ? json.data : json`).
+//
+// Earlier versions of this file typed the helper as
+// `apiClient<SuccessEnvelope<T>>` and then did `.data` again, which
+// silently bottomed out at `undefined` because the field accessed
+// belonged to the *inner* T (e.g. `PromotionList`), not the envelope.
+// That made every promotion query and mutation return `undefined`,
+// which React Query rejects with "Query data cannot be undefined" and
+// in the UI looked like "No promotions yet" even with rows in the DB.
+//
+// Fix: type apiClient with the *unwrapped* T and return its result
+// directly. Matches the convention in productApi.ts / categoryApi.ts.
 // --------------------------------------------------------------------------
-
-interface SuccessEnvelope<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
 
 function buildQs(params?: Record<string, unknown>): string {
   if (!params) return "";
@@ -290,31 +314,28 @@ export async function listPromotions(
   storeId: string,
   params?: ListPromotionsParams,
 ): Promise<PromotionList> {
-  const res = await apiClient<SuccessEnvelope<PromotionList>>(
+  return apiClient<PromotionList>(
     `/stores/${storeId}/promotions${buildQs(params as Record<string, unknown>)}`,
   );
-  return res.data;
 }
 
 export async function getPromotion(
   storeId: string,
   promotionId: string,
 ): Promise<Promotion> {
-  const res = await apiClient<SuccessEnvelope<Promotion>>(
+  return apiClient<Promotion>(
     `/stores/${storeId}/promotions/${promotionId}`,
   );
-  return res.data;
 }
 
 export async function createPromotion(
   storeId: string,
   payload: CreatePromotionRequest,
 ): Promise<Promotion> {
-  const res = await apiClient<SuccessEnvelope<Promotion>>(
-    `/stores/${storeId}/promotions`,
-    { method: "POST", body: JSON.stringify(payload) },
-  );
-  return res.data;
+  return apiClient<Promotion>(`/stores/${storeId}/promotions`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function updatePromotion(
@@ -322,11 +343,10 @@ export async function updatePromotion(
   promotionId: string,
   payload: UpdatePromotionRequest,
 ): Promise<Promotion> {
-  const res = await apiClient<SuccessEnvelope<Promotion>>(
+  return apiClient<Promotion>(
     `/stores/${storeId}/promotions/${promotionId}`,
     { method: "PATCH", body: JSON.stringify(payload) },
   );
-  return res.data;
 }
 
 export async function archivePromotion(
@@ -342,44 +362,40 @@ export async function activatePromotion(
   storeId: string,
   promotionId: string,
 ): Promise<Promotion> {
-  const res = await apiClient<SuccessEnvelope<Promotion>>(
+  return apiClient<Promotion>(
     `/stores/${storeId}/promotions/${promotionId}/activate`,
     { method: "POST" },
   );
-  return res.data;
 }
 
 export async function pausePromotion(
   storeId: string,
   promotionId: string,
 ): Promise<Promotion> {
-  const res = await apiClient<SuccessEnvelope<Promotion>>(
+  return apiClient<Promotion>(
     `/stores/${storeId}/promotions/${promotionId}/pause`,
     { method: "POST" },
   );
-  return res.data;
 }
 
 export async function archivePromotionExplicit(
   storeId: string,
   promotionId: string,
 ): Promise<Promotion> {
-  const res = await apiClient<SuccessEnvelope<Promotion>>(
+  return apiClient<Promotion>(
     `/stores/${storeId}/promotions/${promotionId}/archive`,
     { method: "POST" },
   );
-  return res.data;
 }
 
 export async function duplicatePromotion(
   storeId: string,
   promotionId: string,
 ): Promise<Promotion> {
-  const res = await apiClient<SuccessEnvelope<Promotion>>(
+  return apiClient<Promotion>(
     `/stores/${storeId}/promotions/${promotionId}/duplicate`,
     { method: "POST" },
   );
-  return res.data;
 }
 
 export async function getPromotionAnalytics(
@@ -387,10 +403,9 @@ export async function getPromotionAnalytics(
   promotionId: string,
   params?: { range_start?: string; range_end?: string },
 ): Promise<PromotionAnalytics> {
-  const res = await apiClient<SuccessEnvelope<PromotionAnalytics>>(
+  return apiClient<PromotionAnalytics>(
     `/stores/${storeId}/promotions/${promotionId}/analytics${buildQs(params)}`,
   );
-  return res.data;
 }
 
 export interface PreviewToken {
@@ -408,9 +423,8 @@ export interface PreviewToken {
  * can read.
  */
 export async function issuePreviewToken(storeId: string): Promise<PreviewToken> {
-  const res = await apiClient<SuccessEnvelope<PreviewToken>>(
+  return apiClient<PreviewToken>(
     `/stores/${storeId}/promotions/preview-token`,
     { method: "POST" },
   );
-  return res.data;
 }
