@@ -68,6 +68,7 @@ import {
   VisualContentPanel,
   type VisualContentState,
 } from "@/components/marketing/VisualContentPanel";
+import { BogoSetPicker } from "@/components/marketing/BogoSetPicker";
 
 const VALID_SURFACES: PromotionSurface[] = [
   "discount_code",
@@ -99,6 +100,9 @@ interface TierFormRow {
   percent: string;
 }
 
+/** BOGO buy-set / get-set picker mode. */
+type BogoSetMode = "any" | "product" | "category";
+
 interface FormState {
   name: string;
   code: string;
@@ -114,8 +118,23 @@ interface FormState {
   buyQuantity: string;
   getQuantity: string;
   getDiscountPercent: string;
+  // BOGO targeting (Phase B) — "Customer buys" + "Customer gets" sets.
+  // The mode picks how the set is defined; product/category IDs only
+  // matter for the corresponding mode. v1 supports a single product
+  // OR a single category per role (covers >90% of BOGO campaigns);
+  // multi-select is a follow-up.
+  bogoBuyMode: BogoSetMode;
+  bogoBuyProductId: string;
+  bogoBuyCategoryId: string;
+  bogoGetMode: BogoSetMode;
+  bogoGetProductId: string;
+  bogoGetCategoryId: string;
   // TIERED fields — at least one row required when ruleKind === "tiered".
   tiers: TierFormRow[];
+  // Per-promotion usage caps (Phase B). Strings so a blank input
+  // means "uncapped" rather than 0.
+  usageLimitTotal: string;
+  usageLimitPerCustomer: string;
   startsAt: string;
   endsAt: string;
   audienceKind: "all" | "new_visitor" | "returning" | "logged_in" | "guest";
@@ -135,7 +154,15 @@ const EMPTY_FORM: FormState = {
   buyQuantity: "",
   getQuantity: "",
   getDiscountPercent: "100",
+  bogoBuyMode: "any",
+  bogoBuyProductId: "",
+  bogoBuyCategoryId: "",
+  bogoGetMode: "any",
+  bogoGetProductId: "",
+  bogoGetCategoryId: "",
   tiers: [{ threshold_cents: "", percent: "" }],
+  usageLimitTotal: "",
+  usageLimitPerCustomer: "",
   startsAt: "",
   endsAt: "",
   audienceKind: "all",
@@ -203,6 +230,36 @@ export default function PromotionForm() {
     const enLabel = promo.translations?.en?.label?.en ?? "";
     const arLabel = promo.translations?.ar?.label?.ar ?? "";
     const savedTiers = promo.discount_rule?.tiers ?? [];
+    // Decompose role-tagged BOGO targets back into the form shape.
+    // We only support a single product/category per role in the v1
+    // UI, so we read the first ID we find for each role.
+    const buyTarget = promo.targets.find((t) => t.role === "buy_set");
+    const getTarget = promo.targets.find((t) => t.role === "get_set");
+    const decomposeBogoTarget = (
+      target: typeof buyTarget,
+    ): { mode: BogoSetMode; productId: string; categoryId: string } => {
+      if (!target) return { mode: "any", productId: "", categoryId: "" };
+      if (target.target_kind === "product") {
+        const ids = (target.target_value as { product_ids?: string[] }).product_ids;
+        return {
+          mode: "product",
+          productId: ids?.[0] ?? "",
+          categoryId: "",
+        };
+      }
+      if (target.target_kind === "category") {
+        const ids = (target.target_value as { category_ids?: string[] })
+          .category_ids;
+        return {
+          mode: "category",
+          productId: "",
+          categoryId: ids?.[0] ?? "",
+        };
+      }
+      return { mode: "any", productId: "", categoryId: "" };
+    };
+    const buyHydrated = decomposeBogoTarget(buyTarget);
+    const getHydrated = decomposeBogoTarget(getTarget);
     setForm({
       name: promo.name,
       code: "",
@@ -215,6 +272,12 @@ export default function PromotionForm() {
       getQuantity: promo.discount_rule?.get_quantity?.toString() ?? "",
       getDiscountPercent:
         promo.discount_rule?.get_discount_percent?.toString() ?? "100",
+      bogoBuyMode: buyHydrated.mode,
+      bogoBuyProductId: buyHydrated.productId,
+      bogoBuyCategoryId: buyHydrated.categoryId,
+      bogoGetMode: getHydrated.mode,
+      bogoGetProductId: getHydrated.productId,
+      bogoGetCategoryId: getHydrated.categoryId,
       tiers:
         savedTiers.length > 0
           ? savedTiers.map((t) => ({
@@ -222,6 +285,8 @@ export default function PromotionForm() {
               percent: t.percent.toString(),
             }))
           : [{ threshold_cents: "", percent: "" }],
+      usageLimitTotal: promo.usage_limit_total?.toString() ?? "",
+      usageLimitPerCustomer: promo.usage_limit_per_customer?.toString() ?? "",
       startsAt: fromIso(promo.starts_at),
       endsAt: fromIso(promo.ends_at),
       audienceKind:
@@ -344,15 +409,61 @@ export default function PromotionForm() {
   };
 
   const buildTargets = (): CreatePromotionRequest["targets"] => {
-    if (form.audienceKind === "all") return [];
-    return [
-      {
+    const targets: CreatePromotionRequest["targets"] = [];
+    if (form.audienceKind !== "all") {
+      targets!.push({
         target_kind: "audience",
         target_value: { kind: form.audienceKind },
         inclusion: true,
-      },
-    ];
+      });
+    }
+    // BOGO buy/get-set targets (Phase B). Only emitted for the bogo
+    // rule kind — other kinds ignore them. v1 ships single-product /
+    // single-category per role; multi-select is a follow-up.
+    if (form.ruleKind === "bogo") {
+      if (form.bogoBuyMode === "product" && form.bogoBuyProductId) {
+        targets!.push({
+          target_kind: "product",
+          target_value: { product_ids: [form.bogoBuyProductId] },
+          inclusion: true,
+          role: "buy_set",
+        });
+      } else if (form.bogoBuyMode === "category" && form.bogoBuyCategoryId) {
+        targets!.push({
+          target_kind: "category",
+          target_value: { category_ids: [form.bogoBuyCategoryId] },
+          inclusion: true,
+          role: "buy_set",
+        });
+      }
+      if (form.bogoGetMode === "product" && form.bogoGetProductId) {
+        targets!.push({
+          target_kind: "product",
+          target_value: { product_ids: [form.bogoGetProductId] },
+          inclusion: true,
+          role: "get_set",
+        });
+      } else if (form.bogoGetMode === "category" && form.bogoGetCategoryId) {
+        targets!.push({
+          target_kind: "category",
+          target_value: { category_ids: [form.bogoGetCategoryId] },
+          inclusion: true,
+          role: "get_set",
+        });
+      }
+    }
+    return targets;
   };
+
+  /** Parse the usage-limit string inputs into the API's int|null shape. */
+  const buildUsageLimits = () => ({
+    usage_limit_total: form.usageLimitTotal
+      ? Number(form.usageLimitTotal) || null
+      : null,
+    usage_limit_per_customer: form.usageLimitPerCustomer
+      ? Number(form.usageLimitPerCustomer) || null
+      : null,
+  });
 
   const buildTranslations = (): CreatePromotionRequest["translations"] => {
     const out: CreatePromotionRequest["translations"] = {};
@@ -431,16 +542,21 @@ export default function PromotionForm() {
         ...visualTx,
       };
 
+      // Both `automatic` and `discount_code` surfaces carry a rule
+      // (Phase A matrix relaxation). Other surfaces forbid one or
+      // make it optional with no UI yet, so we send `null`.
+      const ruleSurfaces = surface === "automatic" || surface === "discount_code";
       if (isEdit) {
         const payload: UpdatePromotionRequest = {
           version: promotionQuery.data!.version,
           name: form.name,
-          discount_rule: surface === "automatic" ? buildDiscountRule() : null,
+          discount_rule: ruleSurfaces ? buildDiscountRule() : null,
           content,
           targets: buildTargets(),
           translations,
           starts_at: toIsoOrNull(form.startsAt),
           ends_at: toIsoOrNull(form.endsAt),
+          ...buildUsageLimits(),
         };
         await updateMutation.mutateAsync(payload);
         toast.success(t("promotions.actions.saved") as string);
@@ -481,12 +597,13 @@ export default function PromotionForm() {
         surface,
         status: form.activate ? "active" : "draft",
         coupon_id: couponId,
-        discount_rule: surface === "automatic" ? buildDiscountRule() : null,
+        discount_rule: ruleSurfaces ? buildDiscountRule() : null,
         content,
         targets: buildTargets(),
         translations,
         starts_at: toIsoOrNull(form.startsAt),
         ends_at: toIsoOrNull(form.endsAt),
+        ...buildUsageLimits(),
       };
       await createMutation.mutateAsync(payload);
       toast.success(t("promotions.actions.created") as string);
@@ -848,6 +965,95 @@ export default function PromotionForm() {
           </div>
         </CardContent>
       </Card>
+      )}
+
+      {showDiscountSection && form.ruleKind === "bogo" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("promotions.form.bogo_targeting_title")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <Label className="text-base">
+                {t("promotions.form.bogo_buy_set")}
+              </Label>
+              <BogoSetPicker
+                storeId={storeId}
+                side="buy"
+                mode={form.bogoBuyMode}
+                productId={form.bogoBuyProductId}
+                categoryId={form.bogoBuyCategoryId}
+                onChange={(next) => {
+                  updateField("bogoBuyMode", next.mode);
+                  updateField("bogoBuyProductId", next.productId);
+                  updateField("bogoBuyCategoryId", next.categoryId);
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-base">
+                {t("promotions.form.bogo_get_set")}
+              </Label>
+              <BogoSetPicker
+                storeId={storeId}
+                side="get"
+                mode={form.bogoGetMode}
+                productId={form.bogoGetProductId}
+                categoryId={form.bogoGetCategoryId}
+                onChange={(next) => {
+                  updateField("bogoGetMode", next.mode);
+                  updateField("bogoGetProductId", next.productId);
+                  updateField("bogoGetCategoryId", next.categoryId);
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {showDiscountSection && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("promotions.form.usage_limits_title")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="usage-total">
+                  {t("promotions.form.usage_limit_total")}
+                </Label>
+                <Input
+                  id="usage-total"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={form.usageLimitTotal}
+                  onChange={(e) => updateField("usageLimitTotal", e.target.value)}
+                  placeholder={t("promotions.form.usage_limit_uncapped") as string}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="usage-per-customer">
+                  {t("promotions.form.usage_limit_per_customer")}
+                </Label>
+                <Input
+                  id="usage-per-customer"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={form.usageLimitPerCustomer}
+                  onChange={(e) =>
+                    updateField("usageLimitPerCustomer", e.target.value)
+                  }
+                  placeholder={t("promotions.form.usage_limit_uncapped") as string}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("promotions.form.usage_limits_help")}
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       <Card>
