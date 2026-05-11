@@ -1470,35 +1470,76 @@ const StoreSettings = () => {
                   </div>
                 )}
                 <div className="flex-1">
-                  <label>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          setLogoCropSrc(reader.result as string);
-                          setShowLogoCrop(true);
-                        };
-                        reader.readAsDataURL(file);
-                        e.target.value = "";
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 cursor-pointer"
-                      asChild
-                    >
-                      <span>
-                        <Upload className="h-3.5 w-3.5" />
-                        {t("store.uploadLogo")}
-                      </span>
-                    </Button>
-                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            setLogoCropSrc(reader.result as string);
+                            setShowLogoCrop(true);
+                          };
+                          reader.readAsDataURL(file);
+                          e.target.value = "";
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 cursor-pointer"
+                        asChild
+                      >
+                        <span>
+                          <Upload className="h-3.5 w-3.5" />
+                          {currentStore?.logo_url
+                            ? language === "ar"
+                              ? "تغيير"
+                              : "Change"
+                            : t("store.uploadLogo")}
+                        </span>
+                      </Button>
+                    </label>
+                    {currentStore?.logo_url && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        disabled={uploadingLogo}
+                        onClick={async () => {
+                          if (!currentStore?.id) return;
+                          setUploadingLogo(true);
+                          try {
+                            await updateStore(currentStore.id, {
+                              logo_url: null,
+                            });
+                            await refetchStores();
+                            toast.success(
+                              language === "ar"
+                                ? "تم إزالة الشعار"
+                                : "Logo removed",
+                            );
+                          } catch {
+                            toast.error(
+                              language === "ar"
+                                ? "فشل إزالة الشعار"
+                                : "Failed to remove logo",
+                            );
+                          } finally {
+                            setUploadingLogo(false);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {language === "ar" ? "إزالة" : "Remove"}
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1.5">
                     {language === "ar"
                       ? "PNG أو JPG أو WebP، ٥ ميجا كحد أقصى"

@@ -50,7 +50,7 @@ import {
   ChevronUp, ChevronDown, GripVertical, CreditCard, MessageCircle, CheckCircle, User,
   Upload, RotateCcw,
 } from "lucide-react";
-import { ImageCropDialog } from "@/components/ImageCropDialog";
+import { ImageCropDialog, type AspectRatioPreset } from "@/components/ImageCropDialog";
 import { uploadStoreAsset } from "@/services/storeApi";
 import { listProducts } from "@/services/productApi";
 
@@ -1623,6 +1623,18 @@ function SchemaFieldControl({
     );
   }
 
+  if (setting.type === "video") {
+    return (
+      <VideoUploadField
+        value={typeof value === "string" ? value : undefined}
+        onChange={(url) => onChange(url)}
+        label={label}
+        isRTL={isRTL}
+        testId={testId}
+      />
+    );
+  }
+
   if (setting.type === "url") {
     return (
       <div className="space-y-1.5" data-testid={testId}>
@@ -1845,7 +1857,22 @@ function ImageUploadField({
   const [uploading, setUploading] = useState(false);
 
   const assetType = useMemo(() => inferAssetType(fieldKey), [fieldKey]);
-  const aspect = assetType === "hero_image" ? 16 / 9 : 1;
+  // Hero images need merchant-controlled framing — Bazar wants a portrait
+  // hero, Modern wants landscape, etc. So we present presets in the crop
+  // dialog instead of locking to one ratio. Logos/favicons stay 1:1.
+  const isHero = assetType === "hero_image";
+  const aspect = isHero ? 16 / 9 : 1;
+  const aspectPresets: AspectRatioPreset[] | undefined = isHero
+    ? [
+        { value: 16 / 9, label: "16:9", labelAr: "أفقي 16:9" },
+        { value: 3 / 2, label: "3:2", labelAr: "أفقي 3:2" },
+        { value: 4 / 3, label: "4:3", labelAr: "أفقي 4:3" },
+        { value: 1, label: "1:1", labelAr: "مربع" },
+        { value: 3 / 4, label: "3:4", labelAr: "عمودي 3:4" },
+        { value: 4 / 5, label: "4:5", labelAr: "عمودي 4:5" },
+        { value: 9 / 16, label: "9:16", labelAr: "عمودي 9:16" },
+      ]
+    : undefined;
 
   const onPickFile = (file: File) => {
     const reader = new FileReader();
@@ -1926,11 +1953,128 @@ function ImageUploadField({
           imageSrc={cropSrc}
           cropShape="rect"
           aspect={aspect}
+          aspectPresets={aspectPresets}
+          isRTL={isRTL}
           title={isRTL ? "تعديل الصورة" : "Edit image"}
           loading={uploading}
           onCropComplete={onCropDone}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Video upload field ─────────────────────────────────────────────────────
+
+const VIDEO_MAX_BYTES = 25 * 1024 * 1024;
+const VIDEO_ACCEPTED_MIMES = ["video/mp4", "video/webm", "video/quicktime"];
+
+function VideoUploadField({
+  value, onChange, label, isRTL, testId,
+}: {
+  value: string | undefined;
+  onChange: (url: string) => void;
+  label: string;
+  isRTL: boolean;
+  testId: string;
+}) {
+  const { currentStore } = useDashboardStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [urlInput, setUrlInput] = useState(value ?? "");
+
+  // Keep the URL textbox in sync if the parent value is rewritten from
+  // outside (e.g. a reset or a different field).
+  if (value !== undefined && value !== urlInput && !uploading) {
+    setUrlInput(value);
+  }
+
+  const onPickFile = async (file: File) => {
+    if (!currentStore?.id) return;
+    if (!VIDEO_ACCEPTED_MIMES.includes(file.type)) {
+      toast.error(isRTL ? "صيغة الفيديو غير مدعومة (MP4 / WebM / MOV)" : "Unsupported video format (use MP4, WebM, or MOV)");
+      return;
+    }
+    if (file.size > VIDEO_MAX_BYTES) {
+      toast.error(isRTL ? "حجم الفيديو يتجاوز 25 ميجابايت" : "Video exceeds the 25 MB limit");
+      return;
+    }
+    setUploading(true);
+    try {
+      const result = await uploadStoreAsset(currentStore.id, file, "generic_file");
+      onChange(result.url);
+      setUrlInput(result.url);
+      toast.success(isRTL ? "تم رفع الفيديو" : "Video uploaded");
+    } catch {
+      toast.error(isRTL ? "فشل رفع الفيديو" : "Failed to upload video");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5" data-testid={testId}>
+      <Label className="text-[12px] font-medium">{label}</Label>
+      <div className="flex items-center gap-2">
+        {value ? (
+          <video
+            src={value}
+            className="h-14 w-14 shrink-0 rounded-md border bg-muted object-cover"
+            muted
+            playsInline
+          />
+        ) : (
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-dashed bg-muted/40">
+            <Upload className="h-4 w-4 text-muted-foreground/50" />
+          </div>
+        )}
+        <div className="flex flex-1 flex-col gap-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime"
+            aria-label={isRTL ? "اختر ملف فيديو" : "Choose a video file"}
+            className="hidden"
+            data-testid={`${testId}-file-input`}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void onPickFile(f);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1.5 text-[11px]"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || !currentStore?.id}
+            data-testid={`${testId}-upload-btn`}
+          >
+            {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+            {value ? (isRTL ? "تغيير" : "Replace") : (isRTL ? "رفع فيديو" : "Upload video")}
+          </Button>
+          {value && (
+            <button
+              type="button"
+              className="self-start text-[10px] text-muted-foreground hover:text-destructive"
+              onClick={() => { onChange(""); setUrlInput(""); }}
+              data-testid={`${testId}-remove-btn`}
+            >
+              {isRTL ? "إزالة" : "Remove"}
+            </button>
+          )}
+        </div>
+      </div>
+      <Input
+        value={urlInput}
+        onChange={(e) => { setUrlInput(e.target.value); onChange(e.target.value); }}
+        placeholder={isRTL ? "أو الصق رابط الفيديو (MP4)" : "Or paste an MP4 URL"}
+        className="h-8 text-[12px]"
+        type="url"
+        dir="ltr"
+        data-testid={`${testId}-url-input`}
+      />
     </div>
   );
 }

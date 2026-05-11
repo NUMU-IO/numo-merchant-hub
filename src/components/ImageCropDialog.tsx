@@ -17,6 +17,15 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Loader2, ZoomIn, RotateCw } from "lucide-react";
 
+/** Preset aspect ratio entry shown in the dialog's chooser strip. */
+export interface AspectRatioPreset {
+  /** Stored aspect ratio. `undefined` means freeform (no constraint). */
+  value: number | undefined;
+  /** Short label like "16:9", "Free", "1:1". */
+  label: string;
+  labelAr?: string;
+}
+
 interface ImageCropDialogProps {
   open: boolean;
   onClose: () => void;
@@ -24,10 +33,17 @@ interface ImageCropDialogProps {
   onCropComplete: (croppedBlob: Blob) => void;
   /** "round" for avatars, "rect" for logos */
   cropShape?: "round" | "rect";
-  /** Aspect ratio (1 = square, 16/9 = wide) */
+  /** Initial aspect ratio. `undefined` allows freeform cropping. */
   aspect?: number;
+  /**
+   * Optional preset chooser. When provided, the merchant can toggle between
+   * preset aspect ratios in the dialog. Useful for hero images where the
+   * merchant — not the platform — decides how the image is framed.
+   */
+  aspectPresets?: AspectRatioPreset[];
   title?: string;
   loading?: boolean;
+  isRTL?: boolean;
 }
 
 export function ImageCropDialog({
@@ -37,13 +53,16 @@ export function ImageCropDialog({
   onCropComplete,
   cropShape = "round",
   aspect = 1,
+  aspectPresets,
   title = "تعديل الصورة",
   loading = false,
+  isRTL = false,
 }: ImageCropDialogProps) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [activeAspect, setActiveAspect] = useState<number | undefined>(aspect);
 
   const onCropChange = useCallback((location: { x: number; y: number }) => {
     setCrop(location);
@@ -132,7 +151,7 @@ export function ImageCropDialog({
             crop={crop}
             zoom={zoom}
             rotation={rotation}
-            aspect={aspect}
+            aspect={activeAspect}
             cropShape={cropShape}
             showGrid={false}
             onCropChange={onCropChange}
@@ -146,6 +165,35 @@ export function ImageCropDialog({
             }}
           />
         </div>
+
+        {/* Aspect ratio presets — only shown when caller supplies them. The
+            merchant picks an aspect and the crop area immediately reframes. */}
+        {aspectPresets && aspectPresets.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 px-5 pt-3">
+            {aspectPresets.map((preset) => {
+              const isActive =
+                (preset.value === undefined && activeAspect === undefined) ||
+                (preset.value !== undefined &&
+                  activeAspect !== undefined &&
+                  Math.abs(preset.value - activeAspect) < 0.001);
+              return (
+                <button
+                  key={`${preset.label}-${preset.value ?? "free"}`}
+                  type="button"
+                  onClick={() => setActiveAspect(preset.value)}
+                  className={
+                    "rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors " +
+                    (isActive
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-input bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground")
+                  }
+                >
+                  {isRTL ? (preset.labelAr ?? preset.label) : preset.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Controls */}
         <div className="px-5 py-4 space-y-3">
