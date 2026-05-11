@@ -167,44 +167,39 @@ export default function Notifications() {
   };
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-5 w-full">
+      {/* Header + tabs row — collapses on mobile, sits inline on desktop */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold tracking-tight">
             {isAr ? "الإشعارات" : "Notifications"}
           </h1>
-          <p className="text-[13px] text-muted-foreground mt-0.5">
-            {isAr ? "تابع آخر التحديثات والتنبيهات" : "Stay updated with alerts and activity"}
-          </p>
+          {unreadCount > 0 && (
+            <Badge className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5">
+              {unreadCount} {isAr ? "جديد" : "new"}
+            </Badge>
+          )}
         </div>
-        {unreadCount > 0 && (
-          <Badge className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5">
-            {unreadCount} {isAr ? "جديد" : "new"}
-          </Badge>
-        )}
-      </div>
-
-      {/* Tab Toggle */}
-      <div className="flex gap-0.5 rounded-lg bg-muted/60 p-0.5 w-fit">
-        <Button
-          variant={tab === "notifications" ? "default" : "ghost"}
-          size="sm"
-          className="h-8 text-xs px-3 rounded-md gap-1.5"
-          onClick={() => setTab("notifications")}
-        >
-          <Bell className="h-3.5 w-3.5" />
-          {isAr ? "الإشعارات" : "Activity"}
-        </Button>
-        <Button
-          variant={tab === "preferences" ? "default" : "ghost"}
-          size="sm"
-          className="h-8 text-xs px-3 rounded-md gap-1.5"
-          onClick={() => setTab("preferences")}
-        >
-          <Settings2 className="h-3.5 w-3.5" />
-          {isAr ? "التفضيلات" : "Preferences"}
-        </Button>
+        <div className="flex gap-0.5 rounded-lg bg-muted/60 p-0.5 w-fit">
+          <Button
+            variant={tab === "notifications" ? "default" : "ghost"}
+            size="sm"
+            className="h-8 text-xs px-3 rounded-md gap-1.5"
+            onClick={() => setTab("notifications")}
+          >
+            <Bell className="h-3.5 w-3.5" />
+            {isAr ? "الإشعارات" : "Activity"}
+          </Button>
+          <Button
+            variant={tab === "preferences" ? "default" : "ghost"}
+            size="sm"
+            className="h-8 text-xs px-3 rounded-md gap-1.5"
+            onClick={() => setTab("preferences")}
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            {isAr ? "التفضيلات" : "Preferences"}
+          </Button>
+        </div>
       </div>
 
       {tab === "notifications" ? (
@@ -279,7 +274,7 @@ export default function Notifications() {
         </>
       ) : (
         /* Notification Preferences */
-        <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-2">
           {/* Order Notifications */}
           <Card className="border-border/60">
             <CardHeader className="pb-4">
