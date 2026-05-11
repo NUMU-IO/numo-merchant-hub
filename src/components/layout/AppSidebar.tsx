@@ -49,6 +49,19 @@ const AppSidebar = () => {
   const onlineStoreActive = isActive("/online-store") || isActive("/store");
   const staffActive = isActive("/staff") || isActive("/roles");
   const channelsActive = isActive("/channels") || isActive("/inbox");
+  const marketingActive = isActive("/marketing");
+
+  // Marketing sub-items. Promotions only shows when the tenant has
+  // ff_promotions_v2 enabled — same gate the standalone row used to
+  // honour. Empty arrays are fine for `renderExpandableItem`; if the
+  // flag is off we still render Marketing as an expandable parent
+  // with no children, but the Marketing landing page is the click
+  // target so the row stays useful.
+  const marketingSubItems = [
+    ...(promotionsV2Enabled
+      ? [{ title: isRTL ? "العروض" : "Promotions", url: "/marketing/promotions", icon: Sparkles }]
+      : []),
+  ];
 
   // Analytics sub-items
   const analyticsSubItems = [
@@ -244,31 +257,30 @@ const AppSidebar = () => {
                   </SidebarMenuItem>
                 </NavItemGate>
 
-                {/* Marketing */}
+                {/* Marketing — flat row when nothing is gated in,
+                    expandable parent with Promotions when ff_promotions_v2
+                    is on for this tenant. */}
                 <NavItemGate navKey="marketing">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/marketing") && !isActive("/marketing/promotions")} tooltip={isRTL ? "التسويق" : "Marketing"} className="h-10 rounded-lg px-3">
-                      <NavLink to="/marketing">
-                        <Megaphone className="h-[18px] w-[18px] opacity-70" />
-                        <span className="text-[13px] font-medium">{isRTL ? "التسويق" : "Marketing"}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </NavItemGate>
-
-                {/* Promotions (offers-v2) — gated by per-tenant feature flag */}
-                {promotionsV2Enabled && (
-                  <NavItemGate navKey="promotions">
+                  {marketingSubItems.length > 0 ? (
+                    renderExpandableItem(
+                      isRTL ? "التسويق" : "Marketing",
+                      "/marketing",
+                      Megaphone,
+                      marketingSubItems,
+                      marketingActive,
+                      "marketing",
+                    )
+                  ) : (
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive("/marketing/promotions")} tooltip={isRTL ? "العروض" : "Promotions"} className="h-10 rounded-lg px-3">
-                        <NavLink to="/marketing/promotions">
-                          <Sparkles className="h-[18px] w-[18px] opacity-70" />
-                          <span className="text-[13px] font-medium">{isRTL ? "العروض" : "Promotions"}</span>
+                      <SidebarMenuButton asChild isActive={isActive("/marketing")} tooltip={isRTL ? "التسويق" : "Marketing"} className="h-10 rounded-lg px-3">
+                        <NavLink to="/marketing">
+                          <Megaphone className="h-[18px] w-[18px] opacity-70" />
+                          <span className="text-[13px] font-medium">{isRTL ? "التسويق" : "Marketing"}</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                  </NavItemGate>
-                )}
+                  )}
+                </NavItemGate>
 
                 {/* Email Templates */}
                 <NavItemGate navKey="email-templates">
