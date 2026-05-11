@@ -8,7 +8,12 @@ export interface Coupon {
   id: string;
   store_id: string;
   code: string;
-  coupon_type: "percentage" | "fixed" | "free_shipping";
+  coupon_type:
+    | "percentage"
+    | "fixed"
+    | "free_shipping"
+    | "buy_x_get_y"
+    | "tiered";
   value: string; // decimal string
   min_order_amount: string | null;
   max_discount_amount: string | null;
@@ -35,8 +40,18 @@ export interface PaginatedCoupons {
 
 export interface CreateCouponData {
   code: string;
-  coupon_type: "percentage" | "fixed" | "free_shipping";
+  coupon_type:
+    | "percentage"
+    | "fixed"
+    | "free_shipping"
+    | "buy_x_get_y"
+    | "tiered";
   value: number;
+  /** Phase 8.4 — extra config for BOGO + tiered:
+   *   buy_x_get_y → { buy_qty, get_qty, get_discount_percent, applicable_product_ids? }
+   *   tiered      → { tiers: [{ min_subtotal_cents, percent | fixed_cents }, ...] }
+   * Other types ignore this field. */
+  config?: Record<string, unknown> | null;
   min_order_amount?: number | null;
   max_discount_amount?: number | null;
   usage_limit?: number | null;
@@ -48,7 +63,13 @@ export interface CreateCouponData {
 
 export interface UpdateCouponData {
   code?: string;
-  coupon_type?: "percentage" | "fixed" | "free_shipping";
+  coupon_type?:
+    | "percentage"
+    | "fixed"
+    | "free_shipping"
+    | "buy_x_get_y"
+    | "tiered";
+  config?: Record<string, unknown> | null;
   value?: number;
   min_order_amount?: number | null;
   max_discount_amount?: number | null;
