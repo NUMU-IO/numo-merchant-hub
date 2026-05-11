@@ -26,6 +26,7 @@ import {
   type SizeChart,
 } from "@/components/products/SizeChartEditor";
 import { BundleManager } from "@/components/products/BundleManager";
+import VariantsEditor from "@/components/products/VariantsEditor";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -976,6 +977,38 @@ const ProductEditor = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Phase 8.1 — Server-side variants matrix ── */}
+      {/*
+       * Edit mode only: variants are scoped to a productId that exists
+       * on the server. Create-mode users can still use the legacy
+       * variants section above; once the product is saved, the
+       * matrix editor becomes available for SKU-tracked variants.
+       */}
+      {isEditMode && productId && storeId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              {language === "ar" ? "متغيرات SKU (متقدم)" : "SKU-tracked variants"}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {language === "ar"
+                ? "متغيرات بأسعار ومخزون منفصل لكل تركيبة. ينطبق على متاجر التجزئة المتقدمة."
+                : "Variants with their own price, SKU, and stock per combination. For SKU-tracked retail."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <VariantsEditor
+              storeId={storeId}
+              productId={productId}
+              initialOptions={[]}
+              currency={(formPrice && "EGP") || "EGP"}
+              onError={(m) => toast.error(m)}
+              onSuccess={(m) => toast.success(m)}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Frequently Bought Together ── */}
       <BundleManager productId={productId ?? null} isEditMode={isEditMode} />

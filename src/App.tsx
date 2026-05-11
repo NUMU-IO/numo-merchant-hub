@@ -63,6 +63,8 @@ const Profile = lazy(() => import("@/pages/Profile"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const SettingsPreferences = lazy(() => import("@/pages/SettingsPreferences"));
 const Apps = lazy(() => import("@/pages/Apps"));
+const GiftCards = lazy(() => import("@/pages/GiftCards"));
+const Locations = lazy(() => import("@/pages/Locations"));
 const PresentmentCurrencies = lazy(() => import("@/pages/PresentmentCurrencies"));
 const Notifications = lazy(() => import("@/pages/Notifications"));
 const Login = lazy(() => import("@/pages/Login"));
@@ -269,6 +271,8 @@ const App = () => (
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/apps" element={<Apps />} />
+                    <Route path="/gift-cards" element={<GiftCards />} />
+                    <Route path="/locations" element={<Locations />} />
                     <Route
                       path="/settings/currencies"
                       element={<PresentmentCurrencies />}

@@ -252,6 +252,26 @@ const AppSidebar = () => {
                   </SidebarMenuItem>
                 </NavItemGate>
 
+                {/* Gift cards — Phase 8.3 */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/gift-cards")} tooltip={isRTL ? "بطاقات الهدايا" : "Gift cards"} className="h-10 rounded-lg px-3">
+                    <NavLink to="/gift-cards">
+                      <Megaphone className="h-[18px] w-[18px] opacity-70" />
+                      <span className="text-[13px] font-medium">{isRTL ? "بطاقات الهدايا" : "Gift cards"}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                {/* Locations — Phase 8.2 */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/locations")} tooltip={isRTL ? "المواقع" : "Locations"} className="h-10 rounded-lg px-3">
+                    <NavLink to="/locations">
+                      <Megaphone className="h-[18px] w-[18px] opacity-70" />
+                      <span className="text-[13px] font-medium">{isRTL ? "المواقع" : "Locations"}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
                 {/* Email Templates */}
                 <NavItemGate navKey="email-templates">
                   <SidebarMenuItem>
