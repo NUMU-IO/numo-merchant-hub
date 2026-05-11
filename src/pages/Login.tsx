@@ -24,6 +24,7 @@ import { Loader2, ArrowRight, ArrowLeft, Eye, EyeOff, ShieldCheck, Globe } from 
 import { GoogleLogin } from "@react-oauth/google";
 import { TwoFactorRequiredError } from "@/services/authApi";
 import { ApiError } from "@/lib/api-error";
+import { PhoneInput, isValidE164 } from "@/components/forms/PhoneInput";
 import { z } from "zod";
 
 const Ballpit = lazy(() => import("@/components/Ballpit"));
@@ -38,7 +39,11 @@ const registerSchema = z.object({
   lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل").max(50, "اسم العائلة طويل جدًا"),
   email: z.string().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة"),
   password: z.string().min(12, "كلمة المرور يجب أن تكون 12 حرفًا على الأقل"),
-  phone: z.string().regex(/^(?:\+?\d{10,15})?$/, "رقم الهاتف غير صحيح").optional().or(z.literal("")),
+  // Phone is validated via libphonenumber-js inside the PhoneInput
+  // component; the schema just accepts an optional string here so that
+  // typing an in-progress (not-yet-valid) number doesn't trip Zod before
+  // the user has finished. We re-check validity at submit time.
+  phone: z.string().optional().or(z.literal("")),
 });
 
 type FieldErrors = Record<string, string>;
@@ -130,6 +135,11 @@ export default function Login() {
         if (!errs[key]) errs[key] = issue.message;
       }
       setFieldErrors(errs);
+      return;
+    }
+
+    if (isRegister && phone && !isValidE164(phone)) {
+      setFieldErrors({ phone: isAr ? "رقم الهاتف غير صحيح" : "Please enter a valid phone number" });
       return;
     }
 
@@ -415,8 +425,13 @@ export default function Login() {
                   {isRegister && (
                     <div className="space-y-2">
                       <Label htmlFor="phone" className="text-[13px] font-medium">{t("auth.phone", "Phone (optional)")}</Label>
-                      <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01xxxxxxxxx" className={inputCls("phone")} />
-                      {fieldErrors.phone && <p className="text-xs text-[var(--b-terracotta)]">{fieldErrors.phone}</p>}
+                      <PhoneInput
+                        id="phone"
+                        value={phone}
+                        onChange={setPhone}
+                        defaultCountry="EG"
+                        errorMessage={fieldErrors.phone}
+                      />
                     </div>
                   )}
 

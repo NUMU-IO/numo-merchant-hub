@@ -5,6 +5,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { PhoneInput, isValidE164 } from "@/components/forms/PhoneInput";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import {
@@ -44,6 +45,12 @@ export default function Profile() {
   const initials = `${(user?.first_name || "N").charAt(0)}${(user?.last_name || "").charAt(0)}`.toUpperCase();
 
   const handleSave = async () => {
+    if (phone && !isValidE164(phone)) {
+      toast.error(
+        isAr ? "رقم الهاتف غير صالح" : "Please enter a valid phone number",
+      );
+      return;
+    }
     setIsSaving(true);
     try {
       await updateProfile({ first_name: firstName, last_name: lastName, phone: phone || null });
@@ -151,7 +158,11 @@ export default function Profile() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[11px] font-medium text-muted-foreground">{isAr ? "رقم جوالك" : "Phone Number"}</Label>
-              <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+201012345678" dir="ltr" className="h-10 text-sm rounded-lg" />
+              <PhoneInput
+                value={phone}
+                onChange={setPhone}
+                defaultCountry="EG"
+              />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
