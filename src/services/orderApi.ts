@@ -116,6 +116,7 @@ export interface ListOrdersParams {
   date_from?: string;
   date_to?: string;
   search?: string;
+  customer_id?: string;
 }
 
 // ── API calls ──
@@ -133,6 +134,11 @@ export async function listOrders(
   if (params?.date_from) qs.set("date_from", params.date_from);
   if (params?.date_to) qs.set("date_to", params.date_to);
   if (params?.search) qs.set("search", params.search);
+  // `customer_id` was typed on ListOrdersParams but never serialized —
+  // Customers.tsx → customer detail view passed it expecting a per-customer
+  // filter and silently got "all orders for the store" back (showed up on
+  // the customer-history card as unrelated orders).
+  if (params?.customer_id) qs.set("customer_id", params.customer_id);
   const query = qs.toString();
   return apiClient<PaginatedOrders>(
     `/stores/${storeId}/orders/${query ? `?${query}` : ""}`,
@@ -144,6 +150,25 @@ export async function getOrder(
   orderId: string,
 ): Promise<Order> {
   return apiClient<Order>(`/stores/${storeId}/orders/${orderId}`);
+}
+
+export interface UpdateOrderData {
+  tracking_number?: string;
+  tracking_url?: string;
+  shipping_method?: string;
+  notes?: string;
+  customer_notes?: string;
+}
+
+export async function updateOrder(
+  storeId: string,
+  orderId: string,
+  data: UpdateOrderData,
+): Promise<Order> {
+  return apiClient<Order>(`/stores/${storeId}/orders/${orderId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 }
 
 export async function updateOrderStatus(
@@ -199,5 +224,53 @@ export async function markOrderPaid(
 ): Promise<Order> {
   return apiClient<Order>(`/stores/${storeId}/orders/${orderId}/mark-paid`, {
     method: "POST",
+  });
+}
+
+// ── Manual Order Creation ──
+
+export interface CreateOrderLineItem {
+  product_id: string;
+  product_name: string;
+  variant_id?: string;
+  variant_name?: string;
+  sku?: string;
+  quantity: number;
+  unit_price: number; // cents
+}
+
+export interface CreateOrderAddress {
+  first_name: string;
+  last_name: string;
+  address_line1: string;
+  address_line2?: string;
+  city: string;
+  state?: string;
+  postal_code?: string;
+  country: string;
+  phone?: string;
+}
+
+export interface CreateOrderData {
+  customer_id: string;
+  line_items: CreateOrderLineItem[];
+  shipping_address: CreateOrderAddress;
+  billing_address?: CreateOrderAddress;
+  shipping_cost?: number;
+  tax_amount?: number;
+  discount_amount?: number;
+  currency?: string;
+  payment_method?: string;
+  shipping_method?: string;
+  customer_notes?: string;
+}
+
+export async function createManualOrder(
+  storeId: string,
+  data: CreateOrderData,
+): Promise<Order> {
+  return apiClient<Order>(`/stores/${storeId}/orders/`, {
+    method: "POST",
+    body: JSON.stringify(data),
   });
 }

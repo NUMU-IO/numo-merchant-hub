@@ -1,73 +1,80 @@
-# Welcome to your Lovable project
+# NUMU Merchant Hub
 
-## Project info
+The merchant dashboard for NUMU e-commerce platform. Built with React 18, TypeScript, Vite, and shadcn/ui.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Tech Stack
 
-## How can I edit this code?
+- **Frontend**: React 18, TypeScript 5.8, Vite + SWC
+- **Styling**: Tailwind 3, shadcn/ui
+- **State**: TanStack React Query v5
+- **Routing**: react-router-dom 6
+- **i18n**: i18next (English + Arabic)
+- **Package Manager**: npm
 
-There are several ways of editing your application.
+## Development
 
-**Use Lovable**
+```bash
+# Install dependencies
+npm install
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start development server (port 8080)
 npm run dev
+
+# Build for production
+npm run build
+
+# Run lint
+npm run lint
+
+# Run typecheck
+npx tsc --noEmit
+
+# Run tests
+npm run test
 ```
 
-**Edit a file directly in GitHub**
+## Environment Variables
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+| Variable | Description |
+|----------|-------------|
+| `VITE_API_URL` | Backend API URL |
+| `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `VITE_META_APP_ID` | Meta (Facebook/Instagram) App ID |
+| `VITE_META_LOGIN_CONFIG_ID` | Meta Login Config ID |
+| `VITE_META_OAUTH_REDIRECT` | OAuth redirect URI |
+| `VITE_WS_URL` | WebSocket URL for realtime inbox |
 
-**Use GitHub Codespaces**
+## Features
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- Dashboard with analytics
+- Product management
+- Order management
+- Customer management
+- Omnichannel inbox (Facebook, Instagram, WhatsApp)
+- Channel management
+- WhatsApp template management
+- Multi-language support (English, Arabic)
 
-## What technologies are used for this project?
+## Project Structure
 
-This project is built with:
+```
+src/
+├── components/       # React components
+│   ├── layout/       # Layout components (Sidebar, Header)
+│   └── ui/           # shadcn/ui components
+├── contexts/         # React contexts (Auth, Store, Language)
+├── hooks/            # Custom React hooks
+├── i18n/             # Translations (en.ts, ar.ts)
+├── lib/              # Utilities
+├── pages/            # Route pages
+├── services/         # API services
+└── types/            # TypeScript types
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Available Scripts
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- `npm run dev` - Start dev server
+- `npm run build` - Build production bundle
+- `npm run lint` - Run ESLint
+- `npm run test` - Run Vitest tests
+- `npm run preview` - Preview production build

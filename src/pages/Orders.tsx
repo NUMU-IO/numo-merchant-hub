@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   listOrders, getOrder, updateOrderStatus as apiUpdateStatus,
-  bulkUpdateStatus, getOrderTimeline, markOrderPaid,
+  bulkUpdateStatus, getOrderTimeline, markOrderPaid, updateOrder,
   type OrderListItem, type Order as ApiOrder, type TimelineEvent,
 } from "@/services/orderApi";
 import {
@@ -25,14 +26,24 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   ArrowLeft, CheckCircle2, Circle, Clock, Package, Truck, XCircle,
-  MoreHorizontal, Printer, FileDown, ChevronRight, ArrowRightCircle, Loader2,
-  RotateCcw, AlertCircle,
+  MoreHorizontal, Printer, FileDown, FileUp, ChevronRight, ArrowRightCircle, Loader2,
+  RotateCcw, AlertCircle, FileText, ArrowUpDown, ListFilter, LayoutList, Search,
+  RefreshCw,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { downloadInvoicePdf } from "@/services/invoiceApi";
+import { apiClient } from "@/services/api";
+import { showError } from "@/lib/show-error";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
+import InstapayProofReview from "@/components/payments/InstapayProofReview";
+import { fetchPendingInstapayOrders } from "@/services/storeApi";
 
 type FulfillmentStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
 const WORKFLOW: FulfillmentStatus[] = ["pending", "processing", "shipped", "delivered"];
@@ -43,9 +54,13 @@ const Orders = () => {
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<"all" | FulfillmentStatus>("all");
+  // Secondary view: InstaPay orders with an awaiting-review proof. Mutually
+  // exclusive with statusFilter — clicking this chip clears statusFilter.
+  const [pendingInstapay, setPendingInstapay] = useState(false);
 
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<ApiOrder | null>(null);
   const [orderTimeline, setOrderTimeline] = useState<TimelineEvent[]>([]);
@@ -62,6 +77,10 @@ const Orders = () => {
   const [refundAmount, setRefundAmount] = useState("");
   const [refundLoading, setRefundLoading] = useState(false);
 
+  // Tracking
+  const [trackingInput, setTrackingInput] = useState("");
+  const [savingTracking, setSavingTracking] = useState(false);
+
   // React Query hook for orders list
   const ordersQuery = useQuery({
     queryKey: ["orders", storeId, page, statusFilter],
@@ -70,12 +89,54 @@ const Orders = () => {
       if (statusFilter !== "all") params.status = statusFilter;
       return listOrders(storeId!, params);
     },
-    enabled: !!storeId,
+    enabled: !!storeId && !pendingInstapay,
     placeholderData: keepPreviousData,
   });
 
-  const orders = ordersQuery.data?.items ?? [];
-  const totalOrders = ordersQuery.data?.total ?? 0;
+  // Lightweight badge query — always runs at page=1&limit=1 just to pull
+  // the total count for the "Pending verification" chip so merchants can
+  // see the queue size without clicking in.
+  const pendingInstapayBadgeQuery = useQuery({
+    queryKey: ["instapay-pending-count", storeId],
+    queryFn: () => fetchPendingInstapayOrders(storeId!, { page: 1, limit: 1 }),
+    enabled: !!storeId,
+    refetchInterval: 60_000,
+  });
+  const pendingInstapayCount = pendingInstapayBadgeQuery.data?.total ?? 0;
+
+  // Actual page fetch when the chip is active.
+  const pendingInstapayQuery = useQuery({
+    queryKey: ["instapay-pending-orders", storeId, page],
+    queryFn: () => fetchPendingInstapayOrders(storeId!, { page, limit: 20 }),
+    enabled: !!storeId && pendingInstapay,
+    placeholderData: keepPreviousData,
+  });
+
+  // Map pending items into the shape the orders table renders. Pending
+  // rows are always payment_method=instapay & payment_status=pending so
+  // the existing InstapayProofReview block fires automatically.
+  const pendingAsOrders: ApiOrder[] = (pendingInstapayQuery.data?.items ?? []).map(
+    (p) =>
+      ({
+        id: p.order_id,
+        order_number: p.order_number,
+        customer_id: p.customer_id,
+        total: p.amount_cents,
+        currency: p.currency,
+        status: "pending",
+        payment_status: "pending",
+        payment_method: "instapay",
+        fulfillment_status: "unfulfilled",
+        created_at: p.created_at,
+      }) as unknown as ApiOrder,
+  );
+
+  const orders = pendingInstapay
+    ? pendingAsOrders
+    : (ordersQuery.data?.items ?? []);
+  const totalOrders = pendingInstapay
+    ? pendingInstapayQuery.data?.total ?? 0
+    : ordersQuery.data?.total ?? 0;
 
   const formatCurrency = (cents: number) => {
     const val = cents / 100;
@@ -99,7 +160,7 @@ const Orders = () => {
       setSelectedOrderDetail(order);
       setOrderTimeline(timeline.events || []);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to load order");
+      showError(err, language);
     } finally {
       setDetailLoading(false);
     }
@@ -112,6 +173,9 @@ const Orders = () => {
     processing: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     pending: "bg-muted text-muted-foreground",
     cancelled: "bg-destructive/10 text-destructive",
+    // Distinct from cancelled: order was shipped but customer refused.
+    // Orange to distinguish from cancelled red and shipped blue.
+    returned: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   };
 
   const paymentColor: Record<string, string> = {
@@ -140,6 +204,7 @@ const Orders = () => {
     delivered: <CheckCircle2 className="h-4 w-4" />,
     fulfilled: <CheckCircle2 className="h-4 w-4" />,
     cancelled: <XCircle className="h-4 w-4" />,
+    returned: <RotateCcw className="h-4 w-4" />,
     paid: <CheckCircle2 className="h-4 w-4" />,
     refunded: <XCircle className="h-4 w-4" />,
   };
@@ -170,7 +235,7 @@ const Orders = () => {
             : "Can't skip steps. Follow the order: Pending → Processing → Shipped → Delivered"
         );
       } else {
-        toast.error(msg || (language === "ar" ? "فشل تحديث الحالة" : "Failed to update status"));
+        showError(err, language);
       }
     }
   };
@@ -187,7 +252,7 @@ const Orders = () => {
       }
       invalidateOrders();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to mark as paid");
+      showError(err, language);
     }
   };
 
@@ -218,7 +283,7 @@ const Orders = () => {
       setRefundAmount("");
       await loadRefunds(selectedOrderDetail.id);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : (language === "ar" ? "فشل إنشاء الاسترداد" : "Failed to create refund"));
+      showError(err, language);
     } finally {
       setRefundLoading(false);
     }
@@ -231,7 +296,7 @@ const Orders = () => {
       toast.success(language === "ar" ? "تمت الموافقة على الاسترداد" : "Refund approved");
       await loadRefunds(selectedOrderDetail.id);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to approve refund");
+      showError(err, language);
     }
   };
 
@@ -242,7 +307,7 @@ const Orders = () => {
       toast.success(language === "ar" ? "تم رفض الاسترداد" : "Refund rejected");
       await loadRefunds(selectedOrderDetail.id);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to reject refund");
+      showError(err, language);
     }
   };
 
@@ -261,7 +326,7 @@ const Orders = () => {
       setSelectedOrderDetail(updated);
       invalidateOrders();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to process refund");
+      showError(err, language);
     }
   };
 
@@ -284,9 +349,99 @@ const Orders = () => {
       setSelected(new Set());
       invalidateOrders();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Bulk update failed");
+      showError(err, language);
     }
   };
+
+  // RTO is destructive + sends a cross-merchant network signal, so we
+  // gate it behind a styled AlertDialog rather than the browser's
+  // native confirm — the latter is jarring (different chrome, ignores
+  // the app's RTL/typography) and also blocked by some ad-blockers.
+  // The intent encodes which flow opened the dialog so a single
+  // dialog instance covers both single + bulk.
+  const [rtoIntent, setRtoIntent] = useState<
+    | { kind: "single"; orderId: string }
+    | { kind: "bulk"; count: number }
+    | null
+  >(null);
+  const [rtoSubmitting, setRtoSubmitting] = useState(false);
+
+  const handleMarkReturned = (orderId: string) => {
+    if (!storeId) return;
+    setRtoIntent({ kind: "single", orderId });
+  };
+
+  const handleBulkMarkReturned = () => {
+    if (!storeId || selected.size === 0) return;
+    setRtoIntent({ kind: "bulk", count: selected.size });
+  };
+
+  const handleRtoConfirm = async () => {
+    if (!rtoIntent) return;
+    setRtoSubmitting(true);
+    try {
+      if (rtoIntent.kind === "single") {
+        await handleUpdateStatus(rtoIntent.orderId, "returned");
+      } else {
+        await handleBulkStatus("returned");
+      }
+      setRtoIntent(null);
+    } finally {
+      setRtoSubmitting(false);
+    }
+  };
+
+  // Rendered identically in both the list-view and order-detail-view
+  // returns. The detail view returns early before the list-view JSX,
+  // so a single dialog at the end of the file would never mount when
+  // a merchant clicks "Mark as Returned" from the detail screen — the
+  // button at o.status === "shipped" is on that branch.
+  const isAr_ = language === "ar";
+  const rtoDialog = (
+    <AlertDialog
+      open={rtoIntent !== null}
+      onOpenChange={(open) => {
+        if (!open && !rtoSubmitting) setRtoIntent(null);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {isAr_ ? "تحديد كمرتجع" : "Mark as returned"}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {rtoIntent?.kind === "bulk"
+              ? isAr_
+                ? `سيتم تحديد ${rtoIntent.count} طلب كمرتجع وإرسال إشارة RTO إلى شبكة نمو. لا يمكن التراجع عن هذا الإجراء.`
+                : `This will mark ${rtoIntent.count} order(s) as returned and send an RTO signal to شبكة نمو. This cannot be undone.`
+              : isAr_
+                ? "سيتم تحديد الطلب كمرتجع وإرسال إشارة RTO إلى شبكة نمو. لا يمكن التراجع عن هذا الإجراء."
+                : "This will mark the order as returned and send an RTO signal to شبكة نمو. This cannot be undone."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={rtoSubmitting}>
+            {isAr_ ? "إلغاء" : "Cancel"}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              handleRtoConfirm();
+            }}
+            disabled={rtoSubmitting}
+            className="bg-orange-600 hover:bg-orange-700 text-white"
+          >
+            {rtoSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <RotateCcw className="w-4 h-4 mr-2" />
+            )}
+            {isAr_ ? "تأكيد المرتجع" : "Confirm RTO"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 
   const toggleSelect = (id: string) => {
     setSelected(prev => { const n = new Set(prev); if (n.has(id)) { n.delete(id); } else { n.add(id); } return n; });
@@ -348,6 +503,20 @@ const Orders = () => {
               <Button size="sm" className="gap-1.5" onClick={() => handleUpdateStatus(o.id, nextStatus)}>
                 <ArrowRightCircle className="h-3.5 w-3.5" />
                 {t("orders.moveTo")} {t(`orders.${nextStatus}`)}
+              </Button>
+            )}
+            {/* Manual-ship merchants record an RTO outcome. Shipped is the
+                only state where a return is meaningful — earlier states
+                use Cancel; later states are terminal. */}
+            {o.status === "shipped" && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => handleMarkReturned(o.id)}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                {language === "ar" ? "تحديد كمرتجع" : "Mark as Returned"}
               </Button>
             )}
           </div>
@@ -418,16 +587,127 @@ const Orders = () => {
                   {t(`orders.${o.payment_status}`)}
                 </Badge>
                 {o.payment_method && <p className="text-sm text-muted-foreground">{o.payment_method}</p>}
-                {o.tracking_number && (
-                  <p className="text-sm text-muted-foreground">
-                    {language === "ar" ? "رقم التتبع:" : "Tracking:"} {o.tracking_number}
-                  </p>
-                )}
                 {o.payment_status !== "paid" && (
                   <Button size="sm" variant="outline" className="w-full mt-2 gap-1.5" onClick={() => handleMarkPaid(o.id)}>
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     {language === "ar" ? "تأكيد الدفع" : "Mark as Paid"}
                   </Button>
+                )}
+                {o.payment_status === "paid" && currentStore?.id && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full mt-2 gap-1.5"
+                    onClick={async () => {
+                      try {
+                        // Fetch invoices and find by order
+                        const data = await apiClient<{ items: Array<{ id: string; order_id?: string }> }>(
+                          `/stores/${currentStore.id}/invoices/?page=1&page_size=50`
+                        );
+                        const orderInvoice = data.items?.find((inv) => inv.order_id === o.id);
+                        if (orderInvoice) {
+                          await downloadInvoicePdf(currentStore.id, orderInvoice.id);
+                        } else {
+                          toast.error(language === "ar" ? "لا توجد فاتورة لهذا الطلب بعد" : "No invoice found for this order yet");
+                        }
+                      } catch {
+                        toast.error(language === "ar" ? "فشل تحميل الفاتورة" : "Failed to download invoice");
+                      }
+                    }}
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    {language === "ar" ? "تحميل الفاتورة" : "Download Invoice"}
+                  </Button>
+                )}
+                {o.payment_method === "instapay" && currentStore?.id && (
+                  <div className="mt-3">
+                    <InstapayProofReview
+                      storeId={currentStore.id}
+                      orderId={o.id}
+                      isAr={language === "ar"}
+                      onPaid={() => queryClient.invalidateQueries({ queryKey: ["orders"] })}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Shipping & Tracking */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">{language === "ar" ? "الشحن والتتبع" : "Shipping & Tracking"}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {o.shipping_method && (
+                  <p className="text-sm text-muted-foreground">{o.shipping_method}</p>
+                )}
+                {o.tracking_number ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                      {language === "ar" ? "رقم التتبع" : "Tracking Number"}
+                    </p>
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/40 border border-border/40">
+                      <Truck className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm font-mono font-medium flex-1">{o.tracking_number}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => {
+                          navigator.clipboard.writeText(o.tracking_number!);
+                          toast.success(language === "ar" ? "تم النسخ" : "Copied");
+                        }}
+                      >
+                        {language === "ar" ? "نسخ" : "Copy"}
+                      </Button>
+                    </div>
+                    {o.tracking_url && (
+                      <a href={o.tracking_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+                        {language === "ar" ? "تتبع الشحنة ←" : "Track shipment →"}
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                      {language === "ar" ? "إضافة رقم تتبع" : "Add Tracking Number"}
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        value={trackingInput}
+                        onChange={(e) => setTrackingInput(e.target.value)}
+                        placeholder={language === "ar" ? "مثلاً: EG123456789" : "e.g. EG123456789"}
+                        className="h-9 text-sm rounded-lg flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        className="h-9 rounded-lg gap-1.5"
+                        disabled={!trackingInput.trim() || savingTracking}
+                        onClick={async () => {
+                          if (!storeId || !trackingInput.trim()) return;
+                          setSavingTracking(true);
+                          try {
+                            const updated = await updateOrder(storeId, o.id, {
+                              tracking_number: trackingInput.trim(),
+                            });
+                            setSelectedOrderDetail(updated);
+                            setTrackingInput("");
+                            toast.success(language === "ar" ? "تم حفظ رقم التتبع" : "Tracking number saved");
+                          } catch (err) {
+                            showError(err, language);
+                          } finally {
+                            setSavingTracking(false);
+                          }
+                        }}
+                      >
+                        {savingTracking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />}
+                        {language === "ar" ? "حفظ" : "Save"}
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {language === "ar" ? "أضف رقم التتبع قبل تحديث الحالة لشحن" : "Add tracking before marking as shipped"}
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -611,6 +891,7 @@ const Orders = () => {
             </Card>
           </div>
         </div>
+        {rtoDialog}
       </div>
     );
   }
@@ -624,168 +905,341 @@ const Orders = () => {
     );
   }
 
-  // === List View ===
+  // === List View — Zid-style ===
+  const isAr = language === "ar";
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" });
+  const fmtTime = (d: string) => new Date(d).toLocaleTimeString(isAr ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" });
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="p-6 max-w-[1200px] mx-auto space-y-4">
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("orders.title")}</h1>
-          <p className="text-sm text-muted-foreground">{totalOrders} {language === "ar" ? "طلب" : "orders"}</p>
+          <h1 className="text-xl font-bold">{isAr ? "قائمة الطلبات" : "Orders"}</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">{isAr ? "جميع طلبات متجرك هنا" : "All your store orders in one place"}</p>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCSV}>
-          <FileDown className="h-3.5 w-3.5" />
-          {t("orders.export")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg"><MoreHorizontal className="h-4 w-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportCSV}><FileDown className="me-2 h-3.5 w-3.5" />{isAr ? "تصدير الطلبات" : "Export Orders"}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => invalidateOrders()}
+            disabled={ordersQuery.isFetching}
+            aria-label={isAr ? "تحديث الطلبات" : "Refresh orders"}
+            title={isAr ? "تحديث القائمة" : "Refresh list"}
+          >
+            <RefreshCw className={`h-3 w-3 ${ordersQuery.isFetching ? "animate-spin" : ""}`} />
+            {isAr ? "تحديث" : "Refresh"}
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={handleExportCSV}>
+            <FileDown className="h-3 w-3" />{isAr ? "تصدير الطلبات" : "Export"}
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => navigate("/orders/import")}>
+            <FileUp className="h-3 w-3" />{isAr ? "استيراد" : "Import"}
+          </Button>
+          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => navigate("/orders/create")}>
+            <Package className="h-3 w-3" />{isAr ? "إنشاء" : "Create"}
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v as "all" | FulfillmentStatus); setPage(1); }}>
-            <TabsList className="flex-wrap">
-              <TabsTrigger value="all">{t("orders.all")}</TabsTrigger>
-              <TabsTrigger value="pending">{t("orders.pending")}</TabsTrigger>
-              <TabsTrigger value="processing">{t("orders.processing")}</TabsTrigger>
-              <TabsTrigger value="shipped">{t("orders.shipped")}</TabsTrigger>
-              <TabsTrigger value="delivered">{t("orders.delivered")}</TabsTrigger>
-              <TabsTrigger value="cancelled">{t("orders.cancelled")}</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardHeader>
-        <CardContent>
-          {/* Bulk actions bar */}
-          {selected.size > 0 && (
-            <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-muted/50 border border-border animate-in fade-in slide-in-from-top-2 duration-200">
-              <span className="text-sm font-medium">
-                {selected.size} {language === "ar" ? "محدد" : "selected"}
-              </span>
-              <div className="flex items-center gap-2 ms-auto">
-                <Select onValueChange={(v) => handleBulkStatus(v)}>
-                  <SelectTrigger className="w-[160px] h-8 text-xs">
-                    <SelectValue placeholder={t("orders.bulkStatus")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(["processing", "shipped", "delivered", "cancelled"] as const).map(s => (
-                      <SelectItem key={s} value={s}>{t(`orders.${s}`)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
-                  {language === "ar" ? "إلغاء" : "Clear"}
-                </Button>
-              </div>
-            </div>
-          )}
+      {/* Main card */}
+      <div className="rounded-xl border bg-card">
+        {/* Status tabs — horizontal scrollable pills */}
+        <div className="px-5 pt-4 pb-3 border-b overflow-x-auto">
+          <div className="flex gap-1.5 min-w-max">
+            {([
+              { v: "all", l: isAr ? "الكل" : "All", count: totalOrders },
+              { v: "pending", l: isAr ? "جديد" : "New" },
+              { v: "processing", l: isAr ? "جاري التجهيز" : "Processing" },
+              { v: "shipped", l: isAr ? "جاري التوصيل" : "Shipped" },
+              { v: "delivered", l: isAr ? "مُكتمل" : "Delivered" },
+              { v: "cancelled", l: isAr ? "مُلغى" : "Cancelled" },
+            ] as { v: "all" | FulfillmentStatus; l: string; count?: number }[]).map(f => {
+              const active = statusFilter === f.v && !pendingInstapay;
+              return (
+                <button
+                  key={f.v}
+                  onClick={() => { setStatusFilter(f.v); setPendingInstapay(false); setPage(1); setSelected(new Set()); }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border whitespace-nowrap cursor-pointer ${
+                    active
+                      ? "border-foreground/20 bg-foreground text-background shadow-sm"
+                      : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  {f.l}
+                  {f.v === "all" && totalOrders > 0 && !pendingInstapay && (
+                    <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold tabular-nums ms-1.5 ${active ? "bg-background/20 text-background" : "bg-primary text-primary-foreground"}`}>
+                      {totalOrders > 99 ? "99+" : totalOrders}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
 
-          {orders.length === 0 && !ordersQuery.isLoading ? (
-            <div className="py-12 text-center">
-              <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground">{t("orders.noOrders")}</p>
+            {/* Pending InstaPay review — orange badge when queue is non-empty */}
+            <button
+              type="button"
+              onClick={() => {
+                setPendingInstapay(true);
+                setPage(1);
+                setSelected(new Set());
+              }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border whitespace-nowrap cursor-pointer ${
+                pendingInstapay
+                  ? "border-amber-500/30 bg-amber-600 text-white shadow-sm"
+                  : "border-transparent bg-amber-50 text-amber-800 hover:bg-amber-100"
+              }`}
+            >
+              {isAr ? "قيد المراجعة" : "Pending verification"}
+              {pendingInstapayCount > 0 && (
+                <span
+                  className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold tabular-nums ms-1.5 ${
+                    pendingInstapay ? "bg-white/25 text-white" : "bg-amber-600 text-white"
+                  }`}
+                >
+                  {pendingInstapayCount > 99 ? "99+" : pendingInstapayCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Search + Sort + Filter bar */}
+        <div className="flex items-center gap-2 px-5 py-3 border-b">
+          <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0"><ArrowUpDown className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0"><ListFilter className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0"><LayoutList className="h-4 w-4" /></Button>
+          <div className="relative flex-1 max-w-sm ms-auto">
+            <Search className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input placeholder={isAr ? "بحث" : "Search"} className="pe-9 h-9 rounded-lg bg-muted/40 border-transparent focus:bg-background focus:border-border" />
+          </div>
+        </div>
+
+        {/* Bulk actions bar */}
+        {selected.size > 0 && (
+          <div className="flex items-center gap-3 px-5 py-2.5 bg-muted/30 border-b animate-in fade-in slide-in-from-top-2 duration-200">
+            <span className="text-xs font-medium">{selected.size} {isAr ? "محدد" : "selected"}</span>
+            <div className="flex items-center gap-2 ms-auto">
+              <Select onValueChange={(v) => handleBulkStatus(v)}>
+                <SelectTrigger className="w-[140px] h-7 text-[11px]"><SelectValue placeholder={t("orders.bulkStatus")} /></SelectTrigger>
+                <SelectContent>{(["processing", "shipped", "delivered", "cancelled"] as const).map(s => <SelectItem key={s} value={s}>{t(`orders.${s}`)}</SelectItem>)}</SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-[11px] gap-1"
+                onClick={handleBulkMarkReturned}
+              >
+                <RotateCcw className="h-3 w-3" />
+                {isAr ? "تحديد كمرتجع" : "Mark Returned"}
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => setSelected(new Set())}>{isAr ? "إلغاء" : "Clear"}</Button>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">
-                      <Checkbox
-                        checked={orders.length > 0 && selected.size === orders.length}
-                        onCheckedChange={() => {
-                          if (selected.size === orders.length) setSelected(new Set());
-                          else setSelected(new Set(orders.map(o => o.id)));
-                        }}
-                      />
-                    </TableHead>
-                    <TableHead>{t("orders.orderNumber")}</TableHead>
-                    <TableHead>{t("orders.customer")}</TableHead>
-                    <TableHead>{t("orders.date")}</TableHead>
-                    <TableHead>{t("orders.total")}</TableHead>
-                    <TableHead>{t("orders.payment")}</TableHead>
-                    <TableHead>{t("orders.fulfillment")}</TableHead>
-                    <TableHead className="w-10" />
+          </div>
+        )}
+
+        {/* Table */}
+        {orders.length === 0 && !ordersQuery.isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-muted-foreground/20">
+                <rect x="8" y="6" width="32" height="36" rx="4" stroke="currentColor" strokeWidth="2" />
+                <path d="M16 16h16M16 22h10M16 28h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="36" cy="36" r="8" fill="hsl(var(--background))" stroke="currentColor" strokeWidth="2" />
+                <path d="M34 36h4M36 34v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <p className="text-base font-semibold text-muted-foreground mb-1">{isAr ? "طلباتك ستظهر هنا" : "Your orders will appear here"}</p>
+            <p className="text-xs text-muted-foreground/60 max-w-sm mb-5">
+              {isAr ? "ألقِ نظرة سريعة على كل طلب - من اشترى؟ وكم مرة؟ وما الذي يفضله عملائك؟" : "Quick overview of each order — who bought, how much, and what your customers prefer"}
+            </p>
+            <div className="flex items-center gap-3">
+              <Button size="sm" className="h-9 text-xs rounded-lg gap-1.5 px-4">
+                <Package className="h-3.5 w-3.5" />{isAr ? "إنشاء طلبك الأول الآن" : "Create your first order"}
+              </Button>
+              <Button variant="outline" size="sm" className="h-9 text-xs rounded-lg gap-1.5 px-4">
+                {isAr ? "كيف تحصل على أول 10 عملاء 🚀" : "How to get your first 10 customers 🚀"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Mobile card list (< md) */}
+            <div className="md:hidden divide-y">
+              {orders.length > 0 && (
+                <div className="flex items-center gap-3 px-4 py-2 bg-muted/10">
+                  <Checkbox
+                    checked={orders.length > 0 && selected.size === orders.length}
+                    onCheckedChange={() => { if (selected.size === orders.length) setSelected(new Set()); else setSelected(new Set(orders.map(o => o.id))); }}
+                  />
+                  <span className="text-[11px] text-muted-foreground">{isAr ? "تحديد الكل" : "Select all"}</span>
+                </div>
+              )}
+              {orders.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => openOrderDetail(o.id)}
+                  className="w-full flex items-start gap-3 px-4 py-3 text-start hover:bg-muted/20 transition-colors"
+                >
+                  <div onClick={e => { e.stopPropagation(); }} className="pt-0.5">
+                    <Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggleSelect(o.id)} />
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-semibold truncate">{o.order_number}</span>
+                      <span className="text-xs font-semibold tabular-nums shrink-0">{formatCurrency(o.total)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                      <span className="truncate">{o.customer_name || "—"}</span>
+                      <span className="shrink-0">{fmtDate(o.created_at)}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 gap-1 ${
+                        o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
+                        o.status === "shipped" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50" :
+                        o.status === "processing" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
+                        o.status === "cancelled" ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50" :
+                        o.status === "returned" ? "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200/50" :
+                        "bg-muted text-muted-foreground border-border"
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500" :
+                          o.status === "shipped" ? "bg-blue-500" :
+                          o.status === "processing" ? "bg-amber-500" :
+                          o.status === "cancelled" ? "bg-red-500" :
+                          o.status === "returned" ? "bg-orange-500" : "bg-muted-foreground/40"
+                        }`} />
+                        {t(`orders.${o.status}`)}
+                      </Badge>
+                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 ${
+                        o.payment_status === "paid" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
+                        o.payment_status === "pending" || o.payment_status === "cod" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
+                        o.payment_status === "refunded" ? "bg-blue-500/10 text-blue-600 border-blue-200/50" :
+                        "bg-red-500/10 text-red-600 border-red-200/50"
+                      }`}>
+                        {t(`orders.${o.payment_status}`)}
+                      </Badge>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-1 rtl:rotate-180" />
+                </button>
+              ))}
+            </div>
+
+            {/* Desktop table (≥ md) */}
+            <div className="hidden md:block overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/20 hover:bg-muted/20">
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={orders.length > 0 && selected.size === orders.length}
+                      onCheckedChange={() => { if (selected.size === orders.length) setSelected(new Set()); else setSelected(new Set(orders.map(o => o.id))); }}
+                    />
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    <div>{isAr ? "رقم الطلب" : "Order #"}</div>
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    <div>{isAr ? "العميل" : "Customer"}</div>
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "الدفع" : "Payment"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "حالة الدفع" : "Pay Status"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "الشحن" : "Shipping"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    <div>{isAr ? "المجموع" : "Total"}</div>
+                    <div className="text-[10px] font-normal text-muted-foreground">{isAr ? "العملة" : "Currency"}</div>
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "الحالة" : "Status"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">
+                    <div>{isAr ? "تاريخ الإنشاء" : "Created"}</div>
+                    <div className="text-[10px] font-normal text-muted-foreground">{isAr ? "تاريخ التحديث" : "Updated"}</div>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orders.map((o) => (
+                  <TableRow key={o.id} className="group cursor-pointer" onClick={() => openOrderDetail(o.id)}>
+                    <TableCell onClick={e => e.stopPropagation()}>
+                      <Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggleSelect(o.id)} />
+                    </TableCell>
+                    <TableCell className="font-mono text-xs font-medium">{o.order_number}</TableCell>
+                    <TableCell>
+                      <div className="text-xs font-medium truncate max-w-[120px]">{o.customer_name || "—"}</div>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{o.payment_method || "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 ${
+                        o.payment_status === "paid" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
+                        o.payment_status === "pending" || o.payment_status === "cod" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
+                        o.payment_status === "refunded" ? "bg-blue-500/10 text-blue-600 border-blue-200/50" :
+                        "bg-red-500/10 text-red-600 border-red-200/50"
+                      }`}>
+                        {t(`orders.${o.payment_status}`)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">—</TableCell>
+                    <TableCell>
+                      <div className="text-xs font-semibold tabular-nums">{formatCurrency(o.total)}</div>
+                      <div className="text-[10px] text-muted-foreground">EGP</div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 gap-1 ${
+                        o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
+                        o.status === "shipped" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50" :
+                        o.status === "processing" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
+                        o.status === "cancelled" ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50" :
+                        o.status === "returned" ? "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200/50" :
+                        "bg-muted text-muted-foreground border-border"
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500" :
+                          o.status === "shipped" ? "bg-blue-500" :
+                          o.status === "processing" ? "bg-amber-500" :
+                          o.status === "cancelled" ? "bg-red-500" :
+                          o.status === "returned" ? "bg-orange-500" : "bg-muted-foreground/40"
+                        }`} />
+                        {t(`orders.${o.status}`)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs">{fmtDate(o.created_at)}</div>
+                      <div className="text-[10px] text-muted-foreground">{fmtTime(o.created_at)}</div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orders.map((o) => (
-                    <TableRow key={o.id} className="group">
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggleSelect(o.id)} />
-                      </TableCell>
-                      <TableCell className="font-medium cursor-pointer" onClick={() => openOrderDetail(o.id)}>
-                        <span className="hover:underline">{o.order_number}</span>
-                      </TableCell>
-                      <TableCell className="cursor-pointer" onClick={() => openOrderDetail(o.id)}>
-                        {o.customer_name || "-"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground cursor-pointer" onClick={() => openOrderDetail(o.id)}>
-                        {new Date(o.created_at).toLocaleDateString(language === "ar" ? "ar-EG" : "en-US")}
-                      </TableCell>
-                      <TableCell className="font-medium cursor-pointer" onClick={() => openOrderDetail(o.id)}>
-                        {formatCurrency(o.total)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={paymentColor[o.payment_status] || ""}>
-                          {t(`orders.${o.payment_status}`)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={statusColor[o.status] || ""}>
-                          {t(`orders.${o.status}`)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openOrderDetail(o.id)}>
-                              <ChevronRight className="me-2 h-4 w-4" />
-                              {t("orders.viewDetails")}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            {getNextStatus(o.status) && o.status !== "cancelled" && (
-                              <DropdownMenuItem onClick={() => handleUpdateStatus(o.id, getNextStatus(o.status)!)}>
-                                <ArrowRightCircle className="me-2 h-4 w-4" />
-                                {t("orders.moveTo")} {t(`orders.${getNextStatus(o.status)}`)}
-                              </DropdownMenuItem>
-                            )}
-                            {o.status !== "cancelled" && (
-                              <DropdownMenuItem
-                                onClick={() => handleUpdateStatus(o.id, "cancelled")}
-                                className="text-destructive"
-                              >
-                                <XCircle className="me-2 h-4 w-4" />
-                                {t("orders.cancel")}
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                ))}
+              </TableBody>
+            </Table>
             </div>
-          )}
+          </>
+        )}
 
-          {/* Pagination */}
-          {totalOrders > 20 && (
-            <div className="flex items-center justify-center gap-2 pt-4">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
-                {language === "ar" ? "السابق" : "Previous"}
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                {language === "ar" ? `صفحة ${page}` : `Page ${page}`}
-              </span>
-              <Button variant="outline" size="sm" disabled={page * 20 >= totalOrders} onClick={() => setPage(p => p + 1)}>
-                {language === "ar" ? "التالي" : "Next"}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {/* Pagination */}
+        {totalOrders > 20 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t">
+            <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              {isAr ? "السابق" : "Previous"}
+            </Button>
+            <span className="text-[10px] text-muted-foreground tabular-nums">{isAr ? `صفحة ${page}` : `Page ${page}`}</span>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={page * 20 >= totalOrders} onClick={() => setPage(p => p + 1)}>
+              {isAr ? "التالي" : "Next"}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {rtoDialog}
     </div>
   );
 };

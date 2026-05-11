@@ -55,3 +55,31 @@ export async function getCustomer(
 ): Promise<Customer> {
   return apiClient<Customer>(`/stores/${storeId}/customers/${customerId}`);
 }
+
+// ─── Customer Trust Stats (cross-merchant network reputation) ───────────────
+
+export interface CustomerTrustStats {
+  has_data: boolean;
+  network_orders: number;
+  network_rtos: number;
+  network_deliveries: number;
+  network_refunds: number;
+  contributing_store_count: number;
+  rto_rate_pct: number;
+  delivery_rate_pct: number;
+  risk_score: number;
+  risk_label: "new_to_network" | "low_risk" | "medium_risk" | "high_risk";
+  confidence: "low" | "medium" | "high";
+  last_order_at: string | null;
+  last_rto_at: string | null;
+  recommendation: "safe" | "caution" | "risky";
+}
+
+export async function getCustomerTrustStats(
+  storeId: string,
+  customerId: string
+): Promise<CustomerTrustStats> {
+  return apiClient<CustomerTrustStats>(
+    `/stores/${storeId}/customers/${customerId}/trust-stats`
+  );
+}

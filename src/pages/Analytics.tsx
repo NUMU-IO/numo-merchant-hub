@@ -1,28 +1,22 @@
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  BarChart3, TrendingUp, ShoppingCart, Users, DollarSign,
-  MapPin, ArrowUpRight, ArrowDownRight, RefreshCw,
+  BarChart3, DollarSign, ShoppingCart, RefreshCw,
 } from "lucide-react";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar,
-} from "recharts";
 import { useState } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   getSalesOverview, getSalesChart, getAnalyticsTopProducts,
   getSalesByLocation, getCustomerAnalytics, getConversionStats,
-} from "@/services/analyticsApi";
-import type {
-  SalesOverview, SalesDataPoint, TopProduct,
-  LocationSales, CustomerAnalytics, ConversionStats,
+  getCodRejectionStats,
 } from "@/services/analyticsApi";
 import { AnalyticsSkeleton } from "@/components/skeletons/AnalyticsSkeleton";
+import { OverviewTab } from "@/components/analytics/OverviewTab";
+import { SalesTab } from "@/components/analytics/SalesTab";
+import { OrdersTab } from "@/components/analytics/OrdersTab";
 
 type Period = 7 | 30 | 90;
 
@@ -32,9 +26,12 @@ export default function Analytics() {
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const isAr = language === "ar";
+  const queryClient = useQueryClient();
 
   const [period, setPeriod] = useState<Period>(30);
+  const [activeTab, setActiveTab] = useState("overview");
 
+  // Overview tab queries (always loaded for KPI cards visible across tabs)
   const overviewQuery = useQuery({
     queryKey: ["analytics", "overview", storeId, period],
     queryFn: () => getSalesOverview(storeId!, period),
@@ -77,23 +74,26 @@ export default function Analytics() {
     placeholderData: keepPreviousData,
   });
 
+  const codRejectionQuery = useQuery({
+    queryKey: ["analytics", "codRejections", storeId, period],
+    queryFn: () => getCodRejectionStats(storeId!, period),
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+  });
+
   const overview = overviewQuery.data ?? null;
   const chartData = chartQuery.data ?? [];
   const topProducts = topProductsQuery.data ?? [];
   const locations = locationsQuery.data ?? [];
   const customerStats = customerStatsQuery.data ?? null;
   const conversion = conversionQuery.data ?? null;
+  const codRejection = codRejectionQuery.data ?? null;
 
   const isLoading = overviewQuery.isLoading;
   const isRefetching = overviewQuery.isFetching;
 
   const handleRefresh = () => {
-    overviewQuery.refetch();
-    chartQuery.refetch();
-    topProductsQuery.refetch();
-    locationsQuery.refetch();
-    customerStatsQuery.refetch();
-    conversionQuery.refetch();
+    queryClient.invalidateQueries({ queryKey: ["analytics"] });
   };
 
   const formatCurrency = (cents: number) => {
@@ -101,22 +101,17 @@ export default function Analytics() {
     return isAr ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
   };
 
-  const TrendBadge = ({ value }: { value: number | undefined }) => {
-    if (value === undefined || value === null) return null;
-    const positive = value >= 0;
-    return (
-      <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${positive ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-        {positive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-        {positive ? "+" : ""}{value.toFixed(1)}%
-      </span>
-    );
-  };
-
   const periodLabels: Record<Period, string> = {
     7: isAr ? "٧ أيام" : "7 days",
     30: isAr ? "٣٠ يوم" : "30 days",
     90: isAr ? "٩٠ يوم" : "90 days",
   };
+
+  const tabs = [
+    { value: "overview", label: isAr ? "نظرة عامة" : "Overview", icon: BarChart3 },
+    { value: "sales", label: isAr ? "المبيعات" : "Sales", icon: DollarSign },
+    { value: "orders", label: isAr ? "الطلبات" : "Orders", icon: ShoppingCart },
+  ];
 
   return (
     <div className="space-y-5">
@@ -151,179 +146,41 @@ export default function Analytics() {
       {isLoading && !overview ? (
         <AnalyticsSkeleton />
       ) : (
-        <>
-          {/* KPI Cards */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { label: isAr ? "إجمالي المبيعات" : "Total Sales", value: overview ? formatCurrency(overview.total_sales) : "—", trend: overview?.sales_change_percent, icon: DollarSign, bg: "bg-emerald-500/8 dark:bg-emerald-500/15", iconColor: "text-emerald-600 dark:text-emerald-400" },
-              { label: isAr ? "إجمالي الطلبات" : "Total Orders", value: overview?.total_orders ?? "—", trend: overview?.orders_change_percent, icon: ShoppingCart, bg: "bg-blue-500/8 dark:bg-blue-500/15", iconColor: "text-blue-600 dark:text-blue-400" },
-              { label: isAr ? "متوسط قيمة الطلب" : "Avg Order Value", value: overview ? formatCurrency(overview.avg_order_value) : "—", trend: undefined, icon: TrendingUp, bg: "bg-amber-500/8 dark:bg-amber-500/15", iconColor: "text-amber-600 dark:text-amber-400" },
-              { label: isAr ? "معدل التحويل" : "Conversion Rate", value: conversion ? `${conversion.conversion_rate.toFixed(1)}%` : "—", trend: undefined, icon: BarChart3, bg: "bg-violet-500/8 dark:bg-violet-500/15", iconColor: "text-violet-600 dark:text-violet-400" },
-            ].map((kpi) => (
-              <Card key={kpi.label} className="border-border/60">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</p>
-                    <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${kpi.bg}`}>
-                      <kpi.icon className={`h-3.5 w-3.5 ${kpi.iconColor}`} />
-                    </div>
-                  </div>
-                  <p className="text-2xl font-bold tabular-nums">{kpi.value}</p>
-                  {kpi.trend !== undefined && <TrendBadge value={kpi.trend} />}
-                </CardContent>
-              </Card>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="bg-muted/60 h-9">
+            {tabs.map((tab) => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="text-[12px] gap-1.5 data-[state=active]:bg-background"
+              >
+                <tab.icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </TabsTrigger>
             ))}
-          </div>
+          </TabsList>
 
-          {/* Charts */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="border-border/60">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">{isAr ? "المبيعات" : "Sales"}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[280px]">
-                  {chartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData}>
-                        <defs>
-                          <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.12} />
-                            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
-                        <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 100).toLocaleString()}`} />
-                        <Tooltip
-                          contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", fontSize: "12px" }}
-                          formatter={(value: number) => [formatCurrency(value), isAr ? "المبيعات" : "Sales"]}
-                        />
-                        <Area type="monotone" dataKey="sales" stroke="hsl(var(--primary))" fill="url(#colorSales)" strokeWidth={1.5} dot={false} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <EmptyState icon={TrendingUp} title={isAr ? "مفيش بيانات" : "No data available"} />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+          <TabsContent value="overview" className="space-y-4 mt-4">
+            <OverviewTab
+              overview={overview}
+              chartData={chartData}
+              topProducts={topProducts}
+              locations={locations}
+              customerStats={customerStats}
+              conversion={conversion}
+              codRejection={codRejection}
+              formatCurrency={formatCurrency}
+            />
+          </TabsContent>
 
-            <Card className="border-border/60">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">{isAr ? "الطلبات" : "Orders"}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[280px]">
-                  {chartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
-                        <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <Tooltip
-                          contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", fontSize: "12px" }}
-                          formatter={(value: number) => [value, isAr ? "الطلبات" : "Orders"]}
-                        />
-                        <Bar dataKey="orders" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <EmptyState icon={ShoppingCart} title={isAr ? "مفيش بيانات" : "No data available"} />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <TabsContent value="sales" className="mt-4">
+            <SalesTab period={period} formatCurrency={formatCurrency} />
+          </TabsContent>
 
-          {/* Bottom section */}
-          <div className="grid gap-4 lg:grid-cols-3">
-            {/* Top Products */}
-            <Card className="border-border/60">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">{isAr ? "أكتر المنتجات مبيعاً" : "Top Products"}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {topProducts.length > 0 ? (
-                  <div className="space-y-0.5">
-                    {topProducts.map((p, i) => (
-                      <div key={p.id} className="flex items-center justify-between rounded-lg p-2 -mx-2 hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-[11px] font-bold text-muted-foreground/40 w-4 tabular-nums">{i + 1}</span>
-                          <span className="text-[13px] font-medium truncate">{p.name}</span>
-                        </div>
-                        <div className="text-end shrink-0">
-                          <p className="text-[13px] font-semibold tabular-nums">{formatCurrency(p.revenue)}</p>
-                          <p className="text-[10px] text-muted-foreground">{p.quantity_sold} {isAr ? "مبيع" : "sold"}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState icon={BarChart3} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Sales by Location */}
-            <Card className="border-border/60">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                  {isAr ? "المبيعات حسب الموقع" : "Sales by Location"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {locations.length > 0 ? (
-                  <div className="space-y-3">
-                    {locations.map((loc) => (
-                      <div key={loc.location}>
-                        <div className="flex items-center justify-between text-[13px] mb-1.5">
-                          <span className="font-medium">{loc.location}</span>
-                          <span className="font-semibold tabular-nums">{formatCurrency(loc.sales)}</span>
-                        </div>
-                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div className="h-full bg-primary/70 rounded-full transition-all duration-500" style={{ width: `${loc.percentage}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState icon={MapPin} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Customer Stats */}
-            <Card className="border-border/60">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
-                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                  {isAr ? "إحصائيات العملاء" : "Customer Stats"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {customerStats ? (
-                  <div className="space-y-3">
-                    {[
-                      { label: isAr ? "إجمالي العملاء" : "Total Customers", value: customerStats.total_customers.toLocaleString(isAr ? "ar-EG" : undefined) },
-                      { label: isAr ? "عملاء جدد" : "New Customers", value: customerStats.new_customers.toLocaleString(isAr ? "ar-EG" : undefined) },
-                      { label: isAr ? "عملاء عائدين" : "Returning", value: customerStats.returning_customers.toLocaleString(isAr ? "ar-EG" : undefined) },
-                      { label: isAr ? "متوسط قيمة العميل" : "Avg Customer Value", value: formatCurrency(customerStats.avg_customer_value) },
-                    ].map((item) => (
-                      <div key={item.label} className="flex items-center justify-between rounded-lg p-2 -mx-2 hover:bg-muted/50 transition-colors">
-                        <span className="text-[13px] text-muted-foreground">{item.label}</span>
-                        <span className="text-[13px] font-semibold tabular-nums">{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState icon={Users} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </>
+          <TabsContent value="orders" className="mt-4">
+            <OrdersTab period={period} formatCurrency={formatCurrency} />
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );

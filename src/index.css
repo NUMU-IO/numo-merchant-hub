@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* iOS safe area for bottom nav */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* recharts axis labels, ticks, and tooltips don't auto-flip with the
+   document direction. Force the chart canvas to render LTR even in
+   AR mode — matches industry convention (Shopify, Stripe, Salla all
+   keep charts LTR regardless of UI direction). Cards and surrounding
+   text still flip via the parent dir="rtl". */
+[dir="rtl"] .recharts-wrapper,
+[dir="rtl"] .recharts-surface,
+[dir="rtl"] .recharts-tooltip-wrapper {
+  direction: ltr;
+}
+
 /* NUMU Design System — Modern SaaS Dashboard
    Inspired by Stripe, Linear, Vercel.
    All colors in HSL. */
@@ -44,14 +60,14 @@
 
     --radius: 0.625rem;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-background: 220 20% 97.5%;
+    --sidebar-foreground: 225 20% 22%;
+    --sidebar-primary: 225 30% 12%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 220 15% 94%;
+    --sidebar-accent-foreground: 225 20% 12%;
+    --sidebar-border: 220 15% 90%;
+    --sidebar-ring: 215 60% 55%;
 
     /* Shadows */
     --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.03);
@@ -62,29 +78,29 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 225 25% 6%;
+    --foreground: 210 30% 96%;
 
-    --card: 224 50% 7.5%;
-    --card-foreground: 210 40% 98%;
+    --card: 225 25% 8.5%;
+    --card-foreground: 210 30% 96%;
 
-    --popover: 224 50% 7.5%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 225 25% 8.5%;
+    --popover-foreground: 210 30% 96%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 210 30% 96%;
+    --primary-foreground: 225 30% 8%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 220 20% 14%;
+    --secondary-foreground: 210 30% 96%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 220 18% 13%;
+    --muted-foreground: 215 15% 58%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 220 20% 14%;
+    --accent-foreground: 210 30% 96%;
 
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 210 30% 96%;
 
     --success: 142 71% 35%;
     --success-foreground: 0 0% 100%;
@@ -92,24 +108,24 @@
     --warning: 38 92% 40%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 220 15% 15%;
+    --input: 220 15% 15%;
+    --ring: 215 60% 60%;
 
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-background: 225 28% 7%;
+    --sidebar-foreground: 210 20% 88%;
+    --sidebar-primary: 215 60% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 220 18% 12%;
+    --sidebar-accent-foreground: 210 20% 88%;
+    --sidebar-border: 220 15% 12%;
+    --sidebar-ring: 215 60% 55%;
 
-    --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.1);
-    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.2), 0 1px 2px -1px hsl(0 0% 0% / 0.2);
-    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.15), 0 2px 4px -2px hsl(0 0% 0% / 0.15);
-    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.15), 0 4px 6px -4px hsl(0 0% 0% / 0.15);
-    --shadow-card: 0 1px 3px hsl(0 0% 0% / 0.15), 0 4px 12px hsl(0 0% 0% / 0.1);
+    --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.15);
+    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.25), 0 1px 2px -1px hsl(0 0% 0% / 0.15);
+    --shadow-md: 0 4px 8px -2px hsl(0 0% 0% / 0.2), 0 2px 4px -2px hsl(0 0% 0% / 0.1);
+    --shadow-lg: 0 12px 20px -4px hsl(0 0% 0% / 0.2), 0 4px 8px -4px hsl(0 0% 0% / 0.1);
+    --shadow-card: 0 0 0 1px hsl(0 0% 100% / 0.03), 0 2px 8px hsl(0 0% 0% / 0.12);
   }
 }
 
@@ -121,10 +137,327 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 }
 
 @layer utilities {
+  /* Auth surfaces — these pages share the LANDING-PAGE brand kit
+     (cream + navy + saffron + terracotta + sage, Reem Kufi display,
+     Tajawal Arabic body, Space Grotesk Latin body, JetBrains Mono
+     for § eyebrows). They sit BETWEEN the marketing surface and the
+     merchant-hub app, and the brand kit treats first-touch surfaces
+     as marketing-adjacent. The dashboard itself stays on the cooler
+     near-white HSL token system below. */
+
+  /* Brand tokens — hex constants from "Numu Design System (1)/colors_and_type.css".
+     Scoped under .brand-surface so we don't disturb the merchant-hub
+     HSL token system used by the dashboard. */
+  .brand-surface {
+    --b-navy: #003366;
+    --b-navy-800: #002952;
+    --b-cream: #F5EFE6;
+    --b-paper: #FBF6ED;
+    --b-bone:  #EAE0CE;
+    --b-ink:   #0F1624;
+    --b-ink-soft: #2B3344;
+    --b-saffron: #E8A430;
+    --b-terracotta: #C14A1C;
+    --b-sage: #6B8E68;
+    --b-line: rgba(15, 22, 36, 0.12);
+
+    background-color: var(--b-cream);
+    color: var(--b-ink);
+    font-family: "Space Grotesk", "Inter", system-ui, -apple-system, sans-serif;
+  }
+  .brand-surface[dir="rtl"] {
+    font-family: "Tajawal", "IBM Plex Sans Arabic", sans-serif;
+  }
+
+  /* Paper-grain overlay — subtle, free of visual noise. Same look
+     as the landing page. */
+  .brand-surface.paper-grain::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(193,74,28,0.025) 0, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(0,51,102,0.025) 0, transparent 40%);
+    z-index: 0;
+  }
+
+  /* Page entrance */
+  @keyframes auth-enter {
+    from { opacity: 0; transform: translateY(6px); }
+  }
+  .auth-enter { animation: auth-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+  /* Page shell — full-bleed cream + brand grid */
+  .auth-page {
+    background-color: var(--b-cream, #F5EFE6);
+    position: relative;
+    overflow: hidden;
+  }
+  .auth-page.brand-surface { background-color: var(--b-cream); }
+
+  .auth-dot-grid {
+    background-image: radial-gradient(
+      circle,
+      rgba(15, 22, 36, 0.06) 1px,
+      transparent 1px
+    );
+    background-size: 22px 22px;
+  }
+
+  /* Auth navy panel — left brand panel ground colour for Login. */
+  .auth-navy-panel { background-color: var(--b-navy, #003366); }
+  .auth-navy-fallback { background-color: var(--b-navy, #003366); }
+
+  /* Auth bright panel — paper-cream gradient with a soft saffron wash.
+     Designed to host the Ballpit one-shot drop on a luminous, brand-warm
+     surface (still on-brand: paper + bone + saffron tint). */
+  .auth-bright-panel {
+    background:
+      radial-gradient(circle at 0% 0%, rgba(232, 164, 48, 0.18) 0, transparent 55%),
+      radial-gradient(circle at 100% 100%, rgba(193, 74, 28, 0.10) 0, transparent 50%),
+      linear-gradient(180deg, var(--b-paper, #FBF6ED) 0%, var(--b-cream, #F5EFE6) 100%);
+  }
+  .auth-bright-fallback { background-color: var(--b-paper, #FBF6ED); }
+
+  /* Saffron→terracotta hairline at panel bottom — brand-kit signature. */
+  .auth-hero-hairline {
+    background: linear-gradient(90deg, var(--b-terracotta, #C14A1C), var(--b-saffron, #E8A430));
+    opacity: 0.6;
+  }
+
+  /* Saffron pill chip used as the eyebrow on the navy hero panel. */
+  .auth-eyebrow-pill {
+    background-color: rgba(232, 164, 48, 0.15);
+    border: 1px solid rgba(232, 164, 48, 0.4);
+    color: var(--b-saffron, #E8A430);
+  }
+  .auth-eyebrow-pill .dot { background-color: var(--b-saffron, #E8A430); }
+
+  /* Cream-on-navy text helpers for the hero panel. */
+  .text-cream-soft { color: rgba(245, 239, 230, 0.78); }
+  .text-cream-mute { color: rgba(245, 239, 230, 0.55); }
+  .hover-cream:hover { color: var(--b-cream, #F5EFE6); }
+
+  /* Interactive dot grid — subtle ink dots by default; a soft circular
+     spotlight at the cursor reveals saffron + terracotta dots only in
+     a radius around the pointer. Uses CSS custom properties --mx/--my
+     updated by the consumer via pointermove. Outside that radius the
+     coloured layers are masked out and only the faint ink grid shows. */
+  .auth-dot-grid-vivid {
+    --mx: -9999px;
+    --my: -9999px;
+    --spot-r: 180px;
+    position: relative;
+    background-image: radial-gradient(
+      circle,
+      rgba(15, 22, 36, 0.10) 1.25px,
+      transparent 1.75px
+    );
+    background-size: 24px 24px;
+  }
+  .auth-dot-grid-vivid::before,
+  .auth-dot-grid-vivid::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    -webkit-mask: radial-gradient(
+      circle var(--spot-r) at var(--mx) var(--my),
+      black 0%,
+      rgba(0, 0, 0, 0.6) 45%,
+      transparent 75%
+    );
+    mask: radial-gradient(
+      circle var(--spot-r) at var(--mx) var(--my),
+      black 0%,
+      rgba(0, 0, 0, 0.6) 45%,
+      transparent 75%
+    );
+  }
+  /* Five-colour quincunx within the spotlight: navy, navy-600, saffron,
+     terracotta, sage. Each radial-gradient places a single dot at a
+     fixed (x,y) inside a 60×60 tile so every tile renders all five
+     colours in the same arrangement. */
+  .auth-dot-grid-vivid::before {
+    background-size: 60px 60px;
+    background-image:
+      radial-gradient(circle at 15px 15px, rgba(0, 51, 102, 0.95) 1.75px, transparent 2.5px),
+      radial-gradient(circle at 45px 15px, rgba(31, 74, 122, 0.95) 1.75px, transparent 2.5px),
+      radial-gradient(circle at 30px 30px, rgba(232, 164, 48, 0.95) 1.75px, transparent 2.5px),
+      radial-gradient(circle at 15px 45px, rgba(193, 74, 28, 0.95) 1.75px, transparent 2.5px),
+      radial-gradient(circle at 45px 45px, rgba(107, 142, 104, 0.95) 1.75px, transparent 2.5px);
+  }
+  .auth-dot-grid-vivid::after { display: none; }
+
+  /* Reem Kufi everywhere we render a "numu" / "نُمُو" wordmark or a
+     display-weight headline. */
+  .auth-wordmark,
+  .brand-display {
+    font-family: "Reem Kufi", "Tajawal", system-ui, sans-serif;
+  }
+
+  /* Form card — paper surface, hairline border, flat editorial radii,
+     understated shadow per brand kit. */
+  .auth-card {
+    background: var(--b-paper, #FBF6ED);
+    border: 1px solid var(--b-line, rgba(15, 22, 36, 0.12));
+    border-radius: 10px;
+    box-shadow:
+      0 1px 3px hsl(0 0% 0% / 0.04),
+      0 4px 12px hsl(0 0% 0% / 0.03);
+    color: var(--b-ink);
+    position: relative;
+    z-index: 1;
+  }
+
+  /* § eyebrow — JetBrains Mono, terracotta, uppercase tracking. */
+  .auth-card-eyebrow {
+    font-family: "JetBrains Mono", "SF Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--b-terracotta, #C14A1C);
+  }
+  .auth-card-eyebrow.muted { color: var(--b-ink-soft, #2B3344); opacity: 0.7; }
+
+  /* Hero rule — hairline divider used in the left-panel marketing block */
+  .auth-hero-rule {
+    height: 1px;
+    background: linear-gradient(90deg, var(--b-line) 0%, transparent 100%);
+  }
+
+  /* Tagline rotation — kept; just ensure it inherits brand foreground. */
+  .auth-tagline-enter {
+    animation: tagline-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .auth-tagline-exit {
+    animation: tagline-out 0.35s cubic-bezier(0.7, 0, 0.84, 0) both;
+  }
+  @keyframes tagline-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes tagline-out {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-8px); }
+  }
+
+  /* Brand-coloured controls — these override the merchant-hub HSL
+     primary (near-black ink) for buttons rendered inside .auth-card.
+     Navy primary, cream foreground, saffron arrow accent. */
+  .auth-card .brand-btn-primary {
+    background-color: var(--b-navy);
+    color: var(--b-cream);
+  }
+  .auth-card .brand-btn-primary:hover { background-color: var(--b-navy-800); }
+  .auth-card .brand-btn-primary:disabled { opacity: 0.55; }
+  .auth-card .brand-btn-arrow { color: var(--b-saffron); }
+
+  /* Brand input — hairline navy border on focus, flat 4px radius
+     (per brand kit's "editorial radii" — 4px for form controls,
+     10px for cards, 14px for hero/feature panels). */
+  .auth-card .brand-input {
+    background-color: var(--b-cream);
+    border: 1px solid rgba(15, 22, 36, 0.18);
+    color: var(--b-ink);
+    border-radius: 4px;
+  }
+  .auth-card .brand-input:focus {
+    outline: none;
+    border-color: var(--b-navy);
+    box-shadow: 0 0 0 3px rgba(0, 51, 102, 0.12);
+  }
+
+  /* Legacy class names (auth-glass, auth-hero-brand, auth-hero-line,
+     auth-hero-mark) kept as graceful-degradation aliases until every
+     consumer migrates. They now map to the brand-surface style, so
+     un-updated markup still renders on-brand. */
+  .auth-glass {
+    background: var(--b-paper, #FBF6ED);
+    border: 1px solid var(--b-line, rgba(15, 22, 36, 0.12));
+    border-radius: 10px;
+    box-shadow: 0 1px 3px hsl(0 0% 0% / 0.04), 0 4px 12px hsl(0 0% 0% / 0.03);
+    color: var(--b-ink);
+  }
+  .auth-hero-brand {
+    font-size: clamp(2.75rem, 6vw, 3.5rem);
+    font-weight: 700;
+    color: var(--b-ink);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    font-family: "Reem Kufi", "Tajawal", sans-serif;
+  }
+  .auth-hero-line {
+    height: 1px;
+    background: linear-gradient(90deg, var(--b-line) 0%, transparent 80%);
+  }
+  /* The CSS-rendered "N" tile is replaced by an <img> in components,
+     but keep this rule as a fallback for any markup we didn't touch. */
+  .auth-hero-mark {
+    display: inline-grid; place-items: center;
+    width: 40px; height: 40px;
+    background: var(--b-navy);
+    color: var(--b-cream);
+    font-family: "Reem Kufi", sans-serif;
+    font-weight: 700; font-size: 18px;
+    border-radius: 8px;
+  }
+  .auth-hero-mark.sm { width: 32px; height: 32px; font-size: 14px; }
+
+  /* ── Dashboard chrome ─────────────────────────── */
+
+  /* Frosted header bar */
+  .dash-header {
+    @apply sticky top-0 z-30 flex h-14 items-center gap-2 px-4;
+    background: hsl(var(--background) / 0.72);
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    border-bottom: 1px solid hsl(var(--border) / 0.6);
+  }
+
+  /* Dark mode card glass treatment */
+  .dark .card-glass {
+    background:
+      linear-gradient(
+        168deg,
+        hsl(0 0% 100% / 0.05) 0%,
+        hsl(0 0% 100% / 0.02) 100%
+      );
+    border-color: hsl(0 0% 100% / 0.06);
+    box-shadow:
+      0 0 0 1px hsl(0 0% 100% / 0.04),
+      0 2px 8px hsl(0 0% 0% / 0.12);
+  }
+  .dark .card-glass:hover {
+    border-color: hsl(0 0% 100% / 0.1);
+    box-shadow:
+      0 0 0 1px hsl(0 0% 100% / 0.06),
+      0 4px 16px hsl(0 0% 0% / 0.16);
+  }
+
+  /* Sidebar refinement */
+  .dark .sidebar-refined {
+    background: hsl(var(--sidebar-background));
+    border-right: 1px solid hsl(0 0% 100% / 0.05);
+  }
+
+  /* Content area subtle texture */
+  .dash-content {
+    background: hsl(var(--muted) / 0.3);
+  }
+  .dark .dash-content {
+    background: hsl(225 25% 5.5%);
+  }
+
   /* Smooth transition utility */
   .transition-smooth {
     @apply transition-all duration-200 ease-out;
@@ -150,5 +483,231 @@
   }
   .scrollbar-none::-webkit-scrollbar {
     display: none;
+  }
+
+  /* ── Settings page — Stripe / Linear style ─────── */
+
+  .settings-layout {
+    display: flex;
+    gap: 0;
+    min-height: calc(100vh - 4rem);
+  }
+
+  /* Sidebar navigation */
+  .settings-nav {
+    width: 256px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 4rem;
+    height: calc(100vh - 4rem);
+    overflow-y: auto;
+    padding: 1.75rem 0;
+    border-inline-end: 1px solid hsl(var(--border) / 0.5);
+  }
+
+  .settings-nav-group {
+    padding: 0 0.875rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .settings-nav-group-label {
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground) / 0.5);
+    padding: 0 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .settings-nav-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
+    margin-bottom: 1px;
+  }
+  .settings-nav-item:hover {
+    color: hsl(var(--foreground));
+    background: hsl(var(--accent) / 0.5);
+  }
+  .settings-nav-item[data-active="true"] {
+    color: hsl(var(--foreground));
+    background: hsl(var(--accent));
+    font-weight: 600;
+  }
+  /* Gradient active indicator bar */
+  .settings-nav-item[data-active="true"]::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 55%;
+    border-radius: 0 3px 3px 0;
+    background: linear-gradient(180deg, hsl(215 70% 55%), hsl(255 55% 58%));
+    box-shadow: 0 0 10px hsl(215 70% 55% / 0.25);
+  }
+  [dir="rtl"] .settings-nav-item[data-active="true"]::before {
+    border-radius: 3px 0 0 3px;
+  }
+  .settings-nav-item svg {
+    width: 1rem;
+    height: 1rem;
+    opacity: 0.45;
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  .settings-nav-item:hover svg {
+    opacity: 0.7;
+  }
+  .settings-nav-item[data-active="true"] svg {
+    opacity: 1;
+  }
+
+  /* Content area */
+  .settings-content {
+    flex: 1;
+    min-width: 0;
+    padding: 2rem 2.5rem 5rem;
+  }
+  .settings-content[data-narrow="true"] {
+    max-width: 780px;
+  }
+
+  /* Section header */
+  .settings-section-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.35);
+  }
+  .settings-section-header h2 {
+    font-size: 1.375rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: hsl(var(--foreground));
+    line-height: 1.2;
+  }
+  .settings-section-header p {
+    font-size: 0.8125rem;
+    color: hsl(var(--muted-foreground) / 0.75);
+    margin-top: 0.375rem;
+    line-height: 1.5;
+  }
+
+  /* Field groups — card subsections */
+  .settings-field-group {
+    padding: 1.25rem 1.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid hsl(var(--border) / 0.15);
+    background: hsl(var(--muted) / 0.08);
+    margin-bottom: 0.75rem;
+  }
+  .settings-field-group:last-child {
+    margin-bottom: 0;
+  }
+  .settings-field-group-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: hsl(var(--foreground) / 0.85);
+    margin-bottom: 1rem;
+  }
+
+  /* Floating pill save bar */
+  .settings-save-bar {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 1.25rem;
+    background: hsl(var(--card) / 0.88);
+    backdrop-filter: blur(24px) saturate(1.5);
+    -webkit-backdrop-filter: blur(24px) saturate(1.5);
+    border: 1px solid hsl(var(--border) / 0.5);
+    border-radius: 1rem;
+    box-shadow:
+      0 0 0 1px hsl(0 0% 100% / 0.03),
+      0 8px 40px hsl(0 0% 0% / 0.25),
+      0 2px 8px hsl(0 0% 0% / 0.12);
+    transform: translateX(-50%) translateY(calc(100% + 3rem));
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .settings-save-bar[data-visible="true"] {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Section animations — staggered children */
+  .settings-section-enter > * {
+    animation: settings-child-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .settings-section-enter > *:nth-child(1) { animation-delay: 0s; }
+  .settings-section-enter > *:nth-child(2) { animation-delay: 0.04s; }
+  .settings-section-enter > *:nth-child(3) { animation-delay: 0.07s; }
+  .settings-section-enter > *:nth-child(4) { animation-delay: 0.1s; }
+  .settings-section-enter > *:nth-child(5) { animation-delay: 0.13s; }
+  .settings-section-enter > *:nth-child(6) { animation-delay: 0.16s; }
+  .settings-section-enter > *:nth-child(7) { animation-delay: 0.19s; }
+  .settings-section-enter > *:nth-child(8) { animation-delay: 0.22s; }
+  @keyframes settings-child-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Responsive: collapse nav to top bar on smaller screens */
+  @media (max-width: 768px) {
+    .settings-layout {
+      flex-direction: column;
+    }
+    .settings-nav {
+      width: 100%;
+      height: auto;
+      position: static;
+      border-inline-end: none;
+      border-bottom: 1px solid hsl(var(--border) / 0.6);
+      padding: 0.75rem 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    .settings-nav-group {
+      display: flex;
+      gap: 0.25rem;
+      margin-bottom: 0;
+      padding: 0 0.5rem;
+    }
+    .settings-nav-group-label {
+      display: none;
+    }
+    .settings-nav-item {
+      white-space: nowrap;
+      padding: 0.375rem 0.75rem;
+      font-size: 0.75rem;
+    }
+    .settings-nav-item[data-active="true"]::before {
+      display: none;
+    }
+    .settings-content {
+      padding: 1rem 1rem 5rem;
+    }
+    .settings-field-group {
+      padding: 1rem 1.25rem;
+    }
   }
 }

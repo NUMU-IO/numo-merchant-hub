@@ -6,6 +6,14 @@ export interface ProductVariant {
   nameAr: string;
   options: string[];
   optionsAr: string[];
+  /**
+   * Per-option rendering metadata. Arrays are aligned by position with
+   * `options[]` — index `i` describes `options[i]`. Used by the storefront
+   * to render color swatches and swap the main image on selection. Only
+   * populated for color-type variants today.
+   */
+  hexValues?: string[];
+  imageValues?: string[];
 }
 
 export interface Product {
@@ -16,6 +24,7 @@ export interface Product {
   descriptionAr: string;
   price: number;
   compareAtPrice?: number;
+  costPrice?: number;
   stock: number;
   status: ProductStatus;
   category: string;

@@ -3,6 +3,7 @@
  */
 
 import { apiClient } from "./api";
+import { compressImage } from "@/lib/image-compression";
 
 export interface Category {
   id: string;
@@ -15,6 +16,7 @@ export interface Category {
   position: number;
   is_active: boolean;
   product_count: number;
+  extra_data: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +29,7 @@ export interface CreateCategoryData {
   parent_id?: string | null;
   position?: number;
   is_active?: boolean;
+  extra_data?: Record<string, unknown>;
 }
 
 export interface UpdateCategoryData {
@@ -37,6 +40,7 @@ export interface UpdateCategoryData {
   parent_id?: string | null;
   position?: number;
   is_active?: boolean;
+  extra_data?: Record<string, unknown>;
 }
 
 export async function listCategories(
@@ -44,7 +48,7 @@ export async function listCategories(
   includeInactive = true
 ): Promise<Category[]> {
   return apiClient<Category[]>(
-    `/stores/${storeId}/categories?include_inactive=${includeInactive}`
+    `/stores/${storeId}/categories/?include_inactive=${includeInactive}`
   );
 }
 
@@ -52,7 +56,7 @@ export async function createCategory(
   storeId: string,
   data: CreateCategoryData
 ): Promise<Category> {
-  return apiClient<Category>(`/stores/${storeId}/categories`, {
+  return apiClient<Category>(`/stores/${storeId}/categories/`, {
     method: "POST",
     body: JSON.stringify(data),
   });
@@ -79,5 +83,19 @@ export async function deleteCategory(
   return apiClient<void>(
     `/stores/${storeId}/categories/${categoryId}`,
     { method: "DELETE" }
+  );
+}
+
+export async function uploadCategoryImage(
+  storeId: string,
+  categoryId: string,
+  file: File
+): Promise<Category> {
+  const prepared = await compressImage(file);
+  const formData = new FormData();
+  formData.append("file", prepared);
+  return apiClient<Category>(
+    `/stores/${storeId}/categories/${categoryId}/image`,
+    { method: "POST", body: formData }
   );
 }

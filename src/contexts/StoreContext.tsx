@@ -56,8 +56,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
+    // Only show loading spinner on initial fetch, not on refetches,
+    // so RequireStore doesn't unmount the current page.
+    const isInitial = fetchedForAuthRef.current !== true;
+    if (isInitial) setIsLoading(true);
+
     try {
-      setIsLoading(true);
       const result = await listStores();
       const items = result?.items || [];
       setStores(items);
@@ -65,7 +69,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
       if (items.length > 0) {
         const savedId = localStorage.getItem(STORE_KEY);
         const saved = items.find((s) => s.id === savedId);
-        setCurrentStore(saved || items[0]);
+        const selected = saved || items[0];
+        setCurrentStore(selected);
+        localStorage.setItem(STORE_KEY, selected.id);
       } else {
         setCurrentStore(null);
       }
@@ -76,7 +82,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
       setCurrentStore(null);
       fetchedForAuthRef.current = true;
     } finally {
-      setIsLoading(false);
+      if (isInitial) setIsLoading(false);
     }
   }, [isAuthenticated]);
 

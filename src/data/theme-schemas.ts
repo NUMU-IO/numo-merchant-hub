@@ -202,6 +202,7 @@ export const headerSettings: SettingDefinition[] = [
 
 export const heroSettings: SettingDefinition[] = [
   { key: "hero_image_url", type: "image", label: "Hero Image", labelAr: "صورة البطل", default: "", group: "Hero", groupAr: "القسم الرئيسي" },
+  { key: "hero_image_mobile", type: "image", label: "Hero Image (Mobile)", labelAr: "صورة البانر للهاتف", default: "", group: "Hero", groupAr: "القسم الرئيسي" },
   { key: "headline", type: "text", label: "Headline", labelAr: "العنوان الرئيسي", default: "", group: "Hero", groupAr: "القسم الرئيسي" },
   { key: "subtitle", type: "text", label: "Subtitle", labelAr: "العنوان الفرعي", default: "", group: "Hero", groupAr: "القسم الرئيسي" },
   { key: "cta_text", type: "text", label: "CTA Button Text", labelAr: "نص زر الدعوة", default: "", group: "Hero", groupAr: "القسم الرئيسي" },
@@ -384,6 +385,94 @@ export const themeSchemas: Record<string, ThemeSchema> = {
         group: "Effects",
         groupAr: "التأثيرات",
       },
+    ],
+  },
+  "bazar": {
+    themeId: "bazar",
+    settings: [
+      { key: "primary_color", type: "color", label: "Amber Accent", labelAr: "لون العنبر", default: "#FFB300", group: "Colors", groupAr: "الألوان" },
+      { key: "secondary_color", type: "color", label: "Cream Background", labelAr: "خلفية كريمي", default: "#FFF5E1", group: "Colors", groupAr: "الألوان" },
+      { key: "accent_color", type: "color", label: "Amber Dark", labelAr: "عنبر داكن", default: "#E6A200", group: "Colors", groupAr: "الألوان" },
+      { key: "background_color", type: "color", label: "Page Background", labelAr: "خلفية الصفحة", default: "#FFF5E1", group: "Colors", groupAr: "الألوان" },
+      { key: "text_color", type: "color", label: "Text Color", labelAr: "لون النص", default: "#0a0a14", group: "Colors", groupAr: "الألوان" },
+      { key: "color_dark", type: "color", label: "Dark Background", labelAr: "خلفية داكنة", default: "#0a0a14", group: "Colors", groupAr: "الألوان" },
+      { key: "color_navy", type: "color", label: "Navy", labelAr: "كحلي", default: "#001f3f", group: "Colors", groupAr: "الألوان" },
+      { key: "border_radius", type: "range", label: "Border Radius", labelAr: "استدارة الحواف", default: 16, min: 0, max: 32, step: 4, unit: "px", group: "Layout", groupAr: "التخطيط" },
+      { key: "enable_animations", type: "checkbox", label: "Enable Animations", labelAr: "تفعيل الحركات", default: true, group: "Effects", groupAr: "التأثيرات" },
+      { key: "enableMarquee", type: "checkbox", label: "Enable Scrolling Text", labelAr: "تفعيل النص المتحرك", default: true, group: "Effects", groupAr: "التأثيرات" },
+      { key: "enableWaves", type: "checkbox", label: "Enable Wave Dividers", labelAr: "تفعيل فواصل الموجة", default: true, group: "Effects", groupAr: "التأثيرات" },
+    ],
+  },
+  "gilded-glamour-boutique": {
+    themeId: "gilded-glamour-boutique",
+    settings: [
+      { key: "primary_color", type: "color", label: "Gold Accent", labelAr: "ذهبي", default: "#B1A670", group: "Colors", groupAr: "الألوان" },
+      { key: "secondary_color", type: "color", label: "Background", labelAr: "الخلفية", default: "#F7F3EC", group: "Colors", groupAr: "الألوان" },
+      { key: "accent_color", type: "color", label: "Gold Dark", labelAr: "ذهبي داكن", default: "#8A7F53", group: "Colors", groupAr: "الألوان" },
+      { key: "background_color", type: "color", label: "Background", labelAr: "الخلفية", default: "#F7F3EC", group: "Colors", groupAr: "الألوان" },
+      { key: "text_color", type: "color", label: "Text", labelAr: "النص", default: "#000000", group: "Colors", groupAr: "الألوان" },
+      { key: "color_gold_light", type: "color", label: "Gold Light", labelAr: "ذهبي فاتح", default: "#C8BF93", group: "Colors", groupAr: "الألوان" },
+      { key: "color_olive", type: "color", label: "Olive Accent", labelAr: "زيتوني", default: "#636A47", group: "Colors", groupAr: "الألوان" },
+      { key: "color_soft_pink", type: "color", label: "Soft Pink", labelAr: "وردي ناعم", default: "#E2B4B4", group: "Colors", groupAr: "الألوان" },
+      { key: "color_sale", type: "color", label: "Sale Badge", labelAr: "شارة التخفيض", default: "#A20000", group: "Colors", groupAr: "الألوان" },
+      {
+        key: "heading_font", type: "font", label: "Heading Font", labelAr: "خط العناوين", default: "Montserrat",
+        group: "Typography", groupAr: "الخطوط",
+        options: [
+          { label: "Montserrat", labelAr: "Montserrat", value: "Montserrat" },
+          { label: "Inter", labelAr: "Inter", value: "Inter" },
+          { label: "Playfair Display", labelAr: "Playfair Display", value: "Playfair Display" },
+          { label: "Cairo", labelAr: "Cairo", value: "Cairo" },
+          { label: "Tajawal", labelAr: "Tajawal", value: "Tajawal" },
+        ],
+      },
+      {
+        key: "body_font", type: "font", label: "Body Font", labelAr: "خط النص", default: "Montserrat",
+        group: "Typography", groupAr: "الخطوط",
+        options: [
+          { label: "Montserrat", labelAr: "Montserrat", value: "Montserrat" },
+          { label: "Inter", labelAr: "Inter", value: "Inter" },
+          { label: "Cairo", labelAr: "Cairo", value: "Cairo" },
+        ],
+      },
+      { key: "border_radius", type: "range", label: "Border Radius", labelAr: "نصف قطر الحدود", default: 0, min: 0, max: 16, step: 1, unit: "px", group: "Layout", groupAr: "التخطيط" },
+      {
+        key: "product_grid_columns", type: "select", label: "Product Grid Columns", labelAr: "أعمدة شبكة المنتجات", default: "5",
+        group: "Layout", groupAr: "التخطيط",
+        options: [
+          { label: "3 Columns", labelAr: "٣ أعمدة", value: "3" },
+          { label: "4 Columns", labelAr: "٤ أعمدة", value: "4" },
+          { label: "5 Columns", labelAr: "٥ أعمدة", value: "5" },
+        ],
+      },
+      { key: "show_product_rating", type: "checkbox", label: "Show Product Rating", labelAr: "إظهار تقييم المنتج", default: true, group: "Layout", groupAr: "التخطيط" },
+
+      // Hero
+      { key: "hero_headline", type: "text", label: "Hero Headline", labelAr: "عنوان البانر", default: "THE NEW EMPIRE", group: "Hero", groupAr: "البانر" },
+      { key: "hero_subtitle", type: "text", label: "Hero Subtitle", labelAr: "عنوان فرعي للبانر", default: "Curated Excellence & Timeless Precision", group: "Hero", groupAr: "البانر" },
+      { key: "hero_cta_text", type: "text", label: "Hero Button Text", labelAr: "نص زر البانر", default: "Discover Collection", group: "Hero", groupAr: "البانر" },
+      { key: "hero_image_url", type: "image", label: "Hero Background Image", labelAr: "صورة خلفية البانر", default: "", group: "Hero", groupAr: "البانر" },
+      { key: "hero_image_mobile", type: "image", label: "Hero Image (Mobile)", labelAr: "صورة البانر للهاتف", default: "", group: "Hero", groupAr: "البانر" },
+
+      // Content
+      { key: "new_badge_text", type: "text", label: "New Product Badge", labelAr: "نص شارة المنتج الجديد", default: "New Arrival", group: "Content", groupAr: "المحتوى" },
+      { key: "featured_badge_text", type: "text", label: "Featured Product Badge", labelAr: "شارة المنتج المميز", default: "Limited Edition", group: "Content", groupAr: "المحتوى" },
+      { key: "grid_title", type: "text", label: "Product Grid Title", labelAr: "عنوان شبكة المنتجات", default: "Crafted for the Eternal Wardrobe", group: "Content", groupAr: "المحتوى" },
+      { key: "grid_subtitle", type: "text", label: "Product Grid Subtitle", labelAr: "عنوان فرعي لشبكة المنتجات", default: "The Artisan Way", group: "Content", groupAr: "المحتوى" },
+      { key: "brand_statement", type: "text", label: "Brand Statement", labelAr: "بيان العلامة التجارية", default: "WHERE HERITAGE MEETS THE FUTURE", group: "Content", groupAr: "المحتوى" },
+      { key: "brand_statement_body", type: "textarea", label: "Brand Statement Body", labelAr: "وصف بيان العلامة التجارية", default: "Every thread tells a story, every silhouette commands a room, and every piece is destined to become an heirloom.", group: "Content", groupAr: "المحتوى" },
+
+      // Footer
+      { key: "footer_tagline", type: "text", label: "Footer Tagline", labelAr: "شعار التذييل", default: "The Gilded Curator — curated excellence and timeless precision since 2024.", group: "Footer", groupAr: "التذييل" },
+      { key: "newsletter_title", type: "text", label: "Newsletter Title", labelAr: "عنوان النشرة", default: "Newsletter", group: "Footer", groupAr: "التذييل" },
+      { key: "newsletter_subtitle", type: "text", label: "Newsletter Subtitle", labelAr: "عنوان فرعي للنشرة", default: "Join the empire. Be first to know.", group: "Footer", groupAr: "التذييل" },
+      { key: "newsletter_button_text", type: "text", label: "Newsletter Button", labelAr: "زر النشرة", default: "Join", group: "Footer", groupAr: "التذييل" },
+
+      // Effects
+      { key: "enable_parallax", type: "checkbox", label: "Enable Hero Parallax", labelAr: "تفعيل تأثير المنظور للبانر", default: true, group: "Effects", groupAr: "التأثيرات" },
+      { key: "enable_scroll_fill", type: "checkbox", label: "Enable Scroll-Fill Text", labelAr: "تفعيل تأثير ملء النص بالتمرير", default: true, group: "Effects", groupAr: "التأثيرات" },
+      { key: "enable_hover_scale", type: "checkbox", label: "Enable Product Hover Scale", labelAr: "تفعيل تكبير المنتج عند المرور", default: true, group: "Effects", groupAr: "التأثيرات" },
+      { key: "enable_animations", type: "checkbox", label: "Enable Animations", labelAr: "تفعيل الحركات", default: true, group: "Effects", groupAr: "التأثيرات" },
     ],
   },
 };

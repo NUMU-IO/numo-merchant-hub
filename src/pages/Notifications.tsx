@@ -1,40 +1,96 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
-  Bell, BellOff, Check, CheckCheck, ShoppingCart, Package, Users,
-  CreditCard, AlertTriangle, Info, Trash2, Settings2,
+  Bell, BellOff, CheckCheck, ShoppingCart, Package, Users,
+  CreditCard, Info, Settings2, Loader2,
 } from "lucide-react";
+import { listOrders, type OrderListItem } from "@/services/orderApi";
+import {
+  loadReadNotificationIds,
+  saveReadNotificationIds,
+} from "@/hooks/useUnreadNotifications";
 
 interface Notification {
   id: string;
-  type: "order" | "product" | "customer" | "payment" | "system";
+  type: "order" | "payment" | "customer" | "system";
   title: string;
   message: string;
   time: string;
   read: boolean;
 }
 
-const MOCK_NOTIFICATIONS: Notification[] = [
-  { id: "1", type: "order", title: "New Order #1042", message: "Ahmed placed a new order for EGP 450", time: "2 min ago", read: false },
-  { id: "2", type: "payment", title: "Payment Received", message: "Payment confirmed for Order #1041", time: "15 min ago", read: false },
-  { id: "3", type: "customer", title: "New Customer", message: "Sara signed up and created an account", time: "1 hour ago", read: false },
-  { id: "4", type: "product", title: "Low Stock Alert", message: "Cotton T-Shirt has only 3 items left", time: "2 hours ago", read: true },
-  { id: "5", type: "system", title: "System Update", message: "New theme options are available in the marketplace", time: "1 day ago", read: true },
-  { id: "6", type: "order", title: "Order Delivered", message: "Order #1038 was delivered successfully", time: "2 days ago", read: true },
-];
+/** Build notification items from recent orders. */
+function ordersToNotifications(orders: OrderListItem[], isAr: boolean): Notification[] {
+  const notifications: Notification[] = [];
+  const now = Date.now();
+
+  for (const o of orders) {
+    const created = new Date(o.created_at).getTime();
+    const ago = formatTimeAgo(now - created, isAr);
+    const amount = (o.total / 100).toLocaleString(isAr ? "ar-EG" : "en-US");
+    const currency = isAr ? "ج.م" : o.currency;
+
+    // New order notification
+    notifications.push({
+      id: `order-${o.id}`,
+      type: "order",
+      title: isAr ? `طلب جديد #${o.order_number}` : `New Order #${o.order_number}`,
+      message: isAr
+        ? `${o.customer_name || "عميل"} قام بطلب بقيمة ${amount} ${currency}`
+        : `${o.customer_name || "Customer"} placed an order for ${currency} ${amount}`,
+      time: ago,
+      read: (now - created) > 24 * 60 * 60 * 1000,
+    });
+
+    // Payment notification
+    if (o.payment_status === "paid") {
+      notifications.push({
+        id: `payment-${o.id}`,
+        type: "payment",
+        title: isAr ? `دفعة مستلمة` : `Payment Received`,
+        message: isAr
+          ? `تم تأكيد الدفع للطلب #${o.order_number} — ${amount} ${currency}`
+          : `Payment confirmed for Order #${o.order_number} — ${currency} ${amount}`,
+        time: ago,
+        read: (now - created) > 24 * 60 * 60 * 1000,
+      });
+    }
+  }
+
+  // Sort by most recent first (derive from the original order)
+  return notifications;
+}
+
+function formatTimeAgo(ms: number, isAr: boolean): string {
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return isAr ? "الآن" : "Just now";
+  if (minutes < 60) return isAr ? `منذ ${minutes} دقيقة` : `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return isAr ? `منذ ${hours} ساعة` : `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return isAr ? `منذ ${days} يوم` : `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  return isAr ? `منذ ${weeks} أسبوع` : `${weeks}w ago`;
+}
 
 export default function Notifications() {
   const { language } = useLanguage();
+  const { currentStore } = useDashboardStore();
   const isAr = language === "ar";
+  const storeId = currentStore?.id;
 
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [orders, setOrders] = useState<OrderListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [readIds, setReadIds] = useState<Set<string>>(() =>
+    loadReadNotificationIds(),
+  );
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [tab, setTab] = useState<"notifications" | "preferences">("notifications");
 
@@ -52,13 +108,41 @@ export default function Notifications() {
     pushNotifications: false,
   });
 
+  useEffect(() => {
+    if (!storeId) return;
+    setLoading(true);
+    listOrders(storeId, { limit: 20 })
+      .then((res) => setOrders(res.items))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [storeId]);
+
+  const notifications = useMemo(() => {
+    const items = ordersToNotifications(orders, isAr);
+    // Apply read state from localStorage
+    return items.map((n) => ({ ...n, read: n.read || readIds.has(n.id) }));
+  }, [orders, isAr, readIds]);
+
   const unreadCount = notifications.filter(n => !n.read).length;
   const filtered = filter === "unread" ? notifications.filter(n => !n.read) : notifications;
 
-  const markAllRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  const markRead = (id: string) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  const deleteNotification = (id: string) => setNotifications(prev => prev.filter(n => n.id !== id));
-  const clearAll = () => setNotifications([]);
+  const persistReadIds = (ids: Set<string>) => {
+    setReadIds(ids);
+    // Goes through the shared helper so the header bell's
+    // useUnreadNotificationCount hook receives the custom event and
+    // re-reads localStorage in the same tick — that's what closes the
+    // gap where the page showed "read" but the badge stayed lit.
+    saveReadNotificationIds(ids);
+  };
+
+  const markAllRead = () => {
+    const all = new Set([...readIds, ...notifications.map(n => n.id)]);
+    persistReadIds(all);
+  };
+  const markRead = (id: string) => {
+    if (readIds.has(id)) return;
+    persistReadIds(new Set([...readIds, id]));
+  };
 
   const typeIcon = (type: string) => {
     switch (type) {
@@ -147,24 +231,22 @@ export default function Notifications() {
                   {isAr ? "قراءة الكل" : "Mark all read"}
                 </Button>
               )}
-              {notifications.length > 0 && (
-                <Button variant="ghost" size="sm" className="h-7 text-[11px] gap-1 rounded-lg text-destructive hover:text-destructive" onClick={clearAll}>
-                  <Trash2 className="h-3 w-3" />
-                  {isAr ? "مسح الكل" : "Clear all"}
-                </Button>
-              )}
             </div>
           </div>
 
           {/* Notification List */}
           <Card className="border-border/60">
             <CardContent className="p-0">
-              {filtered.length === 0 ? (
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : filtered.length === 0 ? (
                 <div className="py-12">
                   <EmptyState
                     icon={BellOff}
                     title={filter === "unread" ? (isAr ? "مفيش إشعارات جديدة" : "No unread notifications") : (isAr ? "مفيش إشعارات" : "No notifications")}
-                    description={isAr ? "هتظهر التحديثات هنا" : "Updates will appear here"}
+                    description={isAr ? "هتظهر التحديثات هنا عند استلام طلبات جديدة" : "Updates will appear here when you receive new orders"}
                   />
                 </div>
               ) : (
@@ -188,14 +270,6 @@ export default function Notifications() {
                         <p className="text-[12px] text-muted-foreground mt-0.5 truncate">{n.message}</p>
                         <p className="text-[10px] text-muted-foreground/60 mt-1">{n.time}</p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 rounded-lg shrink-0 opacity-0 group-hover:opacity-100 hover:opacity-100"
-                        onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); }}
-                      >
-                        <Trash2 className="h-3 w-3 text-muted-foreground" />
-                      </Button>
                     </div>
                   ))}
                 </div>

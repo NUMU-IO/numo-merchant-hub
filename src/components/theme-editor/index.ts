@@ -5,3 +5,5 @@ export { SectionEditor } from "./SectionEditor";
 export { AddSectionSheet } from "./AddSectionSheet";
 export { CustomizationWalkthrough, useWalkthroughStatus } from "./CustomizationWalkthrough";
 export { ThemeMarketplace } from "./ThemeMarketplace";
+export { MediaPickerDialog } from "./MediaPickerDialog";
+export { LinkEditorPopover } from "./LinkEditorPopover";
