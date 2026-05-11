@@ -110,15 +110,34 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [publishLabel, setPublishLabel] = useState("");
 
-  // Keyboard shortcuts for undo/redo
+  // Keyboard shortcuts for undo/redo (Phase 2.4 — also surfaced in the
+  // toolbar tooltips so merchants can discover them).
+  //
+  // Cmd/Ctrl+Z       → undo
+  // Cmd/Ctrl+Shift+Z → redo (Mac convention)
+  // Cmd/Ctrl+Y       → redo (Windows convention)
+  //
+  // Skip the binding when focus is in a text input / textarea / select
+  // / contenteditable — the browser's native input-undo should win
+  // over the customizer's undo for in-progress keystrokes. Setting-
+  // value bursts that should hit the customizer's stack land via the
+  // field's onBlur → pushHistory pipeline, not the live keystroke.
   useEffect(() => {
+    function inEditableTarget(t: EventTarget | null): boolean {
+      if (!(t instanceof HTMLElement)) return false;
+      if (t.isContentEditable) return true;
+      const tag = t.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    }
     function handleKeyDown(e: KeyboardEvent) {
       const isMeta = e.metaKey || e.ctrlKey;
-      if (isMeta && e.key === "z" && !e.shiftKey) {
+      if (!isMeta) return;
+      if (inEditableTarget(e.target)) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
         e.preventDefault();
         if (canUndo) undo();
-      }
-      if (isMeta && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
         e.preventDefault();
         if (canRedo) redo();
       }
