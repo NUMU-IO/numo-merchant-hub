@@ -35,6 +35,10 @@ import {
   discardDraftV3,
   restoreVersionV3,
 } from "../services/themeEditorV3Api";
+import {
+  appendUndoEntry,
+  clearUndoStack,
+} from "@/services/customizerUndoApi";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -276,6 +280,11 @@ export const useCustomizerStore = create<CustomizerStore>()(
      * Push the *current* draft onto the undo stack, coalescing consecutive
      * writes that share `coalesceKey` within HISTORY_COALESCE_MS. Burst
      * keystrokes on the same setting collapse into one entry.
+     *
+     * Phase 6 — shadow-syncs each push to the server via
+     * appendUndoEntry. Fire-and-forget: a transient network failure
+     * doesn't block local undo (the client-side FIFO still works).
+     * On next mount, the customizer rehydrates from the server.
      */
     function pushHistory(coalesceKey: string, label: string) {
       const { draft } = get();
@@ -287,6 +296,7 @@ export const useCustomizerStore = create<CustomizerStore>()(
         label,
         timestamp: now,
       };
+      let coalesced = false;
       set((state) => {
         const last = state.past[state.past.length - 1];
         // Coalesce: same target within window → drop the prior entry,
@@ -301,10 +311,33 @@ export const useCustomizerStore = create<CustomizerStore>()(
           // and only update the timestamp + label.
           last.timestamp = now;
           last.label = label;
+          coalesced = true;
           return;
         }
         state.past = [...state.past.slice(-(MAX_HISTORY - 1)), entry];
         state.future = [];
+      });
+
+      // Don't double-post coalesced bursts — the server already has
+      // the prior entry for this chain, and the autosave will sync
+      // the current draft state separately.
+      if (coalesced) return;
+      const { storeId, draft: currentDraft } = get();
+      if (!storeId || !currentDraft) return;
+      const themeId =
+        (currentDraft as { theme_id?: string }).theme_id ||
+        (currentDraft as { theme?: string }).theme ||
+        "default";
+      // Fire-and-forget. We don't await — the server stack is for
+      // cross-tab rehydration, not for the synchronous undo path.
+      void appendUndoEntry(storeId, {
+        theme_id: themeId,
+        action_label: label,
+        forward: { snapshot: entry.data as unknown as Record<string, unknown> },
+        inverse: {},
+      }).catch(() => {
+        // Silent — pre-cleanup pass might fail if there's no network;
+        // local FIFO still works and the user can keep editing.
       });
     }
 
@@ -918,6 +951,23 @@ export const useCustomizerStore = create<CustomizerStore>()(
             s.isPublishing = false;
             s.isDirty = false;
             s.lastSavedAt = new Date().toISOString();
+          });
+          // Phase 6 — published state is the new baseline; older
+          // undo entries are no longer reversible in any useful way
+          // (publishing creates a version snapshot the merchant can
+          // restore from). Clear the server-side stack so a tab
+          // reopen doesn't show stale "Undo" options pointing at
+          // pre-publish state.
+          const themeId =
+            (draft as { theme_id?: string }).theme_id ||
+            (draft as { theme?: string }).theme ||
+            "default";
+          void clearUndoStack(storeId, themeId).catch(() => {
+            // Non-fatal — the local stack is also cleared below.
+          });
+          set((s) => {
+            s.past = [];
+            s.future = [];
           });
         } catch (err) {
           set((s) => {

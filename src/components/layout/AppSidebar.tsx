@@ -6,7 +6,7 @@ import {
   Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
   Palette, FileText, Navigation2, SlidersHorizontal, ClipboardList, ChevronLeft, Filter, Radio,
   Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
-  UserCog, User, Inbox, PlugZap, Mail,
+  UserCog, User, Inbox, PlugZap, Mail, Boxes,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -448,6 +448,16 @@ const AppSidebar = () => {
                 <NavLink to="/settings">
                   <Settings className="h-[18px] w-[18px] opacity-70" />
                   <span className="text-[13px] font-medium">{isRTL ? "الإعدادات" : "Settings"}</span>
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </NavItemGate>
+          <NavItemGate navKey="apps">
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip={isRTL ? "التطبيقات" : "Apps"} className="h-9 rounded-lg px-3" isActive={isActive("/apps")}>
+                <NavLink to="/apps">
+                  <Boxes className="h-[18px] w-[18px] opacity-70" />
+                  <span className="text-[13px] font-medium">{isRTL ? "التطبيقات" : "Apps"}</span>
                 </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
