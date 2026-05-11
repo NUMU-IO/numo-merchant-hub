@@ -37,6 +37,7 @@ import {
   Ticket,
 } from "lucide-react";
 import { getStoreDomainSuffix } from "@/lib/storefront";
+import { getStoreSubdomainSuffix, withEnvSuffix } from "@/lib/env";
 import { ApiError } from "@/lib/api-error";
 import { z } from "zod";
 
@@ -176,7 +177,9 @@ export default function AcceptBetaInvite() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const result = await checkSubdomain(subdomain);
+        // Check the env-suffixed value — that's what's actually written
+        // to the DB and what other test stores would collide with.
+        const result = await checkSubdomain(withEnvSuffix(subdomain));
         setSubdomainStatus(result.available ? "available" : "taken");
         setSubdomainMsg(result.message);
       } catch {
@@ -224,12 +227,17 @@ export default function AcceptBetaInvite() {
 
     setSubmitting(true);
     try {
+      // Save the env-suffixed subdomain (e.g. `yarab-test` on the test
+      // env), so it matches the host the storefront extracts from
+      // `<store>-test.numueg.app`. On prod the suffix is empty, so
+      // the input is sent as-is.
+      const finalSubdomain = withEnvSuffix(subdomain);
       if (googleToken) {
         await redeemBetaInviteGoogle({
           invite_code: code,
           id_token: googleToken,
           store_name: storeName,
-          subdomain,
+          subdomain: finalSubdomain,
         });
       } else {
         await redeemBetaInvite({
@@ -239,7 +247,7 @@ export default function AcceptBetaInvite() {
           last_name: lastName,
           phone: phone || undefined,
           store_name: storeName,
-          subdomain,
+          subdomain: finalSubdomain,
         });
       }
       // Auth cookies are set — sync the auth + store contexts
@@ -560,7 +568,7 @@ export default function AcceptBetaInvite() {
                 </div>
                 {getStoreDomainSuffix() && (
                   <span className="text-sm text-muted-foreground whitespace-nowrap font-mono">
-                    {getStoreDomainSuffix()}
+                    {getStoreSubdomainSuffix()}{getStoreDomainSuffix()}
                   </span>
                 )}
               </div>

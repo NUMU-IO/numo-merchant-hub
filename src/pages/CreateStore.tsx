@@ -87,8 +87,7 @@ export default function CreateStore() {
       // env), so it matches the host the storefront SSR app extracts from
       // <store>-test.numueg.app. On prod the suffix is empty, so user
       // input is saved as-is.
-      await createStore({ name, subdomain: withEnvSuffix(subdomain) });
-      const created = await createStore({ name, subdomain });
+      const created = await createStore({ name, subdomain: withEnvSuffix(subdomain) });
       // Phase 5.11 — fire-and-forget seed. We don't block navigation
       // on it because the catalog inserts can take a couple of
       // seconds and the merchant gets to the dashboard sooner.
