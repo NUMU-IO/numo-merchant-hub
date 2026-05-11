@@ -12,6 +12,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/forms/PhoneInput";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1566,14 +1567,12 @@ const StoreSettings = () => {
                   <Label className="text-xs font-medium text-muted-foreground">
                     {t("store.contactPhone")}
                   </Label>
-                  <Input
+                  <PhoneInput
                     value={profileState.contact_phone}
-                    onChange={(e) =>
-                      setProfileState((p) => ({
-                        ...p,
-                        contact_phone: e.target.value,
-                      }))
+                    onChange={(v) =>
+                      setProfileState((p) => ({ ...p, contact_phone: v }))
                     }
+                    defaultCountry="EG"
                   />
                 </div>
                 <div className="grid gap-1.5">
@@ -1581,16 +1580,12 @@ const StoreSettings = () => {
                     <Phone className="h-3.5 w-3.5 text-green-600" />
                     {language === "ar" ? "رقم الواتساب" : "WhatsApp"}
                   </Label>
-                  <Input
+                  <PhoneInput
                     value={profileState.whatsapp_phone}
-                    onChange={(e) =>
-                      setProfileState((p) => ({
-                        ...p,
-                        whatsapp_phone: e.target.value,
-                      }))
+                    onChange={(v) =>
+                      setProfileState((p) => ({ ...p, whatsapp_phone: v }))
                     }
-                    placeholder="+201012345678"
-                    dir="ltr"
+                    defaultCountry="EG"
                   />
                 </div>
               </div>

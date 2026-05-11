@@ -10,6 +10,7 @@
  * skipped from the rendered output. Group separators are emitted only
  * for groups that have at least one visible setting so the form
  * doesn't show empty group headings.
+ * All 14 input types are handled by the SettingInputV3 component.
  */
 
 import { useMemo } from "react";

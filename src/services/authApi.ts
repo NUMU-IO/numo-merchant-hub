@@ -28,6 +28,12 @@ export interface TenantInfo {
   expires_at: string | null;
   days_remaining: number | null;
   demo_email: string | null;
+  /**
+   * Per-tenant feature flags. Controlled server-side. Empty `{}` means
+   * no offers-v2 / experimental surfaces are unlocked for this tenant.
+   * Read with `useFeatureFlag(name)`.
+   */
+  feature_flags: Record<string, boolean>;
 }
 
 export interface User {

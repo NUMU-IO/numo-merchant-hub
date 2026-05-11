@@ -9,6 +9,7 @@ import { TrialPaywallProvider } from "@/contexts/TrialPaywallContext";
 import { StoreProvider, useDashboardStore } from "@/contexts/StoreContext";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { NumuLoadingScreen } from "@/components/NumuLoader";
 import { PageLoader } from "@/components/PageLoader";
@@ -57,6 +58,9 @@ const AnalyticsJourney = lazy(() => import("@/pages/analytics/JourneyPage"));
 const AnalyticsReports = lazy(() => import("@/pages/analytics/ReportsPage"));
 const HealthScore = lazy(() => import("@/pages/HealthScore"));
 const Marketing = lazy(() => import("@/pages/Marketing"));
+const PromotionsList = lazy(() => import("@/pages/marketing/PromotionsList"));
+const PromotionForm = lazy(() => import("@/pages/marketing/PromotionForm"));
+const PromotionDetail = lazy(() => import("@/pages/marketing/PromotionDetail"));
 const Categories = lazy(() => import("@/pages/Categories"));
 const Invoices = lazy(() => import("@/pages/Invoices"));
 const Profile = lazy(() => import("@/pages/Profile"));
@@ -116,6 +120,19 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 function RequireVerified({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (user && !user.is_verified) return <Navigate to="/verify-email" replace />;
+  return <>{children}</>;
+}
+
+/**
+ * Gate offers-v2 promotion routes on the per-tenant feature flag.
+ *
+ * The backend already returns 404 from the promotion endpoints when
+ * `ff_promotions_v2` is off; this guard mirrors that on the client so a
+ * user typing the URL doesn't land on a screen that immediately fails.
+ */
+function RequirePromotionsV2({ children }: { children: React.ReactNode }) {
+  const enabled = useFeatureFlag("ff_promotions_v2");
+  if (!enabled) return <Navigate to="/marketing" replace />;
   return <>{children}</>;
 }
 
@@ -261,6 +278,22 @@ const App = () => (
                     <Route path="/analytics/reports" element={<AnalyticsReports />} />
                     <Route path="/health-score" element={<HealthScore />} />
                     <Route path="/marketing" element={<Marketing />} />
+                    <Route
+                      path="/marketing/promotions"
+                      element={<RequirePromotionsV2><PromotionsList /></RequirePromotionsV2>}
+                    />
+                    <Route
+                      path="/marketing/promotions/new"
+                      element={<RequirePromotionsV2><PromotionForm /></RequirePromotionsV2>}
+                    />
+                    <Route
+                      path="/marketing/promotions/:id"
+                      element={<RequirePromotionsV2><PromotionDetail /></RequirePromotionsV2>}
+                    />
+                    <Route
+                      path="/marketing/promotions/:id/edit"
+                      element={<RequirePromotionsV2><PromotionForm /></RequirePromotionsV2>}
+                    />
                     <Route path="/email-templates" element={<EmailTemplates />} />
                     <Route path="/email-templates/new" element={<EmailTemplateEditor />} />
                     <Route path="/email-templates/:id" element={<EmailTemplateEditor />} />

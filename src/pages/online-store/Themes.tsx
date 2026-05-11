@@ -72,6 +72,7 @@ const THEME_PALETTES: Record<string, { bg: string; accent: string; text: string;
   rabbitsocks:       { bg: "#f9f9f7", accent: "#001f3f", text: "#000613", card: "#f4f4f2" },
   "gilded-glamour-boutique": { bg: "#faf9f5", accent: "#b8960c", text: "#1a1a1a", card: "#ffffff" },
   bazar:             { bg: "#fffbe6", accent: "#f5a623", text: "#1a1a1a", card: "#fff8e1" },
+  vionne:            { bg: "#ffffff", accent: "#050505", text: "#050505", card: "#f4f4f4" },
   "saw-saw":         { bg: "#faf8f4", accent: "#675f30", text: "#1a1510", card: "#f5f0e8" },
   default:           { bg: "#f1f5f9", accent: "#3b82f6", text: "#1e293b", card: "#ffffff" },
 };
@@ -88,6 +89,7 @@ const LAYOUT_LABELS: Record<string, { en: string; ar: string }> = {
   rabbitsocks:       { en: "RabbitSocks",    ar: "رابيت سوكس"    },
   "tech-wave":       { en: "Tech Wave",      ar: "موجة تقنية"    },
   bazar:             { en: "Bazar",          ar: "بازار"          },
+  vionne:            { en: "Vionne",         ar: "فيون"           },
   "saw-saw":         { en: "Saw Saw",        ar: "ساو ساو"        },
 };
 

@@ -218,9 +218,14 @@ export async function downloadInvoicePdf(
   storeId: string,
   invoiceId: string,
 ): Promise<void> {
-  const response = await fetch(`/api/v1/stores/${storeId}/invoices/${invoiceId}/pdf`, {
-    credentials: "include",
-  });
+  // Bypass `apiClient` because it always calls `.json()` and we need the
+  // raw blob, but use the same VITE_API_URL base so local dev hits the
+  // local backend instead of falling through Vite's proxy to production.
+  const apiBase = import.meta.env.VITE_API_URL || "";
+  const response = await fetch(
+    `${apiBase}/stores/${storeId}/invoices/${invoiceId}/pdf`,
+    { credentials: "include" },
+  );
   if (!response.ok) throw new Error("Failed to download PDF");
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);

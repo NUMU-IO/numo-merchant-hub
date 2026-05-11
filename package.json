@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "npm@11.6.2",
   "scripts": {
     "kill-port": "npx kill-port 8080 || echo port 8080 already free",
     "predev": "npm run kill-port",
@@ -61,6 +62,7 @@
     "i18next-browser-languagedetector": "^8.2.0",
     "immer": "^11.1.6",
     "input-otp": "^1.4.2",
+    "libphonenumber-js": "^1.13.0",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
     "qrcode": "^1.5.4",
@@ -98,7 +100,6 @@
     "jsdom": "^20.0.3",
     "kill-port": "^2.0.1",
     "lint-staged": "^16.4.0",
-    "lovable-tagger": "^1.1.13",
     "openapi-typescript": "^7.8.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
