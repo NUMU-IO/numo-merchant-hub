@@ -536,7 +536,7 @@ const Dashboard = () => {
                     <Activity className="h-4 w-4 text-white/50" />
                     <h3 className="text-sm font-bold text-white">{t("dashboard.healthTitle")}</h3>
                   </div>
-                  {healthScore && (
+                  {healthScore && !healthScore.insufficient_data && healthScore.score !== null && (
                     <span className={`text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-md ${
                       healthScore.grade === "A" ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/20" :
                       healthScore.grade === "B" ? "bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/20" :
@@ -555,7 +555,7 @@ const Dashboard = () => {
                     <div className="rounded-xl bg-white/[0.05] border border-white/[0.06] flex items-center justify-center py-12">
                       <div className="h-5 w-5 rounded-full border-2 border-white/30 border-t-transparent animate-spin" />
                     </div>
-                  ) : healthScore ? (
+                  ) : healthScore && !healthScore.insufficient_data && healthScore.score !== null ? (
                     <div className="grid gap-3 sm:grid-cols-2">
                       {/* Score Ring */}
                       <div className="rounded-xl bg-white/[0.07] backdrop-blur-sm border border-white/[0.08] p-5 flex flex-col items-center justify-center">
