@@ -2,10 +2,11 @@
  * Detailed Health Score page — explains each metric and how it's calculated.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Activity, ArrowLeft, ArrowRight, Lightbulb, TrendingUp, Truck, ShieldCheck, PackageCheck, RotateCcw, Timer } from "lucide-react";
+import { useState } from "react";
+import { Activity, ArrowLeft, ArrowRight, Lightbulb, RefreshCw, TrendingUp, Truck, ShieldCheck, PackageCheck, RotateCcw, Timer } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,14 +20,26 @@ export default function HealthScore() {
   const { language } = useLanguage();
   const isAr = language === "ar";
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
+  const [forceLive, setForceLive] = useState(false);
 
-  const { data: healthScore, isLoading } = useQuery({
-    queryKey: ["healthScore", "detail", storeId],
-    queryFn: () => getHealthScore(storeId!, true, language),
+  const { data: healthScore, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["healthScore", "detail", storeId, forceLive],
+    queryFn: () => getHealthScore(storeId!, forceLive, language),
     enabled: !!storeId,
   });
+
+  const handleRefresh = async () => {
+    setForceLive(true);
+    await refetch();
+    // Also invalidate the dashboard's cached copy so the small card updates.
+    queryClient.invalidateQueries({ queryKey: ["dashboard", "healthScore", storeId] });
+  };
+
+  const insufficient = healthScore?.insufficient_data || healthScore?.score == null;
+  const insufficientMetrics = new Set(healthScore?.insufficient_metrics || []);
 
   const gradeColor = (grade?: string) => {
     switch (grade) {
@@ -34,21 +47,57 @@ export default function HealthScore() {
       case "B": return { text: "text-blue-500", bg: "bg-blue-500", ring: "stroke-blue-500", badge: "bg-blue-500/10 text-blue-700 dark:text-blue-400" };
       case "C": return { text: "text-amber-500", bg: "bg-amber-500", ring: "stroke-amber-500", badge: "bg-amber-500/10 text-amber-700 dark:text-amber-400" };
       case "D": return { text: "text-orange-500", bg: "bg-orange-500", ring: "stroke-orange-500", badge: "bg-orange-500/10 text-orange-700 dark:text-orange-400" };
-      default: return { text: "text-red-500", bg: "bg-red-500", ring: "stroke-red-500", badge: "bg-red-500/10 text-red-700 dark:text-red-400" };
+      default: return { text: "text-muted-foreground", bg: "bg-muted", ring: "stroke-muted", badge: "bg-muted text-muted-foreground" };
     }
   };
 
-  const subColor = (sub: number) =>
-    sub >= 75 ? "bg-emerald-500" : sub >= 50 ? "bg-amber-500" : "bg-red-500";
+  // Tone classes for sub-score buckets. Returned as static class strings
+  // so Tailwind's JIT scanner can see them; dynamic `${color}/10` style
+  // concatenation gets purged.
+  const subTone = (sub: number, unavailable = false) => {
+    if (unavailable) {
+      return {
+        bar: "bg-muted-foreground/30",
+        text: "text-muted-foreground",
+        iconBg: "bg-muted/30",
+        badge: "bg-muted text-muted-foreground",
+      };
+    }
+    if (sub >= 75) {
+      return {
+        bar: "bg-emerald-500",
+        text: "text-emerald-500",
+        iconBg: "bg-emerald-500/10",
+        badge: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+      };
+    }
+    if (sub >= 50) {
+      return {
+        bar: "bg-amber-500",
+        text: "text-amber-500",
+        iconBg: "bg-amber-500/10",
+        badge: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+      };
+    }
+    return {
+      bar: "bg-red-500",
+      text: "text-red-500",
+      iconBg: "bg-red-500/10",
+      badge: "bg-red-500/10 text-red-700 dark:text-red-400",
+    };
+  };
 
-  const subText = (sub: number) =>
-    sub >= 75 ? (isAr ? "ممتاز" : "Excellent") :
-    sub >= 50 ? (isAr ? "متوسط" : "Average") :
-    (isAr ? "يحتاج تحسين" : "Needs improvement");
+  const subText = (sub: number, unavailable = false) => {
+    if (unavailable) return isAr ? "لا توجد بيانات كافية" : "Not enough data";
+    if (sub >= 75) return isAr ? "ممتاز" : "Excellent";
+    if (sub >= 50) return isAr ? "متوسط" : "Average";
+    return isAr ? "يحتاج تحسين" : "Needs improvement";
+  };
 
   const metrics = healthScore ? [
     {
       key: "delivery",
+      subKey: "delivery_success",
       icon: Truck,
       label: isAr ? "معدل التوصيل الناجح" : "Delivery Success Rate",
       value: healthScore.metrics.delivery_success_rate,
@@ -67,6 +116,7 @@ export default function HealthScore() {
     },
     {
       key: "cod",
+      subKey: "cod_acceptance",
       icon: ShieldCheck,
       label: isAr ? "معدل قبول الدفع عند الاستلام" : "COD Acceptance Rate",
       value: healthScore.metrics.cod_acceptance_rate,
@@ -85,6 +135,7 @@ export default function HealthScore() {
     },
     {
       key: "completion",
+      subKey: "order_completion",
       icon: PackageCheck,
       label: isAr ? "معدل إتمام الطلبات" : "Order Completion Rate",
       value: healthScore.metrics.order_completion_rate,
@@ -103,6 +154,7 @@ export default function HealthScore() {
     },
     {
       key: "returns",
+      subKey: "low_return",
       icon: RotateCcw,
       label: isAr ? "معدل المرتجعات" : "Return Rate",
       value: healthScore.metrics.return_rate,
@@ -122,6 +174,7 @@ export default function HealthScore() {
     },
     {
       key: "speed",
+      subKey: "response_time",
       icon: Timer,
       label: isAr ? "سرعة التجهيز" : "Fulfillment Speed",
       value: healthScore.metrics.avg_response_hours,
@@ -149,19 +202,46 @@ export default function HealthScore() {
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(-1)}>
           {isAr ? <ArrowRight className="h-4 w-4" /> : <ArrowLeft className="h-4 w-4" />}
         </Button>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold">{isAr ? "تفاصيل صحة المتجر" : "Store Health Details"}</h1>
           <p className="text-xs text-muted-foreground">
             {isAr ? "تحليل شامل لأداء متجرك خلال آخر 30 يوم" : "Comprehensive analysis of your store performance over the last 30 days"}
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs gap-1.5"
+          onClick={handleRefresh}
+          disabled={isFetching || !storeId}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+          {isAr ? "تحديث" : "Refresh"}
+        </Button>
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
         </div>
-      ) : healthScore ? (
+      ) : healthScore && insufficient ? (
+        <Card>
+          <CardContent className="py-16 text-center">
+            <Activity className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-base font-semibold">{t("dashboard.healthNoData")}</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+              {isAr
+                ? "نحتاج إلى عدد كافٍ من الطلبات والشحنات (5 على الأقل) خلال آخر 30 يوم لاحتساب نتيجة دقيقة لمتجرك."
+                : "We need at least 5 orders and shipments in the last 30 days to compute a meaningful score for your store."}
+            </p>
+            <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/70">
+              <span>{isAr ? "طلبات تم تحليلها:" : "Orders analyzed:"} {healthScore.orders_analyzed}</span>
+              <span aria-hidden>·</span>
+              <span>{isAr ? "شحنات:" : "Shipments:"} {healthScore.shipments_analyzed}</span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : healthScore && healthScore.score !== null ? (
         <>
           {/* Overall Score Card */}
           <Card>
@@ -172,7 +252,7 @@ export default function HealthScore() {
                     <circle cx="50" cy="50" r="42" fill="none" strokeWidth="6" className="stroke-muted/20" />
                     <circle
                       cx="50" cy="50" r="42" fill="none" strokeWidth="6" strokeLinecap="round"
-                      strokeDasharray={`${healthScore.score * 2.64} 264`}
+                      strokeDasharray={`${(healthScore.score ?? 0) * 2.64} 264`}
                       className={colors.ring}
                       style={{ transition: "stroke-dasharray 1s ease-out" }}
                     />
@@ -255,26 +335,25 @@ export default function HealthScore() {
 
           {/* Detailed Metrics */}
           <div className="space-y-4">
-            {metrics.map((m) => (
+            {metrics.map((m) => {
+              const unavailable = insufficientMetrics.has(m.subKey);
+              const tone = subTone(m.sub, unavailable);
+              return (
               <Card key={m.key}>
                 <CardContent className="p-5">
                   <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-xl ${subColor(m.sub)}/10 flex items-center justify-center shrink-0`}>
-                      <m.icon className={`h-5 w-5 ${m.sub >= 75 ? "text-emerald-500" : m.sub >= 50 ? "text-amber-500" : "text-red-500"}`} />
+                    <div className={`w-10 h-10 rounded-xl ${tone.iconBg} flex items-center justify-center shrink-0`}>
+                      <m.icon className={`h-5 w-5 ${tone.text}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <h3 className="text-sm font-semibold">{m.label}</h3>
                         <div className="flex items-center gap-2">
                           <span className="text-lg font-bold tabular-nums">
-                            {m.value}{m.unit}
+                            {unavailable ? "—" : `${m.value}${m.unit}`}
                           </span>
-                          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                            m.sub >= 75 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" :
-                            m.sub >= 50 ? "bg-amber-500/10 text-amber-700 dark:text-amber-400" :
-                            "bg-red-500/10 text-red-700 dark:text-red-400"
-                          }`}>
-                            {subText(m.sub)}
+                          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${tone.badge}`}>
+                            {subText(m.sub, unavailable)}
                           </span>
                         </div>
                       </div>
@@ -282,19 +361,24 @@ export default function HealthScore() {
                       {/* Progress bar */}
                       <div className="h-2 rounded-full bg-muted/30 overflow-hidden mb-3">
                         <div
-                          className={`h-full rounded-full transition-all duration-700 ${subColor(m.sub)}`}
-                          style={{ width: `${Math.max(3, m.sub)}%` }}
+                          className={`h-full rounded-full transition-all duration-700 ${tone.bar}`}
+                          style={{ width: `${Math.max(3, unavailable ? 0 : m.sub)}%` }}
                         />
                       </div>
 
                       {/* Weight badge */}
-                      <div className="flex items-center gap-2 mb-3">
+                      <div className="flex items-center gap-2 mb-3 flex-wrap">
                         <span className="text-[10px] bg-muted/50 rounded px-1.5 py-0.5">
                           {isAr ? `الوزن: ${m.weight}%` : `Weight: ${m.weight}%`}
                         </span>
                         <span className="text-[10px] bg-muted/50 rounded px-1.5 py-0.5">
-                          {isAr ? `النتيجة الفرعية: ${m.sub}/100` : `Sub-score: ${m.sub}/100`}
+                          {isAr ? `النتيجة الفرعية: ${unavailable ? "—" : `${m.sub}/100`}` : `Sub-score: ${unavailable ? "—" : `${m.sub}/100`}`}
                         </span>
+                        {unavailable && (
+                          <span className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded px-1.5 py-0.5">
+                            {isAr ? "بيانات غير كافية — مستثناة من الحساب" : "Insufficient data — excluded from score"}
+                          </span>
+                        )}
                       </div>
 
                       {/* Description */}
@@ -320,7 +404,8 @@ export default function HealthScore() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
 
           {/* Recommendations */}

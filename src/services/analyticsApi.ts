@@ -228,8 +228,10 @@ export interface HealthScoreMetrics {
 }
 
 export interface HealthScoreData {
-  score: number;
+  score: number | null;
   grade: string;
+  insufficient_data?: boolean;
+  insufficient_metrics?: string[];
   metrics: HealthScoreMetrics;
   sub_scores: Record<string, number>;
   recommendations: string[];
