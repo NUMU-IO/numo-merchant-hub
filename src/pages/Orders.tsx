@@ -152,23 +152,12 @@ const Orders = () => {
     queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
-  const openOrderDetail = async (orderId: string) => {
+  const openOrderDetail = (orderId: string) => {
     if (!storeId) return;
-    setDetailLoading(true);
-    setShowRefundForm(false);
-    try {
-      const [order, timeline, refunds] = await Promise.all([
-        getOrder(storeId, orderId),
-        getOrderTimeline(storeId, orderId).catch(() => ({ events: [] as TimelineEvent[], order_id: "", order_number: "" })),
-        listOrderRefunds(storeId, orderId).catch(() => ({ items: [] as RefundListItem[] })),
-      ]);
-      setSelectedOrderDetail(order);
-      setOrderTimeline(timeline.events || []);
-    } catch (err: unknown) {
-      showError(err, language);
-    } finally {
-      setDetailLoading(false);
-    }
+    // Always route to the new /orders/:id Shopify-style detail page.
+    // The legacy inline detail block below is dead code kept around for
+    // one release; safe to delete in a follow-up cleanup PR.
+    navigate(`/orders/${orderId}`);
   };
 
   const statusColor: Record<string, string> = {

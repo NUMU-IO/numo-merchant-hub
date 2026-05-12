@@ -37,39 +37,39 @@ export interface IssueGiftCardResult {
 }
 
 export interface IssueGiftCardData {
-  amount_cents: number;
-  currency: string;
+  // Backend's IssueGiftCardRequest names this `initial_balance_cents`
+  // (matches GiftCard.initial_balance_cents on the model). The previous
+  // `amount_cents` field name caused a 422 "Field required" on every issue.
+  initial_balance_cents: number;
+  currency?: string;
   customer_id?: string | null;
   expires_at?: string | null;
   note?: string | null;
 }
 
 export interface ListGiftCardsParams {
+  // page / limit are accepted but currently ignored by the backend — the
+  // list endpoint returns all cards for the store (filtered by status).
+  // Kept here so a future paginated backend doesn't require a signature change.
   page?: number;
   limit?: number;
   status?: "active" | "depleted" | "voided" | "expired";
   customer_id?: string;
 }
 
-export interface PaginatedGiftCards {
-  items: GiftCard[];
-  total: number;
-  page: number;
-  page_size: number;
-  total_pages: number;
-}
-
 export async function listGiftCards(
   storeId: string,
   params?: ListGiftCardsParams,
-): Promise<PaginatedGiftCards> {
+): Promise<GiftCard[]> {
   const qs = new URLSearchParams();
   if (params?.page) qs.set("page", String(params.page));
   if (params?.limit) qs.set("limit", String(params.limit));
   if (params?.status) qs.set("status", params.status);
   if (params?.customer_id) qs.set("customer_id", params.customer_id);
   const query = qs.toString();
-  return apiClient<PaginatedGiftCards>(
+  // Backend returns `SuccessResponse[list[GiftCardResponse]]` — apiClient
+  // unwraps `data`, so we get a flat array here, not a paginated object.
+  return apiClient<GiftCard[]>(
     `/stores/${storeId}/gift-cards${query ? `?${query}` : ""}`,
   );
 }

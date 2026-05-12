@@ -44,6 +44,8 @@ export interface ShipmentListItem {
   id: string;
   order_id: string;
   tracking_number: string | null;
+  tracking_url: string | null;
+  awb_url: string | null;
   carrier: string;
   status: string;
   shipment_type: string;
@@ -138,6 +140,8 @@ export async function listShipments(
     status?: string;
     carrier?: string;
     has_cod?: boolean;
+    order_id?: string;
+    has_label?: boolean;
     skip?: number;
     limit?: number;
   } = {}
@@ -146,6 +150,8 @@ export async function listShipments(
   if (params.status) searchParams.set("status", params.status);
   if (params.carrier) searchParams.set("carrier", params.carrier);
   if (params.has_cod !== undefined) searchParams.set("has_cod", String(params.has_cod));
+  if (params.order_id) searchParams.set("order_id", params.order_id);
+  if (params.has_label !== undefined) searchParams.set("has_label", String(params.has_label));
   if (params.skip !== undefined) searchParams.set("skip", String(params.skip));
   if (params.limit !== undefined) searchParams.set("limit", String(params.limit));
   const qs = searchParams.toString();

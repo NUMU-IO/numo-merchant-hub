@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
+  BadgePercent,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -373,7 +374,7 @@ export default function PromotionsList() {
           ) : items.length === 0 ? (
             <div className="px-6 py-10">
               <EmptyState
-                icon={Sparkles}
+                icon={BadgePercent}
                 title={t("promotions.list.empty_title")}
                 description={t("promotions.list.empty_body")}
               />

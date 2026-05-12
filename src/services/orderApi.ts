@@ -274,3 +274,85 @@ export async function createManualOrder(
     body: JSON.stringify(data),
   });
 }
+
+// ── Draft Orders ──
+
+/**
+ * Save an order as a draft (status=DRAFT).
+ *
+ * Same shape as createManualOrder — but the backend skips trust checks and
+ * suppresses the OrderCreatedEvent, so no emails / shipments / webhooks fire
+ * until the merchant explicitly converts.
+ */
+export async function createDraftOrder(
+  storeId: string,
+  data: CreateOrderData,
+): Promise<Order> {
+  return apiClient<Order>(`/stores/${storeId}/orders/drafts`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Promote a draft order to PENDING. The backend runs the normal status
+ * transition, so notifications / activity log / webhooks fire as if the
+ * order had just been created.
+ */
+export async function convertDraftOrder(
+  storeId: string,
+  orderId: string,
+): Promise<Order> {
+  return apiClient<Order>(
+    `/stores/${storeId}/orders/${orderId}/convert`,
+    { method: "POST" },
+  );
+}
+
+// ── Order Activity Stream (staff comments + persisted system events) ──
+
+export interface OrderActivity {
+  id: string;
+  order_id: string;
+  kind: "comment" | "system_event";
+  event_type: string | null;
+  body: string;
+  user_id: string | null;
+  user_name: string | null;
+  user_avatar_url: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface PaginatedActivities {
+  items: OrderActivity[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export async function listOrderActivities(
+  storeId: string,
+  orderId: string,
+  page: number = 1,
+  limit: number = 50,
+): Promise<PaginatedActivities> {
+  const qs = new URLSearchParams({ page: String(page), limit: String(limit) });
+  return apiClient<PaginatedActivities>(
+    `/stores/${storeId}/orders/${orderId}/activities?${qs.toString()}`,
+  );
+}
+
+export async function addOrderComment(
+  storeId: string,
+  orderId: string,
+  content: string,
+): Promise<OrderActivity> {
+  return apiClient<OrderActivity>(
+    `/stores/${storeId}/orders/${orderId}/comments`,
+    {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    },
+  );
+}
