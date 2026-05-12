@@ -477,9 +477,27 @@ const Products = () => {
                         </Badge>
                       </TableCell>
 
-                      {/* Actions: Edit + Delete + three-dot menu */}
+                      {/* Actions: View on storefront + Edit + Delete + three-dot menu */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
+                          {currentStore?.store_url && (
+                            <Button
+                              asChild
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-primary"
+                              title={isAr ? "عرض في المتجر" : "View in storefront"}
+                            >
+                              <a
+                                href={`${currentStore.store_url.replace(/\/$/, "")}/product/${p.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={isAr ? "عرض في المتجر" : "View in storefront"}
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </a>
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"

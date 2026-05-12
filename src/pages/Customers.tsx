@@ -13,6 +13,7 @@ import {
   CheckCircle2, AlertTriangle, AlertCircle, Network,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { listCustomers, getCustomer, getCustomerTrustStats } from "@/services/customerApi";
 import type { Customer } from "@/services/customerApi";
@@ -28,6 +29,10 @@ export default function Customers() {
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const isAr = language === "ar";
+  const navigate = useNavigate();
+  // URL-driven detail view: /customers/:customerId opens the same in-page
+  // detail screen below, so order-detail's "View customer" link works.
+  const { customerId: routeCustomerId } = useParams<{ customerId?: string }>();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -92,6 +97,34 @@ export default function Customers() {
     }
   };
 
+  // When the user lands on /customers/:customerId (e.g. from the order
+  // detail page's "View customer" link), fetch that customer and slide
+  // into the detail view automatically.
+  useEffect(() => {
+    if (!storeId || !routeCustomerId) return;
+    if (selectedCustomer?.id === routeCustomerId) return; // already loaded
+    let cancelled = false;
+    (async () => {
+      try {
+        const c = await getCustomer(storeId, routeCustomerId);
+        if (!cancelled) await openCustomerDetail(c);
+      } catch {
+        // Bad ID / not in this store — leave the list visible.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // openCustomerDetail is stable enough; including it would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, routeCustomerId]);
+
+  const closeDetail = () => {
+    setSelectedCustomer(null);
+    // Keep the URL in sync with the visible view.
+    if (routeCustomerId) navigate("/customers", { replace: true });
+  };
+
   if (customersQuery.isLoading && customers.length === 0) {
     return <CustomersSkeleton />;
   }
@@ -112,7 +145,7 @@ export default function Customers() {
     return (
       <div className="space-y-5">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={() => setSelectedCustomer(null)}>
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={closeDetail}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">

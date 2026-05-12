@@ -12,6 +12,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import {
   getDashboardStats, getRevenueChart, getTopProducts, getHealthScore,
+  getRealtimeSnapshot,
 } from "@/services/analyticsApi";
 import type { HealthScoreData } from "@/services/analyticsApi";
 import { listOrders } from "@/services/orderApi";
@@ -23,6 +24,7 @@ import {
   Package, ExternalLink, AlertTriangle, Clock, ChevronRight,
   Plus, CreditCard, Palette, CheckCircle2, Circle, Truck, Receipt,
   Gift, Star, Crown, Lock, Zap, Check, Activity, Lightbulb,
+  ChevronDown,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCountUp } from "@/hooks/useCountUp";
@@ -81,6 +83,17 @@ const Dashboard = () => {
     staleTime: 1000 * 60 * 60, // 1 hour — cached daily by Celery
   });
 
+  // Live-visitor pill in the top header. Refetches every 30s so the count
+  // ticks in near-real-time without overloading the analytics endpoint.
+  const realtimeQuery = useQuery({
+    queryKey: ["dashboard", "realtime", storeId],
+    queryFn: () => getRealtimeSnapshot(storeId!),
+    enabled: !!storeId,
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+  });
+  const liveVisitors = realtimeQuery.data?.active_now ?? 0;
+
   const healthScore: HealthScoreData | null = healthScoreQuery.data ?? null;
 
 
@@ -117,8 +130,11 @@ const Dashboard = () => {
   const totalProducts = stats?.total_products ?? 0;
   const shippedCount = stats?.shipped_orders ?? 0;
 
-  // New merchant detection — hide analytics until first order arrives
-  const isNewMerchant = stats ? stats.total_orders === 0 : false;
+  // New merchant detection — hide analytics until the FIRST order arrives,
+  // not just "no orders in the current period". Using lifetime order count
+  // (same source as hasOrders below) so a store with historical orders
+  // doesn't see the new-merchant view after a quiet week.
+  const isNewMerchant = (recentOrdersQuery.data?.total ?? 0) === 0;
 
   // Onboarding — single API call to backend
   const onboardingQuery = useQuery({
@@ -129,7 +145,13 @@ const Dashboard = () => {
   });
 
   const onboardingData: OnboardingData | null = onboardingQuery.data ?? null;
-  const hasOrders = stats ? stats.total_orders > 0 : false;
+  // `stats.total_orders` is period-limited (last N days). Using it here meant
+  // a store with historical orders but no recent activity would re-show the
+  // "waiting for first order" onboarding card. `recentOrdersQuery.data.total`
+  // is the all-time non-draft order count (the orders list endpoint already
+  // excludes drafts by default), which is the right signal.
+  const lifetimeOrderCount = recentOrdersQuery.data?.total ?? 0;
+  const hasOrders = lifetimeOrderCount > 0;
   const canDismissOnboarding = !!onboardingData?.is_completed || hasOrders;
   const showSetup = !!onboardingData && !onboardingData.is_completed && !onboardingData.is_dismissed && !hasOrders;
 
@@ -290,6 +312,49 @@ const Dashboard = () => {
         </div>
       )}
 
+      {/* Top header chips: period selector + live-visitor pill.
+          Mirrors Shopify's compact analytics-context bar. Hidden during the
+          setup wizard since there's nothing meaningful to filter yet. */}
+      {!showSetup && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as "7d" | "30d" | "90d")}
+              className="appearance-none h-8 text-xs font-medium rounded-full border border-border/60 bg-card hover:bg-muted/50 ps-3 pe-7 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 transition-colors"
+              title={isAr ? "الفترة الزمنية" : "Time range"}
+              aria-label={isAr ? "الفترة الزمنية" : "Time range"}
+            >
+              <option value="7d">{isAr ? "آخر 7 أيام" : "Last 7 days"}</option>
+              <option value="30d">{isAr ? "آخر 30 يوم" : "Last 30 days"}</option>
+              <option value="90d">{isAr ? "آخر 90 يوم" : "Last 90 days"}</option>
+            </select>
+            <ChevronDown
+              className={`pointer-events-none absolute top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground ${isAr ? "left-2.5" : "right-2.5"}`}
+            />
+          </div>
+
+          <div
+            className="inline-flex items-center gap-1.5 h-8 text-xs font-medium rounded-full border border-border/60 bg-card px-3"
+            title={isAr ? "زوار يتصفحون متجرك الآن" : "Visitors browsing your store right now"}
+          >
+            <span className="relative flex h-2 w-2">
+              {liveVisitors > 0 && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              )}
+              <span
+                className={`relative inline-flex rounded-full h-2 w-2 ${liveVisitors > 0 ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
+              />
+            </span>
+            <span className="tabular-nums">
+              {isAr
+                ? `${liveVisitors.toLocaleString("ar-EG")} زائر مباشر`
+                : `${liveVisitors.toLocaleString()} live visitor${liveVisitors === 1 ? "" : "s"}`}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Attention Needed — hidden during setup wizard */}
       {!showSetup && stats && (pendingCount > 0 || lowStockCount > 0) && (
         <div className="flex flex-col sm:flex-row gap-2">
@@ -440,6 +505,8 @@ const Dashboard = () => {
                       value={period}
                       onChange={e => { e.stopPropagation(); setPeriod(e.target.value as "7d" | "30d" | "90d"); }}
                       onClick={e => e.stopPropagation()}
+                      title={isAr ? "الفترة الزمنية" : "Time range"}
+                      aria-label={isAr ? "الفترة الزمنية" : "Time range"}
                       className="text-[10px] text-muted-foreground bg-transparent border-none outline-none cursor-pointer hover:text-foreground transition-colors"
                     >
                       <option value="7d">{isAr ? "آخر 7 أيام" : "Last 7 days"}</option>

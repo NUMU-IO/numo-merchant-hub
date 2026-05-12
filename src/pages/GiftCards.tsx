@@ -36,7 +36,7 @@ export default function GiftCardsPage() {
     setLoading(true);
     try {
       const result = await listGiftCards(storeId, { page: 1, limit: 50 });
-      setCards(result.items);
+      setCards(Array.isArray(result) ? result : []);
     } catch (err) {
       showError(err, "Couldn't load gift cards.");
     } finally {
@@ -59,7 +59,7 @@ export default function GiftCardsPage() {
     setIssuing(true);
     try {
       const result = await issueGiftCard(storeId, {
-        amount_cents: cents,
+        initial_balance_cents: cents,
         currency: currentStore?.currency || "EGP",
         expires_at: expiresAt || null,
         note: note || null,

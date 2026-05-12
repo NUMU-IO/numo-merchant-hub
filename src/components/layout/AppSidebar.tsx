@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, CreditCard, Share2, Banknote,
   Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
-  Palette, FileText, Navigation2, SlidersHorizontal, ClipboardList, ChevronLeft, Filter, Radio,
+  Palette, FileText, FileEdit, Navigation2, SlidersHorizontal, ClipboardList, ChevronLeft, Filter, Radio,
   Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
-  UserCog, User, Inbox, PlugZap, Mail, Sparkles,
+  UserCog, User, Inbox, PlugZap, Mail, Sparkles, Tag, ShoppingBag, Boxes,
+  Percent, Gift, Ticket, BadgePercent,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -50,17 +51,22 @@ const AppSidebar = () => {
   const staffActive = isActive("/staff") || isActive("/roles");
   const channelsActive = isActive("/channels") || isActive("/inbox");
   const marketingActive = isActive("/marketing");
+  // Active state for the Orders parent — covers the list, the create flow,
+  // the detail page, and any /orders/* sub-page (drafts, etc.).
+  const ordersActive = isActive("/orders");
 
-  // Marketing sub-items. Promotions only shows when the tenant has
-  // ff_promotions_v2 enabled — same gate the standalone row used to
-  // honour. Empty arrays are fine for `renderExpandableItem`; if the
-  // flag is off we still render Marketing as an expandable parent
-  // with no children, but the Marketing landing page is the click
-  // target so the row stays useful.
-  const marketingSubItems = [
-    ...(promotionsV2Enabled
-      ? [{ title: isRTL ? "العروض" : "Promotions", url: "/marketing/promotions", icon: Sparkles }]
-      : []),
+  // Discounts is the unified nav home for everything that reduces the
+  // customer's bill: coupons, promotions/offers (BOGO, %-off, tiered, etc.
+  // — all surface from the same PromotionsList page), and gift cards.
+  // The Promotions sub-item used to be hidden behind `ff_promotions_v2`,
+  // which left merchants unable to find their existing BOGO/offer rules;
+  // it's now always visible.
+  const discountsActive =
+    isActive("/marketing") || isActive("/gift-cards");
+  const discountsSubItems = [
+    { title: isRTL ? "الكوبونات" : "Coupons", url: "/marketing", icon: Ticket },
+    { title: isRTL ? "العروض" : "Promotions", url: "/marketing/promotions", icon: BadgePercent },
+    { title: isRTL ? "بطاقات الهدايا" : "Gift cards", url: "/gift-cards", icon: Gift },
   ];
 
   // Analytics sub-items
@@ -93,6 +99,17 @@ const AppSidebar = () => {
   const staffSubItems = [
     { title: isRTL ? "الأعضاء" : "Members", url: "/staff", icon: User },
     { title: isRTL ? "الأدوار" : "Roles", url: "/roles", icon: UserCog },
+  ];
+
+  // Orders sub-items. "All orders" mirrors the parent's URL so clicking either
+  // the row label or this sub-item lands on the same page (matches the
+  // Shopify pattern). Drafts + Shipping labels + Abandoned checkouts are
+  // dedicated sub-pages.
+  const ordersSubItems = [
+    { title: isRTL ? "كل الطلبات" : "All orders", url: "/orders", icon: ShoppingCart },
+    { title: isRTL ? "المسودات" : "Drafts", url: "/orders/drafts", icon: FileEdit },
+    { title: isRTL ? "بطاقات الشحن" : "Shipping labels", url: "/orders/shipping-labels", icon: Tag },
+    { title: isRTL ? "السلال المهجورة" : "Abandoned checkouts", url: "/orders/abandoned", icon: ShoppingBag },
   ];
 
   // Collapsible section builder (for bottom sections)
@@ -209,16 +226,16 @@ const AppSidebar = () => {
                   </SidebarMenuItem>
                 </NavItemGate>
 
-                {/* Orders */}
+                {/* Orders — clickable + expandable sub-items (All / Drafts) */}
                 <NavItemGate navKey="orders">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/orders")} tooltip={isRTL ? "الطلبات" : "Orders"} className="h-10 rounded-lg px-3">
-                      <NavLink to="/orders">
-                        <ShoppingCart className="h-[18px] w-[18px] opacity-70" />
-                        <span className="text-[13px] font-medium">{isRTL ? "الطلبات" : "Orders"}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {renderExpandableItem(
+                    isRTL ? "الطلبات" : "Orders",
+                    "/orders",
+                    ShoppingCart,
+                    ordersSubItems,
+                    ordersActive,
+                    "orders",
+                  )}
                 </NavItemGate>
 
                 {/* Products */}
@@ -257,40 +274,21 @@ const AppSidebar = () => {
                   </SidebarMenuItem>
                 </NavItemGate>
 
-                {/* Marketing — flat row when nothing is gated in,
-                    expandable parent with Promotions when ff_promotions_v2
-                    is on for this tenant. */}
+                {/* Discounts — unified parent for coupons (the Marketing page
+                    hosts the coupons tab), promotions, and gift cards. The
+                    `navKey="marketing"` gate is honoured because coupons live
+                    behind the same permission today; revisit if/when a
+                    separate gift-cards permission is needed. */}
                 <NavItemGate navKey="marketing">
-                  {marketingSubItems.length > 0 ? (
-                    renderExpandableItem(
-                      isRTL ? "التسويق" : "Marketing",
-                      "/marketing",
-                      Megaphone,
-                      marketingSubItems,
-                      marketingActive,
-                      "marketing",
-                    )
-                  ) : (
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive("/marketing")} tooltip={isRTL ? "التسويق" : "Marketing"} className="h-10 rounded-lg px-3">
-                        <NavLink to="/marketing">
-                          <Megaphone className="h-[18px] w-[18px] opacity-70" />
-                          <span className="text-[13px] font-medium">{isRTL ? "التسويق" : "Marketing"}</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
+                  {renderExpandableItem(
+                    isRTL ? "الخصومات" : "Discounts",
+                    "/marketing",
+                    Percent,
+                    discountsSubItems,
+                    discountsActive,
+                    "discounts",
                   )}
                 </NavItemGate>
-
-                {/* Gift cards — Phase 8.3 */}
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/gift-cards")} tooltip={isRTL ? "بطاقات الهدايا" : "Gift cards"} className="h-10 rounded-lg px-3">
-                    <NavLink to="/gift-cards">
-                      <Megaphone className="h-[18px] w-[18px] opacity-70" />
-                      <span className="text-[13px] font-medium">{isRTL ? "بطاقات الهدايا" : "Gift cards"}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
 
                 {/* Locations — Phase 8.2 */}
                 <SidebarMenuItem>

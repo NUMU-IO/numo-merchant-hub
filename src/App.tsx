@@ -9,7 +9,6 @@ import { TrialPaywallProvider } from "@/contexts/TrialPaywallContext";
 import { StoreProvider, useDashboardStore } from "@/contexts/StoreContext";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { NumuLoadingScreen } from "@/components/NumuLoader";
 import { PageLoader } from "@/components/PageLoader";
@@ -21,6 +20,10 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Products = lazy(() => import("@/pages/Products"));
 const ProductEditor = lazy(() => import("@/pages/ProductEditor"));
 const Orders = lazy(() => import("@/pages/Orders"));
+const OrderDetail = lazy(() => import("@/pages/OrderDetail"));
+const DraftOrders = lazy(() => import("@/pages/DraftOrders"));
+const ShippingLabels = lazy(() => import("@/pages/ShippingLabels"));
+const AbandonedCheckouts = lazy(() => import("@/pages/AbandonedCheckouts"));
 const OrderImport = lazy(() => import("@/pages/OrderImport"));
 const CreateOrder = lazy(() => import("@/pages/CreateOrder"));
 const StoreSettings = lazy(() => import("@/pages/StoreSettings"));
@@ -122,19 +125,6 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 function RequireVerified({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (user && !user.is_verified) return <Navigate to="/verify-email" replace />;
-  return <>{children}</>;
-}
-
-/**
- * Gate offers-v2 promotion routes on the per-tenant feature flag.
- *
- * The backend already returns 404 from the promotion endpoints when
- * `ff_promotions_v2` is off; this guard mirrors that on the client so a
- * user typing the URL doesn't land on a screen that immediately fails.
- */
-function RequirePromotionsV2({ children }: { children: React.ReactNode }) {
-  const enabled = useFeatureFlag("ff_promotions_v2");
-  if (!enabled) return <Navigate to="/marketing" replace />;
   return <>{children}</>;
 }
 
@@ -245,8 +235,12 @@ const App = () => (
                     <Route path="/products/new" element={<ProductEditor />} />
                     <Route path="/products/:productId/edit" element={<ProductEditor />} />
                     <Route path="/orders" element={<Orders />} />
+                    <Route path="/orders/drafts" element={<DraftOrders />} />
+                    <Route path="/orders/shipping-labels" element={<ShippingLabels />} />
+                    <Route path="/orders/abandoned" element={<AbandonedCheckouts />} />
                     <Route path="/orders/create" element={<CreateOrder />} />
                     <Route path="/orders/import" element={<OrderImport />} />
+                    <Route path="/orders/:orderId" element={<OrderDetail />} />
                     <Route path="/payments" element={<Payments />} />
                     <Route path="/wallet" element={<WalletPage />} />
                     <Route path="/store-balance" element={<StoreBalancePage />} />
@@ -265,6 +259,7 @@ const App = () => (
                     <Route path="/online-store/my-themes" element={<MyThemeSubmissions />} />
                     <Route path="/social" element={<SocialImport />} />
                     <Route path="/customers" element={<Customers />} />
+                    <Route path="/customers/:customerId" element={<Customers />} />
                     <Route path="/analytics" element={<Navigate to="/analytics/overview" replace />} />
                     <Route path="/analytics/overview" element={<AnalyticsOverview />} />
                     <Route path="/analytics/sales" element={<AnalyticsSales />} />
@@ -280,22 +275,10 @@ const App = () => (
                     <Route path="/analytics/reports" element={<AnalyticsReports />} />
                     <Route path="/health-score" element={<HealthScore />} />
                     <Route path="/marketing" element={<Marketing />} />
-                    <Route
-                      path="/marketing/promotions"
-                      element={<RequirePromotionsV2><PromotionsList /></RequirePromotionsV2>}
-                    />
-                    <Route
-                      path="/marketing/promotions/new"
-                      element={<RequirePromotionsV2><PromotionForm /></RequirePromotionsV2>}
-                    />
-                    <Route
-                      path="/marketing/promotions/:id"
-                      element={<RequirePromotionsV2><PromotionDetail /></RequirePromotionsV2>}
-                    />
-                    <Route
-                      path="/marketing/promotions/:id/edit"
-                      element={<RequirePromotionsV2><PromotionForm /></RequirePromotionsV2>}
-                    />
+                    <Route path="/marketing/promotions" element={<PromotionsList />} />
+                    <Route path="/marketing/promotions/new" element={<PromotionForm />} />
+                    <Route path="/marketing/promotions/:id" element={<PromotionDetail />} />
+                    <Route path="/marketing/promotions/:id/edit" element={<PromotionForm />} />
                     <Route path="/email-templates" element={<EmailTemplates />} />
                     <Route path="/email-templates/new" element={<EmailTemplateEditor />} />
                     <Route path="/email-templates/:id" element={<EmailTemplateEditor />} />

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,11 @@ import {
 } from "lucide-react";
 import { listProducts, type ApiProductResponse } from "@/services/productApi";
 import { listCustomers, type Customer } from "@/services/customerApi";
-import { createManualOrder, type CreateOrderLineItem } from "@/services/orderApi";
+import {
+  createDraftOrder,
+  createManualOrder,
+  type CreateOrderLineItem,
+} from "@/services/orderApi";
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 
@@ -33,8 +37,14 @@ const CreateOrder = () => {
   const isAr = language === "ar";
   const storeId = currentStore?.id;
   const navigate = useNavigate();
+  // `?draft=1` arrives from the Drafts page's "New draft" button. We pre-emit
+  // the save-as-draft action when set, and the regular Create flow stays
+  // available via the secondary button.
+  const [searchParams] = useSearchParams();
+  const startAsDraft = searchParams.get("draft") === "1";
 
   const [step, setStep] = useState<Step>(1);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   /* ── Step 1: Products ── */
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -104,41 +114,61 @@ const CreateOrder = () => {
     return true;
   };
 
+  const buildOrderPayload = () => {
+    if (!selectedCustomer) return null;
+    const line_items: CreateOrderLineItem[] = cart.map((c) => ({
+      product_id: c.product.id,
+      product_name: c.product.name,
+      sku: c.product.sku || undefined,
+      quantity: c.quantity,
+      unit_price: Math.round(Number(c.product.price) * 100),
+    }));
+    return {
+      customer_id: selectedCustomer.id,
+      line_items,
+      shipping_address: {
+        first_name: selectedCustomer.first_name,
+        last_name: selectedCustomer.last_name,
+        address_line1: address.line1,
+        address_line2: address.line2 || undefined,
+        city: address.city,
+        state: address.state || undefined,
+        postal_code: address.postal_code || undefined,
+        country: address.country,
+        phone: selectedCustomer.phone || undefined,
+      },
+      shipping_cost: 0,
+      currency: "EGP",
+      payment_method: paymentMethod,
+      shipping_method: shippingMethod,
+      customer_notes: notes || undefined,
+    };
+  };
+
   const handleCreate = async () => {
-    if (!storeId || !selectedCustomer) return;
+    if (!storeId) return;
+    const payload = buildOrderPayload();
+    if (!payload) return;
     setCreating(true);
     try {
-      const line_items: CreateOrderLineItem[] = cart.map(c => ({
-        product_id: c.product.id,
-        product_name: c.product.name,
-        sku: c.product.sku || undefined,
-        quantity: c.quantity,
-        unit_price: Math.round(Number(c.product.price) * 100),
-      }));
-      await createManualOrder(storeId, {
-        customer_id: selectedCustomer.id,
-        line_items,
-        shipping_address: {
-          first_name: selectedCustomer.first_name,
-          last_name: selectedCustomer.last_name,
-          address_line1: address.line1,
-          address_line2: address.line2 || undefined,
-          city: address.city,
-          state: address.state || undefined,
-          postal_code: address.postal_code || undefined,
-          country: address.country,
-          phone: selectedCustomer.phone || undefined,
-        },
-        shipping_cost: 0,
-        currency: "EGP",
-        payment_method: paymentMethod,
-        shipping_method: shippingMethod,
-        customer_notes: notes || undefined,
-      });
+      await createManualOrder(storeId, payload);
       toast.success(isAr ? "تم إنشاء الطلب بنجاح" : "Order created");
       navigate("/orders");
     } catch (e) { showError(e, language); }
     finally { setCreating(false); }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!storeId) return;
+    const payload = buildOrderPayload();
+    if (!payload) return;
+    setSavingDraft(true);
+    try {
+      await createDraftOrder(storeId, payload);
+      toast.success(isAr ? "تم حفظ المسودة" : "Draft saved");
+      navigate("/orders/drafts");
+    } catch (e) { showError(e, language); }
+    finally { setSavingDraft(false); }
   };
 
   const stepsConfig = [
@@ -369,8 +399,24 @@ const CreateOrder = () => {
       {/* Navigation */}
       <div className="rounded-xl border bg-muted/20 px-5 py-3 flex items-center justify-center gap-3">
         <Button variant="outline" size="sm" className="h-9 text-xs rounded-lg px-6" disabled={step === 1} onClick={() => setStep((step - 1) as Step)}>{isAr ? "السابق" : "Previous"}</Button>
+        {/* Save-as-draft is available from step 2 onward (needs a customer +
+            line items), regardless of which step the wizard is on. */}
+        {cart.length > 0 && selectedCustomer && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 text-xs rounded-lg px-6 gap-1.5"
+            disabled={savingDraft || creating}
+            onClick={handleSaveDraft}
+          >
+            {savingDraft ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+            {isAr ? "حفظ كمسودة" : "Save as draft"}
+          </Button>
+        )}
         {step < 4 ? (
           <Button size="sm" className="h-9 text-xs rounded-lg px-6" disabled={!canNext()} onClick={() => setStep((step + 1) as Step)}>{isAr ? "التالي" : "Next"}</Button>
+        ) : startAsDraft ? (
+          <Button size="sm" className="h-9 text-xs rounded-lg px-6 gap-1.5" disabled={savingDraft} onClick={handleSaveDraft}>{savingDraft ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}{isAr ? "حفظ المسودة" : "Save draft"}</Button>
         ) : (
           <Button size="sm" className="h-9 text-xs rounded-lg px-6 gap-1.5" disabled={creating} onClick={handleCreate}>{creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}{isAr ? "إنشاء الطلب" : "Create Order"}</Button>
         )}
