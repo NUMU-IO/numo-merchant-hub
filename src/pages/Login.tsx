@@ -11,8 +11,7 @@
  * Form logic, validation, i18n, OAuth, and 2FA flow are unchanged.
  */
 
-import { useState, useEffect, useRef, Suspense } from "react";
-import { lazyWithRetry as lazy } from "@/lib/lazy-with-retry";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -26,8 +25,7 @@ import { TwoFactorRequiredError } from "@/services/authApi";
 import { ApiError } from "@/lib/api-error";
 import { PhoneInput, isValidE164 } from "@/components/forms/PhoneInput";
 import { z } from "zod";
-
-const Ballpit = lazy(() => import("@/components/Ballpit"));
+import AnimatedCharacters from "@/components/AnimatedCharacters";
 
 const loginSchema = z.object({
   email: z.string().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة"),
@@ -66,6 +64,7 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [isFocusingEmail, setIsFocusingEmail] = useState(false);
 
   const [email, setEmail] = useState(() => searchParams.get("email") || "");
   const [password, setPassword] = useState("");
@@ -204,35 +203,37 @@ export default function Login() {
         {language === "en" ? "العربية" : "English"}
       </button>
 
-      {/* Left hero panel — navy ground with playful Ballpit physics
-          behind the brand mark + tagline. The interactive dot grid
-          fades to brand colours on hover. Hidden on small screens; the
-          form column carries everything on mobile. */}
-      <div className="hidden lg:flex flex-1 max-w-[640px] flex-col justify-between p-12 xl:p-16 relative overflow-hidden auth-bright-panel border-e border-[var(--b-line)]">
-        {/* Falling balls — drop once and settle on each refresh. */}
-        <Suspense fallback={<div className="absolute inset-0 auth-bright-fallback" aria-hidden="true" />}>
-          <Ballpit
-            count={90}
-            gravity={0.22}
-            friction={0.982}
-            wallBounce={0.78}
-            followCursor
-            colors={[
-              "#003366",
-              "#1F4A7A",
-              "#E8A430",
-              "#C14A1C",
-              "#6B8E68",
-              "#F5EFE6",
-            ]}
-          />
-        </Suspense>
+      {/* Left hero panel — cream paper ground with the four-character
+          ensemble. Characters track the cursor, blink, glance at one
+          another while the email field is focused, and avert their
+          gaze when the password is revealed. Hidden on small screens;
+          the form column carries everything on mobile. */}
+      <div className="hidden lg:flex flex-1 max-w-[640px] flex-col p-12 xl:p-16 relative overflow-hidden auth-bright-panel border-e border-[var(--b-line)]">
+        {/* Character ensemble — absolute, bottom-anchored, scaled to fit
+            the panel at every desktop breakpoint. `pointer-events-none`
+            so the characters never block clicks on the brand mark or
+            footer links sitting above them. Eye-tracking still works
+            via the global mousemove listener. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-20 xl:bottom-24 2xl:bottom-28 z-0 flex items-end justify-center pointer-events-none"
+        >
+          <div className="origin-bottom scale-[0.62] xl:scale-75 2xl:scale-[0.88]">
+            <AnimatedCharacters
+              isFocusing={isFocusingEmail}
+              hasPassword={password.length > 0}
+              passwordVisible={showPassword}
+            />
+          </div>
+        </div>
 
         {/* Terracotta → saffron hairline at bottom — brand-kit signature */}
         <span aria-hidden="true" className="absolute bottom-0 start-0 end-0 h-[3px] z-20 auth-hero-hairline" />
 
-        {/* Content sits above the canvas. */}
-        <div className="relative z-10 flex flex-col justify-between h-full pointer-events-none">
+        {/* Content sits above the characters. Tagline anchors below the
+            brand mark; footer is pushed to the bottom with `mt-auto`
+            so the middle space belongs to the animation. */}
+        <div className="relative z-10 flex flex-col h-full pointer-events-none">
           <Link
             to="/"
             className="flex items-center gap-3 pointer-events-auto self-start hover:opacity-90 transition-opacity"
@@ -257,7 +258,7 @@ export default function Login() {
             )}
           </Link>
 
-          <div className="max-w-[440px] pointer-events-auto">
+          <div className="mt-10 xl:mt-14 max-w-[440px] pointer-events-auto">
             <p className="auth-card-eyebrow mb-4">§ MERCHANT HUB</p>
             <div className="h-[5.5rem] overflow-hidden mb-5">
               <h1
@@ -276,7 +277,7 @@ export default function Login() {
             </p>
           </div>
 
-          <div className="flex items-center gap-6 text-xs text-[var(--b-ink-soft)] pointer-events-auto">
+          <div className="mt-auto flex items-center gap-6 text-xs text-[var(--b-ink-soft)] pointer-events-auto">
             <span>&copy; 2026 {isAr ? "نُمُو" : "numu"}</span>
             <span aria-hidden="true">·</span>
             <Link to="/" className="transition-colors hover:text-[var(--b-ink)]">
@@ -418,7 +419,16 @@ export default function Login() {
 
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-[13px] font-medium">{t("auth.email")}</Label>
-                    <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" className={inputCls("email")} />
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onFocus={() => setIsFocusingEmail(true)}
+                      onBlur={() => setIsFocusingEmail(false)}
+                      placeholder="you@company.com"
+                      className={inputCls("email")}
+                    />
                     {fieldErrors.email && <p className="text-xs text-[var(--b-terracotta)]">{fieldErrors.email}</p>}
                   </div>
 
