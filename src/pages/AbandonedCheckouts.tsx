@@ -119,14 +119,17 @@ const AbandonedCheckouts = () => {
   const fmtRelative = (iso: string | null) => {
     if (!iso) return "—";
     const date = new Date(iso);
-    const now = Date.now();
-    const diffMs = now - date.getTime();
+    const ms = date.getTime();
+    if (Number.isNaN(ms)) return "—";
+    const diffMs = Date.now() - ms;
     const minutes = Math.floor(diffMs / 60_000);
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
-    if (days > 1) return isAr ? `منذ ${days} يوم` : `${days}d ago`;
-    if (hours > 1) return isAr ? `منذ ${hours} ساعة` : `${hours}h ago`;
-    if (minutes > 1) return isAr ? `منذ ${minutes} دقيقة` : `${minutes}m ago`;
+    // Use `>= 1` so a row that's been idle for exactly one hour shows
+    // "1h ago" rather than falling through to the noisy "60m ago".
+    if (days >= 1) return isAr ? `منذ ${days} يوم` : `${days}d ago`;
+    if (hours >= 1) return isAr ? `منذ ${hours} ساعة` : `${hours}h ago`;
+    if (minutes >= 1) return isAr ? `منذ ${minutes} دقيقة` : `${minutes}m ago`;
     return isAr ? "للتو" : "just now";
   };
 
@@ -253,7 +256,11 @@ const AbandonedCheckouts = () => {
                       </div>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {fmtRelative(c.abandoned_at || c.last_activity_at)}
+                      {/* Show the customer's last activity, not the lazy-set
+                          abandoned_at. The merchant cares about "how long
+                          have they been idle"; abandoned_at is just the
+                          status-flip marker. */}
+                      {fmtRelative(c.last_activity_at)}
                     </TableCell>
                     <TableCell>
                       {c.recovered_at ? (
@@ -271,12 +278,23 @@ const AbandonedCheckouts = () => {
                         >
                           {t("abandonedCheckouts.emailSent")}
                         </Badge>
-                      ) : (
+                      ) : c.abandoned_at ? (
                         <Badge
                           variant="outline"
                           className="text-[10px] py-0.5 bg-amber-500/10 text-amber-600 border-amber-200/50"
                         >
                           {t("abandonedCheckouts.abandoned")}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] py-0.5 bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-200/50"
+                        >
+                          <span className="relative flex h-1.5 w-1.5 me-1">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-sky-500" />
+                          </span>
+                          {t("abandonedCheckouts.inProgress")}
                         </Badge>
                       )}
                     </TableCell>

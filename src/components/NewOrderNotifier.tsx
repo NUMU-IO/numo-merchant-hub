@@ -25,7 +25,7 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { listOrders, type OrderListItem } from "@/services/orderApi";
 
-const POLL_INTERVAL_MS = 20_000;
+const POLL_INTERVAL_MS = 60_000;
 const STORAGE_PREFIX = "numu.lastOrderSeen.";
 
 function storageKey(storeId: string) {
@@ -146,6 +146,16 @@ export function NewOrderNotifier() {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const poll = async () => {
+      // Skip the network call entirely when the tab is backgrounded — most
+      // wasted polls come from tabs nobody is looking at. We'll catch up on
+      // visibilitychange below.
+      if (document.visibilityState === "hidden") {
+        if (!cancelled) {
+          timer = setTimeout(poll, POLL_INTERVAL_MS);
+        }
+        return;
+      }
+
       try {
         const data = await listOrders(storeId, { page: 1, limit: 10 });
         if (cancelled) return;
@@ -194,9 +204,23 @@ export function NewOrderNotifier() {
     // orders can sneak in via the long poll interval.
     poll();
 
+    // When the tab becomes visible again, poll once right away instead of
+    // waiting up to a full interval — the merchant just looked at the screen.
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        poll();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [storeId, showOrderToast]);
 
