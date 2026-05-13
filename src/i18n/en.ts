@@ -202,6 +202,7 @@ export default {
     title: "Abandoned checkouts",
     subtitle: "Carts that customers started but didn't pay for. Send a recovery email to win them back.",
     abandoned: "Abandoned",
+    inProgress: "In progress",
     recovered: "Recovered",
     all: "All",
     recoverable: "With contact",

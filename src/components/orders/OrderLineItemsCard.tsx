@@ -60,11 +60,14 @@ export function OrderLineItemsCard({ order }: Props) {
     return map;
   }, [productQueries, uniqueProductIds]);
 
-  // Split "Large / Blue" → ["Large", "Blue"] for individual pills.
+  // Split the variant label into individual pills.
+  // The storefront checkout backend formats this as `"Color: Red, Size: M"`
+  // (key-prefixed, comma-separated — see api/v1/routes/storefront/checkout.py).
+  // Legacy carts may still send slash-delimited `"Large / Blue"`. Handle both.
   const splitVariant = (v: string | null | undefined): string[] => {
     if (!v) return [];
     return v
-      .split(/\s*\/\s*/)
+      .split(/\s*[,/]\s*/)
       .map((s) => s.trim())
       .filter(Boolean);
   };
