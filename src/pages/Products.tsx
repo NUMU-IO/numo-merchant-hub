@@ -22,7 +22,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenuRadioGroup, DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -54,6 +55,12 @@ const Products = () => {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ProductStatus>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  // Sort/view state — backed by URL-stable values that map straight to the
+  // API's `sort_by`/`sort_order` query params (see backend's PRODUCT_SORT_FIELDS).
+  // `newest` is encoded as `sort_by=created_at, sort_order=desc` below.
+  type SortKey = "newest" | "oldest" | "name_asc" | "name_desc" | "price_asc" | "price_desc" | "stock_desc";
+  const [sortKey, setSortKey] = useState<SortKey>("newest");
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -110,7 +117,7 @@ const Products = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter]);
+  }, [debouncedSearch, statusFilter, categoryFilter, sortKey]);
 
   const fetchProducts = useCallback(async () => {
     if (!storeId) return;
@@ -119,11 +126,27 @@ const Products = () => {
       const apiStatus = statusFilter === "all"
         ? undefined
         : statusFilter === "published" ? "active" : statusFilter;
+      // Map the UX-level sort presets to the backend's (sort_by, sort_order)
+      // pair. Keeping the mapping here (not in the API service) so future sort
+      // presets can be added without changing the network contract.
+      const sortMap: Record<typeof sortKey, { sort_by: string; sort_order: "asc" | "desc" }> = {
+        newest:     { sort_by: "created_at", sort_order: "desc" },
+        oldest:     { sort_by: "created_at", sort_order: "asc"  },
+        name_asc:   { sort_by: "name",       sort_order: "asc"  },
+        name_desc:  { sort_by: "name",       sort_order: "desc" },
+        price_asc:  { sort_by: "price",      sort_order: "asc"  },
+        price_desc: { sort_by: "price",      sort_order: "desc" },
+        stock_desc: { sort_by: "quantity",   sort_order: "desc" },
+      };
+      const { sort_by, sort_order } = sortMap[sortKey];
       const result = await listProducts(storeId, {
         page: currentPage,
         limit: PAGE_SIZE,
         status: apiStatus,
         search: debouncedSearch || undefined,
+        category_id: categoryFilter !== "all" ? categoryFilter : undefined,
+        sort_by,
+        sort_order,
       });
       setProductsList(result.items.map(apiToProduct));
       setTotalProducts(result.total);
@@ -133,15 +156,16 @@ const Products = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [storeId, currentPage, statusFilter, debouncedSearch]);
+  }, [storeId, currentPage, statusFilter, debouncedSearch, categoryFilter, sortKey, language]);
 
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  const filtered = categoryFilter === "all"
-    ? productsList
-    : productsList.filter((p) => p.categoryId === categoryFilter);
+  // Category filter is now server-side (was previously a client-side filter
+  // over `productsList` which only ever saw the current 20-item page, so
+  // products in matching categories on later pages were invisible).
+  const filtered = productsList;
 
   const formatCurrency = (val: number) =>
     language === "ar" ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
@@ -263,9 +287,34 @@ const Products = () => {
 
       {/* ─── Search + filter bar ─── */}
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0">
-          <ArrowUpDown className="h-4 w-4" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9 rounded-lg shrink-0"
+              aria-label={isAr ? "ترتيب" : "Sort"}
+            >
+              <ArrowUpDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align={isAr ? "end" : "start"} className="w-48">
+            <DropdownMenuLabel>{isAr ? "ترتيب حسب" : "Sort by"}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup
+              value={sortKey}
+              onValueChange={(v) => setSortKey(v as typeof sortKey)}
+            >
+              <DropdownMenuRadioItem value="newest">{isAr ? "الأحدث أولاً" : "Newest first"}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="oldest">{isAr ? "الأقدم أولاً" : "Oldest first"}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="name_asc">{isAr ? "الاسم (أ→ي)" : "Name (A–Z)"}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="name_desc">{isAr ? "الاسم (ي→أ)" : "Name (Z–A)"}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="price_asc">{isAr ? "السعر (الأقل)" : "Price (low → high)"}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="price_desc">{isAr ? "السعر (الأعلى)" : "Price (high → low)"}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="stock_desc">{isAr ? "المخزون (الأكثر)" : "Stock (most first)"}</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
           <SelectTrigger className="w-auto h-9 rounded-lg gap-1.5 border-border text-muted-foreground hover:text-foreground">
             <ListFilter className="h-4 w-4 shrink-0" />
@@ -278,8 +327,16 @@ const Products = () => {
             ))}
           </SelectContent>
         </Select>
-        <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0">
-          <LayoutList className="h-4 w-4" />
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-9 w-9 rounded-lg shrink-0"
+          aria-label={viewMode === "list" ? (isAr ? "عرض شبكي" : "Switch to grid view") : (isAr ? "عرض قائمة" : "Switch to list view")}
+          aria-pressed={viewMode === "grid"}
+          onClick={() => setViewMode(viewMode === "list" ? "grid" : "list")}
+          title={viewMode === "list" ? (isAr ? "عرض شبكي" : "Grid view") : (isAr ? "عرض قائمة" : "List view")}
+        >
+          {viewMode === "list" ? <LayoutGrid className="h-4 w-4" /> : <LayoutList className="h-4 w-4" />}
         </Button>
         <div className="relative flex-1 max-w-sm ms-auto">
           <Search className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -352,6 +409,41 @@ const Products = () => {
                   {isAr ? "استيراد منتجات" : "Import Products"}
                 </Button>
               </div>
+            </div>
+          ) : viewMode === "grid" ? (
+            // Grid view — card-per-product. Same data + actions as the list,
+            // just denser visually for merchants browsing product photography.
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 p-4">
+              {filtered.map((p) => (
+                <button
+                  type="button"
+                  key={p.id}
+                  onClick={() => navigate(`/products/${p.id}/edit`)}
+                  className="group/card text-start rounded-xl border border-border/60 bg-background hover:border-primary/40 hover:shadow-md transition-all overflow-hidden flex flex-col"
+                >
+                  <div className="relative aspect-square bg-muted/40">
+                    {p.image.startsWith("http") ? (
+                      <img src={p.image} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center text-4xl">{p.image}</span>
+                    )}
+                    <Badge variant="outline" className={`absolute top-2 ${isAr ? "left-2" : "right-2"} text-[10px] font-medium gap-1 rounded-full py-0.5 px-2 ${statusConfig[p.status].bg}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${statusConfig[p.status].dot}`} />
+                      {t(`products.${p.status}`)}
+                    </Badge>
+                  </div>
+                  <div className="p-3 flex-1 flex flex-col gap-1">
+                    <p className="text-[13px] font-medium leading-tight line-clamp-2">{isAr ? p.nameAr : p.name}</p>
+                    <p className="text-[11px] text-muted-foreground/60 font-mono truncate">{p.sku || "—"}</p>
+                    <div className="mt-auto flex items-center justify-between pt-1.5">
+                      <span className="text-[13px] font-semibold tabular-nums">{formatCurrency(p.price)}</span>
+                      <span className={`text-[11px] tabular-nums ${p.stock === 0 ? "text-destructive" : p.stock < 20 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/70"}`}>
+                        {p.stock} {isAr ? "في المخزون" : "in stock"}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
             </div>
           ) : (
             <div className="overflow-x-auto">

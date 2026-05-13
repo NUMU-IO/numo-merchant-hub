@@ -51,6 +51,7 @@ export interface ListProductsParams {
   search?: string;
   sort_by?: string;
   sort_order?: "asc" | "desc";
+  category_id?: string;
 }
 
 export interface CreateProductData {
