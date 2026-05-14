@@ -160,19 +160,24 @@ export function buildVisualContent(
         dismissible: s.dismissible,
         link_url: s.linkUrl || null,
       };
-    case "popup":
+    case "popup": {
+      // Backend stores form-capture toggles as a `form_fields` list of
+      // discriminated values, NOT as separate `collect_email` /
+      // `collect_phone` booleans. Sending the boolean keys tripped
+      // Pydantic's `extra="forbid"` and 422'd creation. Map the form's
+      // checkbox state into the list shape here.
+      const formFields: ("email" | "phone" | "name")[] = [];
+      if (s.popupCollectEmail) formFields.push("email");
+      if (s.popupCollectPhone) formFields.push("phone");
       return {
         surface: "popup",
         layout: s.popupLayout,
         discount_code_to_reveal: s.popupCodeReveal || null,
         show_after_dismiss_days: s.popupShowAfterDays,
-        // The next 3 fields are read by the storefront's PopupModal —
-        // image at the top of the card, plus the form-capture toggles
-        // that flip the popup body into the email/phone form.
         image_url: s.popupImageUrl || null,
-        collect_email: s.popupCollectEmail || undefined,
-        collect_phone: s.popupCollectPhone || undefined,
+        form_fields: formFields,
       };
+    }
     case "floating_widget":
       return {
         surface: "floating_widget",

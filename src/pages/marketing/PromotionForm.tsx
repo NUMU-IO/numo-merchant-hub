@@ -591,26 +591,51 @@ export default function PromotionForm() {
       // Create flow
       let couponId: string | null = null;
       if (surface === "discount_code") {
-        // 1) Create the underlying coupon. The Coupon API speaks decimal
-        //    "value" but we expose a percent input — convert as needed.
+        // 1) Create the underlying coupon. The Coupon API only knows
+        //    three types (percentage / fixed / free_shipping) and
+        //    validates `value` accordingly. For richer promotion rules
+        //    (BOGO, tiered) the *promotion's* `discount_rule` does the
+        //    actual math and the coupon is just a code holder — we
+        //    submit a benign placeholder shape so the API accepts it.
+        let couponType: "percentage" | "fixed" | "free_shipping";
+        let couponValue: number;
+        if (form.ruleKind === "fixed") {
+          couponType = "fixed";
+          couponValue = Number(form.valueCents) / 100;
+        } else if (form.ruleKind === "free_shipping") {
+          couponType = "free_shipping";
+          couponValue = 0;
+        } else if (form.ruleKind === "percentage") {
+          couponType = "percentage";
+          couponValue = Number(form.valuePercent);
+        } else {
+          // BOGO / tiered / anything new. Backend only has 3 coupon
+          // types; pick `fixed` with a minimal-but-legal value (1 unit)
+          // so it passes `value > 0` validation. The promotion's
+          // `discount_rule` overrides this at calculation time.
+          couponType = "fixed";
+          couponValue = 1;
+        }
+
+        // Backend rejects `max_discount_amount <= 0` and `min_order_amount < 0`.
+        // The merchant form's text inputs can produce the string "0"
+        // (truthy in JS), which previously slipped through the `? :`
+        // check and sent zero. Treat empty *or* zero as null (uncapped /
+        // no minimum).
+        const minSubtotal = Number(form.minSubtotalCents);
+        const maxDiscount = Number(form.maxDiscountCents);
         const couponData: CreateCouponData = {
           code: form.code.toUpperCase(),
-          coupon_type:
-            form.ruleKind === "fixed"
-              ? "fixed"
-              : form.ruleKind === "free_shipping"
-                ? "free_shipping"
-                : "percentage",
-          value:
-            form.ruleKind === "fixed"
-              ? Number(form.valueCents) / 100
-              : Number(form.valuePercent),
-          min_order_amount: form.minSubtotalCents
-            ? Number(form.minSubtotalCents) / 100
-            : null,
-          max_discount_amount: form.maxDiscountCents
-            ? Number(form.maxDiscountCents) / 100
-            : null,
+          coupon_type: couponType,
+          value: couponValue,
+          min_order_amount:
+            form.minSubtotalCents.trim() && minSubtotal > 0
+              ? minSubtotal / 100
+              : null,
+          max_discount_amount:
+            form.maxDiscountCents.trim() && maxDiscount > 0
+              ? maxDiscount / 100
+              : null,
         };
         const coupon = await createCoupon(storeId, couponData);
         couponId = coupon.id;
