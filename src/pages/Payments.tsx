@@ -43,6 +43,75 @@ interface Invoice {
 const NUMU_PRIMARY = "hsl(222.2, 47.4%, 11.2%)";
 
 /* ═══════════════════════════════════════════════════════════════════════
+   STATUS BADGE
+   ───────────────────────────────────────────────────────────────────────
+   The backend writes one of {success, successful, paid, completed,
+   captured, succeeded} for transactions that actually settled — the set
+   is canonicalised in src/application/services/reconciliation_service.py
+   on the API side. The previous version of this component only matched
+   the literal "successful" and rendered everything else as "Refunded",
+   which made every Paymob/Kashier/COD payment appear refunded in the UI.
+
+   Unknown statuses now show the raw string with a neutral badge instead
+   of lying about a refund.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const TX_PAID_STATUSES = new Set([
+  "success",
+  "successful",
+  "paid",
+  "completed",
+  "captured",
+  "succeeded",
+]);
+const TX_PENDING_STATUSES = new Set(["pending", "processing", "authorized"]);
+const TX_FAILED_STATUSES = new Set(["failed", "cancelled", "canceled", "error"]);
+const TX_REFUNDED_STATUSES = new Set([
+  "refunded",
+  "partially_refunded",
+  "partial_refund",
+  "reversed",
+]);
+
+function renderTxStatus(status: string, isAr: boolean) {
+  const s = (status || "").toLowerCase();
+  if (TX_PAID_STATUSES.has(s)) {
+    return (
+      <Badge variant="outline" className="text-[10px] font-medium gap-1 rounded-md py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50">
+        <Check className="h-3 w-3" />{isAr ? "ناجح" : "Paid"}
+      </Badge>
+    );
+  }
+  if (TX_PENDING_STATUSES.has(s)) {
+    return (
+      <Badge variant="outline" className="text-[10px] font-medium gap-1 rounded-md py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50">
+        <Loader2 className="h-3 w-3" />{isAr ? "معلق" : "Pending"}
+      </Badge>
+    );
+  }
+  if (TX_FAILED_STATUSES.has(s)) {
+    return (
+      <Badge variant="outline" className="text-[10px] font-medium gap-1 rounded-md py-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50">
+        <AlertCircle className="h-3 w-3" />{isAr ? "فشل" : "Failed"}
+      </Badge>
+    );
+  }
+  if (TX_REFUNDED_STATUSES.has(s)) {
+    return (
+      <Badge variant="outline" className="text-[10px] font-medium gap-1 rounded-md py-0.5 bg-slate-500/10 text-slate-600 border-slate-200/50">
+        <ArrowLeftRight className="h-3 w-3" />{isAr ? "مسترد" : "Refunded"}
+      </Badge>
+    );
+  }
+  // Fallback: show the raw status, but neutral (no false "Refunded" claim).
+  return (
+    <Badge variant="outline" className="text-[10px] font-medium rounded-md py-0.5 bg-muted text-muted-foreground border-muted-foreground/20">
+      {status || (isAr ? "غير معروف" : "Unknown")}
+    </Badge>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    COMPONENT
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -202,10 +271,7 @@ const Payments = () => {
                     </span>
                   </TableCell>
                   <TableCell>
-                    {t.status === "successful" ? <Badge variant="outline" className="text-[10px] font-medium gap-1 rounded-md py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50"><Check className="h-3 w-3" />{isAr ? "ناجح" : "Paid"}</Badge> :
-                     t.status === "pending" ? <Badge variant="outline" className="text-[10px] font-medium gap-1 rounded-md py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50"><Loader2 className="h-3 w-3" />{isAr ? "معلق" : "Pending"}</Badge> :
-                     t.status === "failed" ? <Badge variant="outline" className="text-[10px] font-medium gap-1 rounded-md py-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50"><AlertCircle className="h-3 w-3" />{isAr ? "فشل" : "Failed"}</Badge> :
-                     <Badge variant="outline" className="text-[10px] font-medium gap-1 rounded-md py-0.5 bg-slate-500/10 text-slate-600 border-slate-200/50"><ArrowLeftRight className="h-3 w-3" />{isAr ? "مسترد" : "Refunded"}</Badge>}
+                    {renderTxStatus(t.status, isAr)}
                   </TableCell>
                   <TableCell>
                     <div className="text-xs">{fmtDate(t.created_at)}</div>
