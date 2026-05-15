@@ -38,8 +38,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { downloadInvoicePdf } from "@/services/invoiceApi";
-import { apiClient } from "@/services/api";
+import { downloadInvoicePdf, getInvoiceForOrder } from "@/services/invoiceApi";
 import { showError } from "@/lib/show-error";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
 import InstapayProofReview from "@/components/payments/InstapayProofReview";
@@ -594,18 +593,20 @@ const Orders = () => {
                     className="w-full mt-2 gap-1.5"
                     onClick={async () => {
                       try {
-                        // Fetch invoices and find by order
-                        const data = await apiClient<{ items: Array<{ id: string; order_id?: string }> }>(
-                          `/stores/${currentStore.id}/invoices/?page=1&page_size=50`
-                        );
-                        const orderInvoice = data.items?.find((inv) => inv.order_id === o.id);
-                        if (orderInvoice) {
-                          await downloadInvoicePdf(currentStore.id, orderInvoice.id);
+                        // Get-or-create: backend lazily issues the invoice
+                        // when the order is paid but the on-paid handler
+                        // hasn't completed yet.
+                        const invoice = await getInvoiceForOrder(currentStore.id, o.id);
+                        await downloadInvoicePdf(currentStore.id, invoice.id);
+                      } catch (err: unknown) {
+                        const e = err as { status?: number };
+                        if (e?.status === 409) {
+                          toast.error(language === "ar"
+                            ? "ضع علامة على الطلب كمدفوع أولاً لإنشاء الفاتورة"
+                            : "Mark the order as paid first to generate the invoice");
                         } else {
-                          toast.error(language === "ar" ? "لا توجد فاتورة لهذا الطلب بعد" : "No invoice found for this order yet");
+                          toast.error(language === "ar" ? "فشل تحميل الفاتورة" : "Failed to download invoice");
                         }
-                      } catch {
-                        toast.error(language === "ar" ? "فشل تحميل الفاتورة" : "Failed to download invoice");
                       }
                     }}
                   >
