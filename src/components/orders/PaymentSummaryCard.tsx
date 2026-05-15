@@ -7,8 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, FileText } from "lucide-react";
 import { toast } from "sonner";
-import { apiClient } from "@/services/api";
-import { downloadInvoicePdf } from "@/services/invoiceApi";
+import { downloadInvoicePdf, getInvoiceForOrder } from "@/services/invoiceApi";
 import type { Order } from "@/services/orderApi";
 import type { RefundListItem } from "@/services/refundApi";
 import InstapayProofReview from "@/components/payments/InstapayProofReview";
@@ -44,25 +43,25 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid }: Props) {
   const handleDownloadInvoice = async () => {
     if (!currentStore?.id) return;
     try {
-      const data = await apiClient<{
-        items: Array<{ id: string; order_id?: string }>;
-      }>(`/stores/${currentStore.id}/invoices/?page=1&page_size=50`);
-      const orderInvoice = data.items?.find((inv) => inv.order_id === order.id);
-      if (orderInvoice) {
-        await downloadInvoicePdf(currentStore.id, orderInvoice.id);
+      // Get-or-create — backend lazily generates the invoice when the
+      // order is paid but the on-paid handler hasn't landed it yet.
+      const invoice = await getInvoiceForOrder(currentStore.id, order.id);
+      await downloadInvoicePdf(currentStore.id, invoice.id);
+    } catch (err: unknown) {
+      const e = err as { status?: number; message?: string };
+      if (e?.status === 409) {
+        toast.error(
+          language === "ar"
+            ? "ضع علامة على الطلب كمدفوع أولاً لإنشاء الفاتورة"
+            : "Mark the order as paid first to generate the invoice",
+        );
       } else {
         toast.error(
           language === "ar"
-            ? "لا توجد فاتورة لهذا الطلب بعد"
-            : "No invoice found for this order yet",
+            ? "فشل تحميل الفاتورة"
+            : "Failed to download invoice",
         );
       }
-    } catch {
-      toast.error(
-        language === "ar"
-          ? "فشل تحميل الفاتورة"
-          : "Failed to download invoice",
-      );
     }
   };
 
@@ -82,13 +81,16 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid }: Props) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Totals */}
+        {/* Totals — VAT-INCLUSIVE pricing. Listed product prices already
+           contain the 14% VAT; the VAT line is shown as informational
+           accounting only and is NOT added to the total. Total =
+           subtotal + shipping − discount. */}
         <div className="space-y-1 text-sm">
           <Row label={t("orders.subtotal")} value={fmt(order.subtotal)} />
-          <Row label={t("orders.shipping")} value={fmt(order.shipping_cost)} />
           {order.tax_amount > 0 && (
-            <Row label={t("orders.tax")} value={fmt(order.tax_amount)} />
+            <Row label={t("orders.includedVat")} value={fmt(order.tax_amount)} />
           )}
+          <Row label={t("orders.shipping")} value={fmt(order.shipping_cost)} />
           {order.discount_amount > 0 && (
             <Row
               label={language === "ar" ? "الخصم" : "Discount"}
@@ -100,6 +102,9 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid }: Props) {
             <span>{t("orders.total")}</span>
             <span>{fmt(order.total)}</span>
           </div>
+          <p className="text-[11px] text-muted-foreground italic pt-1">
+            {t("orders.pricesIncludeVat")}
+          </p>
         </div>
 
         {/* Paid / Refunded / Balance */}

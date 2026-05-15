@@ -186,6 +186,21 @@ export async function getInvoice(
   return apiClient<Invoice>(`/stores/${storeId}/invoices/${invoiceId}`);
 }
 
+/**
+ * Look up the invoice tied to an order. The backend lazily creates one
+ * when the order is paid but no invoice has been issued yet — covers
+ * the race between `mark-as-paid` returning and the on-paid event
+ * handler finishing, plus legacy paid orders that pre-date the handler.
+ */
+export async function getInvoiceForOrder(
+  storeId: string,
+  orderId: string,
+): Promise<Invoice> {
+  return apiClient<Invoice>(
+    `/stores/${storeId}/invoices/by-order/${orderId}`,
+  );
+}
+
 export async function createInvoice(
   storeId: string,
   data: CreateInvoiceData,
@@ -217,14 +232,25 @@ export async function submitInvoice(
 export async function downloadInvoicePdf(
   storeId: string,
   invoiceId: string,
+  options: { regenerate?: boolean } = {},
 ): Promise<void> {
   // Bypass `apiClient` because it always calls `.json()` and we need the
   // raw blob, but use the same VITE_API_URL base so local dev hits the
   // local backend instead of falling through Vite's proxy to production.
+  //
+  // ``regenerate=true`` is the default for merchant-triggered downloads
+  // so a template / wording change is visible immediately — the backend
+  // would otherwise serve the cached R2 copy.
   const apiBase = import.meta.env.VITE_API_URL || "";
+  const regenerate = options.regenerate ?? true;
+  const qs = regenerate ? "?regenerate=true" : "";
+  // Cache-bust the browser layer too: a unique nonce on the URL keeps
+  // Chrome's PDF viewer from serving a stale download on the second
+  // click within the same session.
+  const nonce = `${regenerate ? "&" : "?"}_=${Date.now()}`;
   const response = await fetch(
-    `${apiBase}/stores/${storeId}/invoices/${invoiceId}/pdf`,
-    { credentials: "include" },
+    `${apiBase}/stores/${storeId}/invoices/${invoiceId}/pdf${qs}${nonce}`,
+    { credentials: "include", cache: "no-store" },
   );
   if (!response.ok) throw new Error("Failed to download PDF");
   const blob = await response.blob();

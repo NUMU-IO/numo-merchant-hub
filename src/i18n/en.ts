@@ -162,6 +162,8 @@ export default {
     paymentSummary: "Payment summary",
     balance: "Balance",
     tax: "Tax",
+    includedVat: "Included VAT (14%)",
+    pricesIncludeVat: "Prices include 14% VAT",
     internalNotes: "Internal notes",
     viewCustomer: "View customer",
     ordersCountSpent: "{{count}} orders · {{total}} total spent",

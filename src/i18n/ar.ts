@@ -162,6 +162,8 @@
     paymentSummary: "ملخص الدفع",
     balance: "الرصيد المتبقي",
     tax: "الضريبة",
+    includedVat: "ض.ق.م متضمنة (14%)",
+    pricesIncludeVat: "الأسعار شاملة ضريبة القيمة المضافة 14%",
     internalNotes: "ملاحظات داخلية",
     viewCustomer: "عرض العميل",
     ordersCountSpent: "{{count}} طلب · أنفق {{total}}",
