@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
+import { MetaTrackingPanel } from "@/components/settings/MetaTrackingPanel";
 
 
 interface PrefsState {
@@ -295,11 +296,17 @@ export default function OnlineStorePreferences() {
 
           <div className="border-t" />
 
-          {/* Meta Pixel */}
+          {/* Meta Pixel — basic legacy field. Kept as a one-line input for
+               stores that already configured this; the full Meta Pixel +
+               Conversions API panel below offers the modern experience
+               (mode switching, masked CAPI token, test events, status,
+               recent-events log). The storefront's MetaPixel component
+               prefers the namespaced settings the panel writes; this flat
+               field is the fallback path for unmigrated stores. */}
           <div className="space-y-1.5">
             <Label className="text-xs font-medium flex items-center gap-2">
               <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-[#1877F2] text-white text-[9px] font-bold shrink-0">f</span>
-              Meta Pixel
+              Meta Pixel {isRTL ? "(الإصدار القديم)" : "(legacy)"}
             </Label>
             <Input
               value={form.meta_pixel_id}
@@ -308,11 +315,19 @@ export default function OnlineStorePreferences() {
               dir="ltr"
             />
             <p className="text-[11px] text-muted-foreground">
-              {isRTL ? "معرف رقمي من Meta Business Manager" : "Numeric ID from Meta Business Manager"}
+              {isRTL
+                ? "تم استبداله بلوحة Meta Pixel و Conversions API بالأسفل. اتركه فارغاً واستخدم اللوحة الجديدة."
+                : "Superseded by the Meta Pixel + Conversions API panel below. Leave blank and use the new panel."}
             </p>
           </div>
         </div>
       </Section>
+
+      {/* ── Meta Pixel + Conversions API (Wave 1A panel) ──────────────────── */}
+      {/* Self-contained: fetches its own /tracking/meta state, posts PUTs,
+          refetches /status and /events. No props needed. Renders its own
+          Card hierarchy so it sits beside the Section cards above. */}
+      <MetaTrackingPanel />
 
       {/* ── Password protection ──────────────────────────────────────────────── */}
       <Section
