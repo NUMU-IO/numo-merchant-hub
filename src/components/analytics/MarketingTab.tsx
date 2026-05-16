@@ -8,9 +8,11 @@ import {
 } from "recharts";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { getMarketingAttribution } from "@/services/analyticsApi";
+import { dateRangeKey } from "@/services/dateRangeParams";
+import type { DateRange } from "@/components/filters/DateRangePicker";
 
 interface MarketingTabProps {
-  period: number;
+  range: DateRange;
   formatCurrency: (cents: number) => string;
 }
 
@@ -32,15 +34,15 @@ const CHANNEL_LABELS_AR: Record<string, string> = {
   Organic: "عضوي",
 };
 
-export function MarketingTab({ period, formatCurrency }: MarketingTabProps) {
+export function MarketingTab({ range, formatCurrency }: MarketingTabProps) {
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const isAr = language === "ar";
 
   const attrQuery = useQuery({
-    queryKey: ["analytics", "marketing-attribution", storeId, period],
-    queryFn: () => getMarketingAttribution(storeId!, period),
+    queryKey: ["analytics", "marketing-attribution", storeId, ...dateRangeKey(range)],
+    queryFn: () => getMarketingAttribution(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });

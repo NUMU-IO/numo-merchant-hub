@@ -2,8 +2,8 @@ import { SalesTab } from "@/components/analytics/SalesTab";
 import { AnalyticsLayout, useAnalyticsContext } from "@/components/analytics/AnalyticsLayout";
 
 function SalesContent() {
-  const { period, formatCurrency } = useAnalyticsContext();
-  return <SalesTab period={period} formatCurrency={formatCurrency} />;
+  const { range, formatCurrency } = useAnalyticsContext();
+  return <SalesTab range={range} formatCurrency={formatCurrency} />;
 }
 
 export default function SalesPage() {

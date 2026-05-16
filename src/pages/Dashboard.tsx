@@ -15,6 +15,10 @@ import {
   getRealtimeSnapshot,
 } from "@/services/analyticsApi";
 import type { HealthScoreData } from "@/services/analyticsApi";
+import { dateRangeKey } from "@/services/dateRangeParams";
+import {
+  DateRangePicker, triggerLabel, useDateRangeUrlState,
+} from "@/components/filters/DateRangePicker";
 import { listOrders } from "@/services/orderApi";
 import { getOnboarding, dismissOnboarding, undismissOnboarding } from "@/services/storeApi";
 import type { OnboardingData } from "@/services/storeApi";
@@ -24,7 +28,6 @@ import {
   Package, ExternalLink, AlertTriangle, Clock, ChevronRight,
   Plus, CreditCard, Palette, CheckCircle2, Circle, Truck, Receipt,
   Gift, Star, Crown, Lock, Zap, Check, Activity, Lightbulb,
-  ChevronDown,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCountUp } from "@/hooks/useCountUp";
@@ -36,9 +39,11 @@ const Dashboard = () => {
   const { currentStore } = useDashboardStore();
   const { user } = useAuth();
   const storeId = currentStore?.id;
-  const [period, setPeriod] = useState<"7d" | "30d" | "90d">("7d");
+  const { range, setRange } = useDateRangeUrlState();
+  const rangeKey = dateRangeKey(range);
   const navigate = useNavigate();
   const isAr = language === "ar";
+  const periodLabel = triggerLabel(range, isAr ? "ar" : "en");
 
   // Goals state — persisted in localStorage
   const [goalTarget, setGoalTarget] = useState(() => {
@@ -48,18 +53,16 @@ const Dashboard = () => {
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalInput, setGoalInput] = useState(String(goalTarget));
 
-  const periodDays = { "7d": 7, "30d": 30, "90d": 90 };
-
   const statsQuery = useQuery({
-    queryKey: ["dashboard", "stats", storeId, period],
-    queryFn: () => getDashboardStats(storeId!, periodDays[period]),
+    queryKey: ["dashboard", "stats", storeId, ...rangeKey],
+    queryFn: () => getDashboardStats(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
 
   const chartQuery = useQuery({
-    queryKey: ["dashboard", "chart", storeId, period],
-    queryFn: () => getRevenueChart(storeId!, periodDays[period]),
+    queryKey: ["dashboard", "chart", storeId, ...rangeKey],
+    queryFn: () => getRevenueChart(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
@@ -317,22 +320,13 @@ const Dashboard = () => {
           setup wizard since there's nothing meaningful to filter yet. */}
       {!showSetup && (
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative">
-            <select
-              value={period}
-              onChange={(e) => setPeriod(e.target.value as "7d" | "30d" | "90d")}
-              className="appearance-none h-8 text-xs font-medium rounded-full border border-border/60 bg-card hover:bg-muted/50 ps-3 pe-7 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 transition-colors"
-              title={isAr ? "الفترة الزمنية" : "Time range"}
-              aria-label={isAr ? "الفترة الزمنية" : "Time range"}
-            >
-              <option value="7d">{isAr ? "آخر 7 أيام" : "Last 7 days"}</option>
-              <option value="30d">{isAr ? "آخر 30 يوم" : "Last 30 days"}</option>
-              <option value="90d">{isAr ? "آخر 90 يوم" : "Last 90 days"}</option>
-            </select>
-            <ChevronDown
-              className={`pointer-events-none absolute top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground ${isAr ? "left-2.5" : "right-2.5"}`}
-            />
-          </div>
+          <DateRangePicker
+            value={range}
+            onChange={setRange}
+            size="sm"
+            align="start"
+            className="rounded-full border border-border/60 bg-card hover:bg-muted/50"
+          />
 
           <div
             className="inline-flex items-center gap-1.5 h-8 text-xs font-medium rounded-full border border-border/60 bg-card px-3"
@@ -501,18 +495,7 @@ const Dashboard = () => {
                     </svg>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-border/30">
-                    <select
-                      value={period}
-                      onChange={e => { e.stopPropagation(); setPeriod(e.target.value as "7d" | "30d" | "90d"); }}
-                      onClick={e => e.stopPropagation()}
-                      title={isAr ? "الفترة الزمنية" : "Time range"}
-                      aria-label={isAr ? "الفترة الزمنية" : "Time range"}
-                      className="text-[10px] text-muted-foreground bg-transparent border-none outline-none cursor-pointer hover:text-foreground transition-colors"
-                    >
-                      <option value="7d">{isAr ? "آخر 7 أيام" : "Last 7 days"}</option>
-                      <option value="30d">{isAr ? "آخر 30 يوم" : "Last 30 days"}</option>
-                      <option value="90d">{isAr ? "كل الأيام" : "All days"}</option>
-                    </select>
+                    <span className="text-[10px] text-muted-foreground truncate">{periodLabel}</span>
                     <span className="text-[10px] text-primary group-hover:underline">{isAr ? "عرض التقارير" : "View Reports"}</span>
                   </div>
                 </CardContent>
@@ -983,17 +966,12 @@ const Dashboard = () => {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">{t("dashboard.revenueTrend")}</CardTitle>
-              <div className="flex gap-0.5 rounded-lg bg-muted/50 dark:bg-muted/30 p-0.5">
-                {(["7d", "30d", "90d"] as const).map((p) => (
-                  <button
-                    key={p}
-                    className={`h-6 text-[10px] font-medium px-2.5 rounded-md transition-all duration-150 ${period === p ? "bg-background dark:bg-white/10 text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    onClick={() => setPeriod(p)}
-                  >
-                    {t(`dashboard.last${p === "7d" ? "7days" : p === "30d" ? "30days" : "90days"}`)}
-                  </button>
-                ))}
-              </div>
+              <DateRangePicker
+                value={range}
+                onChange={setRange}
+                size="sm"
+                align="end"
+              />
             </div>
           </CardHeader>
           <CardContent className="pb-4">

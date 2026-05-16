@@ -1,13 +1,14 @@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Download, RefreshCw } from "lucide-react";
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
 
-type Period = 7 | 30 | 90;
-
-const VALID_PERIODS: readonly Period[] = [7, 30, 90] as const;
+import {
+  DateRangePicker,
+  useDateRangeUrlState,
+  type DateRange,
+} from "@/components/filters/DateRangePicker";
 
 /** Pages register a callback so the layout's Export button knows what
  *  CSV to build. Returning `null` from the callback disables the
@@ -15,13 +16,33 @@ const VALID_PERIODS: readonly Period[] = [7, 30, 90] as const;
 type ExportHandler = () => void | Promise<void> | null;
 
 interface AnalyticsContextValue {
-  period: Period;
+  /** Selected date range from the Shopify-style picker. Drives every
+   *  analytics query on every page that wraps in AnalyticsLayout. */
+  range: DateRange;
   formatCurrency: (cents: number) => string;
   registerExport: (handler: ExportHandler | null) => void;
 }
 
+// Lazy default so importers calling useAnalyticsContext outside the
+// provider don't crash on first render. The provider always
+// overrides with a real range derived from the URL.
+const fallbackRange = (): DateRange => {
+  const now = new Date();
+  const start = new Date(now);
+  start.setDate(start.getDate() - 30);
+  start.setHours(0, 0, 0, 0);
+  return {
+    start,
+    end: now,
+    preset: "last-n",
+    lastN: { n: 30, unit: "day" },
+    granularity: "day",
+    includeToday: true,
+  };
+};
+
 const AnalyticsContext = createContext<AnalyticsContextValue>({
-  period: 30,
+  range: fallbackRange(),
   formatCurrency: () => "",
   registerExport: () => {},
 });
@@ -45,22 +66,7 @@ export function AnalyticsLayout({
   const isAr = language === "ar";
   const queryClient = useQueryClient();
 
-  // Period lives in the URL so it survives back/forward navigation,
-  // deep links, and tab switches between analytics pages.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const rawPeriod = Number(searchParams.get("period"));
-  const period: Period = (
-    VALID_PERIODS.includes(rawPeriod as Period) ? rawPeriod : 30
-  ) as Period;
-  const setPeriod = (next: Period) => {
-    const params = new URLSearchParams(searchParams);
-    if (next === 30) {
-      params.delete("period");
-    } else {
-      params.set("period", String(next));
-    }
-    setSearchParams(params, { replace: true });
-  };
+  const { range, setRange } = useDateRangeUrlState();
 
   const [isRefetching, setIsRefetching] = useState(false);
   const exportHandlerRef = useRef<ExportHandler | null>(null);
@@ -82,19 +88,21 @@ export function AnalyticsLayout({
     if (fn) await fn();
   };
 
-  const formatCurrency = (cents: number) => {
-    const val = cents / 100;
-    return isAr ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
-  };
+  const formatCurrency = useCallback(
+    (cents: number) => {
+      const val = cents / 100;
+      return isAr ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
+    },
+    [isAr],
+  );
 
-  const periodLabels: Record<Period, string> = {
-    7: isAr ? "٧ أيام" : "7 days",
-    30: isAr ? "٣٠ يوم" : "30 days",
-    90: isAr ? "٩٠ يوم" : "90 days",
-  };
+  const ctxValue = useMemo<AnalyticsContextValue>(
+    () => ({ range, formatCurrency, registerExport }),
+    [range, formatCurrency, registerExport],
+  );
 
   return (
-    <AnalyticsContext.Provider value={{ period, formatCurrency, registerExport }}>
+    <AnalyticsContext.Provider value={ctxValue}>
       <div className="space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -108,19 +116,12 @@ export function AnalyticsLayout({
           </div>
           <div className="flex items-center gap-1.5">
             {showPeriod && (
-              <div className="flex gap-0.5 rounded-lg bg-muted/60 p-0.5">
-                {([7, 30, 90] as Period[]).map((p) => (
-                  <Button
-                    key={p}
-                    variant={period === p ? "default" : "ghost"}
-                    size="sm"
-                    className={`h-7 text-[11px] px-2.5 rounded-md ${period === p ? "" : "text-muted-foreground"}`}
-                    onClick={() => setPeriod(p)}
-                  >
-                    {periodLabels[p]}
-                  </Button>
-                ))}
-              </div>
+              <DateRangePicker
+                value={range}
+                onChange={setRange}
+                size="sm"
+                align="end"
+              />
             )}
             {hasExport && (
               <Button

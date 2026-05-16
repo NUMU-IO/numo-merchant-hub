@@ -1,8 +1,16 @@
 /**
  * Analytics & Dashboard stats API service.
+ *
+ * Every range-scoped endpoint now takes a `DateRange` from the
+ * Shopify-style picker. The serializer in `dateRangeParams.ts`
+ * emits `start_date` + `end_date` + `granularity`; the backend's
+ * shared `get_date_range_window` dependency parses them.
  */
 
+import type { DateRange } from "@/components/filters/DateRangePicker";
+
 import { apiClient } from "./api";
+import { dateRangeQuery } from "./dateRangeParams";
 
 // ── Dashboard stats ──
 
@@ -22,7 +30,6 @@ export interface DashboardStats {
   new_customers: number;
   total_products: number;
   low_stock_count: number;
-  // Profit (only over products with cost_price set)
   total_profit: number; // cents
   total_cogs: number; // cents
   products_with_cost: number;
@@ -84,32 +91,37 @@ export interface ConversionStats {
   cart_abandonment_rate: number;
 }
 
+// ── Internal helpers ──
+
+function url(storeId: string, path: string, range: DateRange, extra?: Record<string, string>): string {
+  const qs = dateRangeQuery(range);
+  if (extra) for (const [k, v] of Object.entries(extra)) qs.set(k, v);
+  return `/stores/${storeId}/${path}?${qs.toString()}`;
+}
+
 // ── Dashboard API calls ──
 
 export async function getDashboardStats(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<DashboardStats> {
-  return apiClient<DashboardStats>(
-    `/stores/${storeId}/dashboard/stats?days=${days}`
-  );
+  return apiClient<DashboardStats>(url(storeId, "dashboard/stats", range));
 }
 
 export async function getRevenueChart(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<RevenueDataPoint[]> {
-  return apiClient<RevenueDataPoint[]>(
-    `/stores/${storeId}/dashboard/revenue?days=${days}`
-  );
+  return apiClient<RevenueDataPoint[]>(url(storeId, "dashboard/revenue", range));
 }
 
 export async function getTopProducts(
   storeId: string,
-  limit = 5
+  limit = 5,
 ): Promise<TopProduct[]> {
+  // Not range-scoped: top-products dashboard call only takes a limit.
   return apiClient<TopProduct[]>(
-    `/stores/${storeId}/dashboard/top-products?limit=${limit}`
+    `/stores/${storeId}/dashboard/top-products?limit=${limit}`,
   );
 }
 
@@ -117,57 +129,49 @@ export async function getTopProducts(
 
 export async function getSalesOverview(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<SalesOverview> {
-  return apiClient<SalesOverview>(
-    `/stores/${storeId}/analytics/overview?days=${days}`
-  );
+  return apiClient<SalesOverview>(url(storeId, "analytics/overview", range));
 }
 
 export async function getSalesChart(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<SalesDataPoint[]> {
-  return apiClient<SalesDataPoint[]>(
-    `/stores/${storeId}/analytics/sales-chart?days=${days}`
-  );
+  return apiClient<SalesDataPoint[]>(url(storeId, "analytics/sales-chart", range));
 }
 
 export async function getAnalyticsTopProducts(
   storeId: string,
-  days = 30,
-  limit = 5
+  range: DateRange,
+  limit = 5,
 ): Promise<TopProduct[]> {
   return apiClient<TopProduct[]>(
-    `/stores/${storeId}/analytics/top-products?days=${days}&limit=${limit}`
+    url(storeId, "analytics/top-products", range, { limit: String(limit) }),
   );
 }
 
 export async function getSalesByLocation(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<LocationSales[]> {
   return apiClient<LocationSales[]>(
-    `/stores/${storeId}/analytics/sales-by-location?days=${days}`
+    url(storeId, "analytics/sales-by-location", range),
   );
 }
 
 export async function getCustomerAnalytics(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<CustomerAnalytics> {
-  return apiClient<CustomerAnalytics>(
-    `/stores/${storeId}/analytics/customers?days=${days}`
-  );
+  return apiClient<CustomerAnalytics>(url(storeId, "analytics/customers", range));
 }
 
 export async function getConversionStats(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<ConversionStats> {
-  return apiClient<ConversionStats>(
-    `/stores/${storeId}/analytics/conversion?days=${days}`
-  );
+  return apiClient<ConversionStats>(url(storeId, "analytics/conversion", range));
 }
 
 // ── Traffic Sources ──
@@ -181,10 +185,10 @@ export interface TrafficSourceData {
 
 export async function getTrafficSources(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<TrafficSourceData[]> {
   return apiClient<TrafficSourceData[]>(
-    `/stores/${storeId}/analytics/traffic-sources?days=${days}`
+    url(storeId, "analytics/traffic-sources", range),
   );
 }
 
@@ -210,10 +214,10 @@ export interface CodRejectionStats {
 
 export async function getCodRejectionStats(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<CodRejectionStats> {
   return apiClient<CodRejectionStats>(
-    `/stores/${storeId}/analytics/cod-rejections?days=${days}`
+    url(storeId, "analytics/cod-rejections", range),
   );
 }
 
@@ -243,10 +247,10 @@ export interface HealthScoreData {
 export async function getHealthScore(
   storeId: string,
   live = false,
-  lang = "ar"
+  lang = "ar",
 ): Promise<HealthScoreData> {
   return apiClient<HealthScoreData>(
-    `/stores/${storeId}/analytics/health-score?live=${live}&lang=${lang}`
+    `/stores/${storeId}/analytics/health-score?live=${live}&lang=${lang}`,
   );
 }
 
@@ -291,10 +295,10 @@ export interface OrdersBreakdown {
 
 export async function getOrdersBreakdown(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<OrdersBreakdown> {
   return apiClient<OrdersBreakdown>(
-    `/stores/${storeId}/analytics/orders-breakdown?days=${days}`
+    url(storeId, "analytics/orders-breakdown", range),
   );
 }
 
@@ -317,10 +321,10 @@ export interface RevenueBreakdown {
 
 export async function getRevenueBreakdown(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<RevenueBreakdown> {
   return apiClient<RevenueBreakdown>(
-    `/stores/${storeId}/analytics/revenue-breakdown?days=${days}`
+    url(storeId, "analytics/revenue-breakdown", range),
   );
 }
 
@@ -356,10 +360,10 @@ export interface CustomerSegments {
 
 export async function getCustomerSegments(
   storeId: string,
-  days = 90
+  range: DateRange,
 ): Promise<CustomerSegments> {
   return apiClient<CustomerSegments>(
-    `/stores/${storeId}/analytics/customer-segments?days=${days}`
+    url(storeId, "analytics/customer-segments", range),
   );
 }
 
@@ -373,7 +377,6 @@ export interface ProductPerformanceItem {
   quantity_sold: number;
   current_stock: number;
   revenue_trend: number[]; // 7 data points
-  // Profit fields. Null if the product has no cost_price set.
   cost_price: number | null; // cents
   profit: number | null; // cents
   margin_percent: number | null;
@@ -402,11 +405,11 @@ export interface ProductPerformance {
 
 export async function getProductPerformance(
   storeId: string,
-  days = 30,
-  sortBy = "revenue"
+  range: DateRange,
+  sortBy = "revenue",
 ): Promise<ProductPerformance> {
   return apiClient<ProductPerformance>(
-    `/stores/${storeId}/analytics/product-performance?days=${days}&sort_by=${sortBy}`
+    url(storeId, "analytics/product-performance", range, { sort_by: sortBy }),
   );
 }
 
@@ -446,11 +449,9 @@ export interface FunnelData {
 
 export async function getFunnel(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<FunnelData> {
-  return apiClient<FunnelData>(
-    `/stores/${storeId}/analytics/funnel?days=${days}`
-  );
+  return apiClient<FunnelData>(url(storeId, "analytics/funnel", range));
 }
 
 // ── Marketing Attribution ──
@@ -479,10 +480,10 @@ export interface MarketingAttribution {
 
 export async function getMarketingAttribution(
   storeId: string,
-  days = 30
+  range: DateRange,
 ): Promise<MarketingAttribution> {
   return apiClient<MarketingAttribution>(
-    `/stores/${storeId}/analytics/marketing-attribution?days=${days}`
+    url(storeId, "analytics/marketing-attribution", range),
   );
 }
 
@@ -515,10 +516,10 @@ export interface RealtimeSnapshot {
 }
 
 export async function getRealtimeSnapshot(
-  storeId: string
+  storeId: string,
 ): Promise<RealtimeSnapshot> {
   return apiClient<RealtimeSnapshot>(
-    `/stores/${storeId}/analytics/realtime/snapshot`
+    `/stores/${storeId}/analytics/realtime/snapshot`,
   );
 }
 
@@ -558,10 +559,10 @@ export interface InsightsData {
 
 export async function getInsights(
   storeId: string,
-  lang = "ar"
+  lang = "ar",
 ): Promise<InsightsData> {
   return apiClient<InsightsData>(
-    `/stores/${storeId}/analytics/insights?lang=${lang}`
+    `/stores/${storeId}/analytics/insights?lang=${lang}`,
   );
 }
 
@@ -602,10 +603,10 @@ export interface ForecastData {
 
 export async function getForecast(
   storeId: string,
-  horizon = 30
+  horizon = 30,
 ): Promise<ForecastData> {
   return apiClient<ForecastData>(
-    `/stores/${storeId}/analytics/forecast?horizon=${horizon}`
+    `/stores/${storeId}/analytics/forecast?horizon=${horizon}`,
   );
 }
 
@@ -636,19 +637,18 @@ export interface SessionsData {
 
 export async function getSessions(
   storeId: string,
-  days = 7,
+  range: DateRange,
   hasOrder = false,
   minPages = 1,
-  device = ""
+  device = "",
 ): Promise<SessionsData> {
-  const params = new URLSearchParams({
-    days: String(days),
+  const extra: Record<string, string> = {
     has_order: String(hasOrder),
     min_pages: String(minPages),
-  });
-  if (device) params.set("device", device);
+  };
+  if (device) extra.device = device;
   return apiClient<SessionsData>(
-    `/stores/${storeId}/analytics/sessions?${params}`
+    url(storeId, "analytics/sessions", range, extra),
   );
 }
 
@@ -670,9 +670,9 @@ export interface SessionDetail {
 
 export async function getSessionDetail(
   storeId: string,
-  fingerprint: string
+  fingerprint: string,
 ): Promise<SessionDetail> {
   return apiClient<SessionDetail>(
-    `/stores/${storeId}/analytics/sessions/${fingerprint}`
+    `/stores/${storeId}/analytics/sessions/${fingerprint}`,
   );
 }

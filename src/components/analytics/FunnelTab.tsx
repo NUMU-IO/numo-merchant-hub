@@ -11,9 +11,11 @@ import {
 } from "recharts";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { getFunnel } from "@/services/analyticsApi";
+import { dateRangeKey } from "@/services/dateRangeParams";
+import type { DateRange } from "@/components/filters/DateRangePicker";
 
 interface FunnelTabProps {
-  period: number;
+  range: DateRange;
   formatCurrency: (cents: number) => string;
 }
 
@@ -45,15 +47,15 @@ function formatMinutes(minutes: number, isAr: boolean): string {
   return `${hours}${isAr ? "س" : "h"} ${mins}${isAr ? "د" : "m"}`;
 }
 
-export function FunnelTab({ period, formatCurrency }: FunnelTabProps) {
+export function FunnelTab({ range, formatCurrency }: FunnelTabProps) {
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const isAr = language === "ar";
 
   const funnelQuery = useQuery({
-    queryKey: ["analytics", "funnel", storeId, period],
-    queryFn: () => getFunnel(storeId!, period),
+    queryKey: ["analytics", "funnel", storeId, ...dateRangeKey(range)],
+    queryFn: () => getFunnel(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });

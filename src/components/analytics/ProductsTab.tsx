@@ -13,12 +13,14 @@ import {
 } from "recharts";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { getProductPerformance } from "@/services/analyticsApi";
+import { dateRangeKey } from "@/services/dateRangeParams";
+import type { DateRange } from "@/components/filters/DateRangePicker";
 import { useEffect, useState } from "react";
 import { useAnalyticsContext } from "./AnalyticsLayout";
 import { downloadCsv } from "@/lib/csvDownload";
 
 interface ProductsTabProps {
-  period: number;
+  range: DateRange;
   formatCurrency: (cents: number) => string;
 }
 
@@ -62,7 +64,7 @@ function MiniSparkline({ data }: { data: number[] }) {
   );
 }
 
-export function ProductsTab({ period, formatCurrency }: ProductsTabProps) {
+export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
@@ -70,8 +72,8 @@ export function ProductsTab({ period, formatCurrency }: ProductsTabProps) {
   const [sortBy, setSortBy] = useState<SortBy>("revenue");
 
   const perfQuery = useQuery({
-    queryKey: ["analytics", "product-performance", storeId, period, sortBy],
-    queryFn: () => getProductPerformance(storeId!, period, sortBy),
+    queryKey: ["analytics", "product-performance", storeId, ...dateRangeKey(range), sortBy],
+    queryFn: () => getProductPerformance(storeId!, range, sortBy),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
     // 3 SQL aggregations + a catalog fetch — not free. The data lags by

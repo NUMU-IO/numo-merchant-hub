@@ -43,6 +43,9 @@ import { showError } from "@/lib/show-error";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
 import InstapayProofReview from "@/components/payments/InstapayProofReview";
 import { fetchPendingInstapayOrders } from "@/services/storeApi";
+import {
+  DateRangePicker, useDateRangeUrlState,
+} from "@/components/filters/DateRangePicker";
 
 type FulfillmentStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
 const WORKFLOW: FulfillmentStatus[] = ["pending", "processing", "shipped", "delivered"];
@@ -60,6 +63,12 @@ const Orders = () => {
   // Secondary view: InstaPay orders with an awaiting-review proof. Mutually
   // exclusive with statusFilter — clicking this chip clears statusFilter.
   const [pendingInstapay, setPendingInstapay] = useState(false);
+
+  // Shopify-style date range. URL-synced, shared with any other page
+  // mounted on the same route segment.
+  const { range, setRange } = useDateRangeUrlState();
+  const dateFrom = range.start.toISOString();
+  const dateTo = range.end.toISOString();
 
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<ApiOrder | null>(null);
   const [orderTimeline, setOrderTimeline] = useState<TimelineEvent[]>([]);
@@ -82,9 +91,14 @@ const Orders = () => {
 
   // React Query hook for orders list
   const ordersQuery = useQuery({
-    queryKey: ["orders", storeId, page, statusFilter],
+    queryKey: ["orders", storeId, page, statusFilter, dateFrom, dateTo],
     queryFn: () => {
-      const params: Record<string, string | number | boolean> = { page, limit: 20 };
+      const params: Record<string, string | number | boolean> = {
+        page,
+        limit: 20,
+        date_from: dateFrom,
+        date_to: dateTo,
+      };
       if (statusFilter !== "all") params.status = statusFilter;
       return listOrders(storeId!, params);
     },
@@ -1015,6 +1029,13 @@ const Orders = () => {
 
         {/* Search + Sort + Filter bar */}
         <div className="flex items-center gap-2 px-5 py-3 border-b">
+          <DateRangePicker
+            value={range}
+            onChange={(r) => { setRange(r); setPage(1); }}
+            size="sm"
+            align="start"
+            className="h-9"
+          />
           <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0"><ArrowUpDown className="h-4 w-4" /></Button>
           <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0"><ListFilter className="h-4 w-4" /></Button>
           <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0"><LayoutList className="h-4 w-4" /></Button>

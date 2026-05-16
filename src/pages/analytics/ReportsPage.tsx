@@ -2,8 +2,8 @@ import { ReportsTab } from "@/components/analytics/ReportsTab";
 import { AnalyticsLayout, useAnalyticsContext } from "@/components/analytics/AnalyticsLayout";
 
 function ReportsContent() {
-  const { period, formatCurrency } = useAnalyticsContext();
-  return <ReportsTab period={period} formatCurrency={formatCurrency} />;
+  const { range, formatCurrency } = useAnalyticsContext();
+  return <ReportsTab range={range} formatCurrency={formatCurrency} />;
 }
 
 export default function ReportsPage() {

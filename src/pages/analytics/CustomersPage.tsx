@@ -2,8 +2,8 @@ import { CustomersTab } from "@/components/analytics/CustomersTab";
 import { AnalyticsLayout, useAnalyticsContext } from "@/components/analytics/AnalyticsLayout";
 
 function CustomersContent() {
-  const { period, formatCurrency } = useAnalyticsContext();
-  return <CustomersTab period={period} formatCurrency={formatCurrency} />;
+  const { range, formatCurrency } = useAnalyticsContext();
+  return <CustomersTab range={range} formatCurrency={formatCurrency} />;
 }
 
 export default function CustomersPage() {
