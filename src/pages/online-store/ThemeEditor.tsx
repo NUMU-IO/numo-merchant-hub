@@ -382,7 +382,7 @@ export default function ThemeEditor() {
 
   // ── Initialize ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!customization || !schemaBundle || initializedRef.current) return;
+    if (!customization || !schemaBundle || !currentStore || initializedRef.current) return;
     initializedRef.current = true;
 
     const previewTheme = searchParams.get("theme");
@@ -391,6 +391,31 @@ export default function ThemeEditor() {
       data = { ...customization, theme: { ...customization.theme, base_theme: previewTheme } };
       setIsDirty(true);
     }
+
+    // Hydrate footer.social_links from store-level social_links (set in the
+    // Store Settings → Profile tab) so the merchant sees the value they
+    // already entered there instead of an empty field. Theme-level values
+    // win — only fills slots that are blank in the customization.
+    const storeSocials = (currentStore.social_links ?? {}) as Record<string, string>;
+    const existingSocials = (data.footer?.social_links ?? {}) as Record<string, string>;
+    const mergedSocials = { ...existingSocials };
+    let mergedAny = false;
+    for (const platform of ["whatsapp", "facebook", "instagram", "twitter"] as const) {
+      if (!mergedSocials[platform]?.trim() && storeSocials[platform]?.trim()) {
+        mergedSocials[platform] = storeSocials[platform].trim();
+        mergedAny = true;
+      }
+    }
+    if (mergedAny) {
+      data = {
+        ...data,
+        footer: {
+          ...data.footer,
+          social_links: mergedSocials as typeof data.footer.social_links,
+        },
+      };
+    }
+
     setLocalData(data);
 
     // Initialize ALL page templates from existing customization or theme defaults
@@ -411,7 +436,7 @@ export default function ThemeEditor() {
       setSelectedId(homeTpl.order[0]);
       setSelectedType("section");
     }
-  }, [customization, schemaBundle, searchParams]);
+  }, [customization, schemaBundle, searchParams, currentStore]);
 
   // ── PostMessage to iframe ─────────────────────────────────────────
   const sendPreviewUpdate = useRef<ReturnType<typeof setTimeout>>();
