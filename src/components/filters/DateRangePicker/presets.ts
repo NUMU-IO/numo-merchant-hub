@@ -186,7 +186,15 @@ export function customRange(
   );
 }
 
-/** Default range used when no URL state is present. */
+/** Default range used when no URL state is present.
+ *
+ * `includeToday: true` because the orders/activity lists this drives
+ * are transactional, not BI: merchants expect "last 30 days" to mean
+ * "today + the 29 days before it." Excluding today silently dropped
+ * orders placed today from the list and looked like missing data
+ * (e.g. "I just placed a test order, where is it?"). The dashboard
+ * analytics views that genuinely want yesterday-as-end opt in via
+ * the chip toggle instead. */
 export function defaultRange(now: Date): DateRange {
-  return lastNRange(30, "day", now, false);
+  return lastNRange(30, "day", now, true);
 }
