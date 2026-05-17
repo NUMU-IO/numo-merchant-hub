@@ -775,4 +775,74 @@
       cookie_accept_required: "اقفل الموقع لحد ما يقبل",
     },
   },
+  metaTracking: {
+    title: "بكسل ميتا + Conversions API",
+    subtitle:
+      "تتبع أحداث المتجر من المتصفح (Pixel) ومن السيرفر (CAPI) معاً. الإرسال من السيرفر يحدث من webhook الطلب علشان يتفادى ad-blockers و iOS ATT.",
+    pixelIdLabel: "معرّف البكسل",
+    pixelIdHelp:
+      "رقم من 15-16 رقم من Meta Events Manager. لو مش عارف فين تلاقيه؟",
+    pixelIdInvalid: "معرّف البكسل لازم يكون 15-16 رقم",
+    modeTitle: "وضع التفعيل",
+    modeSubtitle:
+      "اختار هل المتجر يبعت الأحداث من المتصفح، من السيرفر، أو الاتنين.",
+    modes: {
+      pixel_only: {
+        title: "Pixel فقط",
+        description: "Pixel من المتصفح بس. أبسط طريقة للإعداد.",
+        requirement: "محتاج معرّف البكسل فقط.",
+      },
+      capi_only: {
+        title: "CAPI فقط",
+        description:
+          "إرسال من السيرفر فقط. يتفادى ad-blockers؛ ممتاز للجمهور اللي معظمه iOS.",
+        requirement: "محتاج معرّف البكسل + Access Token.",
+      },
+      both: {
+        title: "الاتنين",
+        description:
+          "متصفح + سيرفر مع dedup ثابت عبر event_id. أعلى جودة مطابقة.",
+        requirement: "محتاج معرّف البكسل + Access Token.",
+      },
+    },
+    capiTokenLabel: "Access Token الخاص بـ CAPI",
+    capiTokenHelp:
+      "Token طويل المدى من System User في Meta Business Manager. محفوظ مشفر (Fernet) عندنا؛ مايرجعش في أي API response.",
+    capiTokenTooShort: "الـ token مبدو قصير — الصقه كامل من فضلك",
+    tokenRequiredForMode: "الـ Access Token مطلوب للوضع ده.",
+    showToken: "إظهار الـ Token",
+    hideToken: "إخفاء الـ Token",
+    domainLabel: "Domain verification token",
+    domainHelp:
+      "بيتولّد تلقائياً. ميتا بتستخدمه عشان تتأكد إنك مالك دومين المتجر (يقلل خسارة الـ attribution على iOS 14.5).",
+    domainAutoEmit:
+      "بيتنشر تلقائياً كـ meta tag على المتجر — مش محتاج تعمل أي حاجة.",
+    behaviourTitle: "السلوك",
+    debugLabel: "وضع التصحيح (60 دقيقة)",
+    debugHelp:
+      "كل CAPI event بيتعتاج بـ test_event_code لمدة 60 دقيقة عشان تتحقق منه في Meta Events Manager ← Test Events.",
+    consentLabel: "إظهار لافتة الموافقة على الكوكيز",
+    consentHelp:
+      "بيمنع Pixel من إرسال أي حدث لحد ما الزائر يقبل الكوكيز. CAPI من السيرفر يفضل يبعت تحت بند المصلحة المشروعة.",
+    testEventLabel: "Test event code",
+    testEventHelp:
+      "بالشكل: TEST متبوع بأرقام، مثلاً TEST12345. من تبويب Events Manager ← Test Events.",
+    testEventInvalid: "Test event code لازم يكون TEST متبوع بأرقام",
+    save: "حفظ",
+    saved: "تم الحفظ",
+    sendTestEvent: "إرسال حدث تجريبي",
+    disconnect: "قطع الاتصال بـ Meta",
+    recentEventsTitle: "آخر الأحداث",
+    recentEventsSubtitle:
+      "آخر 20 حدث تم إرسالهم لـ ميتا. اضغط على أي صف عشان تشوف payload (PII محذوفة).",
+    recentEventsEmpty:
+      "لسه مفيش أحداث. احفظ الإعدادات وابعت حدث تجريبي عشان تشوف النتائج هنا.",
+    eventCol: {
+      time: "الوقت",
+      event: "الحدث",
+      channel: "القناة",
+      status: "الحالة",
+      fbtrace: "Trace ID",
+    },
+  },
 };
