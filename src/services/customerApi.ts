@@ -83,3 +83,15 @@ export async function getCustomerTrustStats(
     `/stores/${storeId}/customers/${customerId}/trust-stats`
   );
 }
+
+// ─── Network-wide stats (for the empty-state trust card) ────────────────────
+
+export interface NetworkStats {
+  phones_analyzed: number;
+  orders_analyzed: number;
+  contributing_merchants: number;
+}
+
+export async function getNetworkStats(storeId: string): Promise<NetworkStats> {
+  return apiClient<NetworkStats>(`/stores/${storeId}/customers/network-stats`);
+}
