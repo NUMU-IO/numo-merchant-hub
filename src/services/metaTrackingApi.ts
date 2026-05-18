@@ -24,6 +24,46 @@ export type MetaTrackingStatus =
   | "failing"
   | "disabled";
 
+// ─── Wave 2/3 advanced settings types ────────────────────────────────────
+
+/**
+ * Wave 2 Phase 12 — COD-aware Purchase/Lead trigger. ``null`` preserves
+ * the legacy behavior (paymob/fawry webhooks remain the sole Purchase
+ * source; no Lead from status transitions).
+ *
+ * Recommended for COD-heavy stores:
+ *   * ``purchase_trigger = "delivered"`` — Meta sees real conversions
+ *     only, not no-show COD placements (ROAS doesn't decay).
+ *   * ``lead_trigger = "confirmed"`` — top-of-funnel signal for the
+ *     ad algorithm.
+ */
+export type OrderStatusTrigger =
+  | "confirmed"
+  | "processing"
+  | "shipped"
+  | "delivered";
+
+/** Wave 2 Phase 13 — one pixel in a store's multi-pixel configuration. */
+export interface PixelEntry {
+  pixel_id: string;
+  pixel_enabled: boolean;
+  capi_enabled: boolean;
+  label?: string | null;
+  role?: "primary" | "retargeting" | "agency" | null;
+}
+
+/** Wave 3 Phase 18 — granular Customer Privacy / consent policy. */
+export type ConsentRegionMode = "auto" | "force_opt_in" | "force_opt_out";
+
+export interface ConsentSettings {
+  granular_enabled: boolean;
+  region_default_mode: ConsentRegionMode;
+  default_analytics: boolean;
+  default_marketing: boolean;
+  default_preferences: boolean;
+  default_sale_of_data: boolean;
+}
+
 export interface MetaTrackingSettings {
   pixel_id: string | null;
   pixel_enabled: boolean;
@@ -49,6 +89,20 @@ export interface MetaTrackingSettings {
   /** Last successful CAPI event timestamp (ISO-8601). */
   last_validated_at: string | null;
   status: MetaTrackingStatus;
+
+  // Wave 2/3 advanced settings — all optional/nullable so older stores
+  // see no behavior change until they explicitly configure them.
+
+  /** Wave 2 Phase 12 — fire Purchase on this order-status transition. */
+  purchase_trigger?: OrderStatusTrigger | null;
+  /** Wave 2 Phase 12 — fire Lead on this order-status transition. */
+  lead_trigger?: OrderStatusTrigger | null;
+  /** Wave 2 Phase 13 — multi-pixel list (null = legacy single-pixel). */
+  pixels?: PixelEntry[] | null;
+  /** Wave 2 Phase 15 — fire Lead on COD WhatsApp confirmation reply. */
+  whatsapp_lead_enabled?: boolean;
+  /** Wave 3 Phase 18 — granular consent policy (null = legacy 1-toggle). */
+  consent_settings?: ConsentSettings | null;
 }
 
 /**
@@ -79,6 +133,13 @@ export interface SaveMetaTrackingPayload {
    * toggles a bool — the 60-min math lives server-side.
    */
   debug_mode: boolean;
+
+  // Wave 2/3 advanced settings — see MetaTrackingSettings docs above.
+  purchase_trigger?: OrderStatusTrigger | null;
+  lead_trigger?: OrderStatusTrigger | null;
+  pixels?: PixelEntry[] | null;
+  whatsapp_lead_enabled?: boolean;
+  consent_settings?: ConsentSettings | null;
 }
 
 /** Channel a CAPI event was emitted on, for the recent-events table. */

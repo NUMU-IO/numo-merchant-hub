@@ -775,4 +775,75 @@ export default {
       cookie_accept_required: "Block site until accepted",
     },
   },
+  metaTracking: {
+    title: "Meta Pixel + Conversions API",
+    subtitle:
+      "Track storefront events both client-side (Pixel) and server-side (CAPI). Server-side fires from the order webhook to survive ad-blockers + iOS ATT.",
+    pixelIdLabel: "Pixel ID",
+    pixelIdHelp:
+      "15-16 digit identifier from Meta Events Manager. Where do I find this?",
+    pixelIdInvalid: "Pixel ID must be 15-16 digits",
+    modeTitle: "Activation mode",
+    modeSubtitle:
+      "Decide whether the storefront sends events through the browser, the server, or both.",
+    modes: {
+      pixel_only: {
+        title: "Pixel only",
+        description: "Browser-side fbq() calls. Simplest to set up.",
+        requirement: "Requires Pixel ID only.",
+      },
+      capi_only: {
+        title: "CAPI only",
+        description:
+          "Server-side events only. Bypasses ad-blockers; great for iOS-heavy audiences.",
+        requirement: "Requires Pixel ID + Access Token.",
+      },
+      both: {
+        title: "Both",
+        description:
+          "Browser + server with deterministic event_id deduplication. Highest match quality.",
+        requirement: "Requires Pixel ID + Access Token.",
+      },
+    },
+    capiTokenLabel: "CAPI Access Token",
+    capiTokenHelp:
+      "Long-lived System User token from Meta Business Manager. Stored encrypted (Fernet) on our side; never echoed back in API responses.",
+    capiTokenTooShort: "Access token looks too short — paste the full value",
+    tokenRequiredForMode:
+      "An Access Token is required for this activation mode.",
+    showToken: "Show token",
+    hideToken: "Hide token",
+    domainLabel: "Domain verification token",
+    domainHelp:
+      "Auto-generated. Used by Meta to verify ownership of your storefront domain (eliminates iOS 14.5 attribution loss).",
+    domainAutoEmit:
+      "Auto-emitted as a meta tag on your storefront — no merchant action required.",
+    behaviourTitle: "Behaviour",
+    debugLabel: "Debug mode (60 min)",
+    debugHelp:
+      "Every CAPI event is tagged with your test_event_code for 60 minutes so you can verify in Meta Events Manager → Test Events.",
+    consentLabel: "Require consent banner",
+    consentHelp:
+      "Gate the browser Pixel on the visitor accepting cookies. Server-side CAPI continues firing under legitimate interest.",
+    testEventLabel: "Test event code",
+    testEventHelp:
+      "Format: TEST followed by digits, e.g. TEST12345. From Events Manager → Test Events tab.",
+    testEventInvalid: "Test event code must match TEST followed by digits",
+    save: "Save",
+    saved: "Settings saved",
+    sendTestEvent: "Send test event",
+    disconnect: "Disconnect Meta",
+    recentEventsTitle: "Recent events",
+    recentEventsSubtitle:
+      "Last 20 events sent to Meta. Click a row to expand the redacted payload.",
+    recentEventsEmpty:
+      "No events yet. Save your settings + fire a test event to see results here.",
+    eventCol: {
+      time: "Time",
+      event: "Event",
+      channel: "Channel",
+      status: "Status",
+      fbtrace: "Trace ID",
+    },
+  },
 };

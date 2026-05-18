@@ -80,6 +80,7 @@ import {
   saveMetaTracking,
   sendMetaTestEvent,
 } from "@/services/metaTrackingApi";
+import { MetaTrackingAdvancedSettings } from "./MetaTrackingAdvancedSettings";
 
 const PIXEL_ID_REGEX = /^\d{15,16}$/;
 const TEST_EVENT_REGEX = /^TEST\d+$/;
@@ -765,6 +766,42 @@ export function MetaTrackingPanel() {
           setExpandedRowId((current) => (current === id ? null : id))
         }
       />
+
+      {/* ─── Wave 2/3 advanced settings (collapsed by default) ─── */}
+      {settings && (
+        <MetaTrackingAdvancedSettings
+          settings={settings}
+          saving={saving}
+          onSave={async (partial) => {
+            if (!storeId) return;
+            // Build a full payload from current settings + partial overrides.
+            // The backend PUT requires pixel_id + booleans on every call, so
+            // we replay the current values for the unchanged half.
+            const flags = flagsForMode(mode);
+            const payload: SaveMetaTrackingPayload = {
+              pixel_id: pixelId.trim() || settings.pixel_id || "",
+              ...flags,
+              consent_required: consentRequired,
+              test_event_code: testEventCode.trim() || null,
+              debug_mode: debugMode,
+              ...partial,
+            };
+            setSaving(true);
+            try {
+              const updated = await saveMetaTracking(storeId, payload);
+              queryClient.setQueryData<TrackingSettings>(
+                ["tracking-settings", storeId],
+                (prev) => ({ meta: updated, ...(prev ?? {}) }),
+              );
+            } catch (err) {
+              showError(err, language);
+              throw err;
+            } finally {
+              setSaving(false);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

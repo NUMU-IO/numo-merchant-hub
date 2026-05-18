@@ -127,6 +127,7 @@ const ProductEditor = () => {
   const [formCategory, setFormCategory] = useState("");
   const [formSeoTitle, setFormSeoTitle] = useState("");
   const [formSeoDesc, setFormSeoDesc] = useState("");
+  const [formMetaCatalogId, setFormMetaCatalogId] = useState("");
   const [formSlug, setFormSlug] = useState("");
   const [formVariants, setFormVariants] = useState<{
     name: string;
@@ -188,6 +189,7 @@ const ProductEditor = () => {
         setFormImages(p.images.filter(img => img !== "📦"));
         setFormSeoTitle(api.seo_title || "");
         setFormSeoDesc(api.seo_description || "");
+        setFormMetaCatalogId(api.meta_catalog_id || "");
         setFormSlug(api.slug || "");
         setFormVariants(p.variants.map(v => ({
           name: v.name, nameAr: v.nameAr,
@@ -334,6 +336,7 @@ const ProductEditor = () => {
           images: formImages.length > 0 ? formImages : undefined,
           seoTitle: formSeoTitle || undefined,
           seoDescription: formSeoDesc || undefined,
+          metaCatalogId: formMetaCatalogId || undefined,
           slug: formSlug || undefined,
         });
         if (variantCombinations.length > 0 && payload.attributes) {
@@ -362,6 +365,7 @@ const ProductEditor = () => {
           variants,
           seoTitle: formSeoTitle || undefined,
           seoDescription: formSeoDesc || undefined,
+          metaCatalogId: formMetaCatalogId || undefined,
           slug: formSlug || undefined,
         });
         if (variantCombinations.length > 0 && payload.attributes) {
@@ -388,7 +392,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formSlug, variantCombinations, sizeChart, continueSellingOutOfStock]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, variantCombinations, sizeChart, continueSellingOutOfStock]);
 
   if (isLoadingProduct) {
     return (
@@ -756,6 +760,28 @@ const ProductEditor = () => {
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "رابط المنتج" : "URL Slug"}</Label>
             <Input value={formSlug} onChange={(e) => setFormSlug(e.target.value)} placeholder={language === "ar" ? "رابط-المنتج" : "product-slug"} dir="ltr" className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border font-mono text-xs" />
+          </div>
+          {/* Meta Commerce Catalog product ID — used as content_ids on
+              storefront Pixel events so Meta dynamic ads can match
+              conversions to a catalog row. Optional; falls back to our
+              internal product UUID when blank. */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-[#1877F2] text-white text-[9px] font-bold shrink-0">f</span>
+              {language === "ar" ? "معرف المنتج في كتالوج Meta" : "Meta Catalog Product ID"}
+            </Label>
+            <Input
+              value={formMetaCatalogId}
+              onChange={(e) => setFormMetaCatalogId(e.target.value)}
+              placeholder={language === "ar" ? "اختياري — اتركه فارغًا للاستخدام التلقائي" : "Optional — leave blank to auto-use product ID"}
+              dir="ltr"
+              className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border font-mono text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {language === "ar"
+                ? "إذا قمت بمزامنة كتالوج منتجاتك مع Meta Business Manager، أضف معرف المنتج هنا للسماح بإعلانات المنتجات الديناميكية بمطابقة عمليات الشراء بصف الكتالوج."
+                : "If you've synced your product catalog to Meta Business Manager, paste the Catalog product ID here so dynamic-product-ads can match conversions to a catalog row."}
+            </p>
           </div>
         </CardContent>
       </Card>

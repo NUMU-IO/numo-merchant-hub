@@ -32,6 +32,11 @@ export interface ApiProductResponse {
   category_id: string | null;
   tags: string[];
   attributes: Record<string, unknown>;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  /** Meta Commerce Catalog product ID — surfaced in ProductEditor's
+   *  Marketing pane so merchants can pin their Catalog row IDs. */
+  meta_catalog_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -74,6 +79,10 @@ export interface CreateProductData {
   attributes?: Record<string, unknown>;
   seo_title?: string;
   seo_description?: string;
+  /** Meta Commerce Catalog product ID — wired through to the storefront's
+   *  Meta Pixel events as `content_ids` when set, so dynamic ads can
+   *  match conversions to a catalog row. Empty string clears the value. */
+  meta_catalog_id?: string;
 }
 
 export interface UpdateProductData extends Partial<CreateProductData> {
@@ -276,6 +285,8 @@ export interface ProductFormData {
   seoTitle?: string;
   seoDescription?: string;
   slug?: string;
+  /** Meta Commerce Catalog product ID — see ProductEditor's Marketing pane. */
+  metaCatalogId?: string;
 }
 
 export function productToApiCreate(form: ProductFormData): CreateProductData {
@@ -298,6 +309,7 @@ export function productToApiCreate(form: ProductFormData): CreateProductData {
     images: form.images,
     seo_title: form.seoTitle || undefined,
     seo_description: form.seoDescription || undefined,
+    meta_catalog_id: form.metaCatalogId || undefined,
     attributes: {
       nameAr: form.nameAr,
       descriptionAr: form.descriptionAr,
@@ -537,6 +549,7 @@ export function productToApiUpdate(
   if (form.slug !== undefined) data.slug = form.slug || undefined;
   if (form.seoTitle !== undefined) data.seo_title = form.seoTitle || undefined;
   if (form.seoDescription !== undefined) data.seo_description = form.seoDescription || undefined;
+  if (form.metaCatalogId !== undefined) data.meta_catalog_id = form.metaCatalogId || undefined;
 
   // Always send full attributes to avoid partial overwrites
   const attributes: Record<string, unknown> = {};
