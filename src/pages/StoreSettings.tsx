@@ -68,6 +68,7 @@ import {
   ChevronDown,
   CreditCard,
   Clock,
+  Search,
 } from "lucide-react";
 import { ThemePreview } from "@/components/ThemePreview";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
@@ -121,6 +122,7 @@ import {
   type ShippingPageConfig,
   type BusinessHours,
 } from "@/components/store-settings/PagesAndHoursPanel";
+import { SeoSettingsPanel } from "@/components/store-settings/SeoSettingsPanel";
 import { apiClient } from "@/services/api";
 import { getStoreUrl, getStoreDomainSuffix } from "@/lib/storefront";
 import { FontGallery } from "@/components/theme-editor/FontGallery";
@@ -1402,6 +1404,11 @@ const StoreSettings = () => {
           value: "pages",
           label: language === "ar" ? "الصفحات والساعات" : "Pages & Hours",
           icon: Clock,
+        },
+        {
+          value: "seo",
+          label: language === "ar" ? "SEO" : "SEO",
+          icon: Search,
         },
         { value: "status", label: t("store.status"), icon: Lock },
       ],
@@ -3467,6 +3474,17 @@ const StoreSettings = () => {
               onSave={savePagesAndHours}
             />
           </div>
+        )}
+
+        {/* ─── SEO ─── */}
+        {activeSection === "seo" && (
+          <SeoSettingsPanel
+            storeId={currentStore?.id}
+            storeSettings={
+              currentStore?.settings as Record<string, unknown> | null | undefined
+            }
+            onSaved={() => refetchStores()}
+          />
         )}
 
         {/* ─── Status ─── */}
