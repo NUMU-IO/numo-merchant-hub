@@ -20,10 +20,11 @@ import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import {
   FileText, Plus, MoreHorizontal, Pencil, Trash2,
-  Eye, Search, Globe, EyeOff, Loader2, Save,
+  Eye, Search, Globe, EyeOff, Loader2, Save, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
+import { getStoreUrl } from "@/lib/storefront";
 
 interface StorePage {
   id: string;
@@ -219,8 +220,10 @@ export default function OnlineStorePages() {
               key={page.id}
               page={page}
               isRTL={isRTL}
+              subdomain={currentStore?.subdomain ?? ""}
               isFirst={i === 0}
               isLast={i === filtered.length - 1}
+              isDirty={isDirty}
               onEdit={() => openEdit(page)}
               onToggle={() => togglePublish(page.id)}
               onDelete={() => setDeleteTarget(page)}
@@ -321,13 +324,35 @@ export default function OnlineStorePages() {
 // ─── Page row ─────────────────────────────────────────────────────────────────
 interface PageRowProps {
   page: StorePage; isRTL: boolean;
+  subdomain: string;
   isFirst: boolean; isLast: boolean;
+  /** True when local edits haven't been saved to the backend yet — used to
+   *  warn the merchant that the "View" link will show the LAST PUBLISHED
+   *  version, not the in-flight draft. */
+  isDirty: boolean;
   onEdit: () => void; onToggle: () => void; onDelete: () => void;
 }
 
-function PageRow({ page, isRTL, isFirst, isLast, onEdit, onToggle, onDelete }: PageRowProps) {
+function PageRow({
+  page,
+  isRTL,
+  subdomain,
+  isFirst,
+  isLast,
+  isDirty,
+  onEdit,
+  onToggle,
+  onDelete,
+}: PageRowProps) {
   const displayTitle = isRTL && page.titleAr ? page.titleAr : page.title;
   const altTitle     = isRTL && page.titleAr ? page.title : page.titleAr;
+
+  // Build the storefront URL for this page so the merchant can open it
+  // in a new tab and confirm the content matches their edits. Disabled
+  // when the page is hidden (Next.js returns 404 in that case), and
+  // marked with a warning tooltip when local edits haven't saved yet.
+  const storeUrl = subdomain ? getStoreUrl(subdomain) : null;
+  const viewUrl = storeUrl ? `${storeUrl.replace(/\/+$/, "")}/pages/${page.slug}` : null;
 
   return (
     <div className={cn(
@@ -380,11 +405,37 @@ function PageRow({ page, isRTL, isFirst, isLast, onEdit, onToggle, onDelete }: P
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem onClick={onEdit}>
             <Pencil className="h-3.5 w-3.5 me-2" />
             {isRTL ? "تعديل" : "Edit"}
           </DropdownMenuItem>
+          {viewUrl && page.published && (
+            <DropdownMenuItem
+              onClick={() =>
+                window.open(viewUrl, "_blank", "noopener,noreferrer")
+              }
+              // Surface dirty state in the label so the merchant doesn't
+              // open the URL, see the old content, and think Save was a
+              // no-op. Hidden pages return 404 on the storefront, so we
+              // gate the entry on `page.published` to avoid the trip.
+              title={
+                isDirty
+                  ? isRTL
+                    ? "احفظ التغييرات أولاً لرؤية أحدث نسخة"
+                    : "Save changes first to see the latest version"
+                  : undefined
+              }
+            >
+              <ExternalLink className="h-3.5 w-3.5 me-2" />
+              {isRTL ? "عرض في المتجر" : "View on storefront"}
+              {isDirty && (
+                <span className="ms-auto text-[10px] text-amber-600">
+                  {isRTL ? "غير محفوظ" : "unsaved"}
+                </span>
+              )}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={onToggle}>
             {page.published
               ? <><EyeOff className="h-3.5 w-3.5 me-2" />{isRTL ? "إخفاء" : "Hide"}</>

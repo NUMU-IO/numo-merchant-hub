@@ -55,6 +55,7 @@ import {
   CheckCircle2, Clock, Loader2, ArrowUpRight, Layers, Github, Trash2, RefreshCw, ShieldCheck,
   Search, Palette, Lock, ChevronDown,
 } from "lucide-react";
+import { MarketplaceCatalog } from "@/components/theme-editor";
 
 // ─── Theme visual palettes ───────────────────────────────────────────────────
 const THEME_PALETTES: Record<string, { bg: string; accent: string; text: string; card: string }> = {
@@ -156,7 +157,11 @@ export default function OnlineStoreThemes() {
 
   // ─── Dev server connection state ─────────────────────────────────────
   const [devOpen, setDevOpen] = useState(false);
-  const [devUrl, setDevUrl] = useState("http://localhost:4321");
+  // Default points at @numueg/theme-cli's dev port (5173). The old
+  // value (4321) was the Astro starter default and no longer matches
+  // the canonical CLI workflow — merchants pasting in their actual
+  // `numu-theme dev` URL would have to overwrite the placeholder.
+  const [devUrl, setDevUrl] = useState("http://localhost:5173");
   const [devError, setDevError] = useState<string | null>(null);
 
   const storeId = currentStore?.id ?? "";
@@ -533,6 +538,18 @@ export default function OnlineStoreThemes() {
         </section>
       )}
 
+      {/* Wave 6 — V3 Marketplace catalog. Lives between the V2 grid
+          and the BYOT footer so merchants discover the V3 themes
+          without having to choose a tab. The catalog auto-hides when
+          empty (until devs publish), so it doesn't add clutter on a
+          first-day install. The Marketplace handles install + activate
+          itself; on activation it routes to the V3 customizer. */}
+      <section className="pt-4 border-t border-border/60">
+        <MarketplaceCatalog
+          onActivated={() => navigate("/online-store/themes/editor-v3")}
+        />
+      </section>
+
       {/* External theme (BYOT) section — quieter footer treatment, separated
           by a divider from the main library so it reads as "advanced" and
           doesn't compete with the curated themes above. Auto-expanded when
@@ -883,7 +900,7 @@ export default function OnlineStoreThemes() {
               </Label>
               <Input
                 id="dev-url"
-                placeholder="http://localhost:4321"
+                placeholder="http://localhost:5173"
                 value={devUrl}
                 onChange={(e) => setDevUrl(e.target.value)}
                 disabled={connectDevMutation.isPending}

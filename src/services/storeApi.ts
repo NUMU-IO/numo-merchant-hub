@@ -169,6 +169,35 @@ export async function uploadStoreAsset(
   });
 }
 
+// ─── Asset Library ────────────────────────────────────────────────────────────
+
+/**
+ * One entry from `GET /stores/:id/settings/customization/assets`. The
+ * backend returns whatever the storage service surfaces — keys vary
+ * by backend (local-disk → `customization/<store_id>/<filename>`, R2
+ * → the same prefix translated to an R2 key). Consumers only care
+ * about `url` (for `<img>`) and `key` (for stable identity).
+ */
+export interface StoreAsset {
+  key: string;
+  url: string;
+  /** Bytes. */
+  size?: number;
+  /** ISO timestamp string or empty when the storage backend doesn't track it. */
+  last_modified?: string;
+}
+
+/**
+ * List all uploaded customization assets for a store. Used by the
+ * Media Library tab in the V3 image picker so merchants can reuse
+ * previously-uploaded imagery instead of re-uploading every time.
+ */
+export async function listStoreAssets(storeId: string): Promise<StoreAsset[]> {
+  return apiClient<StoreAsset[]>(
+    `/stores/${storeId}/settings/customization/assets`,
+  );
+}
+
 // ─── Shipping Settings ────────────────────────────────────────────────────────
 
 export interface ShippingZone {

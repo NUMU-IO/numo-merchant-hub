@@ -34,7 +34,14 @@ import {
   Trash2,
   Plus,
   ChevronRight,
+  RotateCcw,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCustomizerStore } from "../../store/customizerStore";
@@ -228,9 +235,59 @@ export function SectionEditorPanel() {
         {/* Section settings form */}
         {sectionSchema && sectionSchema.settings.length > 0 && (
           <div>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {locale === "ar" ? "إعدادات القسم" : "Section Settings"}
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {locale === "ar" ? "إعدادات القسم" : "Section Settings"}
+              </h3>
+              {/* Wave 7 — presets dropdown. Surfaces known-good
+                  setting snapshots from `schema.presets[]` so a
+                  merchant who broke their hero can revert to "Centered
+                  Bold" or "Image left" without manually un-tweaking
+                  every input. Hidden when the schema has no presets
+                  (most authored sections do; section-library entries
+                  ship 2-4 each). */}
+              {sectionSchema.presets && sectionSchema.presets.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1 text-xs"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      {locale === "ar" ? "إعادة ضبط" : "Reset to preset"}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    {sectionSchema.presets.map((preset, i) => (
+                      <DropdownMenuItem
+                        key={`${preset.name}-${i}`}
+                        onClick={() => {
+                          // Apply each preset setting via the section-
+                          // update action. We loop instead of replacing
+                          // the whole settings object so the undo stack
+                          // gets one entry per change and the autosave
+                          // batches naturally.
+                          const presetSettings = preset.settings ?? {};
+                          for (const [key, value] of Object.entries(
+                            presetSettings,
+                          )) {
+                            updateSectionSetting(
+                              sectionId,
+                              key,
+                              value,
+                              groupId ?? undefined,
+                            );
+                          }
+                        }}
+                      >
+                        <span className="truncate">{preset.name}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
             <SchemaFormV3
               settings={sectionSchema.settings}
               values={section.settings}

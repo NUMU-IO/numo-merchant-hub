@@ -135,9 +135,24 @@ function redirectToLogin(): never {
   throw new ApiError(401, null);
 }
 
+/**
+ * Per-call options layered ON TOP of the standard RequestInit. Use this
+ * for behavior toggles that don't belong on the fetch options.
+ *
+ * `noAutoRedirect401`: caller will handle session expiry itself instead
+ * of letting the client window.location-redirect to /login. The V3 theme
+ * editor uses this so a mid-customization session loss surfaces as an
+ * inline "re-login" banner — bouncing wipes the unsaved draft and
+ * undo history that's only in memory until the next autosave tick.
+ */
+export interface ApiClientOptions {
+  noAutoRedirect401?: boolean;
+}
+
 export async function apiClient<T>(
   endpoint: string,
   options?: RequestInit,
+  apiOpts?: ApiClientOptions,
 ): Promise<T> {
   let res: Response;
   try {
@@ -166,6 +181,9 @@ export async function apiClient<T>(
       rawFetch(endpoint, options),
     );
     if (retried === null) {
+      if (apiOpts?.noAutoRedirect401) {
+        throw new ApiError(401, "Session expired");
+      }
       redirectToLogin();
     }
     res = retried;

@@ -217,6 +217,21 @@ export interface ThemeSchemaBundle {
   section_schemas: Record<string, SectionSchemaDefinition>;
   /** Map of block.type → BlockSchemaDefinition (theme-wide, optional). */
   block_schemas?: Record<string, BlockSchemaDefinition>;
+  /**
+   * Wave 7 — variants from the theme's manifest. Older backends won't
+   * include this; the customizer handles `undefined` as "no variants".
+   */
+  variants?: Array<{
+    id: string;
+    name: string;
+    name_ar?: string;
+    description?: string;
+    settings_override?: {
+      global_settings?: Record<string, unknown>;
+      templates?: Record<string, unknown>;
+      section_groups?: Record<string, unknown>;
+    };
+  }>;
 }
 
 /**
@@ -229,6 +244,24 @@ export interface NormalizedSchemas {
   sections: SectionSchemaDefinition[];
   /** Map of group_id → list of section schemas allowed in that group. */
   section_groups: Record<string, { sections: SectionSchemaDefinition[] }>;
+  /**
+   * Wave 7 — theme-level variants declared in `theme.json` →
+   * `variants[]`. Empty when the manifest doesn't ship any (most
+   * themes today). The customizer's VariantPicker reads this off the
+   * store's schemas; switching variants writes overrides into the
+   * draft via `updateGlobalSetting`.
+   */
+  theme_variants?: Array<{
+    id: string;
+    name: string;
+    name_ar?: string;
+    description?: string;
+    settings_override?: {
+      global_settings?: Record<string, unknown>;
+      templates?: Record<string, unknown>;
+      section_groups?: Record<string, unknown>;
+    };
+  }>;
 }
 
 // ─── Version History ────────────────────────────────────────────────────────
@@ -272,6 +305,19 @@ export interface RestoreVersionResponse {
 
 export type EditorLocale = "en" | "ar";
 export type DeviceMode = "desktop" | "tablet" | "mobile";
+/**
+ * Top-level editor mode. Equivalent to Shopify's "Sections / Theme settings /
+ * App embeds" mode switch at the top of the sidebar.
+ *   - `sections`       — section list + section/block/group editors (default).
+ *   - `theme-settings` — global theme settings panel (Brand, Typography, Layout, etc.).
+ *   - `app-embeds`     — app-provided global embeds. Empty state until the
+ *                        app/theme-extension runtime lands.
+ */
+export type EditorMode =
+  | "sections"
+  | "theme-settings"
+  | "wording"
+  | "app-embeds";
 export type SidebarPanel =
   | "sections"
   | "section-editor"
