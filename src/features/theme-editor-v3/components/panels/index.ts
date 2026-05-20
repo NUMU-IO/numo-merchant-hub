@@ -4,3 +4,7 @@ export { BlockEditorPanel } from "./BlockEditorPanel";
 export { GroupEditorPanel } from "./GroupEditorPanel";
 export { AddSectionDialog } from "./AddSectionDialog";
 export { VersionHistoryPanel } from "./VersionHistoryPanel";
+export { GlobalSettingsPanel } from "./GlobalSettingsPanel";
+export { AppEmbedsPanel } from "./AppEmbedsPanel";
+export { WordingPanel } from "./WordingPanel";
+export { EditorModeSwitcher } from "./EditorModeSwitcher";

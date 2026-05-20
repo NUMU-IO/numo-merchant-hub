@@ -36,6 +36,10 @@ import { cn } from "@/lib/utils";
 import { useCustomizerStore } from "../../store/customizerStore";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import type { DeviceMode } from "../../types";
+import {
+  SectionPreviewToolbar,
+  type ToolbarRect,
+} from "./SectionPreviewToolbar";
 
 // ─── Device dimensions ──────────────────────────────────────────────────────
 
@@ -55,6 +59,19 @@ export function LivePreview() {
   // as a toast-style banner over the preview so the merchant sees what
   // broke instead of a frozen iframe.
   const [bundleError, setBundleError] = useState<string | null>(null);
+  /**
+   * Floating-toolbar state. The iframe posts `numu:editor:section-rect`
+   * with the selected section's iframe-local bounding rect. We
+   * translate to hub-window coordinates by adding the iframe's own
+   * bounding box (read on each message + on resize) and feed the
+   * combined rect to `SectionPreviewToolbar`. Null means nothing is
+   * selected and the toolbar should hide.
+   */
+  const [toolbarState, setToolbarState] = useState<{
+    sectionId: string;
+    /** Iframe-local rect (top/left/width/height) as posted by the bridge. */
+    rect: ToolbarRect;
+  } | null>(null);
 
   const { currentStore } = useDashboardStore();
 
@@ -64,6 +81,7 @@ export function LivePreview() {
   const locale = useCustomizerStore((s) => s.locale);
   const selection = useCustomizerStore((s) => s.selection);
   const activePage = useCustomizerStore((s) => s.activePage);
+  const previewResources = useCustomizerStore((s) => s.previewResources);
   const setSelection = useCustomizerStore((s) => s.setSelection);
   const setActivePanel = useCustomizerStore((s) => s.setActivePanel);
   const setActivePage = useCustomizerStore((s) => s.setActivePage);
@@ -82,6 +100,29 @@ export function LivePreview() {
   //                                              (set up /etc/hosts)
   //   - missing → assume production-style host routing using
   //     VITE_STOREFRONT_DOMAIN (default "numueg.app").
+  /**
+   * Build the iframe `src` for the active template + picked preview
+   * resource. The base host resolution is unchanged; the path is
+   * computed off `activePage`:
+   *
+   *   home    →  /
+   *   product →  /product/<previewResources.productId>  (when set)
+   *   collection → /collections/<previewResources.collectionSlug>
+   *   cart    → /cart
+   *   checkout → /checkout
+   *   order-confirmation → /order-confirmation
+   *   profile → /profile
+   *   page    → /pages/about    (placeholder — merchant picks a real
+   *                              page via the future Page resource
+   *                              context selector)
+   *   404     → /__not-found
+   *
+   * When activePage is product/collection but no preview resource is
+   * picked yet, we leave the path as `/product` / `/collections` —
+   * the storefront's middleware returns 404 today; auto-picking the
+   * first available resource is the merchant-facing fix (done in
+   * the TopBar via a `useEffect` once the first list lands).
+   */
   const previewUrl = useMemo(() => {
     if (!storeId) return "about:blank";
 
@@ -115,11 +156,61 @@ export function LivePreview() {
     } catch {
       return "about:blank";
     }
+
+    // Map activePage → URL path. The base may already have a path
+    // (path-segment subdomain form: `http://host:port/<sub>/`); we
+    // append onto it rather than replacing.
+    const pathFor = (): string | null => {
+      switch (activePage) {
+        case "home":
+          return ""; // base already ends with /
+        case "product": {
+          const id = previewResources.productId;
+          return id ? `product/${id}` : "product";
+        }
+        case "collection": {
+          const slug = previewResources.collectionSlug;
+          return slug ? `collections/${slug}` : "collections";
+        }
+        case "cart":
+          return "cart";
+        case "checkout":
+          return "checkout";
+        case "order-confirmation":
+          return "order-confirmation";
+        case "profile":
+          return "profile";
+        case "page":
+          // Until a Page resource context selector lands, default to
+          // /pages/about so the merchant sees a reasonable example.
+          return "pages/about";
+        case "404":
+          // Force a 404 by hitting a path that doesn't exist.
+          return "__numu_404";
+        default:
+          return null;
+      }
+    };
+    const subpath = pathFor();
+    if (subpath !== null && subpath.length > 0) {
+      // Trim trailing slash on the base, then join with `/`.
+      const baseStr = url.pathname.endsWith("/")
+        ? url.pathname
+        : `${url.pathname}/`;
+      url.pathname = `${baseStr}${subpath}`;
+    }
+
     url.searchParams.set("store_id", storeId);
     url.searchParams.set("preview", "true");
     url.searchParams.set("editor", "v3");
     return url.toString();
-  }, [storeId, currentStore?.subdomain]);
+  }, [
+    storeId,
+    currentStore?.subdomain,
+    activePage,
+    previewResources.productId,
+    previewResources.collectionSlug,
+  ]);
 
   // The expected origin of postMessage events from the iframe. Computed
   // once per previewUrl; comparing against this is the entire trust gate
@@ -241,6 +332,43 @@ export function LivePreview() {
           setBundleError(message);
           break;
         }
+
+        case "numu:editor:section-rect": {
+          // Toolbar rect from the bridge. `null` sectionId means
+          // "nothing selected" → hide the toolbar.
+          const sectionId =
+            typeof payload.sectionId === "string"
+              ? payload.sectionId
+              : null;
+          if (!sectionId) {
+            setToolbarState(null);
+            break;
+          }
+          const r = payload.rect as
+            | { top?: number; left?: number; width?: number; height?: number }
+            | undefined;
+          if (
+            !r ||
+            typeof r.top !== "number" ||
+            typeof r.left !== "number" ||
+            typeof r.width !== "number" ||
+            typeof r.height !== "number"
+          ) {
+            // Malformed message — keep the previous rect so the
+            // toolbar doesn't flicker.
+            break;
+          }
+          setToolbarState({
+            sectionId,
+            rect: {
+              top: r.top,
+              left: r.left,
+              width: r.width,
+              height: r.height,
+            },
+          });
+          break;
+        }
       }
     }
 
@@ -318,6 +446,15 @@ export function LivePreview() {
           src={previewUrl}
           className="h-full w-full border-0"
           title="Theme Preview"
+          // Permissions-Policy delegation. V3 themes frequently surface
+          // share / copy-link affordances ("copy product URL") that call
+          // navigator.clipboard.* — without `clipboard-write` the calls
+          // throw NotAllowedError because Permissions-Policy strips the
+          // ability from cross-origin iframes by default. `fullscreen`
+          // covers themes that ship product-image lightboxes. Keep this
+          // list tight: every additional permission widens the surface
+          // for a hostile theme bundle to misbehave inside the iframe.
+          allow="clipboard-write; clipboard-read; fullscreen"
           // Sandbox notes:
           //   Production: NO `allow-same-origin` — combining it with
           //   `allow-scripts` is the HTML-spec sandbox-escape combo, and
@@ -339,6 +476,71 @@ export function LivePreview() {
           }
         />
       </div>
+
+      {/* Floating section toolbar.
+          Renders OUTSIDE the iframe container so its `position: fixed`
+          coordinates work in hub-window space without being clipped
+          by `overflow: hidden` on the iframe wrapper. The toolbar
+          owns its own positioning — we just hand it the section's
+          iframe-local rect plus the iframe element's window rect,
+          and it computes the final top/left. */}
+      <ToolbarOverlay
+        iframeRef={iframeRef}
+        toolbarState={toolbarState}
+      />
     </div>
+  );
+}
+
+/**
+ * ToolbarOverlay — reads the iframe element's window rect on each
+ * render of the toolbar, combines it with the iframe-local section
+ * rect, and mounts the floating toolbar in hub-window coordinates.
+ *
+ * Kept separate from LivePreview so its `useEffect`/refs don't fight
+ * the parent's render-on-every-message loop.
+ */
+function ToolbarOverlay({
+  iframeRef,
+  toolbarState,
+}: {
+  iframeRef: React.RefObject<HTMLIFrameElement | null>;
+  toolbarState: { sectionId: string; rect: ToolbarRect } | null;
+}) {
+  // Force a re-render on hub window resize so iframe geometry tracks.
+  // Bumping a counter is cheap; the actual DOM measurement happens
+  // synchronously in the render below.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const onResize = () => setTick((t) => t + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  if (!toolbarState) return null;
+  const iframe = iframeRef.current;
+  if (!iframe) return null;
+  const iframeRect = iframe.getBoundingClientRect();
+  if (iframeRect.width === 0 || iframeRect.height === 0) return null;
+
+  // Translate iframe-local coords → hub-window coords.
+  const windowRect: ToolbarRect = {
+    top: iframeRect.top + toolbarState.rect.top,
+    left: iframeRect.left + toolbarState.rect.left,
+    width: toolbarState.rect.width,
+    height: toolbarState.rect.height,
+  };
+
+  return (
+    <SectionPreviewToolbar
+      sectionId={toolbarState.sectionId}
+      rect={windowRect}
+      iframeBox={{
+        top: iframeRect.top,
+        left: iframeRect.left,
+        width: iframeRect.width,
+        height: iframeRect.height,
+      }}
+    />
   );
 }

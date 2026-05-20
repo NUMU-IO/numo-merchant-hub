@@ -61,6 +61,19 @@ import {
   ResourceSearchPicker,
   type ResourceSearchItem,
 } from "./ResourceSearchPicker";
+import { LinkPickerButton } from "./LinkPicker";
+import {
+  MediaLibraryDialog,
+  getImageUrl,
+  getImageAlt,
+  type ImageValue,
+} from "./MediaLibraryDialog";
+import {
+  DynamicSourceToggle,
+  isDynamicSourceValue,
+  dynamicSourceLabel,
+  hasBindableSources,
+} from "./DynamicSourcePicker";
 import { useCustomizerStore } from "../../store/customizerStore";
 
 // ─── Props ──────────────────────────────────────────────────────────────────
@@ -108,17 +121,86 @@ function getOptionLabel(
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export function SettingInputV3({ setting, value, locale, onChange, storeId }: SettingInputV3Props) {
+/**
+ * Decorative `header` and `paragraph` setting types are layout-only
+ * dividers — they have no `id` and no value. Rendering them in a
+ * separate component keeps `SettingInputV3`'s hook order stable
+ * (rules-of-hooks): we can't early-return before the hooks below
+ * without splitting render paths.
+ */
+function SettingDivider({
+  setting,
+  locale,
+}: {
+  setting: SettingDefinition;
+  locale: EditorLocale;
+}) {
+  const content =
+    locale === "ar"
+      ? (setting as { locales?: { ar?: { content?: string } } }).locales?.ar?.content ??
+        (setting as { content?: string }).content
+      : (setting as { content?: string }).content;
+  if (!content) return null;
+  if (setting.type === "header") {
+    return (
+      <div className="mt-4 mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {content}
+      </div>
+    );
+  }
+  return (
+    <p className="mb-2 text-xs leading-relaxed text-muted-foreground">{content}</p>
+  );
+}
+
+export function SettingInputV3(props: SettingInputV3Props) {
+  // Route decorative setting types away from the input pipeline so
+  // their lack of `id` / `value` doesn't trip code that assumes them.
+  // Without this, `setting.id.replace(...)` below blows up with
+  // "Cannot read properties of undefined (reading 'replace')" the
+  // first time a theme ships one of these.
+  if (props.setting.type === "header" || props.setting.type === "paragraph") {
+    return <SettingDivider setting={props.setting} locale={props.locale} />;
+  }
+  return <SettingInputV3Input {...props} />;
+}
+
+function SettingInputV3Input({ setting, value, locale, onChange, storeId }: SettingInputV3Props) {
   const label = getLabel(setting, locale);
   const info = getInfo(setting, locale);
   const placeholder = getPlaceholder(setting, locale);
-  const testId = `v3-setting-${setting.id.replace(/[^a-z0-9]/gi, "-").toLowerCase()}`;
+  const testId = `v3-setting-${(setting.id ?? "anon").replace(/[^a-z0-9]/gi, "-").toLowerCase()}`;
+
+  // P1.1 — Dynamic sources: read the active template so the picker can
+  // filter sources by what's actually in context (product.* sources only
+  // surface on product templates, etc.).
+  const activePage = useCustomizerStore((s) => s.activePage);
+  const isBound = isDynamicSourceValue(value);
+  const showSourceToggle =
+    isBound || hasBindableSources(setting.type, activePage);
+  const sourceToggle = showSourceToggle ? (
+    <DynamicSourceToggle
+      setting={setting}
+      value={value}
+      locale={locale}
+      activePage={activePage}
+      onChange={(next) => onChange(next ?? "")}
+    />
+  ) : null;
+
+  // Label row injects the toggle to the right of the label so it sits
+  // outside the input itself — keeps the input's visual width stable
+  // whether or not the field is bindable.
+  const labelRow = (
+    <div className="flex items-center justify-between gap-2">
+      <Label className="text-sm font-medium text-foreground">{label}</Label>
+      {sourceToggle}
+    </div>
+  );
 
   const wrapper = (children: React.ReactNode, inline = false) => (
     <div className={cn("space-y-1.5", inline && "flex items-center justify-between gap-3")} data-testid={testId}>
-      {!inline && (
-        <Label className="text-sm font-medium text-foreground">{label}</Label>
-      )}
+      {!inline && labelRow}
       {inline && (
         <Label className="text-sm font-medium text-foreground flex-1">{label}</Label>
       )}
@@ -128,6 +210,25 @@ export function SettingInputV3({ setting, value, locale, onChange, storeId }: Se
       )}
     </div>
   );
+
+  // Bound state — when the merchant has connected a dynamic source, we
+  // replace the input control with a chip showing the binding. The
+  // toggle in the labelRow still lets them swap source or unbind.
+  // Returning early avoids every per-type case having to branch on
+  // bound vs literal.
+  if (isBound) {
+    return wrapper(
+      <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+        <Link2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <span className="truncate font-medium text-foreground">
+          {dynamicSourceLabel(value, locale) ?? ""}
+        </span>
+        <span className="ms-auto font-mono text-[10px] text-muted-foreground">
+          {(value as { __numu_source: string }).__numu_source}
+        </span>
+      </div>,
+    );
+  }
 
   switch (setting.type) {
     // ── 1. Text ───────────────────────────────────────────────────────
@@ -364,10 +465,15 @@ export function SettingInputV3({ setting, value, locale, onChange, storeId }: Se
       );
 
     // ── 11. Image Picker ──────────────────────────────────────────────
+    // P1.3 — Replaced the inline drop-zone with the MediaLibrary
+    // picker. The stored value may now be either a plain URL string
+    // (legacy) or an { url, alt } object (new). Theme authors read
+    // it via the SDK's image helpers or fall back to
+    // typeof value === "string" ? value : value?.url ?? "".
     case "image_picker":
       return wrapper(
         <ImagePickerButton
-          value={(value as string) ?? ""}
+          value={value as ImageValue | undefined}
           locale={locale}
           onChange={onChange}
           storeId={storeId}
@@ -375,18 +481,21 @@ export function SettingInputV3({ setting, value, locale, onChange, storeId }: Se
       );
 
     // ── 12. URL ───────────────────────────────────────────────────────
+    // Replaced the bare URL input with the Shopify-style LinkPicker —
+    // merchant clicks the trigger button, picks a destination from
+    // Products / Collections / Pages / Common / External URL / Email /
+    // Phone / WhatsApp tabs. The stored value remains a plain URL
+    // string so existing themes that consume the setting via `href`
+    // keep working without changes.
     case "url":
       return wrapper(
-        <div className="flex items-center gap-2">
-          <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <Input
-            type="url"
-            value={(value as string) ?? ""}
-            placeholder={placeholder || "https://..."}
-            onChange={(e) => onChange(e.target.value)}
-            className="flex-1"
-          />
-        </div>,
+        <LinkPickerButton
+          value={(value as string) ?? ""}
+          locale={locale}
+          onChange={(next) => onChange(next)}
+          storeId={storeId}
+          placeholder={placeholder}
+        />,
       );
 
     // ── 13. Product (single) ──────────────────────────────────────────
@@ -727,50 +836,106 @@ function ImagePickerButton({
   onChange,
   storeId,
 }: {
-  value: string;
+  value: ImageValue | undefined;
   locale: EditorLocale;
   onChange: (v: unknown) => void;
   storeId?: string;
 }) {
-  const [urlInput, setUrlInput] = useState(value);
+  // P1.3 — Thin wrapper around <MediaLibraryDialog>. The button shows
+  // a preview tile (or empty drop-zone) plus a row of actions
+  // (Choose / Replace / Remove). All of the upload/drag-drop/URL-
+  // paste logic lives in the dialog now so the inline UI stays
+  // compact even on dense forms.
+  const isAr = locale === "ar";
+  const [open, setOpen] = useState(false);
+  const url = getImageUrl(value);
+  const alt = getImageAlt(value);
 
   return (
     <div className="space-y-2">
-      {value && (
-        <div className="relative aspect-video w-full overflow-hidden rounded-md border bg-muted">
+      {/* Preview tile or empty-state dropzone. Click anywhere to open
+          the library dialog — that's the entry to every flow. */}
+      {url ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="group relative block aspect-video w-full overflow-hidden rounded-md border bg-muted transition-all hover:border-primary"
+        >
           <img
-            src={value}
-            alt=""
+            src={url}
+            alt={alt}
             className="h-full w-full object-cover"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
           />
+          <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-sm font-medium text-white opacity-0 transition-opacity group-hover:bg-black/40 group-hover:opacity-100 focus-visible:opacity-100">
+            <ImageIcon className="me-2 h-4 w-4" />
+            {isAr ? "تغيير الصورة" : "Change image"}
+          </span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          disabled={!storeId}
+          className={cn(
+            "flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed bg-muted/40 text-sm text-muted-foreground transition-colors",
+            "hover:border-primary/40 hover:bg-muted/60",
+          )}
+        >
+          <ImageIcon className="h-6 w-6" />
+          <span className="font-medium">
+            {isAr ? "اختر صورة" : "Choose image"}
+          </span>
+          <span className="text-xs">
+            {isAr ? "مكتبة • رفع • رابط" : "Library • Upload • URL"}
+          </span>
+        </button>
+      )}
+
+      {/* Action row — keeps the most-common shortcuts close to the
+          preview so the merchant doesn't have to open the dialog
+          just to remove an image. */}
+      {url && (
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setOpen(true)}
+          >
+            <ImageIcon className="h-3.5 w-3.5" />
+            {isAr ? "تغيير" : "Change"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            onClick={() => onChange("")}
+          >
+            {isAr ? "إزالة" : "Remove"}
+          </Button>
+          {alt && (
+            <span
+              className="ms-auto truncate text-[10px] text-muted-foreground"
+              title={alt}
+            >
+              alt: {alt}
+            </span>
+          )}
         </div>
       )}
-      <div className="flex gap-2">
-        <Input
-          value={urlInput}
-          onChange={(e) => setUrlInput(e.target.value)}
-          placeholder={locale === "ar" ? "رابط الصورة" : "Image URL"}
-          className="flex-1"
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onChange(urlInput)}
-        >
-          <ImageIcon className="h-4 w-4" />
-        </Button>
-      </div>
-      {value && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full text-destructive"
-          onClick={() => { onChange(""); setUrlInput(""); }}
-        >
-          {locale === "ar" ? "إزالة الصورة" : "Remove image"}
-        </Button>
-      )}
+
+      <MediaLibraryDialog
+        open={open}
+        onOpenChange={setOpen}
+        value={value}
+        onChange={onChange}
+        locale={locale}
+        storeId={storeId}
+      />
     </div>
   );
 }

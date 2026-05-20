@@ -22,8 +22,10 @@ import type {
   SectionSchemaDefinition,
   SectionInstance,
   BlockInstance,
+  SettingDefinition,
   EditorLocale,
   DeviceMode,
+  EditorMode,
   SidebarPanel,
   EditorSelection,
 } from "../types";
@@ -39,6 +41,27 @@ import {
   appendUndoEntry,
   clearUndoStack,
 } from "@/services/customizerUndoApi";
+import { ApiError } from "@/lib/api-error";
+
+/**
+ * Recognize the 401-after-refresh-failure error that the V3 API service
+ * raises when `noAutoRedirect401` is on. We treat both ApiError(401) and
+ * any error whose `.status` field reads 401 as session-expired so
+ * future wrappers don't have to thread `instanceof ApiError` through
+ * every catch site.
+ */
+function isSessionExpiredError(err: unknown): boolean {
+  if (err instanceof ApiError && err.status === 401) return true;
+  if (
+    err &&
+    typeof err === "object" &&
+    "status" in err &&
+    (err as { status?: unknown }).status === 401
+  ) {
+    return true;
+  }
+  return false;
+}
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -73,6 +96,13 @@ interface CustomizerState {
   isSaving: boolean;
   isPublishing: boolean;
   error: string | null;
+  /** Flipped on by any V3 service call that 401s after the refresh
+   *  attempt. The editor renders an inline "re-login" overlay instead
+   *  of hard-navigating, so the in-memory draft + undo stack survive
+   *  until the merchant signs back in (the autosave already pushed the
+   *  draft to the server, so the worst case is the in-memory undo
+   *  history is rebuilt from the latest published state on re-init). */
+  sessionExpired: boolean;
 
   // Dirty tracking
   isDirty: boolean;
@@ -85,8 +115,34 @@ interface CustomizerState {
   // UI state
   locale: EditorLocale;
   deviceMode: DeviceMode;
+  /**
+   * Top-level mode (Shopify-parity): Sections / Theme settings / App embeds.
+   * `activePanel` is the sub-state inside the Sections mode. When mode flips,
+   * the sidebar swaps to the matching root panel.
+   */
+  activeMode: EditorMode;
   activePanel: SidebarPanel;
   activePage: string;
+  /**
+   * P1.2 — Resource context preview. Some templates (`product`,
+   * `collection`) only make sense when previewed against a SPECIFIC
+   * resource — the section settings are the merchant's edits, but the
+   * resource fields (title, images, price) come from the store data.
+   * When the merchant flips to one of those templates we expose a
+   * resource picker in the TopBar; the picked id flows into the
+   * iframe URL via LivePreview's `previewUrl` builder.
+   *
+   * Per-template so the merchant can keep their selected product
+   * while flipping to the collection template and back. Stored
+   * locally in the editor (not persisted to the draft) — switching
+   * the preview resource never marks the draft dirty.
+   */
+  previewResources: {
+    productId: string | null;
+    productLabel: string | null;
+    collectionSlug: string | null;
+    collectionLabel: string | null;
+  };
   selection: EditorSelection;
   showAddSection: boolean;
   insertAfterSectionId: string | null;
@@ -105,6 +161,19 @@ interface CustomizerActions {
 
   // Draft mutations (push to undo stack + trigger autosave)
   updateGlobalSetting: (key: string, value: unknown) => void;
+  /**
+   * P1.5 — Default wording / translation editor. Writes a single
+   * locale-keyed translation to
+   * `draft.global_settings.__translations[locale][key]`. Stored
+   * under the reserved `__translations` namespace so the value lives
+   * inside the existing global_settings map (no SDK type change
+   * required) and themes that don't consume translations simply
+   * ignore the key. The bundle reads
+   * `themeSettings.global_settings.__translations?.[locale]` at mount
+   * and passes it to `<NuMuProvider translations={...}>` so
+   * `useTranslation(key, fallback)` returns the override.
+   */
+  updateTranslation: (key: string, locale: string, value: string) => void;
   updateSectionSetting: (
     sectionId: string,
     key: string,
@@ -174,11 +243,37 @@ interface CustomizerActions {
   // UI state
   setLocale: (locale: EditorLocale) => void;
   setDeviceMode: (mode: DeviceMode) => void;
+  /**
+   * Switch the top-level editor mode. Side effects:
+   *   - Clears the section/block selection so the panel doesn't render
+   *     leftover state from a different mode.
+   *   - Resets `activePanel` to the matching root panel for the mode
+   *     (`sections` → "sections", `theme-settings` → "global-settings").
+   */
+  setActiveMode: (mode: EditorMode) => void;
   setActivePanel: (panel: SidebarPanel) => void;
   setActivePage: (page: string) => void;
   setSelection: (selection: EditorSelection) => void;
   clearSelection: () => void;
   setShowAddSection: (show: boolean, insertAfter?: string | null) => void;
+  /**
+   * P1.2 — Set the active preview resource for product/collection
+   * templates. Pass `null` for `id` to clear (returns to first-
+   * available auto-pick). The label is the merchant-facing name; we
+   * keep it in state so the TopBar trigger can display it without
+   * re-fetching.
+   */
+  setPreviewResource: (
+    type: "product" | "collection",
+    id: string | null,
+    label?: string | null,
+  ) => void;
+
+  // Auth resilience: invoked by the inline re-login banner when the
+  // merchant successfully re-authenticates (or wants to retry the
+  // initial load after a 401 storm).
+  clearSessionExpired: () => void;
+  retryAfterReauth: () => Promise<void>;
 }
 
 type CustomizerStore = CustomizerState & CustomizerActions;
@@ -213,16 +308,69 @@ function cloneDeep<T>(obj: T): T {
 }
 
 /**
+ * Human-readable template name for a canonical template id. Used when
+ * the merchant authors a template that wasn't pre-seeded — we mint a
+ * fresh `PageTemplate` with a friendly `name` field so version history
+ * and the customizer surfaces show "Product" rather than "product".
+ *
+ * Falls back to title-casing the id for any value not in the map (so a
+ * future theme that ships an exotic template like "lookbook" still
+ * gets a reasonable display name without an entry here).
+ */
+const TEMPLATE_LABELS: Record<string, string> = {
+  home: "Home",
+  product: "Product",
+  collection: "Collection",
+  cart: "Cart",
+  checkout: "Checkout",
+  "order-confirmation": "Order confirmation",
+  profile: "Profile",
+  page: "Page",
+  blog: "Blog",
+  "404": "404 — Not found",
+  password: "Password",
+  search: "Search",
+};
+
+function friendlyTemplateName(id: string): string {
+  if (TEMPLATE_LABELS[id]) return TEMPLATE_LABELS[id];
+  return id
+    .split(/[-_]/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+/**
  * Normalize the backend `ThemeSchemaBundle` (settings_schema + section_schemas
  * map) into the editor's flatter shape (sections array + section_groups map).
  * The dashboard editor treats header/footer as virtual groups whose schemas
  * come from the same section_schemas pool, filtered by tag.
+ *
+ * Shape compatibility: legacy internal themes return
+ *   `section_schemas: Record<type, def>`  (flat)
+ * BYOT / external themes return
+ *   `section_schemas: { sections: Record<type, def>, blocks: Record<...> }`
+ *   (nested — the bundle's manifest.json shape, kept verbatim through the
+ *   marketplace install pipeline).
+ *
+ * We accept both. The unwrap below peels the nested shape down to the flat
+ * one before mapping; without it, BYOT themes produced a schemas object
+ * where every "section" was actually `sections` / `blocks` containers,
+ * leaving the customizer's section editor with no fields to render.
  */
 function normalizeSchemas(raw: ThemeSchemaBundle): NormalizedSchemas {
-  const sectionsMap = (raw.section_schemas ?? {}) as Record<
-    string,
-    SectionSchemaDefinition
-  >;
+  const rawSchemas = (raw.section_schemas ?? {}) as Record<string, unknown>;
+  // Detect the BYOT-nested shape: a `sections` key whose value is itself
+  // an object map of types → schema definitions (the schemas themselves
+  // never carry a `sections` field).
+  const isNested =
+    rawSchemas.sections !== undefined &&
+    typeof rawSchemas.sections === "object" &&
+    rawSchemas.sections !== null &&
+    !Array.isArray(rawSchemas.sections);
+  const sectionsMap = (
+    isNested ? (rawSchemas.sections as Record<string, SectionSchemaDefinition>) : (rawSchemas as Record<string, SectionSchemaDefinition>)
+  );
   const sections: SectionSchemaDefinition[] = Object.entries(sectionsMap).map(
     ([type, def]) => ({ ...def, type: def.type ?? type }),
   );
@@ -238,13 +386,85 @@ function normalizeSchemas(raw: ThemeSchemaBundle): NormalizedSchemas {
   const templateSections = sections.filter((s) => groupOf(s) === null);
 
   return {
-    global_settings: raw.settings_schema ?? [],
+    global_settings: flattenGlobalSettings(raw.settings_schema),
     sections: templateSections,
     section_groups: {
       header: { sections: headerSections },
       footer: { sections: footerSections },
     },
+    theme_variants: raw.variants ?? [],
   };
+}
+
+/**
+ * Normalize the two shapes a theme can ship its global settings in.
+ *
+ * 1. Flat: `[{ type, id, label, ... }, ...]` — already what the
+ *    SchemaFormV3 expects. Pass through unchanged.
+ * 2. Shopify-grouped: `[{ name, locales, settings: [...] }, ...]` —
+ *    Empire's `settings_schema.json` uses this. Flatten: each child
+ *    setting inherits its parent's `name` as `group`, and the parent's
+ *    `locales.ar.name` becomes `group_locales.ar`. SchemaFormV3 already
+ *    re-groups by the `group` key, so the visual hierarchy survives.
+ *
+ * Mixed input (some entries grouped, some flat) gets handled
+ * element-by-element so a theme that adds a stray ungrouped setting at
+ * the top of the file doesn't crash the editor — the ungrouped entry
+ * just falls into the default "General" group.
+ *
+ * Why this lives in the customizer (not the backend or SDK normalize):
+ *   - Backend ships `settings_schema.json` verbatim so themes don't have
+ *     to know about a hidden flattening step.
+ *   - SDK `resolveThemeSettings` only touches `draft` shapes, not the
+ *     schema bundle.
+ *   - The flatten contract is editor-internal — adapting it here keeps
+ *     the per-theme JSON file in the format Shopify themes expect, which
+ *     matters because most BYOT themes will be ports of Shopify themes.
+ */
+function flattenGlobalSettings(raw: unknown): SettingDefinition[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SettingDefinition[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+    // Shopify-grouped entries declare `settings: [...]` and either
+    // omit `type` or carry a parent-only field like `name`. Treat
+    // anything with a non-string `type` as the grouped shape.
+    const isGrouped =
+      Array.isArray(e.settings) && (e.type === undefined || typeof e.type !== "string");
+    if (isGrouped) {
+      const group = typeof e.name === "string" ? e.name : "General";
+      const locales = (e.locales ?? {}) as { ar?: { name?: string }; en?: { name?: string } };
+      const groupLocales = {
+        ar: locales.ar?.name,
+        en: locales.en?.name,
+      };
+      for (const child of e.settings as unknown[]) {
+        if (!child || typeof child !== "object") continue;
+        const c = child as Record<string, unknown>;
+        // Skip schema entries that have no `id` (header/paragraph
+        // dividers); the SettingInputV3 testId calc + the React key
+        // both require a string id. Headers belong inside a group's
+        // settings list but they're rendered separately by
+        // SchemaFormV3's group heading — silently dropping them on
+        // ingest is the cleanest fix for now. (A follow-up could
+        // synthesize a stable id from index + label.)
+        if (typeof c.id !== "string") continue;
+        out.push({
+          ...(c as SettingDefinition),
+          group: (c.group as string | undefined) ?? group,
+          group_locales:
+            (c.group_locales as { ar?: string; en?: string } | undefined) ??
+            groupLocales,
+        });
+      }
+    } else {
+      // Flat-shape entry. Skip if it lacks an `id` for the same reason.
+      if (typeof e.id !== "string") continue;
+      out.push(e as SettingDefinition);
+    }
+  }
+  return out;
 }
 
 // ─── Initial State ──────────────────────────────────────────────────────────
@@ -257,14 +477,22 @@ const initialState: CustomizerState = {
   isSaving: false,
   isPublishing: false,
   error: null,
+  sessionExpired: false,
   isDirty: false,
   lastSavedAt: null,
   past: [],
   future: [],
   locale: "en",
   deviceMode: "desktop",
+  activeMode: "sections",
   activePanel: "sections",
   activePage: "home",
+  previewResources: {
+    productId: null,
+    productLabel: null,
+    collectionSlug: null,
+    collectionLabel: null,
+  },
   selection: { type: null, sectionId: null, blockId: null, groupId: null },
   showAddSection: false,
   insertAfterSectionId: null,
@@ -376,6 +604,7 @@ export const useCustomizerStore = create<CustomizerStore>()(
         } catch (err) {
           set((s) => {
             s.isSaving = false;
+            if (isSessionExpiredError(err)) s.sessionExpired = true;
           });
           throw err;
         } finally {
@@ -425,6 +654,9 @@ export const useCustomizerStore = create<CustomizerStore>()(
         set((s) => {
           s.isLoading = true;
           s.error = null;
+          // Don't clobber `sessionExpired` here — `retryAfterReauth`
+          // clears it explicitly once the merchant re-authenticates,
+          // so the re-login overlay stays visible until they act.
           s.storeId = storeId;
         });
         try {
@@ -448,8 +680,27 @@ export const useCustomizerStore = create<CustomizerStore>()(
             return;
           }
           set((s) => {
-            s.draft = draftRaw as ThemeSettingsV3;
-            s.schemas = normalizeSchemas(schemasRaw);
+            const draft = draftRaw as ThemeSettingsV3;
+            const schemas = normalizeSchemas(schemasRaw);
+            // Seed schema defaults into draft.global_settings for any
+            // key the merchant hasn't authored yet. Without this, color
+            // pickers / font pickers / checkboxes render their
+            // controlled-value fallback (#000000, empty string, false)
+            // instead of the schema's declared `default` — so a fresh
+            // store looks broken even though the storefront renders
+            // correctly using the schema defaults at runtime.
+            //
+            // We do NOT mark the draft dirty here: this is a
+            // hydration-time enrichment, not a merchant edit. Subsequent
+            // edits will save the seeded values along with the change.
+            if (!draft.global_settings) draft.global_settings = {};
+            const gs = draft.global_settings as Record<string, unknown>;
+            for (const def of schemas.global_settings) {
+              if (def.default === undefined) continue;
+              if (gs[def.id] === undefined) gs[def.id] = def.default;
+            }
+            s.draft = draft;
+            s.schemas = schemas;
             s.isLoading = false;
             s.isDirty = false;
             s.past = [];
@@ -457,6 +708,13 @@ export const useCustomizerStore = create<CustomizerStore>()(
             s.lastSavedAt = new Date().toISOString();
           });
         } catch (err) {
+          if (isSessionExpiredError(err)) {
+            set((s) => {
+              s.isLoading = false;
+              s.sessionExpired = true;
+            });
+            return;
+          }
           set((s) => {
             s.isLoading = false;
             s.error =
@@ -477,6 +735,38 @@ export const useCustomizerStore = create<CustomizerStore>()(
         set((s) => {
           if (!s.draft) return;
           s.draft.global_settings[key] = value;
+        });
+        markDirty();
+      },
+
+      updateTranslation: (key, locale, value) => {
+        pushHistory(`translation:${locale}:${key}`, `Update ${key} (${locale})`);
+        set((s) => {
+          if (!s.draft) return;
+          // Reserved namespace under global_settings — themes that don't
+          // consume translations simply ignore the key. The bundle's
+          // mount() resolver picks `__translations[locale]` and passes
+          // it to NuMuProvider's `translations` prop.
+          const gs = s.draft.global_settings as Record<string, unknown>;
+          const existing =
+            (gs.__translations as Record<string, Record<string, string>>) ??
+            {};
+          const perLocale = { ...(existing[locale] ?? {}) };
+          if (value.trim().length === 0) {
+            // Empty value → delete the override so the theme's
+            // default text shows through. Persisting empty strings
+            // would create unintentional blank labels.
+            delete perLocale[key];
+          } else {
+            perLocale[key] = value;
+          }
+          const next = { ...existing, [locale]: perLocale };
+          // Clean up empty locale buckets entirely (so the JSON stays
+          // tidy when the merchant clears every override for a locale).
+          if (Object.keys(perLocale).length === 0) {
+            delete (next as Record<string, unknown>)[locale];
+          }
+          gs.__translations = next;
         });
         markDirty();
       },
@@ -575,6 +865,22 @@ export const useCustomizerStore = create<CustomizerStore>()(
 
         set((s) => {
           if (!s.draft) return;
+          // Step 3 — auto-create the template if it doesn't exist yet.
+          // Themes ship a fixed canonical list of templates a merchant
+          // can navigate to (TopBar `PAGES`). When the merchant lands
+          // on a template that wasn't seeded at theme-install time
+          // (most common: customer added a 'product' template post-
+          // install) and clicks Add section, we mint an empty
+          // PageTemplate on the fly. Without this, the previous
+          // implementation silently no-op'd on the missing template
+          // and the merchant saw "Add section" appear to do nothing.
+          if (!s.draft.templates[activePage]) {
+            s.draft.templates[activePage] = {
+              name: friendlyTemplateName(activePage),
+              sections: {},
+              order: [],
+            };
+          }
           const tpl = s.draft.templates[activePage];
           if (!tpl) return;
           tpl.sections[newId] = newSection;
@@ -972,6 +1278,7 @@ export const useCustomizerStore = create<CustomizerStore>()(
         } catch (err) {
           set((s) => {
             s.isPublishing = false;
+            if (isSessionExpiredError(err)) s.sessionExpired = true;
           });
           throw err;
         }
@@ -1005,6 +1312,7 @@ export const useCustomizerStore = create<CustomizerStore>()(
         } catch (err) {
           set((s) => {
             s.isLoading = false;
+            if (isSessionExpiredError(err)) s.sessionExpired = true;
           });
           throw err;
         }
@@ -1034,6 +1342,7 @@ export const useCustomizerStore = create<CustomizerStore>()(
         } catch (err) {
           set((s) => {
             s.isLoading = false;
+            if (isSessionExpiredError(err)) s.sessionExpired = true;
           });
           throw err;
         }
@@ -1048,6 +1357,32 @@ export const useCustomizerStore = create<CustomizerStore>()(
       setDeviceMode: (mode) =>
         set((s) => {
           s.deviceMode = mode;
+        }),
+      setActiveMode: (mode) =>
+        set((s) => {
+          s.activeMode = mode;
+          // Reset selection so the previous mode's leftover state
+          // doesn't render through into the new mode's panel.
+          s.selection = {
+            type: null,
+            sectionId: null,
+            blockId: null,
+            groupId: null,
+          };
+          // Route each mode to its root panel.
+          if (mode === "sections") {
+            s.activePanel = "sections";
+          } else if (mode === "theme-settings") {
+            s.activePanel = "global-settings";
+            s.selection = {
+              type: "global",
+              sectionId: null,
+              blockId: null,
+              groupId: null,
+            };
+          }
+          // App embeds mode has no sub-panels; the parent component
+          // renders its own placeholder. activePanel stays untouched.
         }),
       setActivePanel: (panel) =>
         set((s) => {
@@ -1076,6 +1411,42 @@ export const useCustomizerStore = create<CustomizerStore>()(
           s.showAddSection = show;
           s.insertAfterSectionId = insertAfter ?? null;
         }),
+
+      setPreviewResource: (type, id, label = null) =>
+        set((s) => {
+          if (type === "product") {
+            s.previewResources.productId = id;
+            s.previewResources.productLabel = label;
+          } else {
+            s.previewResources.collectionSlug = id;
+            s.previewResources.collectionLabel = label;
+          }
+        }),
+
+      clearSessionExpired: () =>
+        set((s) => {
+          s.sessionExpired = false;
+        }),
+
+      retryAfterReauth: async () => {
+        // Caller has presumably re-authenticated (via a popup or
+        // /login redirect). Re-initialise from server — the in-memory
+        // draft we still hold can be stale relative to the latest
+        // published state, so we re-fetch and let the user start
+        // again from the canonical baseline.
+        const sid = get().storeId;
+        set((s) => {
+          s.sessionExpired = false;
+          s.draft = null;
+          s.schemas = null;
+          s.past = [];
+          s.future = [];
+          s.isDirty = false;
+          s.error = null;
+          s.storeId = null; // force initialize to re-run
+        });
+        if (sid) await get().initialize(sid);
+      },
     };
   }),
 );

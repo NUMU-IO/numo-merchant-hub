@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCustomizerStore } from "../../store/customizerStore";
 import type { EditorLocale, SectionInstance, ThemeSchemaBundle } from "../../types";
+import { VariantPicker } from "./VariantPicker";
 
 // ─── Section Item (Sortable) ────────────────────────────────────────────────
 
@@ -252,6 +253,45 @@ export function SectionListPanel() {
     [setSelection, setActivePanel],
   );
 
+  // Shared-template impact notice (Step 4 / doc §34).
+  // Editing a "shared" template (product, collection, page) affects
+  // EVERY resource that uses that template — not just one. Surface a
+  // small non-intrusive banner so merchants don't accidentally tweak
+  // the product template thinking they're editing one specific product.
+  // The single biggest source of Shopify merchant confusion that we
+  // can cheaply eliminate.
+  const sharedNoticeByTemplate: Record<string, { en: string; ar: string }> = {
+    product: {
+      en: "This template applies to every product using it.",
+      ar: "هذا القالب يطبَّق على كل منتج يستخدمه.",
+    },
+    collection: {
+      en: "This template applies to every collection using it.",
+      ar: "هذا القالب يطبَّق على كل مجموعة تستخدمه.",
+    },
+    page: {
+      en: "This template applies to every static page using it.",
+      ar: "هذا القالب يطبَّق على كل صفحة ثابتة تستخدمه.",
+    },
+    blog: {
+      en: "This template applies to every blog using it.",
+      ar: "هذا القالب يطبَّق على كل مدوّنة تستخدمه.",
+    },
+    "order-confirmation": {
+      en: "Shown to every customer after they complete an order.",
+      ar: "يظهر لكل عميل بعد إتمام الطلب.",
+    },
+    cart: {
+      en: "Shown when any customer opens the cart page.",
+      ar: "يظهر عند فتح أي عميل لصفحة السلة.",
+    },
+    checkout: {
+      en: "Shown to every customer during checkout.",
+      ar: "يظهر لكل عميل أثناء عملية الدفع.",
+    },
+  };
+  const sharedNotice = sharedNoticeByTemplate[activePage];
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -263,6 +303,28 @@ export function SectionListPanel() {
           {activePage}
         </span>
       </div>
+
+      {/* Wave 7 — Variant picker strip. Auto-hides when the active
+          theme doesn't ship variants. */}
+      {schemas?.theme_variants && schemas.theme_variants.length > 0 && (
+        <VariantPicker
+          variants={schemas.theme_variants}
+          locale={locale}
+        />
+      )}
+
+      {/* Shared-template impact notice. Only shows on shared templates
+          (product, collection, page, etc.) — not on home or 404 where
+          the impact is unambiguous. The lightning-bolt icon + amber
+          color matches our existing alert-info pattern. */}
+      {sharedNotice && (
+        <div className="border-b bg-amber-50/60 dark:bg-amber-950/20 px-4 py-2">
+          <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+            <span aria-hidden="true" className="me-1">⚡</span>
+            {sharedNotice[locale === "ar" ? "ar" : "en"]}
+          </p>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {/* Header section group */}
