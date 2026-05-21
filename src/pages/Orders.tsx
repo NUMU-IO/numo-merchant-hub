@@ -1197,6 +1197,11 @@ const Orders = () => {
                     <TableCell className="font-mono text-xs font-medium">{o.order_number}</TableCell>
                     <TableCell>
                       <div className="text-xs font-medium truncate max-w-[120px]">{o.customer_name || "—"}</div>
+                      {o.campaign?.name && (
+                        <div className="text-[10px] text-muted-foreground truncate max-w-[140px]" title={`via ${o.campaign.name}`}>
+                          {language === "ar" ? "عبر" : "via"} {o.campaign.name}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{o.payment_method || "—"}</TableCell>
                     <TableCell>
