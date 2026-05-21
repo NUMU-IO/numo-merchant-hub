@@ -239,3 +239,56 @@ export async function validatePath(
     },
   );
 }
+
+// ── Performance (US3) ───────────────────────────────────────────────
+
+export interface CampaignConversionRates {
+  session_to_atc: number;
+  atc_to_checkout: number;
+  checkout_to_order: number;
+  session_to_order: number;
+}
+
+export interface CampaignTopProduct {
+  product_id: string | null;
+  name: string | null;
+  orders: number;
+  revenue_cents: number;
+}
+
+export interface CampaignPerformanceTotals {
+  sessions: number;
+  product_views: number;
+  add_to_cart: number;
+  checkout_started: number;
+  orders: number;
+  revenue_cents: number;
+  average_order_value_cents: number;
+  conversion_rates: CampaignConversionRates;
+  top_products: CampaignTopProduct[];
+}
+
+export interface CampaignPerformanceResponse {
+  campaign_id: string;
+  campaign_name: string;
+  short_code: string;
+  date_from: string;
+  date_to: string;
+  totals: CampaignPerformanceTotals;
+}
+
+/** Aggregated per-campaign performance over a date range. */
+export async function getCampaignPerformance(
+  storeId: string,
+  campaignId: string,
+  dateFrom: string,
+  dateTo: string,
+): Promise<CampaignPerformanceResponse> {
+  const qs = new URLSearchParams({
+    date_from: dateFrom,
+    date_to: dateTo,
+  }).toString();
+  return apiClient<CampaignPerformanceResponse>(
+    `${_ROOT(storeId)}/${campaignId}/performance?${qs}`,
+  );
+}

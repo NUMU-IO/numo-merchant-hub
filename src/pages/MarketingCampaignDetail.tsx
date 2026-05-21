@@ -27,6 +27,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { showError } from "@/lib/show-error";
 import { getCampaign, type Campaign } from "@/services/campaignApi";
 import { TrackableLinkBuilder } from "@/components/campaigns/TrackableLinkBuilder";
+import { CampaignPerformanceTab } from "@/components/campaigns/CampaignPerformanceTab";
 
 const STATUS_VARIANT: Record<string, string> = {
   draft: "bg-muted text-foreground",
@@ -117,11 +118,11 @@ export default function MarketingCampaignDetail() {
           <TabsTrigger value="trackable-links">
             {isAr ? "روابط التتبع" : "Trackable links"}
           </TabsTrigger>
+          <TabsTrigger value="performance">
+            {isAr ? "الأداء" : "Performance"}
+          </TabsTrigger>
           <TabsTrigger value="audience" disabled>
             {isAr ? "الجمهور" : "Audience"}
-          </TabsTrigger>
-          <TabsTrigger value="performance" disabled>
-            {isAr ? "الأداء" : "Performance"}
           </TabsTrigger>
         </TabsList>
 
@@ -213,6 +214,13 @@ export default function MarketingCampaignDetail() {
             storeId={storeId}
             campaignId={campaign.id}
             campaignSlug={campaign.name}
+          />
+        </TabsContent>
+
+        <TabsContent value="performance">
+          <CampaignPerformanceTab
+            storeId={storeId}
+            campaignId={campaign.id}
           />
         </TabsContent>
       </Tabs>
