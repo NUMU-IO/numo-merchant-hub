@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -79,6 +80,11 @@ export function TrackableLinkBuilder({
   const [medium, setMedium] = useState("");
   const [term, setTerm] = useState("");
   const [content, setContent] = useState("");
+  // Default-on: a short link is almost always more useful than a
+  // 200-char UTM URL — merchants share it on WhatsApp / print / SMS.
+  // The flag is wired through to the backend's ``with_short_link``
+  // parameter on POST /trackable-link.
+  const [withShortLink, setWithShortLink] = useState(true);
 
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<TrackableLinkResponse | null>(null);
@@ -118,6 +124,7 @@ export function TrackableLinkBuilder({
         medium: medium.trim() || null,
         term: term.trim() || null,
         content: content.trim() || null,
+        with_short_link: withShortLink,
       });
       setResult(res);
       toast.success(isAr ? "تم توليد الرابط" : "Link generated");
@@ -280,6 +287,22 @@ export function TrackableLinkBuilder({
           </div>
         </div>
 
+        <div className="flex items-center gap-2 pt-1">
+          <Checkbox
+            id="with-short-link"
+            checked={withShortLink}
+            onCheckedChange={(v) => setWithShortLink(v === true)}
+          />
+          <Label
+            htmlFor="with-short-link"
+            className="text-sm font-normal cursor-pointer"
+          >
+            {isAr
+              ? "أنشئ رابط مختصر (numueg.app/r/...)"
+              : "Also generate a short link (numueg.app/r/…)"}
+          </Label>
+        </div>
+
         <Button
           type="button"
           onClick={handleGenerate}
@@ -295,6 +318,7 @@ export function TrackableLinkBuilder({
             <QrCodeDisplay
               url={result.url}
               qrPngBase64={result.qr_png_base64}
+              shortUrl={result.short_url}
               downloadName={`${campaignSlug || result.campaign_slug}-qr`}
             />
           </div>

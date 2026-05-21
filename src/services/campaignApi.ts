@@ -106,6 +106,12 @@ export interface TrackableLinkRequest {
   medium?: string | null;
   term?: string | null;
   content?: string | null;
+  /**
+   * Opt in to also creating a /r/{short_code} short link.
+   * Server only mints one when this flag is true; defaults to false
+   * so existing callers keep their behaviour.
+   */
+  with_short_link?: boolean;
 }
 
 export interface TrackableLinkDestinationResponse {
@@ -122,6 +128,13 @@ export interface TrackableLinkResponse {
   short_code: string;
   campaign_slug: string;
   destination: TrackableLinkDestinationResponse;
+  /**
+   * Short URL of the form ``https://numueg.app/r/{short_url_code}``.
+   * Null when the request didn't opt in via ``with_short_link``.
+   */
+  short_url?: string | null;
+  /** 8-char Crockford base32 identifier; null when no short link was minted. */
+  short_url_code?: string | null;
 }
 
 // ── Path validator ──────────────────────────────────────────────────
