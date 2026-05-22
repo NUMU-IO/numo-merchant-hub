@@ -33,9 +33,11 @@ import {
   Loader2,
   RefreshCw,
   ShoppingCart,
+  Tag,
   TrendingUp,
   Users,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
 import {
@@ -305,6 +307,86 @@ export function CampaignPerformanceTab({
                         <TableCell>{p.orders}</TableCell>
                         <TableCell className="tabular-nums">
                           {formatCents(p.revenue_cents, isAr)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Coupon redemptions */}
+          {totals.coupon_breakdown.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Tag className="h-4 w-4 text-muted-foreground" />
+                  {isAr ? "استخدامات أكواد الخصم" : "Coupon redemptions"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-md border bg-muted/30 p-3">
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                      {isAr ? "إجمالي الاستخدامات" : "Total redemptions"}
+                    </div>
+                    <div className="text-xl font-semibold tabular-nums mt-1">
+                      {totals.coupon_redemptions.toLocaleString(
+                        isAr ? "ar-EG" : undefined,
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-md border bg-muted/30 p-3">
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                      {isAr ? "قيمة الخصم" : "Discount value"}
+                    </div>
+                    <div className="text-xl font-semibold tabular-nums mt-1">
+                      {formatCents(totals.coupon_discount_value_cents, isAr)}
+                    </div>
+                  </div>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>
+                        {isAr ? "الكود" : "Code"}
+                      </TableHead>
+                      <TableHead>
+                        {isAr ? "الاستخدامات" : "Redemptions"}
+                      </TableHead>
+                      <TableHead>
+                        {isAr ? "الخصم" : "Discount"}
+                      </TableHead>
+                      <TableHead>
+                        {isAr ? "الإيرادات" : "Revenue"}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {totals.coupon_breakdown.map((c) => (
+                      <TableRow key={c.code}>
+                        <TableCell className="font-mono">
+                          <div className="flex items-center gap-2">
+                            {c.code}
+                            {c.campaign_issued && (
+                              <Badge
+                                variant="outline"
+                                className="bg-emerald-50 text-emerald-800 border-emerald-200 text-[10px] dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900"
+                              >
+                                {isAr ? "حملة" : "Campaign"}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="tabular-nums">
+                          {c.redemptions}
+                        </TableCell>
+                        <TableCell className="tabular-nums">
+                          {formatCents(c.discount_value_cents, isAr)}
+                        </TableCell>
+                        <TableCell className="tabular-nums">
+                          {formatCents(c.revenue_cents, isAr)}
                         </TableCell>
                       </TableRow>
                     ))}
