@@ -269,6 +269,15 @@ export interface CampaignTopProduct {
   revenue_cents: number;
 }
 
+export interface CouponRedemptionBreakdownItem {
+  code: string;
+  redemptions: number;
+  discount_value_cents: number;
+  revenue_cents: number;
+  /** True when the code was minted via POST /campaigns/{id}/coupons. */
+  campaign_issued: boolean;
+}
+
 export interface CampaignPerformanceTotals {
   sessions: number;
   product_views: number;
@@ -279,6 +288,12 @@ export interface CampaignPerformanceTotals {
   average_order_value_cents: number;
   conversion_rates: CampaignConversionRates;
   top_products: CampaignTopProduct[];
+  // Post-feature-001: coupon redemption stats for this campaign window.
+  // Defaults to 0 / [] when no campaign-attributed orders redeemed
+  // any coupon code.
+  coupon_redemptions: number;
+  coupon_discount_value_cents: number;
+  coupon_breakdown: CouponRedemptionBreakdownItem[];
 }
 
 export interface CampaignPerformanceResponse {
@@ -288,6 +303,57 @@ export interface CampaignPerformanceResponse {
   date_from: string;
   date_to: string;
   totals: CampaignPerformanceTotals;
+}
+
+// ── Campaign-attached coupons ───────────────────────────────────────
+
+export interface IssueCampaignCouponRequest {
+  coupon_type: "percentage" | "fixed";
+  value: number;
+  min_order_amount?: number | null;
+  max_discount_amount?: number | null;
+  usage_limit?: number | null;
+  valid_from?: string | null;
+  valid_until?: string | null;
+}
+
+export interface CampaignCouponResponse {
+  id: string;
+  code: string;
+  coupon_type: string;
+  value: number;
+  min_order_amount: number | null;
+  max_discount_amount: number | null;
+  usage_limit: number | null;
+  usage_count: number;
+  valid_from: string | null;
+  valid_until: string | null;
+  is_active: boolean;
+  campaign_id: string | null;
+  created_at: string;
+}
+
+export async function issueCampaignCoupon(
+  storeId: string,
+  campaignId: string,
+  data: IssueCampaignCouponRequest,
+): Promise<CampaignCouponResponse> {
+  return apiClient<CampaignCouponResponse>(
+    `${_ROOT(storeId)}/${campaignId}/coupons`,
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    },
+  );
+}
+
+export async function listCampaignCoupons(
+  storeId: string,
+  campaignId: string,
+): Promise<CampaignCouponResponse[]> {
+  return apiClient<CampaignCouponResponse[]>(
+    `${_ROOT(storeId)}/${campaignId}/coupons`,
+  );
 }
 
 /** Aggregated per-campaign performance over a date range. */

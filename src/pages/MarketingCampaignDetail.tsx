@@ -28,6 +28,7 @@ import { showError } from "@/lib/show-error";
 import { getCampaign, type Campaign } from "@/services/campaignApi";
 import { TrackableLinkBuilder } from "@/components/campaigns/TrackableLinkBuilder";
 import { CampaignPerformanceTab } from "@/components/campaigns/CampaignPerformanceTab";
+import { CampaignCouponsPanel } from "@/components/campaigns/CampaignCouponsPanel";
 
 const STATUS_VARIANT: Record<string, string> = {
   draft: "bg-muted text-foreground",
@@ -117,6 +118,9 @@ export default function MarketingCampaignDetail() {
           </TabsTrigger>
           <TabsTrigger value="trackable-links">
             {isAr ? "روابط التتبع" : "Trackable links"}
+          </TabsTrigger>
+          <TabsTrigger value="coupons">
+            {isAr ? "أكواد الخصم" : "Discount codes"}
           </TabsTrigger>
           <TabsTrigger value="performance">
             {isAr ? "الأداء" : "Performance"}
@@ -214,6 +218,13 @@ export default function MarketingCampaignDetail() {
             storeId={storeId}
             campaignId={campaign.id}
             campaignSlug={campaign.name}
+          />
+        </TabsContent>
+
+        <TabsContent value="coupons">
+          <CampaignCouponsPanel
+            storeId={storeId}
+            campaignId={campaign.id}
           />
         </TabsContent>
 
