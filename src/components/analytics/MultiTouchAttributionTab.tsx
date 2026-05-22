@@ -18,7 +18,8 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, Megaphone, TrendingUp } from "lucide-react";
+import { AlertCircle, BarChart3, Megaphone, TrendingUp } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import {
   getMultiTouchAttribution,
@@ -127,6 +128,22 @@ export function MultiTouchAttributionTab({
       ? Math.max(...campaigns.map((c) => c.credit_cents))
       : 0;
 
+  // Surface the backend's "window too large" 400 explicitly. Without
+  // this branch the merchant would click the model selector or
+  // extend the date range, see no UI change, and have no way to
+  // diagnose why the dashboard went silent. Other errors fall
+  // through to the generic alert below.
+  const errorMessage = (() => {
+    if (!query.error) return null;
+    const detail = (query.error as { detail?: unknown })?.detail;
+    if (typeof detail === "string") return detail;
+    return query.error instanceof Error
+      ? query.error.message
+      : isAr
+        ? "تعذر حساب الإسناد"
+        : "Could not compute attribution";
+  })();
+
   return (
     <div className="space-y-4">
       {/* Model selector + active model description */}
@@ -147,6 +164,16 @@ export function MultiTouchAttributionTab({
           {isAr ? activeOption.hint_ar : activeOption.hint_en}
         </p>
       </div>
+
+      {errorMessage && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>
+            {isAr ? "خطأ في تحميل البيانات" : "Couldn't load attribution"}
+          </AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Totals */}
       <div className="grid gap-3 sm:grid-cols-2">
