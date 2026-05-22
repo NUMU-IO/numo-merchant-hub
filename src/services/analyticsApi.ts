@@ -487,6 +487,43 @@ export async function getMarketingAttribution(
   );
 }
 
+// ── LTV by acquisition channel ──
+
+export type LtvGroupBy = "source" | "medium" | "campaign";
+
+export interface LtvChannelRow {
+  channel: string;
+  customer_count: number;
+  total_orders: number;
+  total_revenue_cents: number;
+  average_order_value_cents: number;
+  orders_per_customer: number;
+  ltv_cents: number;
+}
+
+export interface LtvByChannelTotals {
+  customer_count: number;
+  total_orders: number;
+  total_revenue_cents: number;
+  average_ltv_cents: number;
+}
+
+export interface LtvByChannel {
+  group_by: LtvGroupBy;
+  channels: LtvChannelRow[];
+  totals: LtvByChannelTotals;
+}
+
+export async function getLtvByChannel(
+  storeId: string,
+  range: DateRange,
+  groupBy: LtvGroupBy = "source",
+): Promise<LtvByChannel> {
+  return apiClient<LtvByChannel>(
+    url(storeId, "analytics/ltv-by-channel", range, { group_by: groupBy }),
+  );
+}
+
 // ── Real-Time Analytics ──
 
 export interface RecentOrder {
