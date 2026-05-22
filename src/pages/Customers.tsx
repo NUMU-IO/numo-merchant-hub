@@ -17,6 +17,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { listCustomers, getCustomer, getCustomerTrustStats, getNetworkStats } from "@/services/customerApi";
+import { CustomerJourneyTimeline } from "@/components/customers/CustomerJourneyTimeline";
 import type { Customer } from "@/services/customerApi";
 import { listOrders } from "@/services/orderApi";
 import type { OrderListItem } from "@/services/orderApi";
@@ -263,6 +264,11 @@ export default function Customers() {
               )}
             </CardContent>
           </Card>
+
+          {/* Customer Journey */}
+          {storeId && (
+            <CustomerJourneyTimeline storeId={storeId} customerId={c.id} />
+          )}
         </div>
       </div>
     );
