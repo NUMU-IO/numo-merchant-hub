@@ -93,9 +93,16 @@ export function CampaignCouponsPanel({
         coupon_type: couponType,
         value: numericValue,
         min_order_amount: minOrderAmount ? parseFloat(minOrderAmount) : null,
-        max_discount_amount: maxDiscountAmount
-          ? parseFloat(maxDiscountAmount)
-          : null,
+        // Max-discount cap only makes sense for percentage coupons —
+        // for a fixed-amount coupon there's no percent to cap. The
+        // input field hides itself when type=fixed, but the state
+        // value persists across type switches. Without this gate, a
+        // merchant who typed a cap in percentage mode then switched
+        // to fixed would silently send a meaningless cap.
+        max_discount_amount:
+          couponType === "percentage" && maxDiscountAmount
+            ? parseFloat(maxDiscountAmount)
+            : null,
         usage_limit: usageLimit ? parseInt(usageLimit, 10) : null,
         valid_until: validUntil
           ? new Date(validUntil).toISOString()
@@ -155,9 +162,15 @@ export function CampaignCouponsPanel({
               </Label>
               <Select
                 value={couponType}
-                onValueChange={(v) =>
-                  setCouponType(v as "percentage" | "fixed")
-                }
+                onValueChange={(v) => {
+                  const next = v as "percentage" | "fixed";
+                  setCouponType(next);
+                  // Clear the percentage-only field when switching to
+                  // fixed so the merchant doesn't see a stale value
+                  // when they later switch back, AND so the submit
+                  // payload guard above stays in sync with the UI.
+                  if (next === "fixed") setMaxDiscountAmount("");
+                }}
               >
                 <SelectTrigger id="coupon-type">
                   <SelectValue />
