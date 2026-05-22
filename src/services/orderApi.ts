@@ -79,6 +79,15 @@ export interface OrderListItem {
   item_count: number;
   payment_method: string | null;
   created_at: string;
+  /**
+   * Feature 001 — campaign attribution. Populated when the order has
+   * a resolved `campaign_id` (set at checkout via campaign_resolver,
+   * scoped by short_code per SEC-006). Rendered in the orders list as
+   * a "via {campaign.name}" subtitle. Optional on the wire so this
+   * client tolerates backends that haven't yet been extended to embed
+   * the campaign join (gracefully no-op badge).
+   */
+  campaign?: { id: string; name: string } | null;
 }
 
 export interface PaginatedOrders {
