@@ -524,6 +524,46 @@ export async function getLtvByChannel(
   );
 }
 
+// ── Multi-touch attribution ──
+
+export type AttributionModel =
+  | "last_touch"
+  | "first_touch"
+  | "linear"
+  | "time_decay"
+  | "position_based";
+
+export interface MultiTouchChannelRow {
+  channel: string;
+  credit_cents: number;
+  credit_pct: number;
+}
+
+export interface MultiTouchCampaignRow {
+  campaign_id: string;
+  campaign_name: string;
+  credit_cents: number;
+  credit_pct: number;
+}
+
+export interface MultiTouchAttribution {
+  model: AttributionModel;
+  total_orders: number;
+  total_revenue_cents: number;
+  by_channel: MultiTouchChannelRow[];
+  by_campaign: MultiTouchCampaignRow[];
+}
+
+export async function getMultiTouchAttribution(
+  storeId: string,
+  range: DateRange,
+  model: AttributionModel = "linear",
+): Promise<MultiTouchAttribution> {
+  return apiClient<MultiTouchAttribution>(
+    url(storeId, "analytics/multi-touch", range, { model }),
+  );
+}
+
 // ── Real-Time Analytics ──
 
 export interface RecentOrder {

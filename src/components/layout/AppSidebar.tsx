@@ -7,7 +7,7 @@ import {
   Palette, FileText, FileEdit, Navigation2, SlidersHorizontal, ClipboardList, ChevronLeft, Filter, Radio,
   Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
   UserCog, User, Inbox, PlugZap, Mail, Sparkles, Tag, ShoppingBag, Boxes,
-  Percent, Gift, Ticket, BadgePercent, TrendingUp,
+  Percent, Gift, Ticket, BadgePercent, TrendingUp, Compass,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -80,6 +80,7 @@ const AppSidebar = () => {
     { title: isRTL ? "القمع" : "Funnel", url: "/analytics/funnel", icon: Filter },
     { title: isRTL ? "التسويق" : "Marketing", url: "/analytics/marketing", icon: Megaphone },
     { title: isRTL ? "القيمة مدى الحياة" : "LTV", url: "/analytics/ltv", icon: TrendingUp },
+    { title: isRTL ? "إسناد متعدد" : "Multi-touch", url: "/analytics/multi-touch", icon: Compass },
     { title: isRTL ? "مباشر" : "Live", url: "/analytics/live", icon: Radio },
     { title: isRTL ? "تحليلات ذكية" : "Insights", url: "/analytics/insights", icon: Lightbulb },
     { title: isRTL ? "التوقعات" : "Forecast", url: "/analytics/forecast", icon: LineChart },
