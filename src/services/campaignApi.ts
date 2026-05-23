@@ -380,3 +380,176 @@ export async function getCampaignPerformance(
     `${_ROOT(storeId)}/${campaignId}/performance?${qs}`,
   );
 }
+
+// ── Per-campaign breakdowns (feature 002 US3) ──────────────────────
+
+export type AttributionModelName =
+  | "last_touch"
+  | "first_touch"
+  | "linear"
+  | "time_decay"
+  | "position_based";
+
+export interface CampaignChannelRow {
+  channel: string;
+  sessions: number;
+  sales_cents: number;
+}
+
+export interface CampaignBreakdownChannel {
+  campaign_id: string;
+  date_from: string;
+  date_to: string;
+  attribution_model: AttributionModelName;
+  channels: CampaignChannelRow[];
+}
+
+export interface CampaignUtmComboRow {
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+  sessions: number;
+  sales_cents: number;
+}
+
+export interface CampaignBreakdownUtm {
+  campaign_id: string;
+  date_from: string;
+  date_to: string;
+  attribution_model: AttributionModelName;
+  combos: CampaignUtmComboRow[];
+}
+
+export interface CampaignBreakdownCustomerType {
+  campaign_id: string;
+  date_from: string;
+  date_to: string;
+  attribution_model: AttributionModelName;
+  new_customers: { orders: number; sales_cents: number };
+  returning_customers: { orders: number; sales_cents: number };
+}
+
+export interface CampaignOrderSizeBin {
+  lower_cents: number;
+  upper_cents: number | null;
+  orders: number;
+}
+
+export interface CampaignBreakdownOrderSize {
+  campaign_id: string;
+  date_from: string;
+  date_to: string;
+  attribution_model: AttributionModelName;
+  bins: CampaignOrderSizeBin[];
+}
+
+export interface CampaignDeviceRow {
+  device: string;
+  sessions: number;
+}
+
+export interface CampaignBreakdownDevice {
+  campaign_id: string;
+  date_from: string;
+  date_to: string;
+  attribution_model: AttributionModelName;
+  devices: CampaignDeviceRow[];
+}
+
+function _breakdownQS(
+  dateFrom: string,
+  dateTo: string,
+  attributionModel: AttributionModelName,
+  extra: Record<string, string> = {},
+): string {
+  return new URLSearchParams({
+    date_from: dateFrom,
+    date_to: dateTo,
+    attribution_model: attributionModel,
+    ...extra,
+  }).toString();
+}
+
+export async function getCampaignBreakdownChannel(
+  storeId: string,
+  campaignId: string,
+  dateFrom: string,
+  dateTo: string,
+  attributionModel: AttributionModelName = "last_touch",
+): Promise<CampaignBreakdownChannel> {
+  return apiClient<CampaignBreakdownChannel>(
+    `${_ROOT(storeId)}/${campaignId}/breakdown/channel?${_breakdownQS(
+      dateFrom,
+      dateTo,
+      attributionModel,
+    )}`,
+  );
+}
+
+export async function getCampaignBreakdownUtm(
+  storeId: string,
+  campaignId: string,
+  dateFrom: string,
+  dateTo: string,
+  attributionModel: AttributionModelName = "last_touch",
+  limit = 20,
+): Promise<CampaignBreakdownUtm> {
+  return apiClient<CampaignBreakdownUtm>(
+    `${_ROOT(storeId)}/${campaignId}/breakdown/utm?${_breakdownQS(
+      dateFrom,
+      dateTo,
+      attributionModel,
+      { limit: String(limit) },
+    )}`,
+  );
+}
+
+export async function getCampaignBreakdownCustomerType(
+  storeId: string,
+  campaignId: string,
+  dateFrom: string,
+  dateTo: string,
+  attributionModel: AttributionModelName = "last_touch",
+): Promise<CampaignBreakdownCustomerType> {
+  return apiClient<CampaignBreakdownCustomerType>(
+    `${_ROOT(storeId)}/${campaignId}/breakdown/customer-type?${_breakdownQS(
+      dateFrom,
+      dateTo,
+      attributionModel,
+    )}`,
+  );
+}
+
+export async function getCampaignBreakdownOrderSize(
+  storeId: string,
+  campaignId: string,
+  dateFrom: string,
+  dateTo: string,
+  attributionModel: AttributionModelName = "last_touch",
+): Promise<CampaignBreakdownOrderSize> {
+  return apiClient<CampaignBreakdownOrderSize>(
+    `${_ROOT(storeId)}/${campaignId}/breakdown/order-size?${_breakdownQS(
+      dateFrom,
+      dateTo,
+      attributionModel,
+    )}`,
+  );
+}
+
+export async function getCampaignBreakdownDevice(
+  storeId: string,
+  campaignId: string,
+  dateFrom: string,
+  dateTo: string,
+  attributionModel: AttributionModelName = "last_touch",
+): Promise<CampaignBreakdownDevice> {
+  return apiClient<CampaignBreakdownDevice>(
+    `${_ROOT(storeId)}/${campaignId}/breakdown/device?${_breakdownQS(
+      dateFrom,
+      dateTo,
+      attributionModel,
+    )}`,
+  );
+}

@@ -1,28 +1,37 @@
 /**
- * MarketingCampaignDetail — single-campaign view with tabs.
+ * MarketingCampaignDetail — Shopify-style campaign detail page.
  *
- * v1 (feature 001):
- *   • Overview tab — campaign metadata + state
- *   • Trackable Links tab — TrackableLinkBuilder mount
+ * Feature 002 US3 rebuild. Replaces the prior tabbed view
+ * (Overview / Trackable Links / Discount Codes / Performance / Audience)
+ * with a single page:
  *
- * v2 (deferred):
- *   • Audience tab — segment / audience filter editor
- *   • Performance tab — US3's per-campaign funnel + revenue dashboard
+ *   ┌─────────────────────────────────────────────────────────────┐
+ *   │ Sticky header: breadcrumb + title + badges + pills + actions │
+ *   ├──────────────────────────────────────────┬──────────────────┤
+ *   │                                          │                  │
+ *   │   4 KPI cards                            │   Right sidebar  │
+ *   │   ──────────────                         │                  │
+ *   │   8-panel chart grid                     │   - Campaign     │
+ *   │   (2 cols on lg+, 1 col on mobile)       │     name + ID    │
+ *   │                                          │   - Shareable    │
+ *   │                                          │     links        │
+ *   │                                          │   - (US4 slot)   │
+ *   │                                          │   - (US5 slot)   │
+ *   │                                          │   - (US8 slot)   │
+ *   │                                          │                  │
+ *   └──────────────────────────────────────────┴──────────────────┘
+ *
+ * Sidebar collapses to a Sheet drawer below 1024px.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { Button } from "@/components/ui/button";
+
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +42,29 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Calendar, Loader2, Send, XCircle } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  DateRangePicker,
+  useDateRangeUrlState,
+} from "@/components/filters/DateRangePicker";
+
+import {
+  ArrowLeft,
+  Calendar,
+  Check,
+  Copy,
+  Loader2,
+  PanelRightOpen,
+  Send,
+  XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import {
@@ -41,10 +72,14 @@ import {
   getCampaign,
   scheduleCampaign,
   sendCampaignNow,
+  updateCampaign,
+  type AttributionModelName,
   type Campaign,
 } from "@/services/campaignApi";
+
+import { CampaignKpiCards } from "@/components/campaigns/CampaignKpiCards";
+import { CampaignChartGrid } from "@/components/campaigns/CampaignChartGrid";
 import { TrackableLinkBuilder } from "@/components/campaigns/TrackableLinkBuilder";
-import { CampaignPerformanceTab } from "@/components/campaigns/CampaignPerformanceTab";
 import { CampaignCouponsPanel } from "@/components/campaigns/CampaignCouponsPanel";
 
 const STATUS_VARIANT: Record<string, string> = {
@@ -56,20 +91,44 @@ const STATUS_VARIANT: Record<string, string> = {
   canceled: "bg-muted text-muted-foreground",
 };
 
+const ATTRIBUTION_MODELS: AttributionModelName[] = [
+  "last_touch",
+  "first_touch",
+  "linear",
+  "time_decay",
+  "position_based",
+];
+
+function formatCurrency(cents: number, isAr: boolean): string {
+  const val = cents / 100;
+  return isAr ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
+}
+
 export default function MarketingCampaignDetail() {
   const { id: campaignId } = useParams<{ id: string }>();
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const isAr = language === "ar";
   const storeId = currentStore?.id;
+  const fmt = useCallback((c: number) => formatCurrency(c, isAr), [isAr]);
+
+  const { range, setRange } = useDateRangeUrlState();
+  const [attributionModel, setAttributionModel] =
+    useState<AttributionModelName>("last_touch");
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Inline name edit (T048) — debounced PUT on blur.
+  const [nameDraft, setNameDraft] = useState("");
+  const lastSavedName = useRef("");
+
   const [busyAction, setBusyAction] = useState<
     "send-now" | "schedule" | "cancel" | null
   >(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     if (!storeId || !campaignId) return;
@@ -77,6 +136,8 @@ export default function MarketingCampaignDetail() {
     try {
       const c = await getCampaign(storeId, campaignId);
       setCampaign(c);
+      setNameDraft(c.name);
+      lastSavedName.current = c.name;
     } catch (err) {
       showError(err);
     } finally {
@@ -88,8 +149,6 @@ export default function MarketingCampaignDetail() {
     void load();
   }, [load]);
 
-  // Action handlers — each refreshes the campaign so the status badge
-  // and counters reflect the new state without a full page reload.
   const onSendNow = async () => {
     if (!storeId || !campaignId) return;
     setBusyAction("send-now");
@@ -108,9 +167,6 @@ export default function MarketingCampaignDetail() {
     if (!storeId || !campaignId || !scheduledAt) return;
     setBusyAction("schedule");
     try {
-      // <input type="datetime-local"> returns local time without a TZ
-      // suffix; new Date(value).toISOString() converts to the UTC
-      // representation the backend expects.
       const iso = new Date(scheduledAt).toISOString();
       const updated = await scheduleCampaign(storeId, campaignId, iso);
       setCampaign(updated);
@@ -138,9 +194,40 @@ export default function MarketingCampaignDetail() {
     }
   };
 
+  const onNameBlur = async () => {
+    if (!storeId || !campaignId || !campaign) return;
+    const trimmed = nameDraft.trim();
+    if (!trimmed || trimmed === lastSavedName.current) {
+      setNameDraft(lastSavedName.current);
+      return;
+    }
+    try {
+      const updated = await updateCampaign(storeId, campaignId, {
+        name: trimmed,
+      });
+      setCampaign(updated);
+      lastSavedName.current = updated.name;
+      setNameDraft(updated.name);
+    } catch (err) {
+      showError(err);
+      setNameDraft(lastSavedName.current);
+    }
+  };
+
+  const onCopyShortCode = async () => {
+    if (!campaign?.short_code) return;
+    try {
+      await navigator.clipboard.writeText(campaign.short_code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* ignore — clipboard blocked */
+    }
+  };
+
   if (!storeId || !campaignId) return null;
 
-  if (loading) {
+  if (loading || !campaign) {
     return (
       <div className="p-6">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -148,221 +235,213 @@ export default function MarketingCampaignDetail() {
     );
   }
 
-  if (!campaign) {
-    return (
-      <div className="p-6 text-sm text-muted-foreground">
-        {isAr ? "لم يتم العثور على الحملة." : "Campaign not found."}
-      </div>
-    );
-  }
-
-  // Action affordances by current status. Source of truth is the
-  // backend's state machine — keeping this map in sync with the
-  // FastAPI route guards in marketing_campaigns.py.
-  const canSendNow =
-    campaign.status === "draft" || campaign.status === "scheduled";
+  const canSendNow = campaign.status === "draft" || campaign.status === "scheduled";
   const canSchedule = campaign.status === "draft";
   const canCancel =
     campaign.status === "draft" ||
     campaign.status === "scheduled" ||
     campaign.status === "sending";
 
-  return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/campaigns" className="gap-1.5">
-            <ArrowLeft className="h-4 w-4" />
-            {isAr ? "الحملات" : "Campaigns"}
-          </Link>
-        </Button>
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight truncate">
-              {campaign.name}
-            </h1>
-            <Badge
-              variant="outline"
-              className={STATUS_VARIANT[campaign.status] || ""}
-            >
-              {campaign.status}
-            </Badge>
-            <span className="text-xs text-muted-foreground uppercase">
-              {campaign.channel}
-            </span>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {canSchedule && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setScheduleOpen(true)}
-              disabled={busyAction !== null}
-              className="gap-1.5"
-            >
-              <Calendar className="h-4 w-4" />
-              {isAr ? "جدولة" : "Schedule"}
-            </Button>
-          )}
-          {canSendNow && (
-            <Button
-              size="sm"
-              onClick={onSendNow}
-              disabled={busyAction !== null}
-              className="gap-1.5"
-            >
-              {busyAction === "send-now" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-              {isAr ? "إرسال الآن" : "Send now"}
-            </Button>
-          )}
-          {canCancel && (
+  const dateFromIso = range.start.toISOString();
+  const dateToIso = range.end.toISOString();
+  const shortCodeSnippet = (campaign as Campaign & { short_code?: string }).short_code;
+
+  const sidebar = (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="campaign-name" className="text-xs text-muted-foreground">
+          {isAr ? "اسم الحملة" : "Campaign name"}
+        </Label>
+        <Input
+          id="campaign-name"
+          value={nameDraft}
+          onChange={(e) => setNameDraft(e.target.value)}
+          onBlur={onNameBlur}
+        />
+      </div>
+
+      {shortCodeSnippet && (
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">
+            {isAr ? "معرف الحملة" : "Campaign ID"}
+          </Label>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded-md bg-muted px-2 py-1 text-xs font-mono">
+              {shortCodeSnippet}
+            </code>
             <Button
               variant="ghost"
-              size="sm"
-              onClick={onCancel}
-              disabled={busyAction !== null}
-              className="gap-1.5 text-destructive hover:text-destructive"
+              size="icon"
+              className="h-7 w-7"
+              onClick={onCopyShortCode}
+              title={isAr ? "نسخ" : "Copy"}
             >
-              {busyAction === "cancel" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-green-600" />
               ) : (
-                <XCircle className="h-4 w-4" />
+                <Copy className="h-3.5 w-3.5" />
               )}
-              {isAr ? "إلغاء" : "Cancel"}
             </Button>
-          )}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">
+          {isAr ? "روابط قابلة للمشاركة" : "Shareable links"}
+        </Label>
+        <TrackableLinkBuilder
+          storeId={storeId}
+          campaignId={campaign.id}
+          campaignSlug={campaign.name}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">
+          {isAr ? "أكواد الخصم" : "Discount codes"}
+        </Label>
+        <CampaignCouponsPanel storeId={storeId} campaignId={campaign.id} />
+      </div>
+
+      {/* Slots reserved for US4 (Auto-match rules), US5 (Activities),
+          and US8 (AI tips). Those phases mount their panels here. */}
+    </div>
+  );
+
+  return (
+    <div className="p-4 md:p-6 space-y-5">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 -mx-4 md:-mx-6 px-4 md:px-6 py-3 bg-background/95 backdrop-blur border-b">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/campaigns" className="gap-1.5">
+              <ArrowLeft className="h-4 w-4" />
+              {isAr ? "الحملات" : "Campaigns"}
+            </Link>
+          </Button>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight truncate">
+                {campaign.name}
+              </h1>
+              <Badge
+                variant="outline"
+                className={STATUS_VARIANT[campaign.status] || ""}
+              >
+                {campaign.status}
+              </Badge>
+              <span className="text-xs text-muted-foreground uppercase">
+                {campaign.channel}
+              </span>
+            </div>
+          </div>
+
+          {/* Header pills + actions */}
+          <div className="flex flex-wrap items-center gap-2">
+            <DateRangePicker
+              value={range}
+              onChange={setRange}
+              size="sm"
+              align="end"
+            />
+            <Select
+              value={attributionModel}
+              onValueChange={(v) => setAttributionModel(v as AttributionModelName)}
+            >
+              <SelectTrigger className="h-8 w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ATTRIBUTION_MODELS.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m.replace("_", " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {canSchedule && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setScheduleOpen(true)}
+                disabled={busyAction !== null}
+                className="gap-1.5"
+              >
+                <Calendar className="h-4 w-4" />
+                {isAr ? "جدولة" : "Schedule"}
+              </Button>
+            )}
+            {canSendNow && (
+              <Button
+                size="sm"
+                onClick={onSendNow}
+                disabled={busyAction !== null}
+                className="gap-1.5"
+              >
+                {busyAction === "send-now" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                {isAr ? "إرسال الآن" : "Send now"}
+              </Button>
+            )}
+            {canCancel && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onCancel}
+                disabled={busyAction !== null}
+                className="gap-1.5 text-destructive hover:text-destructive"
+              >
+                {busyAction === "cancel" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <XCircle className="h-4 w-4" />
+                )}
+                {isAr ? "إلغاء" : "Cancel"}
+              </Button>
+            )}
+
+            {/* Sidebar drawer toggle on small viewports */}
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8 lg:hidden">
+                  <PanelRightOpen className="h-4 w-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side={isAr ? "left" : "right"} className="w-[320px]">
+                {sidebar}
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </div>
 
-      <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">
-            {isAr ? "نظرة عامة" : "Overview"}
-          </TabsTrigger>
-          <TabsTrigger value="trackable-links">
-            {isAr ? "روابط التتبع" : "Trackable links"}
-          </TabsTrigger>
-          <TabsTrigger value="coupons">
-            {isAr ? "أكواد الخصم" : "Discount codes"}
-          </TabsTrigger>
-          <TabsTrigger value="performance">
-            {isAr ? "الأداء" : "Performance"}
-          </TabsTrigger>
-          <TabsTrigger value="audience" disabled>
-            {isAr ? "الجمهور" : "Audience"}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  {isAr ? "تفاصيل" : "Details"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <Row
-                  label={isAr ? "القناة" : "Channel"}
-                  value={campaign.channel.toUpperCase()}
-                />
-                <Row
-                  label={isAr ? "الموضوع" : "Subject"}
-                  value={campaign.inline_subject || "—"}
-                />
-                <Row
-                  label={isAr ? "مجدولة في" : "Scheduled at"}
-                  value={
-                    campaign.scheduled_at
-                      ? new Date(campaign.scheduled_at).toLocaleString(
-                          isAr ? "ar-EG" : "en-EG",
-                        )
-                      : "—"
-                  }
-                />
-                <Row
-                  label={isAr ? "بدأت في" : "Started at"}
-                  value={
-                    campaign.started_at
-                      ? new Date(campaign.started_at).toLocaleString(
-                          isAr ? "ar-EG" : "en-EG",
-                        )
-                      : "—"
-                  }
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  {isAr ? "العدّادات" : "Counters"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <Row
-                  label={isAr ? "إجمالي المستلمين" : "Total recipients"}
-                  value={campaign.total_recipients.toLocaleString()}
-                />
-                <Row
-                  label={isAr ? "أُرسلت" : "Sent"}
-                  value={campaign.sent_count.toLocaleString()}
-                />
-                <Row
-                  label={isAr ? "تم التسليم" : "Delivered"}
-                  value={campaign.delivered_count.toLocaleString()}
-                />
-                <Row
-                  label={isAr ? "فشلت" : "Failed"}
-                  value={campaign.failed_count.toLocaleString()}
-                />
-              </CardContent>
-            </Card>
-          </div>
-
-          {campaign.inline_body && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  {isAr ? "نص الرسالة" : "Message body"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <pre className="whitespace-pre-wrap text-sm font-sans text-muted-foreground">
-                  {campaign.inline_body}
-                </pre>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="trackable-links">
-          <TrackableLinkBuilder
+      {/* Main grid: KPI cards + 8-panel chart grid on the left, sidebar (lg+) on right */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 lg:gap-6">
+        <div className="space-y-4">
+          <CampaignKpiCards
             storeId={storeId}
             campaignId={campaign.id}
-            campaignSlug={campaign.name}
+            dateFrom={dateFromIso}
+            dateTo={dateToIso}
+            formatCurrency={fmt}
           />
-        </TabsContent>
-
-        <TabsContent value="coupons">
-          <CampaignCouponsPanel
+          <CampaignChartGrid
             storeId={storeId}
             campaignId={campaign.id}
+            dateFrom={dateFromIso}
+            dateTo={dateToIso}
+            attributionModel={attributionModel}
+            formatCurrency={fmt}
           />
-        </TabsContent>
+        </div>
 
-        <TabsContent value="performance">
-          <CampaignPerformanceTab
-            storeId={storeId}
-            campaignId={campaign.id}
-          />
-        </TabsContent>
-      </Tabs>
+        <aside className="hidden lg:block">{sidebar}</aside>
+      </div>
 
       <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
         <DialogContent>
@@ -385,9 +464,7 @@ export default function MarketingCampaignDetail() {
               type="datetime-local"
               value={scheduledAt}
               onChange={(e) => setScheduledAt(e.target.value)}
-              min={new Date(Date.now() + 60_000)
-                .toISOString()
-                .slice(0, 16)}
+              min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
             />
           </div>
           <DialogFooter>
@@ -411,15 +488,6 @@ export default function MarketingCampaignDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right">{value}</span>
     </div>
   );
 }
