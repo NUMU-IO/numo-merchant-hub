@@ -54,8 +54,9 @@ const AnalyticsCustomers = lazy(() => import("@/pages/analytics/CustomersPage"))
 const AnalyticsProducts = lazy(() => import("@/pages/analytics/ProductsPage"));
 const AnalyticsFunnel = lazy(() => import("@/pages/analytics/FunnelPage"));
 const AnalyticsMarketing = lazy(() => import("@/pages/analytics/MarketingPage"));
-const AnalyticsLtv = lazy(() => import("@/pages/analytics/LtvByChannelPage"));
-const AnalyticsMultiTouch = lazy(() => import("@/pages/analytics/MultiTouchAttributionPage"));
+// AnalyticsLtv + AnalyticsMultiTouch removed in feature 002 US2 —
+// their content moved to MarketingAttribution as tabs. Legacy URLs
+// `/analytics/ltv` and `/analytics/multi-touch` redirect there.
 const AnalyticsLive = lazy(() => import("@/pages/analytics/LivePage"));
 const AnalyticsInsights = lazy(() => import("@/pages/analytics/InsightsPage"));
 const AnalyticsForecast = lazy(() => import("@/pages/analytics/ForecastPage"));
@@ -274,8 +275,24 @@ const App = () => (
                     <Route path="/analytics/products" element={<AnalyticsProducts />} />
                     <Route path="/analytics/funnel" element={<AnalyticsFunnel />} />
                     <Route path="/analytics/marketing" element={<AnalyticsMarketing />} />
-                    <Route path="/analytics/ltv" element={<AnalyticsLtv />} />
-                    <Route path="/analytics/multi-touch" element={<AnalyticsMultiTouch />} />
+                    <Route
+                      path="/analytics/ltv"
+                      element={
+                        <Navigate
+                          to="/marketing/attribution?from=ltv"
+                          replace
+                        />
+                      }
+                    />
+                    <Route
+                      path="/analytics/multi-touch"
+                      element={
+                        <Navigate
+                          to="/marketing/attribution?from=multi-touch"
+                          replace
+                        />
+                      }
+                    />
                     <Route path="/analytics/live" element={<AnalyticsLive />} />
                     <Route path="/analytics/insights" element={<AnalyticsInsights />} />
                     <Route path="/analytics/forecast" element={<AnalyticsForecast />} />
