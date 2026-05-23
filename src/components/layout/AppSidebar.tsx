@@ -302,6 +302,19 @@ const AppSidebar = () => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
+                {/* Campaigns — broadcast marketing campaigns (email / WhatsApp / SMS)
+                    with trackable links + per-campaign performance dashboards. */}
+                <NavItemGate navKey="campaigns">
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive("/campaigns")} tooltip={isRTL ? "الحملات" : "Campaigns"} className="h-10 rounded-lg px-3">
+                      <NavLink to="/campaigns">
+                        <Megaphone className="h-[18px] w-[18px] opacity-70" />
+                        <span className="text-[13px] font-medium">{isRTL ? "الحملات" : "Campaigns"}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </NavItemGate>
+
                 {/* Email Templates */}
                 <NavItemGate navKey="email-templates">
                   <SidebarMenuItem>
