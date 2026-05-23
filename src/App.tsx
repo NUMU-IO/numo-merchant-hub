@@ -91,6 +91,8 @@ const WhatsAppInbox = lazy(() => import("@/pages/WhatsAppInbox"));
 const WhatsAppCampaigns = lazy(() => import("@/pages/WhatsAppCampaigns"));
 const MarketingCampaigns = lazy(() => import("@/pages/MarketingCampaigns"));
 const MarketingCampaignDetail = lazy(() => import("@/pages/MarketingCampaignDetail"));
+const MarketingAttribution = lazy(() => import("@/pages/MarketingAttribution"));
+const MarketingCampaignsCompare = lazy(() => import("@/pages/MarketingCampaignsCompare"));
 const AcceptInvitation = lazy(() => import("@/pages/AcceptInvitation"));
 const AcceptBetaInvite = lazy(() => import("@/pages/AcceptBetaInvite"));
 const Staff = lazy(() => import("@/pages/Staff"));
@@ -305,7 +307,9 @@ const App = () => (
                     <Route path="/whatsapp/inbox" element={<WhatsAppInbox />} />
                     <Route path="/whatsapp/campaigns" element={<WhatsAppCampaigns />} />
                     <Route path="/campaigns" element={<MarketingCampaigns />} />
+                    <Route path="/campaigns/compare" element={<MarketingCampaignsCompare />} />
                     <Route path="/campaigns/:id" element={<MarketingCampaignDetail />} />
+                    <Route path="/marketing/attribution" element={<MarketingAttribution />} />
                     <Route path="/billing" element={<BillingPage />} />
                     <Route path="/referrals" element={<Referrals />} />
                     <Route path="/cod" element={<CODReconciliation />} />
