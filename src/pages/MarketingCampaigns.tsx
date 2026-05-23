@@ -43,7 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Megaphone, Plus } from "lucide-react";
+import { Loader2, Mail, MessageSquare, Plus, Send } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import {
@@ -51,6 +51,7 @@ import {
   listCampaigns,
   type Campaign,
   type CampaignChannel,
+  type CampaignStatus,
 } from "@/services/campaignApi";
 
 const STATUS_VARIANT: Record<string, string> = {
@@ -73,6 +74,9 @@ export default function MarketingCampaigns() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<CampaignStatus | "all">(
+    "all",
+  );
 
   const [name, setName] = useState("");
   const [channel, setChannel] = useState<CampaignChannel>("email");
@@ -83,14 +87,15 @@ export default function MarketingCampaigns() {
     if (!storeId) return;
     setLoading(true);
     try {
-      const rows = await listCampaigns(storeId);
+      const params = statusFilter === "all" ? undefined : { status: statusFilter };
+      const rows = await listCampaigns(storeId, params);
       setCampaigns(rows);
     } catch (err) {
       showError(err);
     } finally {
       setLoading(false);
     }
-  }, [storeId]);
+  }, [storeId, statusFilter]);
 
   useEffect(() => {
     void load();
@@ -147,11 +152,33 @@ export default function MarketingCampaigns() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Megaphone className="h-4 w-4" />
+            <Send className="h-4 w-4" />
             {isAr ? "كل الحملات" : "All campaigns"}
           </CardTitle>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="status-filter" className="text-xs text-muted-foreground">
+              {isAr ? "الحالة" : "Status"}
+            </Label>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as CampaignStatus | "all")}
+            >
+              <SelectTrigger id="status-filter" className="h-8 w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{isAr ? "الكل" : "All"}</SelectItem>
+                <SelectItem value="draft">{isAr ? "مسودة" : "Draft"}</SelectItem>
+                <SelectItem value="scheduled">{isAr ? "مجدولة" : "Scheduled"}</SelectItem>
+                <SelectItem value="sending">{isAr ? "جارٍ الإرسال" : "Sending"}</SelectItem>
+                <SelectItem value="completed">{isAr ? "مكتملة" : "Completed"}</SelectItem>
+                <SelectItem value="failed">{isAr ? "فاشلة" : "Failed"}</SelectItem>
+                <SelectItem value="canceled">{isAr ? "ملغاة" : "Canceled"}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -159,10 +186,36 @@ export default function MarketingCampaigns() {
               <Loader2 className="h-5 w-5 animate-spin" />
             </div>
           ) : campaigns.length === 0 ? (
-            <div className="py-10 text-center text-muted-foreground text-sm">
-              {isAr
-                ? "لا توجد حملات بعد. أنشئ واحدة لتبدأ."
-                : "No campaigns yet. Create one to get started."}
+            <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+              <div className="rounded-full bg-muted p-3">
+                <Send className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-medium">
+                  {statusFilter === "all"
+                    ? isAr
+                      ? "لا توجد حملات بعد"
+                      : "No campaigns yet"
+                    : isAr
+                      ? "لا توجد حملات بهذه الحالة"
+                      : "No campaigns in this status"}
+                </p>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  {isAr
+                    ? "أنشئ حملة بريد إلكتروني أو رسائل نصية، ثم استخدم منشئ روابط التتبع لقياس الأداء حتى الإيرادات."
+                    : "Create an email or SMS broadcast, then use the trackable-link builder to measure sessions, orders, and revenue per campaign."}
+                </p>
+              </div>
+              {statusFilter === "all" && (
+                <Button
+                  onClick={() => setDialogOpen(true)}
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  {isAr ? "أنشئ أول حملة" : "Create your first campaign"}
+                </Button>
+              )}
             </div>
           ) : (
             <Table>
@@ -244,10 +297,45 @@ export default function MarketingCampaigns() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="sms">SMS</SelectItem>
+                  <SelectItem value="email">
+                    <span className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="sms">
+                    <span className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      SMS
+                    </span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                {isAr ? (
+                  <>
+                    لحملات واتساب،{" "}
+                    <Link
+                      to="/whatsapp"
+                      className="text-primary underline-offset-4 hover:underline"
+                    >
+                      اذهب إلى صفحة واتساب
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  <>
+                    For WhatsApp campaigns,{" "}
+                    <Link
+                      to="/whatsapp"
+                      className="text-primary underline-offset-4 hover:underline"
+                    >
+                      use the WhatsApp page
+                    </Link>
+                    .
+                  </>
+                )}
+              </p>
             </div>
             {channel === "email" && (
               <div className="space-y-1.5">

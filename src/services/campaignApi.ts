@@ -224,6 +224,15 @@ export async function cancelCampaign(
   });
 }
 
+export async function sendCampaignNow(
+  storeId: string,
+  campaignId: string,
+): Promise<Campaign> {
+  return apiClient<Campaign>(`${_ROOT(storeId)}/${campaignId}/send-now`, {
+    method: "POST",
+  });
+}
+
 /** Produce a trackable URL + QR PNG for a campaign. */
 export async function generateTrackableLink(
   storeId: string,

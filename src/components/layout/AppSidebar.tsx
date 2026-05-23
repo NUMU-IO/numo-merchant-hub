@@ -7,7 +7,7 @@ import {
   Palette, FileText, FileEdit, Navigation2, SlidersHorizontal, ClipboardList, ChevronLeft, Filter, Radio,
   Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
   UserCog, User, Inbox, PlugZap, Mail, Sparkles, Tag, ShoppingBag, Boxes,
-  Percent, Gift, Ticket, BadgePercent, TrendingUp, Compass,
+  Percent, Gift, Ticket, BadgePercent, TrendingUp, Compass, Send,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -308,7 +308,7 @@ const AppSidebar = () => {
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={isActive("/campaigns")} tooltip={isRTL ? "الحملات" : "Campaigns"} className="h-10 rounded-lg px-3">
                       <NavLink to="/campaigns">
-                        <Megaphone className="h-[18px] w-[18px] opacity-70" />
+                        <Send className="h-[18px] w-[18px] opacity-70" />
                         <span className="text-[13px] font-medium">{isRTL ? "الحملات" : "Campaigns"}</span>
                       </NavLink>
                     </SidebarMenuButton>
