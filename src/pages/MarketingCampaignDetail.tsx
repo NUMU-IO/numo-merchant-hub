@@ -23,9 +23,26 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft, Calendar, Loader2, Send, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
-import { getCampaign, type Campaign } from "@/services/campaignApi";
+import {
+  cancelCampaign,
+  getCampaign,
+  scheduleCampaign,
+  sendCampaignNow,
+  type Campaign,
+} from "@/services/campaignApi";
 import { TrackableLinkBuilder } from "@/components/campaigns/TrackableLinkBuilder";
 import { CampaignPerformanceTab } from "@/components/campaigns/CampaignPerformanceTab";
 import { CampaignCouponsPanel } from "@/components/campaigns/CampaignCouponsPanel";
@@ -48,6 +65,11 @@ export default function MarketingCampaignDetail() {
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
+  const [busyAction, setBusyAction] = useState<
+    "send-now" | "schedule" | "cancel" | null
+  >(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState("");
 
   const load = useCallback(async () => {
     if (!storeId || !campaignId) return;
@@ -66,6 +88,56 @@ export default function MarketingCampaignDetail() {
     void load();
   }, [load]);
 
+  // Action handlers — each refreshes the campaign so the status badge
+  // and counters reflect the new state without a full page reload.
+  const onSendNow = async () => {
+    if (!storeId || !campaignId) return;
+    setBusyAction("send-now");
+    try {
+      const updated = await sendCampaignNow(storeId, campaignId);
+      setCampaign(updated);
+      toast.success(isAr ? "بدأ الإرسال" : "Send started");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const onSchedule = async () => {
+    if (!storeId || !campaignId || !scheduledAt) return;
+    setBusyAction("schedule");
+    try {
+      // <input type="datetime-local"> returns local time without a TZ
+      // suffix; new Date(value).toISOString() converts to the UTC
+      // representation the backend expects.
+      const iso = new Date(scheduledAt).toISOString();
+      const updated = await scheduleCampaign(storeId, campaignId, iso);
+      setCampaign(updated);
+      setScheduleOpen(false);
+      setScheduledAt("");
+      toast.success(isAr ? "تم جدولة الحملة" : "Campaign scheduled");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const onCancel = async () => {
+    if (!storeId || !campaignId) return;
+    setBusyAction("cancel");
+    try {
+      const updated = await cancelCampaign(storeId, campaignId);
+      setCampaign(updated);
+      toast.success(isAr ? "تم إلغاء الحملة" : "Campaign canceled");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
   if (!storeId || !campaignId) return null;
 
   if (loading) {
@@ -83,6 +155,17 @@ export default function MarketingCampaignDetail() {
       </div>
     );
   }
+
+  // Action affordances by current status. Source of truth is the
+  // backend's state machine — keeping this map in sync with the
+  // FastAPI route guards in marketing_campaigns.py.
+  const canSendNow =
+    campaign.status === "draft" || campaign.status === "scheduled";
+  const canSchedule = campaign.status === "draft";
+  const canCancel =
+    campaign.status === "draft" ||
+    campaign.status === "scheduled" ||
+    campaign.status === "sending";
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -108,6 +191,51 @@ export default function MarketingCampaignDetail() {
               {campaign.channel}
             </span>
           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {canSchedule && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setScheduleOpen(true)}
+              disabled={busyAction !== null}
+              className="gap-1.5"
+            >
+              <Calendar className="h-4 w-4" />
+              {isAr ? "جدولة" : "Schedule"}
+            </Button>
+          )}
+          {canSendNow && (
+            <Button
+              size="sm"
+              onClick={onSendNow}
+              disabled={busyAction !== null}
+              className="gap-1.5"
+            >
+              {busyAction === "send-now" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              {isAr ? "إرسال الآن" : "Send now"}
+            </Button>
+          )}
+          {canCancel && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCancel}
+              disabled={busyAction !== null}
+              className="gap-1.5 text-destructive hover:text-destructive"
+            >
+              {busyAction === "cancel" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <XCircle className="h-4 w-4" />
+              )}
+              {isAr ? "إلغاء" : "Cancel"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -235,6 +363,54 @@ export default function MarketingCampaignDetail() {
           />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {isAr ? "جدولة الحملة" : "Schedule campaign"}
+            </DialogTitle>
+            <DialogDescription>
+              {isAr
+                ? "اختر متى تريد إرسال الحملة. سيقوم النظام بإرسالها تلقائياً في الوقت المحدد."
+                : "Pick when to send. The system dispatches automatically at the scheduled time."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="scheduled-at">
+              {isAr ? "وقت الإرسال" : "Send at"}
+            </Label>
+            <Input
+              id="scheduled-at"
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              min={new Date(Date.now() + 60_000)
+                .toISOString()
+                .slice(0, 16)}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setScheduleOpen(false)}
+              disabled={busyAction === "schedule"}
+            >
+              {isAr ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button
+              onClick={onSchedule}
+              disabled={busyAction === "schedule" || !scheduledAt}
+              className="gap-2"
+            >
+              {busyAction === "schedule" && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
+              {isAr ? "تأكيد الجدولة" : "Confirm schedule"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
