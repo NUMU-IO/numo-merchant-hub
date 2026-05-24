@@ -83,6 +83,7 @@ import {
 } from "@/services/campaignApi";
 
 import { CampaignKpiCards } from "@/components/campaigns/CampaignKpiCards";
+import { CampaignMessageCard } from "@/components/campaigns/CampaignMessageCard";
 import { CampaignChartGrid } from "@/components/campaigns/CampaignChartGrid";
 import { TrackableLinkBuilder } from "@/components/campaigns/TrackableLinkBuilder";
 import { CampaignCouponsPanel } from "@/components/campaigns/CampaignCouponsPanel";
@@ -515,6 +516,16 @@ export default function MarketingCampaignDetail() {
       {/* Main grid: KPI cards + 8-panel chart grid on the left, sidebar (lg+) on right */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 lg:gap-6">
         <div className="space-y-4">
+          {/* What's being sent — top-of-page so the merchant always sees the
+              subject + body before glancing at KPIs. Edit is locked for any
+              non-draft status by the component itself (matches backend PUT). */}
+          {storeId && (
+            <CampaignMessageCard
+              storeId={storeId}
+              campaign={campaign}
+              onUpdated={setCampaign}
+            />
+          )}
           <CampaignKpiCards
             storeId={storeId}
             campaignId={campaign.id}
