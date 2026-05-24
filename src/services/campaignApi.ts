@@ -553,3 +553,135 @@ export async function getCampaignBreakdownDevice(
     )}`,
   );
 }
+
+// ── Auto-match rules (feature 002 US4) ─────────────────────────────
+
+export type AutoMatchField = "utm_source" | "utm_medium" | "utm_campaign";
+export type AutoMatchOperator = "equals" | "starts_with" | "contains";
+export type AutoMatchCombinator = "AND" | "OR";
+
+export interface AutoMatchCondition {
+  field: AutoMatchField;
+  operator: AutoMatchOperator;
+  value: string;
+}
+
+export interface AutoMatchRule {
+  group_id: string;
+  campaign_id: string;
+  combinator: AutoMatchCombinator;
+  priority: number;
+  conditions: AutoMatchCondition[];
+}
+
+export interface AutoMatchRuleWarning {
+  code: string;
+  message: string;
+}
+
+export interface CreateAutoMatchRuleRequest {
+  combinator: AutoMatchCombinator;
+  priority: number;
+  conditions: AutoMatchCondition[];
+}
+
+export interface CreateAutoMatchRuleResponse {
+  rule: AutoMatchRule;
+  warnings: AutoMatchRuleWarning[];
+}
+
+export async function listAutoMatchRules(
+  storeId: string,
+  campaignId: string,
+): Promise<AutoMatchRule[]> {
+  return apiClient<AutoMatchRule[]>(
+    `${_ROOT(storeId)}/${campaignId}/auto-match-rules`,
+  );
+}
+
+export async function createAutoMatchRule(
+  storeId: string,
+  campaignId: string,
+  body: CreateAutoMatchRuleRequest,
+): Promise<CreateAutoMatchRuleResponse> {
+  return apiClient<CreateAutoMatchRuleResponse>(
+    `${_ROOT(storeId)}/${campaignId}/auto-match-rules`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function deleteAutoMatchRule(
+  storeId: string,
+  campaignId: string,
+  groupId: string,
+): Promise<void> {
+  await apiClient<void>(
+    `${_ROOT(storeId)}/${campaignId}/auto-match-rules/${groupId}`,
+    { method: "DELETE" },
+  );
+}
+
+// ── Campaign activities / backfill (feature 002 US5) ───────────────
+
+export type ActivityType = "backfill_attribution";
+export type ActivityStatus = "running" | "completed" | "failed";
+export type BackfillFilterField =
+  | "utm_source"
+  | "utm_medium"
+  | "utm_campaign"
+  | "utm_term"
+  | "utm_content"
+  | "referrer";
+
+export interface BackfillFilter {
+  field: BackfillFilterField;
+  operator: AutoMatchOperator;
+  value: string;
+}
+
+export interface CampaignActivity {
+  id: string;
+  type: ActivityType;
+  status: ActivityStatus;
+  payload: Record<string, unknown>;
+  affected_count: number | null;
+  skipped_count: number | null;
+  error_message: string | null;
+  run_at: string;
+  completed_at: string | null;
+  run_by: string;
+}
+
+export interface RunBackfillRequest {
+  utm_filters: BackfillFilter[];
+  starts_at: string;
+  ends_at: string;
+}
+
+export async function listActivities(
+  storeId: string,
+  campaignId: string,
+  limit = 20,
+): Promise<CampaignActivity[]> {
+  const qs = new URLSearchParams({ limit: String(limit) }).toString();
+  return apiClient<CampaignActivity[]>(
+    `${_ROOT(storeId)}/${campaignId}/activities?${qs}`,
+  );
+}
+
+export async function runBackfill(
+  storeId: string,
+  campaignId: string,
+  body: RunBackfillRequest,
+): Promise<CampaignActivity> {
+  return apiClient<CampaignActivity>(
+    `${_ROOT(storeId)}/${campaignId}/activities/backfill`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+}

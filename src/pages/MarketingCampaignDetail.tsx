@@ -81,6 +81,8 @@ import { CampaignKpiCards } from "@/components/campaigns/CampaignKpiCards";
 import { CampaignChartGrid } from "@/components/campaigns/CampaignChartGrid";
 import { TrackableLinkBuilder } from "@/components/campaigns/TrackableLinkBuilder";
 import { CampaignCouponsPanel } from "@/components/campaigns/CampaignCouponsPanel";
+import { CampaignAutoMatchPanel } from "@/components/campaigns/CampaignAutoMatchPanel";
+import { CampaignActivitiesPanel } from "@/components/campaigns/CampaignActivitiesPanel";
 
 const STATUS_VARIANT: Record<string, string> = {
   draft: "bg-muted text-foreground",
@@ -304,8 +306,13 @@ export default function MarketingCampaignDetail() {
         <CampaignCouponsPanel storeId={storeId} campaignId={campaign.id} />
       </div>
 
-      {/* Slots reserved for US4 (Auto-match rules), US5 (Activities),
-          and US8 (AI tips). Those phases mount their panels here. */}
+      {/* US4 — auto-match rules */}
+      <CampaignAutoMatchPanel storeId={storeId} campaignId={campaign.id} />
+
+      {/* US5 — campaign activities (backfill audit log) */}
+      <CampaignActivitiesPanel storeId={storeId} campaignId={campaign.id} />
+
+      {/* US8 (AI tips) slot — populated when that phase lands. */}
     </div>
   );
 
