@@ -60,21 +60,26 @@ import {
   Calendar,
   Check,
   Copy,
+  Files,
   Loader2,
   PanelRightOpen,
   Send,
   XCircle,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import {
   cancelCampaign,
+  duplicateCampaign,
   getCampaign,
+  getSendTimeSuggestions,
   scheduleCampaign,
   sendCampaignNow,
   updateCampaign,
   type AttributionModelName,
   type Campaign,
+  type SendTimeSuggestion,
 } from "@/services/campaignApi";
 
 import { CampaignKpiCards } from "@/components/campaigns/CampaignKpiCards";
@@ -83,6 +88,7 @@ import { TrackableLinkBuilder } from "@/components/campaigns/TrackableLinkBuilde
 import { CampaignCouponsPanel } from "@/components/campaigns/CampaignCouponsPanel";
 import { CampaignAutoMatchPanel } from "@/components/campaigns/CampaignAutoMatchPanel";
 import { CampaignActivitiesPanel } from "@/components/campaigns/CampaignActivitiesPanel";
+import { CampaignTipsPanel } from "@/components/campaigns/CampaignTipsPanel";
 
 const STATUS_VARIANT: Record<string, string> = {
   draft: "bg-muted text-foreground",
@@ -126,11 +132,14 @@ export default function MarketingCampaignDetail() {
   const lastSavedName = useRef("");
 
   const [busyAction, setBusyAction] = useState<
-    "send-now" | "schedule" | "cancel" | null
+    "send-now" | "schedule" | "cancel" | "duplicate" | null
   >(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
   const [copied, setCopied] = useState(false);
+  const [sendTimeChips, setSendTimeChips] = useState<SendTimeSuggestion[]>([]);
+  const [chipsLoading, setChipsLoading] = useState(false);
+  const navigate = useNavigate();
 
   const load = useCallback(async () => {
     if (!storeId || !campaignId) return;
@@ -180,6 +189,60 @@ export default function MarketingCampaignDetail() {
     } finally {
       setBusyAction(null);
     }
+  };
+
+  const onDuplicate = async () => {
+    if (!storeId || !campaignId) return;
+    setBusyAction("duplicate");
+    try {
+      const created = await duplicateCampaign(storeId, campaignId);
+      toast.success(isAr ? "تم نسخ الحملة" : "Campaign duplicated");
+      navigate(`/campaigns/${created.id}`);
+    } catch (err) {
+      showError(err);
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  // Fetch best-time chips when the Schedule dialog opens; cached
+  // server-side per (store, channel) for 1h so reopening is cheap.
+  const onScheduleOpen = async () => {
+    setScheduleOpen(true);
+    if (!storeId || sendTimeChips.length > 0) return;
+    setChipsLoading(true);
+    try {
+      const channel = (campaign?.channel ?? "email") as "email" | "sms" | "whatsapp";
+      const res = await getSendTimeSuggestions(
+        storeId,
+        channel,
+        isAr ? "ar" : "en",
+      );
+      setSendTimeChips(res.suggestions);
+    } catch {
+      /* swallow — chips are non-critical */
+    } finally {
+      setChipsLoading(false);
+    }
+  };
+
+  const onChipClick = (s: SendTimeSuggestion) => {
+    // Next occurrence of weekday × hour in local tz; skip to the
+    // following week if it would land in the past.
+    const now = new Date();
+    const jsWeekday = (s.weekday + 1) % 7; // Python 0=Mon → JS 1=Mon, Python 6=Sun → JS 0=Sun
+    const target = new Date(now);
+    target.setHours(s.hour, 0, 0, 0);
+    let dayDelta = (jsWeekday - now.getDay() + 7) % 7;
+    if (dayDelta === 0 && target.getTime() <= now.getTime()) {
+      dayDelta = 7;
+    }
+    target.setDate(now.getDate() + dayDelta);
+    // datetime-local format: YYYY-MM-DDTHH:MM (no Z, local tz)
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    setScheduledAt(
+      `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}T${pad(target.getHours())}:${pad(target.getMinutes())}`,
+    );
   };
 
   const onCancel = async () => {
@@ -312,7 +375,14 @@ export default function MarketingCampaignDetail() {
       {/* US5 — campaign activities (backfill audit log) */}
       <CampaignActivitiesPanel storeId={storeId} campaignId={campaign.id} />
 
-      {/* US8 (AI tips) slot — populated when that phase lands. */}
+      {/* US8 — AI optimization tips */}
+      <CampaignTipsPanel
+        storeId={storeId}
+        campaignId={campaign.id}
+        dateFrom={dateFromIso}
+        dateTo={dateToIso}
+        attributionModel={attributionModel}
+      />
     </div>
   );
 
@@ -368,11 +438,26 @@ export default function MarketingCampaignDetail() {
               </SelectContent>
             </Select>
 
+            {/* Duplicate (US6) — always available */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDuplicate}
+              disabled={busyAction !== null}
+              className="gap-1.5"
+            >
+              {busyAction === "duplicate" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Files className="h-4 w-4" />
+              )}
+              {isAr ? "نسخ" : "Duplicate"}
+            </Button>
             {canSchedule && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setScheduleOpen(true)}
+                onClick={onScheduleOpen}
                 disabled={busyAction !== null}
                 className="gap-1.5"
               >
@@ -462,17 +547,47 @@ export default function MarketingCampaignDetail() {
                 : "Pick when to send. The system dispatches automatically at the scheduled time."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="scheduled-at">
-              {isAr ? "وقت الإرسال" : "Send at"}
-            </Label>
-            <Input
-              id="scheduled-at"
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
-            />
+          <div className="space-y-3">
+            {/* US9 — best-time-to-send chips */}
+            {chipsLoading ? (
+              <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {isAr ? "جارٍ التحميل" : "Loading suggestions"}
+              </div>
+            ) : sendTimeChips.length > 0 ? (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  {isAr ? "أوقات إرسال مقترحة" : "Suggested send times"}
+                </Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {sendTimeChips.map((s, i) => (
+                    <Button
+                      key={i}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => onChipClick(s)}
+                    >
+                      {s.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="space-y-2">
+              <Label htmlFor="scheduled-at">
+                {isAr ? "وقت الإرسال" : "Send at"}
+              </Label>
+              <Input
+                id="scheduled-at"
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button

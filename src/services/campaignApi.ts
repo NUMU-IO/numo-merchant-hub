@@ -685,3 +685,143 @@ export async function runBackfill(
     },
   );
 }
+
+// ── Duplicate (feature 002 US6) ────────────────────────────────────
+
+export async function duplicateCampaign(
+  storeId: string,
+  campaignId: string,
+): Promise<Campaign> {
+  return apiClient<Campaign>(`${_ROOT(storeId)}/${campaignId}/duplicate`, {
+    method: "POST",
+  });
+}
+
+// ── Compare (feature 002 US7) ──────────────────────────────────────
+
+export interface CompareKpis {
+  sessions: number;
+  sales_cents: number;
+  orders: number;
+  average_order_value_cents: number;
+}
+
+export interface CompareSeriesPoint {
+  date: string;
+  sessions: number;
+  sales_cents: number;
+}
+
+export interface CompareCampaignBlock {
+  id: string;
+  name: string | null;
+  short_code: string | null;
+  status: string | null;
+  found: boolean;
+  kpis: CompareKpis | null;
+  series: CompareSeriesPoint[];
+}
+
+export interface CompareWarning {
+  code: string;
+  message: string;
+}
+
+export interface CompareResponse {
+  date_from: string;
+  date_to: string;
+  attribution_model: AttributionModelName;
+  granularity: "day" | "week";
+  campaigns: CompareCampaignBlock[];
+  warnings: CompareWarning[];
+}
+
+export async function compareCampaigns(
+  storeId: string,
+  ids: string[],
+  dateFrom: string,
+  dateTo: string,
+  attributionModel: AttributionModelName = "last_touch",
+  granularity?: "day" | "week",
+): Promise<CompareResponse> {
+  const params: Record<string, string> = {
+    ids: ids.join(","),
+    date_from: dateFrom,
+    date_to: dateTo,
+    attribution_model: attributionModel,
+  };
+  if (granularity) params.granularity = granularity;
+  const qs = new URLSearchParams(params).toString();
+  return apiClient<CompareResponse>(
+    `/stores/${storeId}/marketing/campaigns/compare?${qs}`,
+  );
+}
+
+// ── Tips (feature 002 US8) ─────────────────────────────────────────
+
+export interface CampaignTip {
+  id: string;
+  severity: "info" | "warning";
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+}
+
+export interface CampaignTipsResponse {
+  campaign_id: string;
+  date_from: string;
+  date_to: string;
+  attribution_model: AttributionModelName;
+  tips: CampaignTip[];
+}
+
+export async function getCampaignTips(
+  storeId: string,
+  campaignId: string,
+  dateFrom: string,
+  dateTo: string,
+  attributionModel: AttributionModelName = "last_touch",
+): Promise<CampaignTipsResponse> {
+  return apiClient<CampaignTipsResponse>(
+    `${_ROOT(storeId)}/${campaignId}/tips?${_breakdownQS(
+      dateFrom,
+      dateTo,
+      attributionModel,
+    )}`,
+  );
+}
+
+// ── Best-time-to-send (feature 002 US9) ────────────────────────────
+
+export interface SendTimeSuggestion {
+  weekday: number;
+  weekday_name: string;
+  hour: number;
+  avg_open_rate: number | null;
+  avg_sent: number;
+  label: string;
+}
+
+export interface SendTimeResponse {
+  store_id: string;
+  channel: "email" | "sms" | "whatsapp";
+  tz: string;
+  based_on: "open_rate" | "send_count" | null;
+  sample_size: number;
+  suggestions: SendTimeSuggestion[];
+}
+
+export async function getSendTimeSuggestions(
+  storeId: string,
+  channel: "email" | "sms" | "whatsapp" = "email",
+  locale: "en" | "ar" = "en",
+): Promise<SendTimeResponse> {
+  const qs = new URLSearchParams({
+    channel,
+    locale,
+    tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Cairo",
+  }).toString();
+  return apiClient<SendTimeResponse>(
+    `/stores/${storeId}/marketing/send-time-suggestions?${qs}`,
+  );
+}
