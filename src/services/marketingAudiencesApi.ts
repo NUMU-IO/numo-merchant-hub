@@ -18,6 +18,18 @@ export type AudienceSegmentKey =
   | "cart_abandoners"
   | "lapsed";
 
+export interface LookalikeStatus {
+  meta_audience_id: string;
+  /** ISO 3166-1 alpha-2 (e.g. "EG"). */
+  country: string;
+  /** Fraction 0.01–0.20. Display as `${ratio*100}%`. */
+  ratio: number;
+  created_at: string;
+  /** "CREATING" / "READY" / "ERROR" — null while Meta status polling
+   *  isn't wired up (US5 ships create-only; polling is a follow-up). */
+  status: string | null;
+}
+
 export interface AudienceStatus {
   segment_key: AudienceSegmentKey;
   label_en: string;
@@ -28,6 +40,7 @@ export interface AudienceStatus {
   meta_audience_id: string | null;
   last_synced_at: string | null;
   member_count: number | null;
+  lookalikes: LookalikeStatus[];
 }
 
 export interface ListAudiencesResponse {
@@ -56,5 +69,41 @@ export function syncAudience(
   return apiClient<SyncAudienceResponse>(
     `${ROOT(storeId)}/${segmentKey}/sync`,
     { method: "POST" },
+  );
+}
+
+export interface LookalikeSpec {
+  /** ISO 3166-1 alpha-2 — Meta validates server-side. */
+  country: string;
+  /** 0.01 / 0.03 / 0.05 etc. */
+  ratio: number;
+}
+
+export interface CreateLookalikeResultEntry extends LookalikeSpec {
+  /** null when this spec failed to create — see `error`. */
+  meta_audience_id: string | null;
+  created_at?: string;
+  status?: string | null;
+  error: string | null;
+}
+
+export interface CreateLookalikeResponse {
+  segment_key: AudienceSegmentKey;
+  source_audience_id: string;
+  /** Same order as the request `specs`. Per-spec status. */
+  created: CreateLookalikeResultEntry[];
+}
+
+export function createLookalike(
+  storeId: string,
+  segmentKey: AudienceSegmentKey,
+  specs: LookalikeSpec[],
+): Promise<CreateLookalikeResponse> {
+  return apiClient<CreateLookalikeResponse>(
+    `${ROOT(storeId)}/${segmentKey}/lookalike`,
+    {
+      method: "POST",
+      body: JSON.stringify({ specs }),
+    },
   );
 }
