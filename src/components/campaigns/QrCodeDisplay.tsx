@@ -76,13 +76,18 @@ export function QrCodeDisplay({
   };
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-start">
+    // Always stacked vertically — when hosted in the 320px campaign
+    // detail sidebar, a side-by-side layout collapses the text column
+    // to ~92px and `break-words overflow-wrap-anywhere [overflow-wrap:anywhere]` wraps one character per line. Stacking
+    // gives the URL boxes the full container width, which is correct
+    // for both narrow (sidebar) and wide (standalone) hosts.
+    <div className="flex flex-col gap-4">
       <div className="rounded-lg border bg-background p-3 shrink-0 self-start">
         <img
           src={dataUrl}
           alt={isAr ? "رمز QR للحملة" : "Campaign QR code"}
-          width={192}
-          height={192}
+          width={160}
+          height={160}
           className="block"
         />
       </div>
@@ -93,7 +98,7 @@ export function QrCodeDisplay({
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
               {isAr ? "الرابط القصير" : "Short link"}
             </div>
-            <div className="rounded-md border bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900 px-3 py-2 text-sm font-mono break-all">
+            <div className="rounded-md border bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900 px-3 py-2 text-sm font-mono break-words overflow-wrap-anywhere [overflow-wrap:anywhere]">
               {shortUrl}
             </div>
             <Button
@@ -118,7 +123,7 @@ export function QrCodeDisplay({
               {isAr ? "الرابط الكامل" : "Full link"}
             </div>
           )}
-          <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs font-mono break-all">
+          <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs font-mono break-words overflow-wrap-anywhere [overflow-wrap:anywhere]">
             {url}
           </div>
           <div className="flex flex-wrap gap-2">
