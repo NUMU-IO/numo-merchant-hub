@@ -43,11 +43,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Copy, GitCompareArrows, Loader2, Mail, MessageSquare, Plus, Send } from "lucide-react";
+import { Copy, GitCompareArrows, Loader2, Mail, MessageSquare, Plus, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
 import { showError } from "@/lib/show-error";
+import { PromotedItemPicker } from "@/components/campaigns/PromotedItemPicker";
+import {
+  buildEmailBody,
+  suggestSubject,
+  type PromotedSnapshot,
+} from "@/lib/campaignTemplate";
 import {
   createCampaign,
   duplicateCampaign,
@@ -117,6 +123,7 @@ export default function MarketingCampaigns() {
   const [channel, setChannel] = useState<CampaignChannel>("email");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [promotedSnapshot, setPromotedSnapshot] = useState<PromotedSnapshot | null>(null);
 
   const load = useCallback(async () => {
     if (!storeId) return;
@@ -141,6 +148,21 @@ export default function MarketingCampaigns() {
     setChannel("email");
     setSubject("");
     setBody("");
+    setPromotedSnapshot(null);
+  };
+
+  /** Fill subject + body from the picked promoted item. Triggered by the
+   *  "Use as template" button — never auto-runs so the merchant can pick
+   *  the destination first and then decide whether to keep their hand-
+   *  written copy or start from the template. */
+  const applyPromotedTemplate = () => {
+    if (!promotedSnapshot) return;
+    const storeName = currentStore?.name || "NUMU";
+    setSubject(suggestSubject(promotedSnapshot, storeName, isAr));
+    setBody(buildEmailBody(promotedSnapshot, { storeName, isAr }));
+    toast.success(
+      isAr ? "تم تطبيق القالب" : "Template applied",
+    );
   };
 
   const handleCreate = async () => {
@@ -435,6 +457,34 @@ export default function MarketingCampaigns() {
                 )}
               </p>
             </div>
+            {/* "What are you promoting?" — drives the template generator
+                below. Picker is optional; merchant can leave at "Nothing
+                specific" and write the body freehand. */}
+            {channel === "email" && currentStore?.subdomain && (
+              <>
+                <PromotedItemPicker
+                  storeId={storeId!}
+                  storeUrl={`https://${currentStore.subdomain}.numueg.app`}
+                  isAr={isAr}
+                  value={promotedSnapshot}
+                  onChange={setPromotedSnapshot}
+                />
+                {promotedSnapshot && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 w-full"
+                    onClick={applyPromotedTemplate}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {isAr
+                      ? "استخدم القالب الجاهز"
+                      : "Use template (overwrites subject + body)"}
+                  </Button>
+                )}
+              </>
+            )}
             {channel === "email" && (
               <div className="space-y-1.5">
                 <Label htmlFor="c-subject">{isAr ? "الموضوع" : "Subject"}</Label>

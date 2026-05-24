@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Loader2, Pencil, Copy, Check, FileCode } from "lucide-react";
+import { Loader2, Pencil, Copy, Check, FileCode, Sparkles } from "lucide-react";
 
 import {
   Card,
@@ -43,10 +43,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useDashboardStore } from "@/contexts/StoreContext";
 import { showError } from "@/lib/show-error";
 import { toast } from "sonner";
 
 import { updateCampaign, type Campaign } from "@/services/campaignApi";
+import { PromotedItemPicker } from "./PromotedItemPicker";
+import {
+  buildEmailBody,
+  suggestSubject,
+  type PromotedSnapshot,
+} from "@/lib/campaignTemplate";
 
 interface Props {
   storeId: string;
@@ -61,6 +68,7 @@ const EDITABLE_STATUSES = new Set(["draft"]);
 export function CampaignMessageCard({ storeId, campaign, onUpdated }: Props) {
   const { language } = useLanguage();
   const isAr = language === "ar";
+  const { currentStore } = useDashboardStore();
   const isEmail = campaign.channel === "email";
   const editable = EDITABLE_STATUSES.has(campaign.status);
 
@@ -70,6 +78,7 @@ export function CampaignMessageCard({ storeId, campaign, onUpdated }: Props) {
   const [saving, setSaving] = useState(false);
   const [showSource, setShowSource] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [promotedSnapshot, setPromotedSnapshot] = useState<PromotedSnapshot | null>(null);
 
   // Re-seed dialog drafts when the campaign reloads (e.g. after a parallel
   // edit, or after the user cancels then re-opens).
@@ -77,6 +86,14 @@ export function CampaignMessageCard({ storeId, campaign, onUpdated }: Props) {
     setSubjectDraft(campaign.inline_subject ?? "");
     setBodyDraft(campaign.inline_body ?? "");
   }, [campaign.inline_subject, campaign.inline_body]);
+
+  const applyPromotedTemplate = () => {
+    if (!promotedSnapshot) return;
+    const storeName = currentStore?.name || "NUMU";
+    setSubjectDraft(suggestSubject(promotedSnapshot, storeName, isAr));
+    setBodyDraft(buildEmailBody(promotedSnapshot, { storeName, isAr }));
+    toast.success(isAr ? "تم تطبيق القالب" : "Template applied");
+  };
 
   const onSave = async () => {
     if (!bodyDraft.trim()) return;
@@ -170,6 +187,35 @@ export function CampaignMessageCard({ storeId, campaign, onUpdated }: Props) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Picker → "Use template" flow. Subject + body are overwritten
+                on click (toast confirms), never silently auto-updated, so a
+                merchant tweaking the picker mid-edit doesn't lose their
+                hand-written copy. */}
+            {isEmail && currentStore?.subdomain && (
+              <>
+                <PromotedItemPicker
+                  storeId={storeId}
+                  storeUrl={`https://${currentStore.subdomain}.numueg.app`}
+                  isAr={isAr}
+                  value={promotedSnapshot}
+                  onChange={setPromotedSnapshot}
+                />
+                {promotedSnapshot && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 w-full"
+                    onClick={applyPromotedTemplate}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {isAr
+                      ? "استخدم القالب الجاهز"
+                      : "Use template (overwrites subject + body)"}
+                  </Button>
+                )}
+              </>
+            )}
             {isEmail && (
               <div className="space-y-1.5">
                 <Label htmlFor="msg-subject">
