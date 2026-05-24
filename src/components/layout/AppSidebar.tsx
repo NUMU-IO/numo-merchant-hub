@@ -51,6 +51,12 @@ const AppSidebar = () => {
   const staffActive = isActive("/staff") || isActive("/roles");
   const channelsActive = isActive("/channels") || isActive("/inbox");
   const marketingActive = isActive("/marketing");
+  // Marketing parent — feature 002 US1. Distinct from `marketingActive`
+  // (which is the legacy `/marketing` URL hosting Coupons under the
+  // Discounts dropdown). The new Marketing parent wraps Campaigns +
+  // Attribution as a single nav group.
+  const campaignsNavActive =
+    isActive("/campaigns") || isActive("/marketing/attribution");
   // Active state for the Orders parent — covers the list, the create flow,
   // the detail page, and any /orders/* sub-page (drafts, etc.).
   const ordersActive = isActive("/orders");
@@ -69,6 +75,16 @@ const AppSidebar = () => {
     { title: isRTL ? "بطاقات الهدايا" : "Gift cards", url: "/gift-cards", icon: Gift },
   ];
 
+  // Marketing parent sub-items — feature 002 US1
+  const marketingNavSubItems = [
+    { title: isRTL ? "الحملات" : "Campaigns", url: "/campaigns", icon: Send },
+    {
+      title: isRTL ? "الإسناد" : "Attribution",
+      url: "/marketing/attribution",
+      icon: TrendingUp,
+    },
+  ];
+
   // Analytics sub-items
   const analyticsSubItems = [
     { title: isRTL ? "نظرة عامة" : "Overview", url: "/analytics/overview", icon: BarChart3 },
@@ -79,8 +95,11 @@ const AppSidebar = () => {
     { title: isRTL ? "المنتجات" : "Products", url: "/analytics/products", icon: Package },
     { title: isRTL ? "القمع" : "Funnel", url: "/analytics/funnel", icon: Filter },
     { title: isRTL ? "التسويق" : "Marketing", url: "/analytics/marketing", icon: Megaphone },
-    { title: isRTL ? "القيمة مدى الحياة" : "LTV", url: "/analytics/ltv", icon: TrendingUp },
-    { title: isRTL ? "إسناد متعدد" : "Multi-touch", url: "/analytics/multi-touch", icon: Compass },
+    // Analytics legacy sub-items — point at the new consolidated
+    // Attribution page (feature 002 US2). Old URLs still 302 here via
+    // App.tsx redirects, but linking directly skips the redirect flash.
+    { title: isRTL ? "القيمة مدى الحياة" : "LTV", url: "/marketing/attribution?tab=ltv", icon: TrendingUp },
+    { title: isRTL ? "إسناد متعدد" : "Multi-touch", url: "/marketing/attribution?tab=multi-touch", icon: Compass },
     { title: isRTL ? "مباشر" : "Live", url: "/analytics/live", icon: Radio },
     { title: isRTL ? "تحليلات ذكية" : "Insights", url: "/analytics/insights", icon: Lightbulb },
     { title: isRTL ? "التوقعات" : "Forecast", url: "/analytics/forecast", icon: LineChart },
@@ -302,17 +321,19 @@ const AppSidebar = () => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
-                {/* Campaigns — broadcast marketing campaigns (email / WhatsApp / SMS)
-                    with trackable links + per-campaign performance dashboards. */}
+                {/* Marketing — feature 002 US1. Collapsible parent containing
+                    Campaigns + Attribution. Email Templates + WhatsApp stay
+                    as top-level items below (channel-specific operational
+                    pages, not analytics-style sub-views). */}
                 <NavItemGate navKey="campaigns">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/campaigns")} tooltip={isRTL ? "الحملات" : "Campaigns"} className="h-10 rounded-lg px-3">
-                      <NavLink to="/campaigns">
-                        <Send className="h-[18px] w-[18px] opacity-70" />
-                        <span className="text-[13px] font-medium">{isRTL ? "الحملات" : "Campaigns"}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {renderExpandableItem(
+                    isRTL ? "التسويق" : "Marketing",
+                    "/campaigns",
+                    Send,
+                    marketingNavSubItems,
+                    campaignsNavActive,
+                    "marketing-nav",
+                  )}
                 </NavItemGate>
 
                 {/* Email Templates */}

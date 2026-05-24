@@ -43,11 +43,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Mail, MessageSquare, Plus, Send } from "lucide-react";
+import { Copy, GitCompareArrows, Loader2, Mail, MessageSquare, Plus, Send } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { Checkbox } from "@/components/ui/checkbox";
 import { showError } from "@/lib/show-error";
 import {
   createCampaign,
+  duplicateCampaign,
   listCampaigns,
   type Campaign,
   type CampaignChannel,
@@ -70,6 +73,7 @@ export default function MarketingCampaigns() {
   const isAr = language === "ar";
   const storeId = currentStore?.id;
 
+  const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -77,6 +81,37 @@ export default function MarketingCampaigns() {
   const [statusFilter, setStatusFilter] = useState<CampaignStatus | "all">(
     "all",
   );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const onCompare = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length < 2 || ids.length > 4) return;
+    navigate(`/campaigns/compare?ids=${ids.join(",")}`);
+  };
+
+  const onDuplicate = async (campaignId: string) => {
+    if (!storeId) return;
+    setDuplicatingId(campaignId);
+    try {
+      const created = await duplicateCampaign(storeId, campaignId);
+      toast.success(isAr ? "تم نسخ الحملة" : "Campaign duplicated");
+      navigate(`/campaigns/${created.id}`);
+    } catch (err) {
+      showError(err);
+    } finally {
+      setDuplicatingId(null);
+    }
+  };
 
   const [name, setName] = useState("");
   const [channel, setChannel] = useState<CampaignChannel>("email");
@@ -218,28 +253,74 @@ export default function MarketingCampaigns() {
               )}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{isAr ? "الاسم" : "Name"}</TableHead>
-                  <TableHead>{isAr ? "القناة" : "Channel"}</TableHead>
-                  <TableHead>{isAr ? "الحالة" : "Status"}</TableHead>
-                  <TableHead>{isAr ? "المرسَل" : "Sent"}</TableHead>
-                  <TableHead>{isAr ? "إجمالي" : "Recipients"}</TableHead>
-                  <TableHead>{isAr ? "أنشئت" : "Created"}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {campaigns.map((c) => (
-                  <TableRow key={c.id} className="cursor-pointer hover:bg-muted/40">
-                    <TableCell>
-                      <Link
-                        to={`/campaigns/${c.id}`}
-                        className="font-medium hover:underline"
-                      >
-                        {c.name}
-                      </Link>
-                    </TableCell>
+            <>
+              {/* US7 Compare CTA — appears when 2-4 rows selected. */}
+              {selectedIds.size > 0 && (
+                <div className="flex items-center justify-between mb-3 p-2 rounded-md bg-muted/40 border">
+                  <span className="text-xs text-muted-foreground">
+                    {isAr
+                      ? `${selectedIds.size} حملة محددة`
+                      : `${selectedIds.size} selected`}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedIds(new Set())}
+                    >
+                      {isAr ? "إلغاء" : "Clear"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={onCompare}
+                      disabled={selectedIds.size < 2 || selectedIds.size > 4}
+                      className="gap-1.5"
+                    >
+                      <GitCompareArrows className="h-3.5 w-3.5" />
+                      {isAr ? "قارن" : "Compare"}
+                      {selectedIds.size < 2 && (
+                        <span className="text-[10px] opacity-70">
+                          ({isAr ? "اختر 2-4" : "pick 2-4"})
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8"></TableHead>
+                    <TableHead>{isAr ? "الاسم" : "Name"}</TableHead>
+                    <TableHead>{isAr ? "القناة" : "Channel"}</TableHead>
+                    <TableHead>{isAr ? "الحالة" : "Status"}</TableHead>
+                    <TableHead>{isAr ? "المرسَل" : "Sent"}</TableHead>
+                    <TableHead>{isAr ? "إجمالي" : "Recipients"}</TableHead>
+                    <TableHead>{isAr ? "أنشئت" : "Created"}</TableHead>
+                    <TableHead className="w-8"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {campaigns.map((c) => (
+                    <TableRow
+                      key={c.id}
+                      className="group cursor-pointer hover:bg-muted/40"
+                    >
+                      <TableCell className="w-8">
+                        <Checkbox
+                          checked={selectedIds.has(c.id)}
+                          onCheckedChange={() => toggleSelected(c.id)}
+                          aria-label={isAr ? "حدد للمقارنة" : "Select to compare"}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Link
+                          to={`/campaigns/${c.id}`}
+                          className="font-medium hover:underline"
+                        >
+                          {c.name}
+                        </Link>
+                      </TableCell>
                     <TableCell className="uppercase text-xs text-muted-foreground">
                       {c.channel}
                     </TableCell>
@@ -256,10 +337,27 @@ export default function MarketingCampaigns() {
                     <TableCell className="text-xs text-muted-foreground">
                       {formatDate(c.created_at)}
                     </TableCell>
+                    <TableCell className="w-8">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => onDuplicate(c.id)}
+                        disabled={duplicatingId === c.id}
+                        title={isAr ? "نسخ" : "Duplicate"}
+                      >
+                        {duplicatingId === c.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            </>
           )}
         </CardContent>
       </Card>
