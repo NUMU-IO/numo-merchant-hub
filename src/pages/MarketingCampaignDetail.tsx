@@ -62,6 +62,7 @@ import {
   Copy,
   Files,
   Loader2,
+  Megaphone,
   PanelRightOpen,
   Send,
   XCircle,
@@ -76,6 +77,7 @@ import {
   getSendTimeSuggestions,
   scheduleCampaign,
   sendCampaignNow,
+  promoteCampaignOnMeta,
   updateCampaign,
   type AttributionModelName,
   type Campaign,
@@ -133,7 +135,7 @@ export default function MarketingCampaignDetail() {
   const lastSavedName = useRef("");
 
   const [busyAction, setBusyAction] = useState<
-    "send-now" | "schedule" | "cancel" | "duplicate" | null
+    "send-now" | "schedule" | "cancel" | "duplicate" | "promote-on-meta" | null
   >(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
@@ -168,6 +170,42 @@ export default function MarketingCampaignDetail() {
       const updated = await sendCampaignNow(storeId, campaignId);
       setCampaign(updated);
       toast.success(isAr ? "بدأ الإرسال" : "Send started");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const onPromoteOnMeta = async () => {
+    if (!storeId || !campaignId) return;
+    // Plain confirm is enough for now — the action creates a PAUSED ad
+    // so there's no spend risk, but it does write to the merchant's
+    // Meta account so we want explicit consent.
+    if (
+      !window.confirm(
+        isAr
+          ? "هنعمل إعلان متوقف على ميتا من نفس محتوى الحملة. تقدر تشغّله من Meta Ads Manager بعد كده. متابعة؟"
+          : "We'll create a PAUSED Meta ad mirroring this campaign's creative. You can activate it from Meta Ads Manager afterward. Continue?",
+      )
+    )
+      return;
+    setBusyAction("promote-on-meta");
+    try {
+      const res = await promoteCampaignOnMeta(storeId, campaignId);
+      toast.success(
+        isAr ? "تم إنشاء إعلان متوقف على ميتا" : "Draft ad created on Meta",
+        {
+          description: isAr
+            ? "افتح Meta Ads Manager لإعداد الميزانية والنشر."
+            : "Open Meta Ads Manager to set budget + publish.",
+          action: {
+            label: isAr ? "افتح" : "Open",
+            onClick: () => window.open(res.ads_manager_url, "_blank"),
+          },
+          duration: 10000,
+        },
+      );
     } catch (err) {
       showError(err);
     } finally {
@@ -307,6 +345,9 @@ export default function MarketingCampaignDetail() {
     campaign.status === "draft" ||
     campaign.status === "scheduled" ||
     campaign.status === "sending";
+  // Promote-on-Meta: spec 005 US7 — visible only on completed campaigns
+  // since we're forking the sent creative into a Meta ad.
+  const canPromoteOnMeta = campaign.status === "completed";
 
   const dateFromIso = range.start.toISOString();
   const dateToIso = range.end.toISOString();
@@ -495,6 +536,23 @@ export default function MarketingCampaignDetail() {
                   <XCircle className="h-4 w-4" />
                 )}
                 {isAr ? "إلغاء" : "Cancel"}
+              </Button>
+            )}
+            {/* Spec 005 US7 — fork completed campaign into a PAUSED Meta ad. */}
+            {canPromoteOnMeta && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onPromoteOnMeta}
+                disabled={busyAction !== null}
+                className="gap-1.5"
+              >
+                {busyAction === "promote-on-meta" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Megaphone className="h-4 w-4" />
+                )}
+                {isAr ? "اعرض على ميتا" : "Promote on Meta"}
               </Button>
             )}
 
