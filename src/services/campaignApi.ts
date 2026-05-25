@@ -285,6 +285,69 @@ export async function validatePath(
   );
 }
 
+// ── Audience filter (recipient picker) ──────────────────────────────
+
+/**
+ * Named audience presets the picker renders as one-click chips. Mirrors
+ * the backend's `_PRESETS` table in `marketing_audience_resolver.py`.
+ * Picking a preset is equivalent to leaving it null and supplying the
+ * preset's field values explicitly — but stored on the campaign as the
+ * preset key so future reads survive preset-definition tweaks.
+ */
+export type AudiencePresetKey =
+  | "all_opted_in"
+  | "high_value"
+  | "recent_buyers"
+  | "lapsed"
+  | "new_customers";
+
+export interface AudienceFilter {
+  preset?: AudiencePresetKey | null;
+  accepts_marketing?: boolean;
+  ordered_within_days?: number | null;
+  inactive_days?: number | null;
+  created_within_days?: number | null;
+  min_total_spent_cents?: number | null;
+  max_total_spent_cents?: number | null;
+  min_total_orders?: number | null;
+  max_total_orders?: number | null;
+  tags_any?: string[] | null;
+}
+
+export interface AudienceEstimateSample {
+  id: string;
+  name: string;
+  contact: string;
+}
+
+export interface AudienceEstimateResponse {
+  estimated_count: number;
+  sample: AudienceEstimateSample[];
+}
+
+/**
+ * Pre-send recipient count + 5-customer sample. Called from the Create
+ * campaign dialog every time the merchant tweaks a filter field so the
+ * "Will send to ~N recipients" preview updates live. Stateless — no DB
+ * write, safe to call on every keystroke.
+ */
+export async function estimateAudience(
+  storeId: string,
+  channel: CampaignChannel,
+  audienceFilter: AudienceFilter | null,
+): Promise<AudienceEstimateResponse> {
+  return apiClient<AudienceEstimateResponse>(
+    `${_ROOT(storeId)}/audience/estimate`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        channel,
+        audience_filter: audienceFilter ?? {},
+      }),
+    },
+  );
+}
+
 // ── Performance (US3) ───────────────────────────────────────────────
 
 export interface CampaignConversionRates {
