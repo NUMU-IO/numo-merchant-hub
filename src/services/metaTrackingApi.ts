@@ -164,9 +164,9 @@ export interface MetaEventLogEntry {
 }
 
 export interface SendTestEventResponse {
-  received: boolean;
-  fbtrace_id?: string;
-  error?: string;
+  enqueued: boolean;
+  test_event_code: string;
+  queued_event_id: string;
 }
 
 export interface MetaTrackingStatusResponse {
