@@ -7,7 +7,7 @@ import {
   // billing & finance
   CreditCard, Wallet, Receipt, Banknote, DollarSign, HandCoins,
   // communications
-  Bell, Inbox, MessageSquare, Megaphone, Share2, PlugZap,
+  Bell, Inbox, MessageSquare, Megaphone, Share2, PlugZap, Activity,
   // store & ops
   Palette, FileText, Navigation2, SlidersHorizontal, Package, FolderOpen,
   Truck, Key, Webhook, TrendingUp, UserPlus,
@@ -187,6 +187,15 @@ const SECTIONS: SettingSection[] = [
         },
         icon: PlugZap,
         to: "/channels",
+      },
+      {
+        title: { en: "Tracking & Pixels", ar: "التتبع والـ Pixels" },
+        description: {
+          en: "Meta Pixel, Conversions API and audience sync",
+          ar: "Meta Pixel وConversions API ومزامنة الجماهير",
+        },
+        icon: Activity,
+        to: "/settings/tracking",
       },
       {
         title: { en: "WhatsApp", ar: "واتساب" },
