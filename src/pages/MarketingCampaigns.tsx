@@ -49,6 +49,7 @@ import { useNavigate } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
 import { showError } from "@/lib/show-error";
 import { PromotedItemPicker } from "@/components/campaigns/PromotedItemPicker";
+import { AudiencePicker } from "@/components/campaigns/AudiencePicker";
 import {
   buildEmailBody,
   suggestSubject,
@@ -58,6 +59,7 @@ import {
   createCampaign,
   duplicateCampaign,
   listCampaigns,
+  type AudienceFilter,
   type Campaign,
   type CampaignChannel,
   type CampaignStatus,
@@ -124,6 +126,9 @@ export default function MarketingCampaigns() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [promotedSnapshot, setPromotedSnapshot] = useState<PromotedSnapshot | null>(null);
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter | null>({
+    preset: "all_opted_in",
+  });
 
   const load = useCallback(async () => {
     if (!storeId) return;
@@ -149,6 +154,7 @@ export default function MarketingCampaigns() {
     setSubject("");
     setBody("");
     setPromotedSnapshot(null);
+    setAudienceFilter({ preset: "all_opted_in" });
   };
 
   /** Fill subject + body from the picked promoted item. Triggered by the
@@ -174,6 +180,7 @@ export default function MarketingCampaigns() {
         channel,
         inline_subject: subject.trim() || null,
         inline_body: body.trim(),
+        audience_filter: (audienceFilter ?? {}) as Record<string, unknown>,
       });
       toast.success(isAr ? "تم إنشاء الحملة" : "Campaign created");
       setDialogOpen(false);
@@ -457,6 +464,19 @@ export default function MarketingCampaigns() {
                 )}
               </p>
             </div>
+            {/* Audience filter — picks recipients. Live count shown
+                inside the picker so the merchant sees the impact of
+                each preset/filter before clicking Save. Default is
+                "All opted-in" so older flows behave the same as before. */}
+            {storeId && (
+              <AudiencePicker
+                storeId={storeId}
+                channel={channel}
+                isAr={isAr}
+                value={audienceFilter}
+                onChange={setAudienceFilter}
+              />
+            )}
             {/* "What are you promoting?" — drives the template generator
                 below. Picker is optional; merchant can leave at "Nothing
                 specific" and write the body freehand. */}
