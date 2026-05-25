@@ -346,16 +346,14 @@ export function MetaTrackingPanel() {
     try {
       const code = testEventCode.trim() || "TEST00000";
       const result = await sendMetaTestEvent(storeId, code);
-      if (result.received) {
+      if (result.enqueued) {
         toast.success(
           isAr
-            ? `تم استلامه في Events Manager${result.fbtrace_id ? ` · ${result.fbtrace_id}` : ""}`
-            : `Received in Events Manager${result.fbtrace_id ? ` · ${result.fbtrace_id}` : ""}`,
+            ? `تم إرسال الحدث · هيظهر في Test Events خلال ثواني${result.queued_event_id ? ` · ${result.queued_event_id}` : ""}`
+            : `Test event dispatched · check Events Manager → Test Events in a few seconds${result.queued_event_id ? ` · ${result.queued_event_id}` : ""}`,
         );
       } else {
-        toast.error(
-          result.error ?? (isAr ? "فشل إرسال الحدث التجريبي" : "Test event failed"),
-        );
+        toast.error(isAr ? "فشل إرسال الحدث التجريبي" : "Test event failed");
       }
       queryClient.invalidateQueries({
         queryKey: ["meta-tracking-events", storeId],
