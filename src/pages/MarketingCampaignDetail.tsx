@@ -84,6 +84,7 @@ import {
 
 import { CampaignKpiCards } from "@/components/campaigns/CampaignKpiCards";
 import { CampaignMessageCard } from "@/components/campaigns/CampaignMessageCard";
+import { CampaignMetaAttributionCard } from "@/components/campaigns/CampaignMetaAttributionCard";
 import { CampaignChartGrid } from "@/components/campaigns/CampaignChartGrid";
 import { TrackableLinkBuilder } from "@/components/campaigns/TrackableLinkBuilder";
 import { CampaignCouponsPanel } from "@/components/campaigns/CampaignCouponsPanel";
@@ -533,6 +534,12 @@ export default function MarketingCampaignDetail() {
             dateTo={dateToIso}
             formatCurrency={fmt}
           />
+          {/* Spec 005 US6 v1 — Meta attribution setup guide on completed
+              campaigns. v2 replaces this with real /insights numbers
+              once auto-Custom-Conversion creation lands. */}
+          {campaign.status === "completed" && (
+            <CampaignMetaAttributionCard isAr={isAr} />
+          )}
           <CampaignChartGrid
             storeId={storeId}
             campaignId={campaign.id}
