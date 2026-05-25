@@ -56,7 +56,9 @@ const AppSidebar = () => {
   // Discounts dropdown). The new Marketing parent wraps Campaigns +
   // Attribution as a single nav group.
   const campaignsNavActive =
-    isActive("/campaigns") || isActive("/marketing/attribution");
+    isActive("/campaigns") ||
+    isActive("/marketing/attribution") ||
+    isActive("/marketing/audiences");
   // Active state for the Orders parent — covers the list, the create flow,
   // the detail page, and any /orders/* sub-page (drafts, etc.).
   const ordersActive = isActive("/orders");
@@ -75,13 +77,18 @@ const AppSidebar = () => {
     { title: isRTL ? "بطاقات الهدايا" : "Gift cards", url: "/gift-cards", icon: Gift },
   ];
 
-  // Marketing parent sub-items — feature 002 US1
+  // Marketing parent sub-items — feature 002 US1 + spec 005 US1
   const marketingNavSubItems = [
     { title: isRTL ? "الحملات" : "Campaigns", url: "/campaigns", icon: Send },
     {
       title: isRTL ? "الإسناد" : "Attribution",
       url: "/marketing/attribution",
       icon: TrendingUp,
+    },
+    {
+      title: isRTL ? "الجماهير" : "Audiences",
+      url: "/marketing/audiences",
+      icon: Users,
     },
   ];
 

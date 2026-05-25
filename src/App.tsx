@@ -94,6 +94,7 @@ const MarketingCampaigns = lazy(() => import("@/pages/MarketingCampaigns"));
 const MarketingCampaignDetail = lazy(() => import("@/pages/MarketingCampaignDetail"));
 const MarketingAttribution = lazy(() => import("@/pages/MarketingAttribution"));
 const MarketingCampaignsCompare = lazy(() => import("@/pages/MarketingCampaignsCompare"));
+const MarketingAudiences = lazy(() => import("@/pages/MarketingAudiences"));
 const AcceptInvitation = lazy(() => import("@/pages/AcceptInvitation"));
 const AcceptBetaInvite = lazy(() => import("@/pages/AcceptBetaInvite"));
 const Staff = lazy(() => import("@/pages/Staff"));
@@ -327,6 +328,7 @@ const App = () => (
                     <Route path="/campaigns/compare" element={<MarketingCampaignsCompare />} />
                     <Route path="/campaigns/:id" element={<MarketingCampaignDetail />} />
                     <Route path="/marketing/attribution" element={<MarketingAttribution />} />
+                    <Route path="/marketing/audiences" element={<MarketingAudiences />} />
                     <Route path="/billing" element={<BillingPage />} />
                     <Route path="/referrals" element={<Referrals />} />
                     <Route path="/cod" element={<CODReconciliation />} />
