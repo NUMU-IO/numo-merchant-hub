@@ -233,6 +233,29 @@ export async function sendCampaignNow(
   });
 }
 
+/** Result of POST /campaigns/{id}/promote-on-meta (spec 005 US7).
+ *  Backend creates a PAUSED Meta ad mirroring the campaign's creative
+ *  and returns a deep-link the hub can show as "View on Meta". */
+export interface PromoteOnMetaResponse {
+  ad_id: string;
+  creative_id: string;
+  ads_manager_url: string;
+  /** null when the campaign's audience_filter didn't map to a synced
+   *  Custom Audience — the ad ships with empty targeting and the
+   *  merchant fills it in Meta Ads Manager before publishing. */
+  used_custom_audience_id: string | null;
+}
+
+export async function promoteCampaignOnMeta(
+  storeId: string,
+  campaignId: string,
+): Promise<PromoteOnMetaResponse> {
+  return apiClient<PromoteOnMetaResponse>(
+    `${_ROOT(storeId)}/${campaignId}/promote-on-meta`,
+    { method: "POST" },
+  );
+}
+
 /** Produce a trackable URL + QR PNG for a campaign. */
 export async function generateTrackableLink(
   storeId: string,
