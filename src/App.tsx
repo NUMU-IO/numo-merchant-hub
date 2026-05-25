@@ -72,6 +72,7 @@ const Invoices = lazy(() => import("@/pages/Invoices"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const SettingsPreferences = lazy(() => import("@/pages/SettingsPreferences"));
+const SettingsTracking = lazy(() => import("@/pages/SettingsTracking"));
 const Apps = lazy(() => import("@/pages/Apps"));
 const GiftCards = lazy(() => import("@/pages/GiftCards"));
 const Locations = lazy(() => import("@/pages/Locations"));
@@ -320,6 +321,7 @@ const App = () => (
                       element={<PresentmentCurrencies />}
                     />
                     <Route path="/settings/preferences" element={<SettingsPreferences />} />
+                    <Route path="/settings/tracking" element={<SettingsTracking />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/whatsapp" element={<WhatsApp />} />
                     <Route path="/whatsapp/inbox" element={<WhatsAppInbox />} />

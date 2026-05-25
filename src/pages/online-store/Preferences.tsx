@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -18,9 +19,6 @@ import {
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
-import { MetaTrackingPanel } from "@/components/settings/MetaTrackingPanel";
-
-
 interface PrefsState {
   seo_title: string;
   seo_description: string;
@@ -296,13 +294,11 @@ export default function OnlineStorePreferences() {
 
           <div className="border-t" />
 
-          {/* Meta Pixel — basic legacy field. Kept as a one-line input for
-               stores that already configured this; the full Meta Pixel +
-               Conversions API panel below offers the modern experience
-               (mode switching, masked CAPI token, test events, status,
-               recent-events log). The storefront's MetaPixel component
-               prefers the namespaced settings the panel writes; this flat
-               field is the fallback path for unmigrated stores. */}
+          {/* Meta Pixel — legacy one-line input. The full Meta Pixel +
+               Conversions API panel now lives at /settings/tracking; the
+               storefront's MetaPixel component prefers the namespaced
+               settings that panel writes. This flat field stays as the
+               fallback path for stores that haven't migrated yet. */}
           <div className="space-y-1.5">
             <Label className="text-xs font-medium flex items-center gap-2">
               <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-[#1877F2] text-white text-[9px] font-bold shrink-0">f</span>
@@ -315,19 +311,29 @@ export default function OnlineStorePreferences() {
               dir="ltr"
             />
             <p className="text-[11px] text-muted-foreground">
-              {isRTL
-                ? "تم استبداله بلوحة Meta Pixel و Conversions API بالأسفل. اتركه فارغاً واستخدم اللوحة الجديدة."
-                : "Superseded by the Meta Pixel + Conversions API panel below. Leave blank and use the new panel."}
+              {isRTL ? (
+                <>
+                  للحصول على اللوحة الكاملة (Conversions API، أحداث الاختبار،
+                  المزامنة)، انتقل إلى{" "}
+                  <Link to="/settings/tracking" className="underline hover:text-foreground">
+                    الإعدادات ← التتبع والـ Pixels
+                  </Link>
+                  .
+                </>
+              ) : (
+                <>
+                  For the full panel (Conversions API, test events, audience
+                  sync), go to{" "}
+                  <Link to="/settings/tracking" className="underline hover:text-foreground">
+                    Settings → Tracking &amp; Pixels
+                  </Link>
+                  .
+                </>
+              )}
             </p>
           </div>
         </div>
       </Section>
-
-      {/* ── Meta Pixel + Conversions API (Wave 1A panel) ──────────────────── */}
-      {/* Self-contained: fetches its own /tracking/meta state, posts PUTs,
-          refetches /status and /events. No props needed. Renders its own
-          Card hierarchy so it sits beside the Section cards above. */}
-      <MetaTrackingPanel />
 
       {/* ── Password protection ──────────────────────────────────────────────── */}
       <Section
