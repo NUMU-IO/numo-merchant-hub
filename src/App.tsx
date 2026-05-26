@@ -91,6 +91,9 @@ const Referrals = lazy(() => import("@/pages/Referrals"));
 const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
 const WhatsAppInbox = lazy(() => import("@/pages/WhatsAppInbox"));
 const WhatsAppCampaigns = lazy(() => import("@/pages/WhatsAppCampaigns"));
+const WhatsAppBYOConnect = lazy(() => import("@/pages/WhatsAppBYOConnect"));
+const WhatsAppOptIns = lazy(() => import("@/pages/WhatsAppOptIns"));
+const WhatsAppDeadLetters = lazy(() => import("@/pages/WhatsAppDeadLetters"));
 const MarketingCampaigns = lazy(() => import("@/pages/MarketingCampaigns"));
 const MarketingCampaignDetail = lazy(() => import("@/pages/MarketingCampaignDetail"));
 const MarketingAttribution = lazy(() => import("@/pages/MarketingAttribution"));
@@ -326,6 +329,9 @@ const App = () => (
                     <Route path="/whatsapp" element={<WhatsApp />} />
                     <Route path="/whatsapp/inbox" element={<WhatsAppInbox />} />
                     <Route path="/whatsapp/campaigns" element={<WhatsAppCampaigns />} />
+                    <Route path="/whatsapp/byo" element={<WhatsAppBYOConnect />} />
+                    <Route path="/whatsapp/opt-ins" element={<WhatsAppOptIns />} />
+                    <Route path="/whatsapp/dead-letters" element={<WhatsAppDeadLetters />} />
                     <Route path="/campaigns" element={<MarketingCampaigns />} />
                     <Route path="/campaigns/compare" element={<MarketingCampaignsCompare />} />
                     <Route path="/campaigns/:id" element={<MarketingCampaignDetail />} />
