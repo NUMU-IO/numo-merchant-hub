@@ -210,6 +210,8 @@ export function MetaTrackingPanel() {
   const [testEventCode, setTestEventCode] = useState("");
   const [debugMode, setDebugMode] = useState(false);
   const [consentRequired, setConsentRequired] = useState(false);
+  const [adAccountId, setAdAccountId] = useState("");
+  const [pageId, setPageId] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -239,6 +241,8 @@ export function MetaTrackingPanel() {
     // Don't echo the masked token back into the input — leaves the field
     // empty so the merchant only types when (re)setting.
     setCapiToken("");
+    setAdAccountId(settings.ad_account_id ?? "");
+    setPageId(settings.page_id ?? "");
   }, [settings]);
 
   // ─── Validation ──────────────────────────────────────────────────────────
@@ -281,6 +285,13 @@ export function MetaTrackingPanel() {
       consent_required: consentRequired,
       test_event_code: testEventCode.trim() || null,
       debug_mode: debugMode,
+      // Persist business IDs only when the merchant typed something —
+      // sending null would wipe an already-set value on the server side.
+      // Backend's persist guard keeps the existing value when the
+      // request omits the field, so undefined here is the safe "no
+      // change" signal.
+      ad_account_id: adAccountId.trim() || undefined,
+      page_id: pageId.trim() || undefined,
     };
     if (capiToken.trim()) {
       payload.capi_access_token = capiToken.trim();
@@ -706,6 +717,57 @@ export function MetaTrackingPanel() {
             <p className="mt-1.5 text-xs text-muted-foreground">
               {t("metaTracking.testEventHelp")}
             </p>
+          </div>
+
+          {/* Meta Business connection IDs — gates Custom Audience sync
+              and Promote-on-Meta. Optional for Pixel/CAPI-only stores. */}
+          <div className="space-y-3 rounded-lg border border-dashed border-border bg-muted/30 p-3">
+            <div>
+              <p className="text-sm font-medium">
+                {isAr ? "ربط Meta Business" : "Meta Business connection"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {isAr
+                  ? "اختياري — مطلوب فقط لمزامنة الجماهير (Custom Audiences) و \"الترويج على Meta\". اتركهم فارغين لو بتستخدم Pixel + CAPI فقط."
+                  : "Optional — needed only for Custom Audience sync and Promote-on-Meta. Leave blank if you only use Pixel + CAPI."}
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="meta-ad-account" className="text-xs font-medium">
+                {isAr ? "معرّف حساب الإعلانات" : "Ad Account ID"}
+              </Label>
+              <Input
+                id="meta-ad-account"
+                placeholder="act_123456789 or 123456789"
+                value={adAccountId}
+                onChange={(e) => setAdAccountId(e.target.value.trim())}
+                className="mt-1.5"
+                dir="ltr"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {isAr
+                  ? "افتح Ads Manager → القائمة الأعلى → الرقم اللي بعد act_."
+                  : "Open Ads Manager → top-left dropdown → the number after act_."}
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="meta-page-id" className="text-xs font-medium">
+                {isAr ? "معرّف صفحة الفيسبوك" : "Facebook Page ID"}
+              </Label>
+              <Input
+                id="meta-page-id"
+                placeholder="123456789012345"
+                value={pageId}
+                onChange={(e) => setPageId(e.target.value.trim())}
+                className="mt-1.5"
+                dir="ltr"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {isAr
+                  ? "صفحة الفيسبوك → الإعدادات → معلومات الصفحة → معرّف الصفحة."
+                  : "Your Facebook Page → Settings → Page info → Page ID."}
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
