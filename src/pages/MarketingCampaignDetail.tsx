@@ -33,6 +33,16 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -139,6 +149,7 @@ export default function MarketingCampaignDetail() {
     "send-now" | "schedule" | "cancel" | "duplicate" | "promote-on-meta" | null
   >(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [promoteDialogOpen, setPromoteDialogOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
   const [copied, setCopied] = useState(false);
   const [sendTimeChips, setSendTimeChips] = useState<SendTimeSuggestion[]>([]);
@@ -178,19 +189,15 @@ export default function MarketingCampaignDetail() {
     }
   };
 
-  const onPromoteOnMeta = async () => {
+  // Promote-on-Meta confirmation flow. The button opens an AlertDialog
+  // (themed, RTL-aware, accessible) — replaces the previous
+  // ``window.confirm()`` which rendered the browser-chrome modal with
+  // the URL prefix ("merchant-test.numueg.app says…") and a non-themed
+  // light-mode look. ``confirmPromoteOnMeta`` is what the dialog's
+  // Continue button calls.
+  const confirmPromoteOnMeta = async () => {
     if (!storeId || !campaignId) return;
-    // Plain confirm is enough for now — the action creates a PAUSED ad
-    // so there's no spend risk, but it does write to the merchant's
-    // Meta account so we want explicit consent.
-    if (
-      !window.confirm(
-        isAr
-          ? "هنعمل إعلان متوقف على ميتا من نفس محتوى الحملة. تقدر تشغّله من Meta Ads Manager بعد كده. متابعة؟"
-          : "We'll create a PAUSED Meta ad mirroring this campaign's creative. You can activate it from Meta Ads Manager afterward. Continue?",
-      )
-    )
-      return;
+    setPromoteDialogOpen(false);
     setBusyAction("promote-on-meta");
     try {
       const res = await promoteCampaignOnMeta(storeId, campaignId);
@@ -208,10 +215,19 @@ export default function MarketingCampaignDetail() {
         },
       );
     } catch (err) {
+      // showError already unwraps {detail: "..."} from 4xx/5xx responses
+      // into the toast description — so once NUMU-api #352 deploys, the
+      // merchant sees Meta's actual reason (e.g. "...ads_management
+      // scope missing") instead of bare "502 Bad gateway".
       showError(err);
     } finally {
       setBusyAction(null);
     }
+  };
+
+  const onPromoteOnMeta = () => {
+    if (!storeId || !campaignId) return;
+    setPromoteDialogOpen(true);
   };
 
   const onSchedule = async () => {
@@ -686,6 +702,40 @@ export default function MarketingCampaignDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Promote-on-Meta confirmation — themed AlertDialog (no
+          window.confirm so the merchant doesn't see the browser-chrome
+          "merchant-test.numueg.app says..." prefix). */}
+      <AlertDialog open={promoteDialogOpen} onOpenChange={setPromoteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {isAr
+                ? "ترويج الحملة على Meta"
+                : "Promote campaign on Meta"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isAr
+                ? "هنعمل إعلان متوقف (PAUSED) على ميتا من نفس محتوى الحملة. تقدر تشغّله من Meta Ads Manager بعد كده — مفيش أي صرف هيتم تلقائياً. متابعة؟"
+                : "We'll create a PAUSED Meta ad mirroring this campaign's creative. You can activate it from Meta Ads Manager afterward — nothing will spend automatically. Continue?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busyAction === "promote-on-meta"}>
+              {isAr ? "إلغاء" : "Cancel"}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmPromoteOnMeta}
+              disabled={busyAction === "promote-on-meta"}
+            >
+              {busyAction === "promote-on-meta" && (
+                <Loader2 className="me-2 h-4 w-4 animate-spin" />
+              )}
+              {isAr ? "متابعة" : "Continue"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
