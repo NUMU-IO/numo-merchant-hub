@@ -103,6 +103,19 @@ export interface MetaTrackingSettings {
   whatsapp_lead_enabled?: boolean;
   /** Wave 3 Phase 18 — granular consent policy (null = legacy 1-toggle). */
   consent_settings?: ConsentSettings | null;
+  /**
+   * Meta Business Ad Account ID — required by Custom Audience sync
+   * (Marketing → Audiences) and Promote-on-Meta. Null when the merchant
+   * hasn't connected the Business account yet — downstream features
+   * render an empty state in that case instead of failing on submit.
+   */
+  ad_account_id?: string | null;
+  /**
+   * Meta Page ID — required by Promote-on-Meta (the ad creative needs
+   * a Page actor). Independent of ad_account_id because some merchants
+   * have multiple pages tied to one ad account.
+   */
+  page_id?: string | null;
 }
 
 /**
@@ -140,6 +153,10 @@ export interface SaveMetaTrackingPayload {
   pixels?: PixelEntry[] | null;
   whatsapp_lead_enabled?: boolean;
   consent_settings?: ConsentSettings | null;
+  /** Meta Business Ad Account ID (audience sync + promote-on-Meta). */
+  ad_account_id?: string | null;
+  /** Meta Page ID (promote-on-Meta ad-creative actor). */
+  page_id?: string | null;
 }
 
 /** Channel a CAPI event was emitted on, for the recent-events table. */
