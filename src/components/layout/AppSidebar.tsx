@@ -8,6 +8,7 @@ import {
   Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
   UserCog, User, Inbox, PlugZap, Mail, Sparkles, Tag, ShoppingBag, Boxes,
   Percent, Gift, Ticket, BadgePercent, TrendingUp, Compass, Send,
+  UserCheck, AlertTriangle, MessageCircle,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -50,6 +51,8 @@ const AppSidebar = () => {
   const onlineStoreActive = isActive("/online-store") || isActive("/store");
   const staffActive = isActive("/staff") || isActive("/roles");
   const channelsActive = isActive("/channels") || isActive("/inbox");
+  const whatsappActive =
+    isActive("/whatsapp") || isActive("/channels/whatsapp");
   const marketingActive = isActive("/marketing");
   // Marketing parent — feature 002 US1. Distinct from `marketingActive`
   // (which is the legacy `/marketing` URL hosting Coupons under the
@@ -89,6 +92,34 @@ const AppSidebar = () => {
       title: isRTL ? "الجماهير" : "Audiences",
       url: "/marketing/audiences",
       icon: Users,
+    },
+  ];
+
+  // WhatsApp sub-items — backend-030 surfaced the BYO connect, opt-ins
+  // inbox, and dead-letters viewer as their own pages. They had no
+  // nav entry before this, so merchants couldn't reach them.
+  const whatsappNavSubItems = [
+    { title: isRTL ? "صندوق الوارد" : "Inbox", url: "/whatsapp/inbox", icon: Inbox },
+    { title: isRTL ? "الحملات" : "Campaigns", url: "/whatsapp/campaigns", icon: Send },
+    {
+      title: isRTL ? "القوالب" : "Templates",
+      url: "/channels/whatsapp/templates",
+      icon: FileText,
+    },
+    {
+      title: isRTL ? "اشتراكات العملاء" : "Opt-ins",
+      url: "/whatsapp/opt-ins",
+      icon: UserCheck,
+    },
+    {
+      title: isRTL ? "ربط الحساب" : "Connect (BYO)",
+      url: "/whatsapp/byo",
+      icon: PlugZap,
+    },
+    {
+      title: isRTL ? "الرسائل الفاشلة" : "Dead letters",
+      url: "/whatsapp/dead-letters",
+      icon: AlertTriangle,
     },
   ];
 
@@ -355,16 +386,18 @@ const AppSidebar = () => {
                   </SidebarMenuItem>
                 </NavItemGate>
 
-                {/* WhatsApp */}
+                {/* WhatsApp — expandable. Surfaces backend-030's BYO
+                    connect, opt-ins inbox, and dead-letters viewer
+                    pages that were previously route-only. */}
                 <NavItemGate navKey="whatsapp">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/whatsapp")} tooltip={isRTL ? "واتساب" : "WhatsApp"} className="h-10 rounded-lg px-3">
-                      <NavLink to="/whatsapp">
-                        <img src="/icons/whatsapp.webp" alt="" className="h-[18px] w-[18px] opacity-70" />
-                        <span className="text-[13px] font-medium">{isRTL ? "واتساب" : "WhatsApp"}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {renderExpandableItem(
+                    isRTL ? "واتساب" : "WhatsApp",
+                    "/whatsapp",
+                    MessageCircle,
+                    whatsappNavSubItems,
+                    whatsappActive,
+                    "whatsapp-nav",
+                  )}
                 </NavItemGate>
 
                 {/* Referrals */}
