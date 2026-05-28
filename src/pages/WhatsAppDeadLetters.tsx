@@ -96,7 +96,10 @@ export default function WhatsAppDeadLetters() {
         replay_state: replayStateFilter || undefined,
         limit: 100,
       });
-      setRows(res.data);
+      // apiClient unwraps { data: T } to T — guard the array so the
+      // page renders empty state instead of crashing the table on
+      // .length when the endpoint isn't deployed yet.
+      setRows(Array.isArray(res) ? res : []);
     } catch (err) {
       const status = (err as { status?: number } | undefined)?.status;
       if (status === 403) {
@@ -131,12 +134,13 @@ export default function WhatsAppDeadLetters() {
     }
     setReplaying(row.id);
     try {
+      // apiClient already unwraps { data: T } to T.
       const res = await replayDeadLetter(storeId, row.id);
-      if (res.data.status === "replayed_success") {
+      if (res?.status === "replayed_success") {
         toast.success(
           isAr
             ? "تم بنجاح — كانت الرسالة قد أرسلت بالفعل"
-            : res.data.reason === "already_sent"
+            : res.reason === "already_sent"
             ? "Marked replayed_success — message had already been sent (double-send-guard)"
             : "Replay succeeded"
         );
@@ -168,7 +172,7 @@ export default function WhatsAppDeadLetters() {
     if (!storeId) return;
     try {
       const fresh = await getDeadLetter(storeId, row.id);
-      setSelected(fresh.data);
+      if (fresh) setSelected(fresh);
     } catch {
       // keep optimistic — list payload already has most of what we need
     }
@@ -408,10 +412,10 @@ export default function WhatsAppDeadLetters() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">
                     {isAr ? "تاريخ المحاولات" : "Error history"} (
-                    {selected.error_history.length})
+                    {selected.error_history?.length ?? 0})
                   </p>
                   <div className="space-y-2">
-                    {selected.error_history.map((entry, i) => (
+                    {(selected.error_history ?? []).map((entry, i) => (
                       <div key={i} className="border rounded-md p-2 text-xs">
                         <div className="flex justify-between text-muted-foreground">
                           <span>#{entry.attempt_n}</span>

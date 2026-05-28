@@ -90,8 +90,12 @@ export default function WhatsAppBYOConnect() {
     if (!storeId) return;
     setLoading(true);
     try {
+      // apiClient already unwraps { data: T } to T. Null means the
+      // endpoint isn't deployed (test env without the WhatsApp PR
+      // merged) — render the empty/disconnected state instead of
+      // crashing the page.
       const res = await getByoStatus(storeId);
-      setStatus(res.data);
+      if (res) setStatus(res);
     } catch {
       toast.error(
         isAr
@@ -120,7 +124,7 @@ export default function WhatsAppBYOConnect() {
         app_secret: appSecret.trim(),
       };
       const res = await byoConnect(storeId, body);
-      setStatus(res.data);
+      if (res) setStatus(res);
       setShowForm(false);
       setAccessToken("");
       setPhoneNumberId("");
@@ -165,7 +169,7 @@ export default function WhatsAppBYOConnect() {
     setDisconnecting(true);
     try {
       const res = await byoDisconnect(storeId);
-      setStatus(res.data);
+      if (res) setStatus(res);
       toast.success(
         isAr
           ? "تم فصل واتساب البيز الخاص بك"
@@ -193,7 +197,7 @@ export default function WhatsAppBYOConnect() {
     try {
       const res = await updateByoNotifications(storeId, { [key]: value });
       setStatus((prev) =>
-        prev ? { ...prev, notifications: res.data } : prev
+        prev && res ? { ...prev, notifications: res } : prev
       );
     } catch {
       toast.error(
