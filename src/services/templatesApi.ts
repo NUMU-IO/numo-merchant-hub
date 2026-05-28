@@ -38,7 +38,7 @@ export async function listTemplates(
 ): Promise<TemplatesResponse> {
   const qs = new URLSearchParams({ limit: String(limit) });
   if (cursor) qs.set("cursor", cursor);
-  return apiClient(`/stores/${storeId}/channels/whatsapp/templates/?${qs}`);
+  return apiClient(`/stores/${storeId}/whatsapp/templates/?${qs}`);
 }
 
 export interface CreateTemplatePayload {
@@ -55,20 +55,20 @@ export async function createTemplate(
   storeId: string,
   payload: CreateTemplatePayload,
 ): Promise<WhatsAppTemplate> {
-  return apiClient(`/stores/${storeId}/channels/whatsapp/templates/`, {
+  return apiClient(`/stores/${storeId}/whatsapp/templates/`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function submitTemplate(storeId: string, templateId: string): Promise<WhatsAppTemplate> {
-  return apiClient(`/stores/${storeId}/channels/whatsapp/templates/${templateId}/submit`, {
+  return apiClient(`/stores/${storeId}/whatsapp/templates/${templateId}/submit`, {
     method: "POST",
   });
 }
 
 export async function deleteTemplate(storeId: string, templateId: string): Promise<void> {
-  return apiClient(`/stores/${storeId}/channels/whatsapp/templates/${templateId}`, {
+  return apiClient(`/stores/${storeId}/whatsapp/templates/${templateId}`, {
     method: "DELETE",
   });
 }
