@@ -56,7 +56,11 @@ export default function WhatsAppOptIns() {
         active_only: activeOnly,
         limit: 100,
       });
-      setRows(res.data);
+      // apiClient already unwraps { data: T } to T — never access res.data
+      // here. Guard against null (backend returns 204 / endpoint not
+      // deployed yet) so the table renders the empty state instead of
+      // crashing the page on .length / .map.
+      setRows(Array.isArray(res) ? res : []);
     } catch {
       toast.error(
         isAr ? "فشل تحميل قائمة الاشتراكات" : "Failed to load opt-ins"
