@@ -141,7 +141,11 @@ export default function WhatsApp() {
           }
         },
         {
-          config_id: config.data.config_id,
+          // apiClient already unwraps `{ data: T }` to T, so config_id
+          // sits directly on `config` — the previous `config.data.config_id`
+          // throws TypeError on every Connect click and lands in the
+          // catch below as a generic "Failed to load signup config".
+          config_id: config.config_id,
           response_type: "code",
           override_default_response_type: true,
           extras: {
@@ -151,7 +155,10 @@ export default function WhatsApp() {
           },
         }
       );
-    } catch {
+    } catch (err) {
+      // Surface the actual error class in the console so future debugs
+      // don't get stuck on a generic toast.
+      console.error("[whatsapp-connect]", err);
       toast.error(isAr ? "خطأ في التحميل" : "Failed to load signup config");
       setConnecting(false);
     }
