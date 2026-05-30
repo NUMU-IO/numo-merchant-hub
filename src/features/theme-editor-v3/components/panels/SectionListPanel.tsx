@@ -34,6 +34,8 @@ import {
   Trash2,
   Copy,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,10 +52,14 @@ interface SectionItemProps {
   locale: EditorLocale;
   schemas: ThemeSchemaBundle | null;
   isSelected: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   onSelect: () => void;
   onToggle: () => void;
   onRemove: () => void;
   onDuplicate: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onAddAfter: () => void;
 }
 
@@ -63,10 +69,14 @@ function SortableSectionItem({
   locale,
   schemas,
   isSelected,
+  canMoveUp,
+  canMoveDown,
   onSelect,
   onToggle,
   onRemove,
   onDuplicate,
+  onMoveUp,
+  onMoveDown,
   onAddAfter,
 }: SectionItemProps) {
   const {
@@ -134,6 +144,22 @@ function SortableSectionItem({
 
       {/* Actions — visible on hover */}
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+          onClick={onMoveUp}
+          disabled={!canMoveUp}
+          title={locale === "ar" ? "تحريك لأعلى" : "Move up"}
+        >
+          <ChevronUp className="h-3.5 w-3.5" />
+        </button>
+        <button
+          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+          onClick={onMoveDown}
+          disabled={!canMoveDown}
+          title={locale === "ar" ? "تحريك لأسفل" : "Move down"}
+        >
+          <ChevronDown className="h-3.5 w-3.5" />
+        </button>
         <button
           className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
           onClick={onToggle}
@@ -214,6 +240,7 @@ export function SectionListPanel() {
   const activePage = useCustomizerStore((s) => s.activePage);
   const selection = useCustomizerStore((s) => s.selection);
   const reorderSections = useCustomizerStore((s) => s.reorderSections);
+  const moveSection = useCustomizerStore((s) => s.moveSection);
   const removeSection = useCustomizerStore((s) => s.removeSection);
   const toggleSection = useCustomizerStore((s) => s.toggleSection);
   const duplicateSection = useCustomizerStore((s) => s.duplicateSection);
@@ -348,7 +375,7 @@ export function SectionListPanel() {
           >
             <SortableContext items={order} strategy={verticalListSortingStrategy}>
               <div className="space-y-1.5">
-                {order.map((sectionId) => {
+                {order.map((sectionId, index) => {
                   const section = sections[sectionId];
                   if (!section) return null;
                   return (
@@ -359,10 +386,14 @@ export function SectionListPanel() {
                       locale={locale}
                       schemas={schemas}
                       isSelected={selection.sectionId === sectionId && !selection.groupId}
+                      canMoveUp={index > 0}
+                      canMoveDown={index < order.length - 1}
                       onSelect={() => handleSelectSection(sectionId)}
                       onToggle={() => toggleSection(sectionId)}
                       onRemove={() => removeSection(sectionId)}
                       onDuplicate={() => duplicateSection(sectionId)}
+                      onMoveUp={() => moveSection(sectionId, "up")}
+                      onMoveDown={() => moveSection(sectionId, "down")}
                       onAddAfter={() => setShowAddSection(true, sectionId)}
                     />
                   );

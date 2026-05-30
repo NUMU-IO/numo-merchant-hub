@@ -195,6 +195,19 @@ interface CustomizerActions {
   reorderSections: (newOrder: string[]) => void;
   toggleSection: (sectionId: string) => void;
   duplicateSection: (sectionId: string) => void;
+  /**
+   * Apply a section preset, REPLACING the section's settings + blocks with
+   * the preset's (settings absent from the preset revert to schema defaults,
+   * and blocks are rebuilt from `preset.blocks`). Unlike a per-key merge this
+   * truly restores the section to the known-good preset state — same
+   * materialization `addSection` uses. Destructive: the caller (panel) is
+   * expected to confirm first when the section has customizations.
+   */
+  applyPreset: (
+    sectionId: string,
+    presetIndex: number,
+    groupId?: string,
+  ) => void;
 
   // Block CRUD
   addBlock: (sectionId: string, blockType: string, groupId?: string) => void;
@@ -990,6 +1003,69 @@ export const useCustomizerStore = create<CustomizerStore>()(
             blockId: null,
             groupId: null,
           };
+        });
+        markDirty();
+      },
+
+      applyPreset: (sectionId, presetIndex, groupId) => {
+        const { schemas, draft, activePage } = get();
+        if (!schemas || !draft) return;
+
+        const section = groupId
+          ? draft.section_groups[groupId]?.sections[sectionId]
+          : draft.templates[activePage]?.sections[sectionId];
+        if (!section) return;
+
+        const schema = schemas.sections.find((s) => s.type === section.type);
+        const preset = schema?.presets?.[presetIndex];
+        if (!schema || !preset) return;
+
+        pushHistory(
+          `apply-preset:${sectionId}:${Date.now()}`,
+          `Apply preset ${preset.name}`,
+        );
+
+        // Rebuild settings: schema defaults overlaid with the preset's
+        // settings. This REPLACES the settings map (so any key the merchant
+        // tweaked that the preset doesn't mention reverts to its default),
+        // matching `addSection`'s materialization exactly.
+        const defaults: Record<string, unknown> = {};
+        schema.settings.forEach((s) => {
+          if (s.default !== undefined) defaults[s.id] = s.default;
+        });
+        const newSettings = { ...defaults, ...(preset.settings ?? {}) };
+
+        // Rebuild blocks fresh from preset.blocks (the per-key merge path
+        // never touched blocks — that was the bug).
+        const blocks: Record<string, BlockInstance> = {};
+        const blockOrder: string[] = [];
+        if (preset.blocks) {
+          for (const presetBlock of preset.blocks) {
+            const blockId = generateId("blk");
+            const blockSchema = schema.blocks?.find(
+              (b) => b.type === presetBlock.type,
+            );
+            const blockDefaults: Record<string, unknown> = {};
+            blockSchema?.settings.forEach((s) => {
+              if (s.default !== undefined) blockDefaults[s.id] = s.default;
+            });
+            blocks[blockId] = {
+              type: presetBlock.type,
+              settings: { ...blockDefaults, ...(presetBlock.settings ?? {}) },
+            };
+            blockOrder.push(blockId);
+          }
+        }
+
+        set((s) => {
+          if (!s.draft) return;
+          const target = groupId
+            ? s.draft.section_groups[groupId]?.sections[sectionId]
+            : s.draft.templates[s.activePage]?.sections[sectionId];
+          if (!target) return;
+          target.settings = newSettings;
+          target.blocks = blockOrder.length > 0 ? blocks : undefined;
+          target.block_order = blockOrder.length > 0 ? blockOrder : undefined;
         });
         markDirty();
       },

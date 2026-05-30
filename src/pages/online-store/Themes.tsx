@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -56,6 +57,21 @@ import {
   Search, Palette, Lock, ChevronDown,
 } from "lucide-react";
 import { MarketplaceCatalog } from "@/components/theme-editor";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MarketplaceLibraryTab } from "./_marketplace/MarketplaceLibraryTab";
+import {
+  MarketplaceFilterRail,
+  EMPTY_FILTERS,
+  collectAvailableFeatures,
+  type MarketplaceFilters,
+} from "./_marketplace/MarketplaceFilterRail";
+import {
+  MarketplaceSortDropdown,
+  type MarketplaceSort,
+} from "./_marketplace/MarketplaceSortDropdown";
+import { browseMarketplace } from "@/services/marketplaceApi";
+import { useSearchParams } from "react-router-dom";
+import { SnapshotsTab } from "./_marketplace/SnapshotsTab";
 
 // ─── Theme visual palettes ───────────────────────────────────────────────────
 const THEME_PALETTES: Record<string, { bg: string; accent: string; text: string; card: string }> = {
@@ -132,6 +148,7 @@ function ThemePreviewImage({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function OnlineStoreThemes() {
+  const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const { tenant } = useAuth();
   const { currentStore } = useDashboardStore();
@@ -383,8 +400,21 @@ export default function OnlineStoreThemes() {
     { value: "enterprise", labelEn: "Enterprise", labelAr: "إنتربرايز" },
   ];
 
+  // Session D — tabbed view (Library | Marketplace | Snapshots).
+  // Active tab is mirrored to ?tab=… so reloads + deep links land
+  // on the same view the merchant left.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") ?? "library";
+  const setActiveTab = (tab: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", tab);
+      return next;
+    });
+  };
+
   return (
-    <div className="space-y-10 max-w-6xl mx-auto pb-12">
+    <div className="space-y-6 max-w-6xl mx-auto pb-12">
       {/* ─── Page header ─────────────────────────────────────────────── */}
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
@@ -414,6 +444,24 @@ export default function OnlineStoreThemes() {
           </Button>
         )}
       </div>
+
+      {/* Library | Marketplace | Snapshots tabs (Snapshots shipped Session F). */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="library">{t("marketplace.tabs.library")}</TabsTrigger>
+          <TabsTrigger value="marketplace">{t("marketplace.tabs.marketplace")}</TabsTrigger>
+          <TabsTrigger value="snapshots">{t("marketplace.tabs.snapshots")}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="library" className="space-y-10">
+          <MarketplaceLibraryTab onBrowseMarketplace={() => setActiveTab("marketplace")} />
+        </TabsContent>
+
+        <TabsContent value="snapshots">
+          <SnapshotsTab />
+        </TabsContent>
+
+        <TabsContent value="marketplace" className="space-y-10">
 
       {/* ─── Active theme hero ───────────────────────────────────────── */}
       <section>
@@ -554,14 +602,13 @@ export default function OnlineStoreThemes() {
         </section>
       )}
 
-      {/* Wave 6 — V3 Marketplace catalog. Lives between the V2 grid
-          and the BYOT footer so merchants discover the V3 themes
-          without having to choose a tab. The catalog auto-hides when
-          empty (until devs publish), so it doesn't add clutter on a
-          first-day install. The Marketplace handles install + activate
-          itself; on activation it routes to the V3 customizer. */}
+      {/* Session E — V3 Marketplace catalog with filter rail + sort.
+          The rail is sticky on the left at lg+; on small screens it
+          stacks above the grid. State is lifted here so the rail and
+          MarketplaceCatalog share one source of truth without prop
+          drilling through Themes.tsx. */}
       <section className="pt-4 border-t border-border/60">
-        <MarketplaceCatalog
+        <V3MarketplaceSection
           onActivated={() => navigate("/online-store/themes/editor-v3")}
         />
       </section>
@@ -978,6 +1025,9 @@ npx numu-theme dev`}
         onClose={() => setPreviewTheme(null)}
         isRTL={isRTL}
       />
+
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -1329,6 +1379,86 @@ function LibraryThemeCard({
           >
             <Eye className="h-3.5 w-3.5" />
           </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── V3 Marketplace section (filter rail + grid) ─────────────────────────────
+//
+// Session E (2026-05-28). Wraps `<MarketplaceCatalog />` with the
+// Shopify-style filter rail per file 06 §4.1 and a sort dropdown above
+// the grid. The catalog still owns the data fetch + pagination — the
+// rail is purely client-side over the loaded page (~50 themes per page,
+// the catalog grows past that we'll route filters server-side).
+//
+// We do a small parallel query for `availableFeatures` so the rail can
+// surface filter chips even before the catalog renders. It re-uses the
+// same React Query cache key, so this is effectively free.
+interface V3MarketplaceSectionProps {
+  onActivated: () => void;
+}
+
+function V3MarketplaceSection({ onActivated }: V3MarketplaceSectionProps) {
+  const { t } = useTranslation();
+  const [filters, setFilters] = useState<MarketplaceFilters>(EMPTY_FILTERS);
+  const [sort, setSort] = useState<MarketplaceSort>("relevance");
+  const [resultCount, setResultCount] = useState<{ filtered: number; total: number } | null>(null);
+
+  // Surface the catalog's loaded themes here too so the rail's Features
+  // chip list is populated. Same query key as MarketplaceCatalog so the
+  // network call is shared.
+  const catalogQuery = useQuery({
+    queryKey: ["marketplace-catalog", 1],
+    queryFn: () => browseMarketplace({ page: 1, per_page: 50 }),
+    staleTime: 60 * 1000,
+  });
+  const availableFeatures = useMemo(
+    () => collectAvailableFeatures(catalogQuery.data?.themes ?? []),
+    [catalogQuery.data],
+  );
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight">
+          {t("marketplace.section.title")}
+        </h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          {t("marketplace.section.subtitle")}
+        </p>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+        <MarketplaceFilterRail
+          filters={filters}
+          onFiltersChange={setFilters}
+          availableFeatures={availableFeatures}
+        />
+
+        <div className="min-w-0 space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            {resultCount && (
+              <p className="text-xs text-muted-foreground">
+                {t("marketplace.section.showing", {
+                  filtered: resultCount.filtered,
+                  total: resultCount.total,
+                })}
+              </p>
+            )}
+            <MarketplaceSortDropdown value={sort} onValueChange={setSort} />
+          </div>
+
+          <MarketplaceCatalog
+            hideChrome
+            filters={filters}
+            sort={sort}
+            onResultCountChange={(filtered, total) =>
+              setResultCount({ filtered, total })
+            }
+            onActivated={onActivated}
+          />
         </div>
       </div>
     </div>
