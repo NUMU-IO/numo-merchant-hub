@@ -1177,6 +1177,24 @@ const Orders = () => {
                       }`}>
                         {t(`orders.${o.payment_status}`)}
                       </Badge>
+                      {/* backend-031 — WhatsApp customer-confirmation
+                          state. Only renders when the store opted into
+                          require_order_confirmation (status is non-null).
+                          'confirmed' = customer tapped the Confirm
+                          button; 'pending' = waiting on their tap. */}
+                      {o.customer_confirmation_status && (
+                        <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 gap-1 ${
+                          o.customer_confirmation_status === "confirmed" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
+                          "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50"
+                        }`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${
+                            o.customer_confirmation_status === "confirmed" ? "bg-emerald-500" : "bg-amber-500"
+                          }`} />
+                          {o.customer_confirmation_status === "confirmed"
+                            ? (language === "ar" ? "أكد العميل" : "Customer confirmed")
+                            : (language === "ar" ? "بانتظار التأكيد" : "Awaiting confirmation")}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-1 rtl:rotate-180" />

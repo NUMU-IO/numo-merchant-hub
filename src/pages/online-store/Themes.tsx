@@ -356,7 +356,23 @@ export default function OnlineStoreThemes() {
   ];
 
   const activeThemeId = customization?.theme?.base_theme ?? themes[0]?.id;
-  const activeTheme = themes.find((t) => t.id === activeThemeId) ?? themes[0];
+  // Resolve in three steps so a configured base_theme that isn't in the
+  // built-in catalog (e.g. legacy "souq", a deprecated slug, or any value
+  // the editor accepts but the storefront/themes endpoint doesn't list)
+  // still surfaces as the active theme — synthesize a minimal entry from
+  // the id rather than dropping to the "No active theme" empty state.
+  const catalogMatch = themes.find((t) => t.id === activeThemeId);
+  const activeTheme: AvailableTheme | undefined =
+    catalogMatch
+    ?? (activeThemeId
+      ? ({
+          id: activeThemeId,
+          name: LAYOUT_LABELS[activeThemeId]?.en
+            ?? activeThemeId.charAt(0).toUpperCase() + activeThemeId.slice(1),
+          nameAr: LAYOUT_LABELS[activeThemeId]?.ar ?? activeThemeId,
+          description: "",
+        } as AvailableTheme)
+      : themes[0]);
   const libraryThemes = themes
     .filter((t) => t.id !== activeThemeId)
     .sort((a, b) => (a.display_order ?? 100) - (b.display_order ?? 100));
@@ -1037,7 +1053,7 @@ interface ActiveThemeHeroProps {
  */
 function ActiveThemeHero({ theme, customization, isRTL, onCustomize, onPreview }: ActiveThemeHeroProps) {
   const palette = THEME_PALETTES[theme.id] ?? THEME_PALETTES.default;
-  const layoutLabel = LAYOUT_LABELS[theme.layout]?.[isRTL ? "ar" : "en"] ?? theme.layout;
+  const layoutLabel = LAYOUT_LABELS[theme.layout ?? ""]?.[isRTL ? "ar" : "en"] ?? theme.layout ?? "";
   const isPublished = customization?.is_published ?? false;
   const lastPublished = customization?.last_published_at;
   const swatches = customization?.theme
@@ -1233,7 +1249,7 @@ function LibraryThemeCard({
   onPreview,
 }: LibraryThemeCardProps) {
   const palette = THEME_PALETTES[theme.id] ?? THEME_PALETTES.default;
-  const layoutLabel = LAYOUT_LABELS[theme.layout]?.[isRTL ? "ar" : "en"] ?? theme.layout;
+  const layoutLabel = LAYOUT_LABELS[theme.layout ?? ""]?.[isRTL ? "ar" : "en"] ?? theme.layout ?? "";
   const tier = (theme.required_plan ?? "free") as Tier;
   const showTierChip = tier !== "free";
   // Tier-tinted accent on the chip — keeps the visual hierarchy at a glance.

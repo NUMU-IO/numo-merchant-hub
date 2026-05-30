@@ -46,12 +46,19 @@ export interface NotificationToggle {
 // `abandoned_cart` ships in the API surface so US3 can light it up
 // without an API bump, but the WhatsApp.tsx page intentionally does
 // NOT render a toggle for it (no scheduled-send dispatcher yet).
+//
+// `require_order_confirmation` (backend-031) — when ON, the
+// OrderCreatedEvent handler sends `order_confirmation_request_v1`
+// (interactive QUICK_REPLY) instead of `order_confirmation_v2`
+// (receipt). The customer's tap flips orders.customer_confirmation_status
+// to "confirmed"; the dashboard surfaces a per-order badge.
 export interface NotificationSettings {
   order_confirmation: NotificationToggle;
   payment_received: NotificationToggle;
   shipping_update: NotificationToggle;
   delivery_confirmation: NotificationToggle;
   abandoned_cart: NotificationToggle;
+  require_order_confirmation: NotificationToggle;
 }
 
 export interface WhatsAppDayStat {
