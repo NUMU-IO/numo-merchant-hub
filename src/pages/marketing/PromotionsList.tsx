@@ -277,10 +277,10 @@ export default function PromotionsList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
             {t("promotions.list.title")}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-1">
             {t("promotions.list.subtitle")}
           </p>
         </div>

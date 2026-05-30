@@ -14,7 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["IBM Plex Sans Arabic", "-apple-system", "Helvetica", "Arial", "sans-serif"],
+        sans: ["IBM Plex Sans Arabic", "Cairo", "-apple-system", "Helvetica", "Arial", "sans-serif"],
+        brand: ["Reem Kufi", "Tajawal", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "ui-monospace", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -68,17 +70,56 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        /* Souq extended palette — exposed as Tailwind colors so new
+           component code can write `bg-navy`, `text-saffron`, etc.
+           directly. Existing shadcn tokens above stay so the 68 pages
+           that use `bg-primary`/`text-foreground` etc. keep working. */
+        navy: {
+          DEFAULT: "hsl(var(--navy))",
+          700: "hsl(var(--navy-700))",
+          900: "hsl(var(--navy-900))",
+        },
+        saffron: {
+          DEFAULT: "hsl(var(--saffron))",
+          600: "hsl(var(--saffron-600))",
+          100: "hsl(var(--saffron-100))",
+        },
+        terracotta: "hsl(var(--terracotta))",
+        sage: "hsl(var(--sage))",
+        cream: "hsl(var(--cream))",
+        ink: {
+          DEFAULT: "hsl(var(--ink))",
+          soft: "hsl(var(--ink-soft))",
+          faint: "hsl(var(--ink-faint))",
+        },
+        surface: {
+          DEFAULT: "hsl(var(--background))",
+          2: "hsl(var(--surface-2))",
+          3: "hsl(var(--surface-3))",
+        },
       },
       borderRadius: {
+        /* Chunky / tactile radii — base 16px now (was 10px). The shadcn
+           scale (sm/md/lg/xl/2xl) is preserved but every step is bigger,
+           so existing `rounded-xl` etc. usage instantly gets the Souq
+           feel without touching consumer code. */
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
         xl: "calc(var(--radius) + 4px)",
         "2xl": "calc(var(--radius) + 8px)",
+        /* Souq feature-panel radius (26px) — for hero panels, big CTAs. */
+        souq: "1.625rem",
       },
       boxShadow: {
         xs: "var(--shadow-xs)",
+        sm: "var(--shadow-sm)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
         card: "var(--shadow-card)",
+        pop: "var(--shadow-pop)",
+        "depth-navy": "var(--shadow-depth-navy)",
+        "depth-saffron": "var(--shadow-depth-saffron)",
       },
       keyframes: {
         "accordion-down": {

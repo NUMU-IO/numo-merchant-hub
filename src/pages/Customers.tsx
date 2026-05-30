@@ -151,10 +151,10 @@ export default function Customers() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold tracking-tight">{c.full_name || `${c.first_name} ${c.last_name}`}</h1>
-            <p className="text-[13px] text-muted-foreground">{c.email}</p>
+            <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{c.full_name || `${c.first_name} ${c.last_name}`}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">{c.email}</p>
           </div>
-          <Badge variant="outline" className={`text-xs py-0.5 ${c.is_verified ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" : "bg-muted text-muted-foreground border-border"}`}>
+          <Badge variant={c.is_verified ? "success" : "secondary"} className="text-xs py-0.5">
             {c.is_verified ? (isAr ? "مُفعّل" : "Verified") : (isAr ? "غير مُفعّل" : "Unverified")}
           </Badge>
         </div>
@@ -277,24 +277,30 @@ export default function Customers() {
   // === Customer List View ===
   return (
     <div className="space-y-5">
+      {/* Souq page head — display title + subtitle */}
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">{t("nav.customers")}</h1>
-        <p className="text-[13px] text-muted-foreground mt-0.5">
-          {isAr ? "إدارة عملاء متجرك" : "Manage your store customers"}
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{t("nav.customers")}</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          {isAr ? "اعرف عملاءك وقسّمهم" : "Know and segment your shoppers"}
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-3">
+      {/* Souq segment stat tiles — ichip + label + tabular number */}
+      <div className="grid gap-4 sm:grid-cols-3">
         {[
-          { label: isAr ? "إجمالي العملاء" : "Total Customers", value: total },
-          { label: isAr ? "لديهم طلبات" : "With Orders", value: activeCount },
-          { label: isAr ? "يقبلون التسويق" : "Accepts Marketing", value: customers.filter((c) => c.accepts_marketing).length },
+          { label: isAr ? "إجمالي العملاء" : "Total Customers", value: total, Icon: Users, chip: "ichip ichip-navy" },
+          { label: isAr ? "لديهم طلبات" : "With Orders", value: activeCount, Icon: ShoppingCart, chip: "ichip ichip-sage" },
+          { label: isAr ? "يقبلون التسويق" : "Accepts Marketing", value: customers.filter((c) => c.accepts_marketing).length, Icon: Network, chip: "ichip ichip-saffron" },
         ].map((stat) => (
           <Card key={stat.label}>
-            <CardContent className="p-4">
-              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">{stat.label}</p>
-              <p className="text-2xl font-bold tabular-nums">{stat.value.toLocaleString(isAr ? "ar-EG" : undefined)}</p>
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className={stat.chip}>
+                <stat.Icon className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12.5px] font-semibold text-ink-soft mb-1">{stat.label}</p>
+                <p className="text-[22px] font-extrabold tracking-tight tabular-nums leading-none">{stat.value.toLocaleString(isAr ? "ar-EG" : undefined)}</p>
+              </div>
             </CardContent>
           </Card>
         ))}

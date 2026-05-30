@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+<style>
+  .grid { display:grid; grid-template-columns:repeat(9,1fr); gap:16px; }
+  .ic { display:flex; align-items:center; justify-content:center; color:var(--ink); }
+  .ic .iconify { font-size:24px; }
+</style></head>
+<body>
+  <div class="grid" id="g"></div>
+  <div class="label" style="margin-top:16px">Phosphor — premium, distinctive. <span class="mono">bold</span> default, <span class="mono">duotone</span> for feature chips, <span class="mono">fill</span> for active nav. Rendered as inline SVG.</div>
+  <script>
+    const names = ["house","shopping-cart","package","users","folders","tag","chart-bar","storefront","credit-card","truck","money","megaphone","bell","gear","magnifying-glass","plus","gift","lightning","trend-up","receipt","wallet","percent","chat-circle","paper-plane-tilt","funnel","clock","warning","check-circle"];
+    const g = document.getElementById("g");
+    names.forEach(n => {
+      const d = document.createElement("div"); d.className = "ic";
+      d.innerHTML = `<span class="iconify" data-icon="ph:${n}-bold"></span>`; g.appendChild(d);
+    });
+  </script>
+</body></html>

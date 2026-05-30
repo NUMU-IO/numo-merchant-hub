@@ -5,10 +5,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import {
   BarChart3, TrendingUp, ShoppingCart, Users, DollarSign,
   MapPin, ArrowUpRight, ArrowDownRight, Package, AlertTriangle,
+  Filter,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar,
+  ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
 import type {
   SalesOverview, SalesDataPoint, TopProduct,
@@ -39,33 +40,32 @@ export function OverviewTab({
     if (value === undefined || value === null) return null;
     const positive = value >= 0;
     return (
-      <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold ${positive ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-        {positive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-        {positive ? "+" : ""}{value.toFixed(1)}%
+      <span className={`souq-pill ${positive ? "bg-emerald-500/14 text-emerald-700 dark:text-emerald-400" : "bg-destructive/14 text-destructive"}`}>
+        {positive ? <ArrowUpRight className="h-3 w-3" strokeWidth={2.4} /> : <ArrowDownRight className="h-3 w-3" strokeWidth={2.4} />}
+        <span className="ltr-nums">{positive ? "+" : ""}{value.toFixed(1)}%</span>
       </span>
     );
   };
 
   return (
     <>
-      {/* KPI Cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Souq KPI tiles — brand-tinted ichip + soft delta pill +
+          tabular display value. */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {[
-          { label: isAr ? "إجمالي المبيعات" : "Total Sales", value: overview ? formatCurrency(overview.total_sales) : "—", trend: overview?.sales_change_percent, icon: DollarSign, bg: "bg-emerald-500/8 dark:bg-emerald-500/15", iconColor: "text-emerald-600 dark:text-emerald-400" },
-          { label: isAr ? "إجمالي الطلبات" : "Total Orders", value: overview?.total_orders ?? "—", trend: overview?.orders_change_percent, icon: ShoppingCart, bg: "bg-blue-500/8 dark:bg-blue-500/15", iconColor: "text-blue-600 dark:text-blue-400" },
-          { label: isAr ? "متوسط قيمة الطلب" : "Avg Order Value", value: overview ? formatCurrency(overview.avg_order_value) : "—", trend: undefined, icon: TrendingUp, bg: "bg-amber-500/8 dark:bg-amber-500/15", iconColor: "text-amber-600 dark:text-amber-400" },
-          { label: isAr ? "معدل التحويل" : "Conversion Rate", value: conversion ? `${conversion.conversion_rate.toFixed(1)}%` : "—", trend: undefined, icon: BarChart3, bg: "bg-violet-500/8 dark:bg-violet-500/15", iconColor: "text-violet-600 dark:text-violet-400" },
+          { label: isAr ? "إجمالي المبيعات" : "Total Sales", value: overview ? formatCurrency(overview.total_sales) : "—", trend: overview?.sales_change_percent, icon: DollarSign, chip: "ichip-navy" },
+          { label: isAr ? "إجمالي الطلبات" : "Total Orders", value: overview?.total_orders ?? "—", trend: overview?.orders_change_percent, icon: ShoppingCart, chip: "ichip-sage" },
+          { label: isAr ? "متوسط قيمة الطلب" : "Avg Order Value", value: overview ? formatCurrency(overview.avg_order_value) : "—", trend: undefined, icon: TrendingUp, chip: "ichip-saffron" },
+          { label: isAr ? "معدل التحويل" : "Conversion Rate", value: conversion ? `${conversion.conversion_rate.toFixed(1)}%` : "—", trend: undefined, icon: BarChart3, chip: "ichip-terra" },
         ].map((kpi) => (
-          <Card key={kpi.label} className="border-border/60">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{kpi.label}</p>
-                <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${kpi.bg}`}>
-                  <kpi.icon className={`h-3.5 w-3.5 ${kpi.iconColor}`} />
-                </div>
+          <Card key={kpi.label} className="overflow-hidden">
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between mb-4">
+                <div className={`ichip ${kpi.chip}`}><kpi.icon className="h-5 w-5" strokeWidth={2.2} /></div>
+                {kpi.trend !== undefined && <TrendBadge value={kpi.trend} />}
               </div>
-              <p className="text-2xl font-bold tabular-nums">{kpi.value}</p>
-              {kpi.trend !== undefined && <TrendBadge value={kpi.trend} />}
+              <p className="text-[12.5px] font-semibold text-muted-foreground mb-1">{kpi.label}</p>
+              <p className="text-[23px] font-extrabold tracking-tight tabular-nums leading-none">{kpi.value}</p>
             </CardContent>
           </Card>
         ))}
@@ -73,29 +73,29 @@ export function OverviewTab({
 
       {/* Charts */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-border/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">{isAr ? "المبيعات" : "Sales"}</CardTitle>
-          </CardHeader>
+        <Card>
+          <div className="souq-section-head px-5 pt-5 pb-2">
+            <h2 className="text-[17px] font-bold tracking-tight">{isAr ? "المبيعات" : "Sales"}</h2>
+          </div>
           <CardContent>
-            <div className="h-[280px]">
+            <div className="h-[260px]">
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
                     <defs>
-                      <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.12} />
-                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      <linearGradient id="colorSalesNavy" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--navy))" stopOpacity={0.18} />
+                        <stop offset="95%" stopColor="hsl(var(--navy))" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 5" className="stroke-border/40" vertical={false} />
                     <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 100).toLocaleString()}`} />
                     <Tooltip
-                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", fontSize: "12px" }}
+                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", boxShadow: "var(--shadow-pop)", fontSize: "12px" }}
                       formatter={(value: number) => [formatCurrency(value), isAr ? "المبيعات" : "Sales"]}
                     />
-                    <Area type="monotone" dataKey="sales" stroke="hsl(var(--primary))" fill="url(#colorSales)" strokeWidth={1.5} dot={false} />
+                    <Area type="monotone" dataKey="sales" stroke="hsl(var(--navy))" fill="url(#colorSalesNavy)" strokeWidth={2.5} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
@@ -105,23 +105,34 @@ export function OverviewTab({
           </CardContent>
         </Card>
 
-        <Card className="border-border/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">{isAr ? "الطلبات" : "Orders"}</CardTitle>
-          </CardHeader>
+        <Card>
+          <div className="souq-section-head px-5 pt-5 pb-2">
+            <h2 className="text-[17px] font-bold tracking-tight">{isAr ? "الطلبات" : "Orders"}</h2>
+            <span className="text-xs text-muted-foreground">
+              {isAr ? "آخر فترة" : "Current period"}
+            </span>
+          </div>
           <CardContent>
-            <div className="h-[280px]">
+            <div className="h-[260px]">
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 5" className="stroke-border/40" vertical={false} />
                     <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
                     <Tooltip
-                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", fontSize: "12px" }}
+                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", boxShadow: "var(--shadow-pop)", fontSize: "12px" }}
                       formatter={(value: number) => [value, isAr ? "الطلبات" : "Orders"]}
                     />
-                    <Bar dataKey="orders" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    {/* Souq spec: last bar saffron to highlight current, rest navy. */}
+                    <Bar dataKey="orders" radius={[6, 6, 0, 0]}>
+                      {chartData.map((_, i) => (
+                        <Cell
+                          key={`bar-${i}`}
+                          fill={i === chartData.length - 1 ? "hsl(var(--saffron))" : "hsl(var(--navy))"}
+                        />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -131,6 +142,70 @@ export function OverviewTab({
           </CardContent>
         </Card>
       </div>
+
+      {/* Conversion funnel — Souq spec: navy-gradient bars with the
+          count inside + % at the end. Backend gives us total_visitors,
+          total_orders, and cart_abandonment_rate; we derive an estimated
+          cart step from that rate so the funnel still tells the
+          visits → cart → purchased story without a dedicated endpoint. */}
+      {(() => {
+        const visits = conversion?.total_visitors ?? 0;
+        const purchases = conversion?.total_orders ?? overview?.total_orders ?? 0;
+        // Cart abandonment is reported as a % of carts that didn't
+        // convert; back into a cart count by dividing purchases by (1 - rate).
+        const abandonRate = (conversion?.cart_abandonment_rate ?? 0) / 100;
+        const estimatedCarts = abandonRate > 0 && abandonRate < 1
+          ? Math.round(purchases / (1 - abandonRate))
+          : Math.max(purchases, Math.round(visits * 0.25));
+        const stages = [
+          { label: isAr ? "زيارات" : "Visits", value: visits },
+          { label: isAr ? "ضافوا للسلة" : "Added to cart", value: estimatedCarts },
+          { label: isAr ? "اشتروا" : "Purchased", value: purchases },
+        ];
+        const top = Math.max(stages[0].value, 1);
+        if (top <= 1) return null;
+        return (
+          <Card>
+            <div className="souq-section-head px-5 pt-5 pb-2">
+              <h2 className="text-[17px] font-bold tracking-tight flex items-center gap-2">
+                <Filter className="h-4 w-4 text-ink-faint" strokeWidth={2.2} />
+                {isAr ? "مسار التحويل" : "Conversion funnel"}
+              </h2>
+            </div>
+            <CardContent className="pb-4">
+              <div className="space-y-2.5">
+                {stages.map((s, i) => {
+                  const pct = (s.value / top) * 100;
+                  const conversionPct = i === 0 ? 100 : (s.value / top) * 100;
+                  return (
+                    <div key={s.label} className="flex items-center gap-3">
+                      <div className="w-28 sm:w-36 text-[12.5px] font-bold text-muted-foreground shrink-0">
+                        {s.label}
+                      </div>
+                      <div className="flex-1 h-9 rounded-xl bg-muted/50 overflow-hidden relative">
+                        <div
+                          className="h-full rounded-xl flex items-center px-3 transition-all duration-700"
+                          style={{
+                            width: `${Math.max(pct, 14)}%`,
+                            background: "linear-gradient(90deg, hsl(var(--navy-700)), hsl(var(--navy)))",
+                          }}
+                        >
+                          <span className="text-[12.5px] font-extrabold tabular-nums text-white ltr-nums">
+                            {s.value.toLocaleString(isAr ? "ar-EG" : undefined)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-12 text-end text-[12.5px] font-extrabold tabular-nums ltr-nums shrink-0">
+                        {conversionPct.toFixed(1)}%
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Bottom section */}
       <div className="grid gap-4 lg:grid-cols-3">

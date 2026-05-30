@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -151,6 +152,7 @@ const Logistics = () => {
   const storeId = currentStore?.id;
   const isAr = language === "ar";
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const [view, setView] = useState<PageView>("hub");
 
@@ -163,6 +165,26 @@ const Logistics = () => {
     fetchBostaCredentials(storeId).then(setBostaCreds).catch(() => {});
     fetchShippingSettings(storeId).then(setShippingData).catch(() => {});
   }, [storeId]);
+
+  /* ── Hub-level shipment stats for the 4-tile Souq KPI row.
+     Previously only fetched inside BostaDetailView, but the spec calls
+     for the same Ready-to-ship / In-transit / Out-for-delivery / Returns
+     summary on the hub view itself. */
+  const hubStatsQ = useQuery({
+    queryKey: ["shipment-stats", storeId],
+    queryFn: () => getShipmentStats(storeId!),
+    enabled: !!storeId && view === "hub",
+  });
+  const hubStats = hubStatsQ.data;
+  const tileReadyToShip = hubStats?.by_status?.created ?? 0;
+  const tileInTransit
+    = (hubStats?.by_status?.in_transit ?? 0)
+    + (hubStats?.by_status?.picked_up ?? 0);
+  const tileOutForDelivery = hubStats?.by_status?.out_for_delivery ?? 0;
+  const tileReturns
+    = (hubStats?.by_status?.returned ?? 0)
+    + (hubStats?.by_status?.failed ?? 0);
+  const fmtN = (n: number) => (isAr ? n.toLocaleString("ar-EG") : n.toLocaleString());
 
   const handleToggleManual = async (enabled: boolean) => {
     if (!storeId) return;
@@ -194,15 +216,93 @@ const Logistics = () => {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     HUB VIEW — Carrier cards
+     HUB VIEW — Souq spec: page head + 4 KPI tiles + segmented nav +
+     carrier cards.
      ═══════════════════════════════════════════════════════════════════ */
   return (
-    <div className="p-6 max-w-[1100px] mx-auto">
-      <div className="mb-8">
-        <h1 className="text-lg font-bold tracking-tight">{isAr ? "الشحن والتوصيل" : "Logistics"}</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">{isAr ? "اربط شركات الشحن لإدارة التوصيل" : "Connect shipping carriers to manage deliveries"}</p>
+    <div className="p-6 max-w-[1200px] mx-auto space-y-6">
+      {/* ─── Page head ─────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
+            {isAr ? "الشحن والتوصيل" : "Logistics"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isAr ? "تابع الشحنات وادِر شركات الشحن" : "Track shipments and manage couriers"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate("/orders/shipping-labels")}>
+            <Printer className="h-4 w-4" strokeWidth={2.2} />
+            {isAr ? "اطبع البوالص" : "Print labels"}
+          </Button>
+          {bostaCreds?.is_configured && (
+            <Button variant="accent" size="sm" className="gap-1.5" onClick={() => setView("bosta")}>
+              <Plus className="h-4 w-4" strokeWidth={2.4} />
+              {isAr ? "شحنة جديدة" : "New shipment"}
+            </Button>
+          )}
+        </div>
       </div>
 
+      {/* ─── 4 stat tiles (Souq spec) ──────────────────────────── */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <Card><CardContent className="p-5 flex flex-col gap-3">
+          <div className="ichip ichip-saffron"><Package className="h-5 w-5" strokeWidth={2.2} /></div>
+          <div>
+            <p className="text-[12.5px] font-semibold text-muted-foreground">{isAr ? "جاهز للشحن" : "Ready to ship"}</p>
+            <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">{fmtN(tileReadyToShip)}</p>
+          </div>
+        </CardContent></Card>
+        <Card><CardContent className="p-5 flex flex-col gap-3">
+          <div className="ichip ichip-navy"><Truck className="h-5 w-5" strokeWidth={2.2} /></div>
+          <div>
+            <p className="text-[12.5px] font-semibold text-muted-foreground">{isAr ? "في الطريق" : "In transit"}</p>
+            <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">{fmtN(tileInTransit)}</p>
+          </div>
+        </CardContent></Card>
+        <Card><CardContent className="p-5 flex flex-col gap-3">
+          <div className="ichip ichip-sage"><MapPin className="h-5 w-5" strokeWidth={2.2} /></div>
+          <div>
+            <p className="text-[12.5px] font-semibold text-muted-foreground">{isAr ? "خرج للتوصيل" : "Out for delivery"}</p>
+            <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">{fmtN(tileOutForDelivery)}</p>
+          </div>
+        </CardContent></Card>
+        <Card><CardContent className="p-5 flex flex-col gap-3">
+          <div className="ichip ichip-terra"><PackageCheck className="h-5 w-5" strokeWidth={2.2} /></div>
+          <div>
+            <p className="text-[12.5px] font-semibold text-muted-foreground">{isAr ? "مرتجعات" : "Returns"}</p>
+            <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">{fmtN(tileReturns)}</p>
+          </div>
+        </CardContent></Card>
+      </div>
+
+      {/* ─── Segmented control: Shipments / Zones / Couriers ────
+          "Shipments" and "Zones" jump to the dedicated routes already
+          wired into the sidebar; "Couriers" stays in place as the
+          carrier cards below. */}
+      <div className="flex items-center bg-muted/50 rounded-full p-1 w-fit">
+        {[
+          { key: "couriers", en: "Couriers", ar: "شركات الشحن", onClick: () => {} },
+          { key: "shipments", en: "Shipments", ar: "الشحنات", onClick: () => bostaCreds?.is_configured && setView("bosta") },
+          { key: "zones", en: "Zones", ar: "المناطق", onClick: () => navigate("/shipping/zones") },
+        ].map(s => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={s.onClick}
+            className={`h-9 px-4 text-[13px] font-bold rounded-full transition-all ${
+              s.key === "couriers"
+                ? "bg-card shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {isAr ? s.ar : s.en}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── Carrier cards ────────────────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2">
         {CARRIERS.map(carrier => {
           const status = carrierStatus(carrier.key);

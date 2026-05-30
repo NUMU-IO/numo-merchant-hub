@@ -27,6 +27,7 @@ const AbandonedCheckouts = lazy(() => import("@/pages/AbandonedCheckouts"));
 const OrderImport = lazy(() => import("@/pages/OrderImport"));
 const CreateOrder = lazy(() => import("@/pages/CreateOrder"));
 const StoreSettings = lazy(() => import("@/pages/StoreSettings"));
+const OnlineStoreLanding = lazy(() => import("@/pages/online-store/Landing"));
 const OnlineStoreThemes = lazy(() => import("@/pages/online-store/Themes"));
 const OnlineStorePages = lazy(() => import("@/pages/online-store/Pages"));
 const OnlineStoreNavigation = lazy(() => import("@/pages/online-store/Navigation"));
@@ -63,6 +64,8 @@ const AnalyticsForecast = lazy(() => import("@/pages/analytics/ForecastPage"));
 const AnalyticsJourney = lazy(() => import("@/pages/analytics/JourneyPage"));
 const AnalyticsReports = lazy(() => import("@/pages/analytics/ReportsPage"));
 const HealthScore = lazy(() => import("@/pages/HealthScore"));
+const GrowthGuide = lazy(() => import("@/pages/GrowthGuide"));
+const MarketingLanding = lazy(() => import("@/pages/MarketingLanding"));
 const Marketing = lazy(() => import("@/pages/Marketing"));
 const PromotionsList = lazy(() => import("@/pages/marketing/PromotionsList"));
 const PromotionForm = lazy(() => import("@/pages/marketing/PromotionForm"));
@@ -262,7 +265,7 @@ const App = () => (
                     <Route path="/shipping/zones/new" element={<ShippingZoneEditor />} />
                     <Route path="/shipping/zones/:zoneId" element={<ShippingZoneEditor />} />
                     <Route path="/store" element={<StoreSettings />} />
-                    <Route path="/online-store" element={<Navigate to="/online-store/themes" replace />} />
+                    <Route path="/online-store" element={<OnlineStoreLanding />} />
                     <Route path="/online-store/themes" element={<OnlineStoreThemes />} />
                     <Route path="/online-store/pages" element={<OnlineStorePages />} />
                     <Route path="/online-store/navigation" element={<OnlineStoreNavigation />} />
@@ -304,7 +307,9 @@ const App = () => (
                     <Route path="/analytics/journey" element={<AnalyticsJourney />} />
                     <Route path="/analytics/reports" element={<AnalyticsReports />} />
                     <Route path="/health-score" element={<HealthScore />} />
-                    <Route path="/marketing" element={<Marketing />} />
+                    <Route path="/grow" element={<GrowthGuide />} />
+                    <Route path="/marketing" element={<MarketingLanding />} />
+                    <Route path="/marketing/coupons" element={<Marketing />} />
                     <Route path="/marketing/promotions" element={<PromotionsList />} />
                     <Route path="/marketing/promotions/new" element={<PromotionForm />} />
                     <Route path="/marketing/promotions/:id" element={<PromotionDetail />} />

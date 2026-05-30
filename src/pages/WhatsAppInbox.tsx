@@ -172,7 +172,7 @@ export default function WhatsAppInbox() {
   return (
     <div className="h-[calc(100vh-8rem)]" dir={isAr ? "rtl" : "ltr"}>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold">{isAr ? "صندوق الوارد" : "Inbox"}</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "صندوق الوارد" : "Inbox"}</h1>
       </div>
 
       <div className="flex gap-4 h-[calc(100%-3rem)]">

@@ -123,18 +123,20 @@ export default function CreateStore() {
 
   return (
     <div className="min-h-screen auth-page auth-dot-grid relative flex items-center justify-center p-4 sm:p-6 lg:p-10">
-      {/* ── Brand text — lg+ ── */}
+      {/* ── Brand text — lg+. Souq auth surface is warm cream, so the
+          old `text-primary-foreground` (white) was invisible. Switched
+          to navy ink with graduated opacity. ── */}
       <div className="hidden lg:block fixed start-10 xl:start-14 top-10 xl:top-14 bottom-10 xl:bottom-14 w-[320px] z-10">
         <div className="h-full flex flex-col justify-between">
-          <span className="text-base font-black tracking-[0.18em] text-primary-foreground/70">NUMU</span>
+          <span className="souq-wordmark text-base font-black tracking-[0.18em]">NUMU</span>
           <div className="max-w-[280px]">
-            <h2 className="text-[1.85rem] font-semibold text-primary-foreground leading-[1.25] tracking-tight">
+            <h2 className="text-[1.85rem] font-extrabold text-navy leading-[1.25] tracking-tight">
               Launch your<br />store today.
             </h2>
-            <div className="w-8 h-px bg-primary-foreground/20 mt-6 mb-5" />
-            <p className="text-primary-foreground/40 text-[13px] leading-relaxed">{t("createStore.subtitle")}</p>
+            <div className="w-8 h-px bg-navy/20 mt-6 mb-5" />
+            <p className="text-ink-soft text-[13px] leading-relaxed">{t("createStore.subtitle")}</p>
           </div>
-          <p className="text-primary-foreground/20 text-[11px]">&copy; 2026 NUMU</p>
+          <p className="text-ink-faint text-[11px]">&copy; 2026 NUMU</p>
         </div>
       </div>
 

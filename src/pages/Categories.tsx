@@ -407,8 +407,8 @@ export default function Categories() {
         <div className="absolute top-0 right-0 w-48 h-48 bg-primary/[0.04] rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight">{isAr ? "الفئات" : "Categories"}</h1>
-            <p className="text-[13px] text-muted-foreground">
+            <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "الفئات" : "Categories"}</h1>
+            <p className="text-sm text-muted-foreground mt-1">
               {isAr ? "نظّم منتجاتك في فئات" : "Organize your products into categories"}
             </p>
           </div>

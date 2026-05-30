@@ -52,7 +52,7 @@ export const WhatsAppTemplates = () => {
   if (!storeId) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold">WhatsApp Templates</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">WhatsApp Templates</h1>
         <p className="text-muted-foreground mt-2">{t("common.loading")}</p>
       </div>
     );
@@ -61,7 +61,7 @@ export const WhatsAppTemplates = () => {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">WhatsApp Templates</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">WhatsApp Templates</h1>
         <Button onClick={() => navigate("/channels/whatsapp/templates/new")}>
           <Plus className="h-4 w-4 mr-2" />
           {t("omnichannel.new_template")}

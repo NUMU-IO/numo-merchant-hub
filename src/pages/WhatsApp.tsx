@@ -115,33 +115,49 @@ export default function WhatsApp() {
         });
       }
 
-      // Trigger embedded signup
+      // Trigger embedded signup.
+      //
+      // FB.login validates the callback shape with
+      //   typeof callback === 'function'
+      // and explicitly rejects async functions with
+      //   `Expression is of type asyncfunction, not function`.
+      // (async functions ARE functions but typeof returns "asyncfunction"
+      // in their internal check.) We pass a SYNC callback that fires the
+      // async post-processing via a fire-and-forget IIFE — same UX, but
+      // the SDK accepts it.
       window.FB!.login(
-        async (response) => {
-          const code = response.authResponse?.code;
-          if (!code) {
-            toast.error(isAr ? "تم إلغاء الربط" : "Connection cancelled");
-            setConnecting(false);
-            return;
-          }
-          try {
-            const result = await completeSignup(storeId, code);
-            if (result.data.connected) {
-              toast.success(
-                isAr
-                  ? `تم ربط واتساب بنجاح! ${result.data.phone_number || ""}`
-                  : `WhatsApp connected! ${result.data.phone_number || ""}`
-              );
-              loadData();
+        (response) => {
+          void (async () => {
+            const code = response.authResponse?.code;
+            if (!code) {
+              toast.error(isAr ? "تم إلغاء الربط" : "Connection cancelled");
+              setConnecting(false);
+              return;
             }
-          } catch {
-            toast.error(isAr ? "فشل ربط واتساب" : "Failed to connect WhatsApp");
-          } finally {
-            setConnecting(false);
-          }
+            try {
+              const result = await completeSignup(storeId, code);
+              // apiClient unwraps `{ data: T }` to T — same drop-`.data`
+              // pattern as elsewhere in this file.
+              if (result?.connected) {
+                toast.success(
+                  isAr
+                    ? `تم ربط واتساب بنجاح! ${result.phone_number || ""}`
+                    : `WhatsApp connected! ${result.phone_number || ""}`
+                );
+                loadData();
+              }
+            } catch (err) {
+              console.error("[whatsapp-connect/complete]", err);
+              toast.error(isAr ? "فشل ربط واتساب" : "Failed to connect WhatsApp");
+            } finally {
+              setConnecting(false);
+            }
+          })();
         },
         {
-          config_id: config.data.config_id,
+          // apiClient already unwraps `{ data: T }` to T, so config_id
+          // sits directly on `config`.
+          config_id: config.config_id,
           response_type: "code",
           override_default_response_type: true,
           extras: {
@@ -151,7 +167,10 @@ export default function WhatsApp() {
           },
         }
       );
-    } catch {
+    } catch (err) {
+      // Surface the actual error class in the console so future debugs
+      // don't get stuck on a generic toast.
+      console.error("[whatsapp-connect]", err);
       toast.error(isAr ? "خطأ في التحميل" : "Failed to load signup config");
       setConnecting(false);
     }
@@ -287,8 +306,8 @@ export default function WhatsApp() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">{isAr ? "واتساب للأعمال" : "WhatsApp Business"}</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "واتساب للأعمال" : "WhatsApp Business"}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isAr ? "إدارة الرسائل والحملات" : "Manage messages and campaigns"}
           </p>
         </div>

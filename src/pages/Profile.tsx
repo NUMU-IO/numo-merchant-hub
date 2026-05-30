@@ -104,7 +104,7 @@ export default function Profile() {
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-xl font-bold">{isAr ? "إعدادات الحساب" : "Account Settings"}</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "إعدادات الحساب" : "Account Settings"}</h1>
         </div>
         <Button size="sm" className="h-8 text-xs rounded-lg gap-1.5" onClick={handleSave} disabled={isSaving}>
           {isSaving && <Loader2 className="h-3 w-3 animate-spin" />}

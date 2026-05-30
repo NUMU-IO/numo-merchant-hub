@@ -152,8 +152,8 @@ export default function Invoices() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold tracking-tight">{inv.invoice_number}</h1>
-            <p className="text-[13px] text-muted-foreground">{typeLabels[inv.invoice_type]} · {formatDate(inv.date_issued)}</p>
+            <h1 className="text-2xl font-extrabold tracking-tight leading-tight tabular-nums">{inv.invoice_number}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">{typeLabels[inv.invoice_type]} · {formatDate(inv.date_issued)}</p>
           </div>
           <Badge variant="outline" className={`text-[10px] font-medium gap-1.5 rounded-md py-0.5 ${cfg.bg}`}>
             <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
@@ -298,8 +298,8 @@ export default function Invoices() {
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">{isAr ? "الفواتير" : "Invoices"}</h1>
-          <p className="text-[13px] text-muted-foreground mt-0.5">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "الفواتير" : "Invoices"}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isAr ? "إدارة الفواتير الإلكترونية" : "Manage your electronic invoices"}
           </p>
         </div>

@@ -7,19 +7,31 @@ interface EmptyStateProps {
   description?: string;
   action?: React.ReactNode;
   className?: string;
+  /** ichip tone for the icon chip — saffron is the brand default. */
+  tone?: "saffron" | "navy" | "sage" | "terra";
 }
 
-export function EmptyState({ icon: Icon, title, description, action, className }: EmptyStateProps) {
+/* Souq empty state — large brand ichip (saffron by default, swap via
+   `tone` prop) + display-weight title + ink-soft subtitle. Replaces the
+   old muted-grey chip pattern; matches NHUB encouraging-not-dead-end
+   voice. Used across all "no data yet" surfaces. */
+export function EmptyState({ icon: Icon, title, description, action, className, tone = "saffron" }: EmptyStateProps) {
+  const chip = {
+    saffron: "ichip ichip-saffron",
+    navy: "ichip ichip-navy",
+    sage: "ichip ichip-sage",
+    terra: "ichip ichip-terra",
+  }[tone];
   return (
     <div className={cn("flex flex-col items-center justify-center py-16 px-4 text-center", className)}>
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted mb-4">
-        <Icon className="h-6 w-6 text-muted-foreground" />
+      <div className={cn(chip, "ichip-lg mb-5")}>
+        <Icon />
       </div>
-      <h3 className="text-sm font-semibold mb-1">{title}</h3>
+      <h3 className="text-base font-extrabold tracking-tight mb-1.5">{title}</h3>
       {description && (
-        <p className="text-sm text-muted-foreground max-w-sm">{description}</p>
+        <p className="text-[13px] text-ink-soft max-w-sm leading-relaxed">{description}</p>
       )}
-      {action && <div className="mt-4">{action}</div>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }

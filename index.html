@@ -7,13 +7,18 @@
     <meta name="description" content="NUMU Merchant Dashboard — manage your e-commerce store" />
     <meta name="author" content="NUMU" />
 
-    <link rel="icon" type="image/webp" href="/favicon-512x512.webp" />
+    <!-- Favicon — same trio the admin backoffice ships, copied from
+         numu-admin/client/public so both apps render an identical
+         browser-tab mark. -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta property="og:title" content="NUMU - Merchant Dashboard" />
     <meta property="og:description" content="NUMU Merchant Dashboard — manage your e-commerce store" />
     <meta property="og:type" content="website" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="preload" href="/numu-logo-320.webp" as="image" type="image/webp" />
+    <link rel="preload" href="/numu-n-mark.jpg" as="image" type="image/jpeg" />
 
     <!-- Dashboard + brand fonts.
          Dashboard surfaces: IBM Plex Sans Arabic (Arabic body), Inter (Latin body, system fallback OK).
@@ -25,18 +30,34 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Reem+Kufi:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Cairo:wght@300;400;500;600;700;800;900&family=Reem+Kufi:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
   </head>
 
   <body>
     <div id="root">
-      <!-- Inline loading screen for instant FCP — replaced by React on mount -->
-      <div id="numu-splash" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fafafa;flex-direction:column;gap:12px">
-        <img src="/numu-logo-320.webp" alt="" width="80" height="80" style="border-radius:20px;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
-        <div style="width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#6366f1;border-radius:50%;animation:numu-s 0.7s linear infinite"></div>
-        <style>@keyframes numu-s{to{transform:rotate(360deg)}}@media(prefers-color-scheme:dark){#numu-splash{background:#0b1120}}</style>
+      <!-- Inline loading screen — matches NHUB UI kit Loader exactly:
+           N-mark tile breathing in place, encircled by a saffron arc
+           spinner on a warm cream track. Replaced by React on mount. -->
+      <div id="numu-splash" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#FFFFFF;z-index:200">
+        <div style="position:relative;width:104px;height:104px;display:grid;place-items:center">
+          <div style="width:60px;height:60px;border-radius:17px;overflow:hidden;box-shadow:0 1px 3px rgba(20,37,61,.05),0 12px 28px -16px rgba(20,37,61,.32);animation:nl-breathe 1.8s ease-in-out infinite">
+            <img src="/numu-n-mark.jpg" alt="NUMU" width="60" height="60" style="display:block;width:100%;height:100%;object-fit:cover">
+          </div>
+          <svg style="position:absolute;inset:0;transform:rotate(-90deg)" viewBox="0 0 104 104">
+            <circle cx="52" cy="52" r="50" fill="none" stroke="#ECEAE3" stroke-width="4"/>
+            <circle cx="52" cy="52" r="50" fill="none" stroke="#E89A2C" stroke-width="4" stroke-linecap="round" stroke-dasharray="80 220" style="transform-origin:center;animation:nl-spin 1.05s cubic-bezier(.5,.15,.4,.9) infinite"/>
+          </svg>
+        </div>
+        <style>
+          @keyframes nl-spin { to { transform: rotate(360deg) } }
+          @keyframes nl-breathe { 0%,100% { transform: scale(1) } 50% { transform: scale(1.06) } }
+          @media (prefers-color-scheme: dark) {
+            #numu-splash { background: #0B1420 }
+            #numu-splash svg circle:first-of-type { stroke: #25344A }
+          }
+        </style>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>

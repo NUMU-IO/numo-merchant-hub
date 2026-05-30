@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+<style>
+  body { background: var(--surface); }
+  .nav { width:248px; display:flex; flex-direction:column; gap:3px; }
+  .item { position:relative; display:flex; align-items:center; gap:13px; height:46px; padding:0 14px; border-radius:14px; font-size:14px; font-weight:600; color:var(--ink-soft); }
+  .item .iconify { font-size:21px; opacity:.85; }
+  .item.active { background:var(--navy); color:#fff; box-shadow:var(--shadow-sm); }
+  .item.active .iconify { color:var(--saffron); opacity:1; }
+  .count { margin-inline-start:auto; background:var(--saffron); color:var(--navy-900); min-width:22px; height:22px; padding:0 7px; border-radius:999px; font-size:11px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; }
+</style></head>
+<body>
+  <div class="nav">
+    <div class="item active"><span class="iconify" data-icon="ph:house-fill"></span>Dashboard</div>
+    <div class="item"><span class="iconify" data-icon="ph:shopping-cart-bold"></span>Orders<span class="count">6</span></div>
+    <div class="item"><span class="iconify" data-icon="ph:package-bold"></span>Products</div>
+    <div class="item"><span class="iconify" data-icon="ph:users-bold"></span>Customers</div>
+  </div>
+</body></html>

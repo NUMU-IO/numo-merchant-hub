@@ -155,8 +155,8 @@ export default function OnlineStorePreferences() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">{isRTL ? "التفضيلات" : "Preferences"}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isRTL ? "التفضيلات" : "Preferences"}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isRTL ? "SEO والتتبع وحماية المتجر" : "SEO, tracking, and store protection"}
           </p>
         </div>

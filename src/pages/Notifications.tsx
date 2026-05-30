@@ -171,11 +171,11 @@ export default function Notifications() {
       {/* Header + tabs row — collapses on mobile, sits inline on desktop */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
             {isAr ? "الإشعارات" : "Notifications"}
           </h1>
           {unreadCount > 0 && (
-            <Badge className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5">
+            <Badge variant="accent" className="text-[11px]">
               {unreadCount} {isAr ? "جديد" : "new"}
             </Badge>
           )}

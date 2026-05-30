@@ -366,68 +366,94 @@ export default function Settings() {
     })).filter((section) => section.items.length > 0);
   }, [query]);
 
+  /* Souq Settings hub — display title, prominent search, brand-tinted
+     ichip icons cycled per section (navy / saffron / sage / terra) so
+     each section reads as a coherent group rather than a wall of grey.
+     Section headers got a count badge so merchants see "12 items" at
+     a glance. Empty search state uses the brand EmptyState pattern. */
+  const SECTION_TONES = ["ichip-navy", "ichip-saffron", "ichip-sage", "ichip-terra"] as const;
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-7">
+      {/* Page head */}
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
             {isAr ? "الإعدادات" : "Settings"}
           </h1>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             {isAr
               ? "إدارة متجرك وحسابك من مكان واحد"
               : "Manage your store and account from one place"}
           </p>
         </div>
-        <div className="relative w-full md:w-80">
-          <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative w-full md:w-96">
+          <Search className="pointer-events-none absolute start-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-faint" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={isAr ? "بحث في الإعدادات" : "Search settings"}
-            className="ps-9 h-10"
+            placeholder={isAr ? "دوّر في الإعدادات…" : "Search settings…"}
+            className="ps-11"
           />
         </div>
       </div>
 
       {filteredSections.length === 0 ? (
-        <div className="rounded-xl border border-dashed py-16 text-center">
-          <p className="text-sm text-muted-foreground">
-            {isAr ? "لا توجد نتائج مطابقة" : "No settings match your search"}
+        <div className="rounded-2xl border border-dashed border-border-strong py-16 text-center">
+          <div className="ichip ichip-saffron ichip-lg mx-auto mb-4">
+            <Search />
+          </div>
+          <h3 className="text-base font-extrabold tracking-tight mb-1.5">
+            {isAr ? "مفيش نتائج" : "No matches"}
+          </h3>
+          <p className="text-[13px] text-ink-soft max-w-sm mx-auto">
+            {isAr
+              ? `لا يوجد إعداد بـ "${query}". جرّب كلمة تانية.`
+              : `Nothing matches "${query}". Try another keyword.`}
           </p>
         </div>
       ) : (
-        filteredSections.map((section) => (
-          <section key={section.title.en} className="space-y-3">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/70">
-              {isAr ? section.title.ar : section.title.en}
-            </h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.title.en + item.to}
-                    to={item.to}
-                    className="group flex items-start gap-3 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-foreground/20 hover:bg-muted/40"
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-foreground/70 group-hover:bg-muted group-hover:text-foreground">
-                      <Icon className="h-[18px] w-[18px]" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-[13px] font-medium leading-snug">
-                        {isAr ? item.title.ar : item.title.en}
-                      </h3>
-                      <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground line-clamp-2">
-                        {isAr ? item.description.ar : item.description.en}
-                      </p>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        ))
+        filteredSections.map((section, sIdx) => {
+          const tone = SECTION_TONES[sIdx % SECTION_TONES.length];
+          return (
+            <section key={section.title.en} className="space-y-3">
+              {/* Section header — eyebrow + count */}
+              <div className="flex items-center justify-between gap-3 pb-1">
+                <h2 className="souq-eyebrow">
+                  § {isAr ? section.title.ar : section.title.en}
+                </h2>
+                <span className="text-[11px] font-bold tabular-nums text-ink-faint">
+                  {isAr ? section.items.length.toLocaleString("ar-EG") : section.items.length}
+                  {" "}{isAr ? "عنصر" : section.items.length === 1 ? "item" : "items"}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.title.en + item.to}
+                      to={item.to}
+                      className="group flex items-start gap-3.5 rounded-2xl border border-border bg-card p-4 shadow-card transition-all hover-lift"
+                    >
+                      <div className={`ichip ${tone} shrink-0`}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-[14px] font-bold leading-snug">
+                          {isAr ? item.title.ar : item.title.en}
+                        </h3>
+                        <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground line-clamp-2">
+                          {isAr ? item.description.ar : item.description.en}
+                        </p>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })
       )}
     </div>
   );

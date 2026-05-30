@@ -248,8 +248,8 @@ export default function EmailTemplates() {
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Mail className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight flex items-center gap-2.5">
+            <Mail className="h-6 w-6 text-saffron" />
             {t("emailTemplates.title")}
           </h1>
         </div>
@@ -289,11 +289,11 @@ export default function EmailTemplates() {
         {/* Header */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Mail className="h-6 w-6 text-primary" />
+            <h1 className="text-2xl font-extrabold tracking-tight leading-tight flex items-center gap-2.5">
+              <Mail className="h-6 w-6 text-saffron" />
               {t("emailTemplates.title")}
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mt-1">
               {t("emailTemplates.subtitle")}
             </p>
           </div>

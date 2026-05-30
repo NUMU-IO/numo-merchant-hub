@@ -105,8 +105,8 @@ export default function GiftCardsPage() {
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold">Gift cards</h1>
-        <p className="text-sm text-gray-600 mt-1">
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">Gift cards</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Issue gift cards, browse existing balances, and void cards
           you need to revoke. Cards are redeemed at checkout — customers
           can stack up to 5 per order.

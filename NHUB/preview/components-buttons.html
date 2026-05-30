@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+<style>
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; height:46px; padding:0 22px; border-radius:14px; font-size:14.5px; font-weight:700; border:none; }
+  .btn .iconify { font-size:19px; }
+  .b-primary { background:var(--navy); color:#fff; box-shadow:var(--depth-navy); }
+  .b-accent { background:var(--saffron); color:var(--navy-900); box-shadow:var(--depth-saffron); }
+  .b-soft { background:var(--surface-2); color:var(--ink); }
+  .b-outline { background:var(--surface); border:1.5px solid var(--border-strong); color:var(--ink); }
+  .b-ghost { background:transparent; color:var(--ink); }
+  .sm { height:38px; padding:0 16px; font-size:13px; border-radius:12px; }
+</style></head>
+<body>
+  <div class="col" style="gap:14px">
+    <div class="row" style="gap:11px">
+      <button class="btn b-primary"><span class="iconify" data-icon="ph:plus-bold"></span>Add product</button>
+      <button class="btn b-accent"><span class="iconify" data-icon="ph:gift-bold"></span>Get reward</button>
+      <button class="btn b-soft">Soft</button>
+      <button class="btn b-outline">Outline</button>
+      <button class="btn b-ghost">Ghost</button>
+    </div>
+    <div class="row" style="gap:11px">
+      <button class="btn b-primary sm">Small</button>
+      <button class="btn b-primary">Default (46)</button>
+      <button class="btn b-primary" style="height:54px;border-radius:16px;font-size:16px">Large</button>
+    </div>
+    <div class="label">Pill-ish navy primary + saffron accent carry a tactile 2px "key" depth and press down on click. Radius 14.</div>
+  </div>
+</body></html>

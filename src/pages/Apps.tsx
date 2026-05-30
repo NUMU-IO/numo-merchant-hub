@@ -111,9 +111,9 @@ export default function Apps() {
   return (
     <div className="p-6 space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">Apps</h1>
-        <p className="text-sm text-muted-foreground">
-          Extend your store with apps. Installed apps can render blocks
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">Apps</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Extend your store with apps. Installed apps render blocks
           in the theme customizer and surface data via the theme SDK.
         </p>
       </div>

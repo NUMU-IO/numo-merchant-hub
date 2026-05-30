@@ -303,8 +303,8 @@ const SocialImport = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight">{t("social.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("social.subtitle")}</p>
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{t("social.title")}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t("social.subtitle")}</p>
       </div>
 
       {/* Main Tabs: URL Import (quick) vs Connected Accounts (full) */}

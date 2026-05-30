@@ -118,8 +118,8 @@ export default function Analytics() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">{t("nav.analytics")}</h1>
-          <p className="text-[13px] text-muted-foreground mt-0.5">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{t("nav.analytics")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isAr ? "تقارير وإحصائيات متجرك" : "Your store reports and statistics"}
           </p>
         </div>
