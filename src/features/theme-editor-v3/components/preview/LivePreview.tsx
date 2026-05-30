@@ -19,6 +19,11 @@
  *    { type: "numu:editor:select",   payload: { sectionId, blockId?, groupId? } }
  *    { type: "numu:editor:ready" }
  *    { type: "numu:editor:navigate", payload: { page: string } }
+ *    { type: "numu:editor:inline-edit",
+ *      payload: { sectionId, blockId?, groupId?, key, value } }
+ *      ─ Canva-style inline text edit committed from inside the iframe.
+ *        We patch the draft + open the matching panel so the merchant
+ *        sees the text field next to the focused input.
  *
  * Security:
  *  - postMessage targets and accepts ONLY messages whose origin matches the
@@ -85,6 +90,10 @@ export function LivePreview() {
   const setSelection = useCustomizerStore((s) => s.setSelection);
   const setActivePanel = useCustomizerStore((s) => s.setActivePanel);
   const setActivePage = useCustomizerStore((s) => s.setActivePage);
+  const updateSectionSetting = useCustomizerStore(
+    (s) => s.updateSectionSetting,
+  );
+  const updateBlockSetting = useCustomizerStore((s) => s.updateBlockSetting);
 
   // Build the storefront preview URL.
   //
@@ -164,9 +173,17 @@ export function LivePreview() {
       switch (activePage) {
         case "home":
           return ""; // base already ends with /
+        case "products":
+          // Phase 2 — products listing page. The storefront route is
+          // /products (no slug) and emits `page.type = "products"`.
+          return "products";
         case "product": {
+          // Storefront route is /products/[slug] (plural). Earlier
+          // mapping emitted /product/<id> which 404s. The picker
+          // stores the slug under `previewResources.productId`
+          // (see PreviewResourcePicker — `slug ?? id` fallback).
           const id = previewResources.productId;
-          return id ? `product/${id}` : "product";
+          return id ? `products/${id}` : "products";
         }
         case "collection": {
           const slug = previewResources.collectionSlug;
@@ -174,6 +191,14 @@ export function LivePreview() {
         }
         case "cart":
           return "cart";
+        case "search":
+          // Phase 2 — search results page. The storefront route is
+          // /search and emits `page.type = "search"`. Default to an
+          // empty query so the bundle can render its "empty state /
+          // popular searches" affordance; merchants can navigate the
+          // iframe to a real query themselves if they want to preview
+          // populated results.
+          return "search";
         case "checkout":
           return "checkout";
         case "order-confirmation":
@@ -333,6 +358,94 @@ export function LivePreview() {
           break;
         }
 
+        case "numu:editor:inline-edit": {
+          // Canva-style commit from the iframe. Patch the draft, then
+          // open the matching section/block panel so the merchant sees
+          // their newly-typed value reflected in the input on the right.
+          const sectionId =
+            typeof payload.sectionId === "string" ? payload.sectionId : null;
+          const blockId =
+            typeof payload.blockId === "string" ? payload.blockId : null;
+          const groupId =
+            typeof payload.groupId === "string" ? payload.groupId : undefined;
+          const key = typeof payload.key === "string" ? payload.key : null;
+          const value =
+            typeof payload.value === "string" ||
+            typeof payload.value === "number" ||
+            typeof payload.value === "boolean"
+              ? payload.value
+              : null;
+          if (!sectionId || !key || value == null) break;
+          if (blockId) {
+            updateBlockSetting(sectionId, blockId, key, value, groupId);
+          } else {
+            updateSectionSetting(sectionId, key, value, groupId);
+          }
+          setSelection({
+            type: blockId ? "block" : "section",
+            sectionId,
+            blockId,
+            groupId: groupId ?? null,
+          });
+          setActivePanel(blockId ? "block-editor" : "section-editor");
+          // Best-effort: scroll the just-edited input into view. The
+          // section panel renders its inputs with `data-setting-id={id}`
+          // (see SettingInputV3.tsx); we wait one tick so the panel has
+          // a chance to mount and then focus.
+          requestAnimationFrame(() => {
+            const input = document.querySelector<HTMLElement>(
+              `[data-setting-id="${CSS.escape(key)}"] input, [data-setting-id="${CSS.escape(key)}"] textarea`,
+            );
+            if (input) {
+              input.scrollIntoView({ block: "center", behavior: "smooth" });
+              (input as HTMLInputElement | HTMLTextAreaElement).focus({
+                preventScroll: true,
+              });
+            }
+          });
+          break;
+        }
+
+        case "numu:editor:select-field": {
+          // SDK-shared EditableText / EditableImage click (posts
+          // { sectionId, blockId, settingId }). Unlike inline-edit this
+          // does NOT commit a value — it just selects the section/block and
+          // focuses the matching input so the merchant edits it in the
+          // right panel. Wiring this here makes the SDK's already-published
+          // Editable components functional for ANY theme that adopts them
+          // (previously only bon-younes's local inline-edit was handled).
+          const sectionId =
+            typeof payload.sectionId === "string" ? payload.sectionId : null;
+          const blockId =
+            typeof payload.blockId === "string" ? payload.blockId : null;
+          const groupId =
+            typeof payload.groupId === "string" ? payload.groupId : null;
+          const settingId =
+            typeof payload.settingId === "string" ? payload.settingId : null;
+          if (!sectionId) break;
+          setSelection({
+            type: blockId ? "block" : "section",
+            sectionId,
+            blockId,
+            groupId,
+          });
+          setActivePanel(blockId ? "block-editor" : "section-editor");
+          if (settingId) {
+            requestAnimationFrame(() => {
+              const input = document.querySelector<HTMLElement>(
+                `[data-setting-id="${CSS.escape(settingId)}"] input, [data-setting-id="${CSS.escape(settingId)}"] textarea`,
+              );
+              if (input) {
+                input.scrollIntoView({ block: "center", behavior: "smooth" });
+                (input as HTMLInputElement | HTMLTextAreaElement).focus({
+                  preventScroll: true,
+                });
+              }
+            });
+          }
+          break;
+        }
+
         case "numu:editor:section-rect": {
           // Toolbar rect from the bridge. `null` sectionId means
           // "nothing selected" → hide the toolbar.
@@ -382,6 +495,8 @@ export function LivePreview() {
     setSelection,
     setActivePanel,
     setActivePage,
+    updateSectionSetting,
+    updateBlockSetting,
   ]);
 
   // ── Reset ready state + clear any prior bundle error on URL change ──

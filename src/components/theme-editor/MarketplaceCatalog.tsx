@@ -23,7 +23,7 @@
  * without a full reload.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -35,23 +35,35 @@ import {
   RefreshCw,
   AlertCircle,
   ExternalLink,
+  Gift,
+  Library,
+  User as UserIcon,
+  TrendingUp,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { cn } from "@/lib/utils";
 import {
   browseMarketplace,
   installTheme,
-  activateTheme,
   listInstalled,
   type CatalogTheme,
   type InstalledTheme,
 } from "@/services/marketplaceApi";
+import { InstallModal } from "@/pages/online-store/_marketplace/InstallModal";
+import {
+  applyFilters,
+  EMPTY_FILTERS,
+  type MarketplaceFilters,
+} from "@/pages/online-store/_marketplace/MarketplaceFilterRail";
+import {
+  applySort,
+  type MarketplaceSort,
+} from "@/pages/online-store/_marketplace/MarketplaceSortDropdown";
 
 // ─── Card sub-component ─────────────────────────────────────────────────────
 
@@ -60,8 +72,31 @@ interface CatalogCardProps {
   installed: InstalledTheme | undefined;
   busy: boolean;
   onInstall: () => void;
+  onGoToLibrary: () => void;
+  onCustomize: () => void;
+  /** Card body (thumbnail + title row) click — opens the marketplace
+   *  detail page at `/online-store/themes/marketplace/{slug}`. */
+  onOpenDetail: () => void;
+  /** Preview button click — opens the full-screen preview iframe at
+   *  `/online-store/themes/preview/{slug}`. Phase F un-greys this. */
   onPreview: () => void;
-  isAr: boolean;
+}
+
+/**
+ * Map a 0–5 average_rating into a Shopify-style satisfaction percentage.
+ * 4.8/5 → 96%. Returns null when no reviews exist yet so the card can
+ * surface "Newly added" instead of a misleading 0%. The threshold is
+ * intentionally generous — even 1 review surfaces a number so brand-new
+ * themes get traction; the volume is implied by the install count
+ * elsewhere on the card.
+ */
+function satisfactionPercent(theme: CatalogTheme): number | null {
+  if ((theme.review_count ?? 0) <= 0) return null;
+  const rating = theme.average_rating ?? 0;
+  if (rating <= 0) return null;
+  // Convert 0–5 → 0–100. Clamp so a future bug that pushes rating > 5
+  // doesn't show 110% satisfaction.
+  return Math.max(0, Math.min(100, Math.round((rating / 5) * 100)));
 }
 
 function CatalogCard({
@@ -69,27 +104,31 @@ function CatalogCard({
   installed,
   busy,
   onInstall,
+  onGoToLibrary,
+  onCustomize,
+  onOpenDetail,
   onPreview,
-  isAr,
 }: CatalogCardProps) {
-  const isActive = installed?.active === true;
-  const hasUpdate = installed?.upgrade_available != null;
+  const { t } = useTranslation();
+  const isActive = installed?.is_active === true;
   const installedNotActive = installed != null && !isActive;
+  const satisfaction = satisfactionPercent(theme);
 
   return (
     <Card
       className={cn(
         "group overflow-hidden transition-all duration-300 hover:shadow-lg rounded-2xl",
         isActive && "ring-2 ring-primary shadow-lg",
-        hasUpdate && "ring-2 ring-amber-400",
       )}
     >
-      {/* Thumbnail */}
-      <div
-        className="relative aspect-[4/3] bg-muted overflow-hidden"
-        onClick={onPreview}
-        role="button"
-        tabIndex={0}
+      {/* Thumbnail — clickable, routes to the detail page. Per file 06 §4.2.
+          (Preview button below opens the iframe; the body click is a
+          quieter intent — "tell me more" — that matches Shopify's pattern.) */}
+      <button
+        type="button"
+        className="relative aspect-[4/3] bg-muted overflow-hidden w-full block text-start cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        onClick={onOpenDetail}
+        aria-label={t("marketplace.card.viewDetails", { name: theme.name })}
       >
         {theme.thumbnail_url ? (
           <img
@@ -104,28 +143,40 @@ function CatalogCard({
           </div>
         )}
 
-        {/* Status pill */}
+        {/* Status pill (top-end) — Active beats free badge if both apply. */}
         {isActive && (
-          <Badge className="absolute top-3 end-3 bg-primary text-primary-foreground gap-1.5">
+          <Badge className="absolute top-3 end-3 bg-primary text-primary-foreground gap-1.5 pointer-events-none">
             <Check className="h-3.5 w-3.5" />
-            {isAr ? "نشط" : "Active"}
+            {t("marketplace.card.active")}
           </Badge>
         )}
-        {hasUpdate && !isActive && (
+
+        {/* Free badge (top-start) — surfaced only when not Active so we
+            don't pile pills on top of each other. */}
+        {!isActive && theme.price_cents === 0 && (
           <Badge
-            className="absolute top-3 end-3 gap-1.5"
-            style={{ backgroundColor: "#f59e0b", color: "white" }}
+            variant="secondary"
+            className="absolute top-3 start-3 gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900 pointer-events-none"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
-            {isAr ? "تحديث متاح" : "Update available"}
+            <Gift className="h-3.5 w-3.5" />
+            {t("marketplace.card.free")}
           </Badge>
         )}
-      </div>
+      </button>
 
       <CardContent className="p-4 space-y-3">
+        {/* Title + category row. Title click also opens the detail page
+            so keyboard users have a second hit target — the thumbnail
+            button is great with a mouse, this matches it. */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-base truncate">{theme.name}</h3>
+            <button
+              type="button"
+              onClick={onOpenDetail}
+              className="text-start font-semibold text-base truncate hover:underline focus-visible:outline-none focus-visible:underline w-full"
+            >
+              {theme.name}
+            </button>
             {theme.category && (
               <p className="text-xs text-muted-foreground mt-0.5">
                 {theme.category}
@@ -139,6 +190,51 @@ function CatalogCard({
           )}
         </div>
 
+        {/* File 06 §4.2 social-proof row.
+            Two states:
+              - reviewed: "Free · 96% satisfied" (or "120 EGP · …")
+              - new (no reviews): "Free · Newly added"
+            We omit the row entirely when the theme is paid AND has no
+            reviews, so paid-but-new listings don't draw extra attention
+            to their freshness. Free + new still shows the row because
+            "Free · Newly added" is a useful nudge. */}
+        {(() => {
+          const isFree = theme.price_cents === 0;
+          const showFresh = isFree && satisfaction === null;
+          if (satisfaction === null && !showFresh) return null;
+          return (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground/80">
+                {isFree
+                  ? t("marketplace.card.free")
+                  : `${(theme.price_cents / 100).toFixed(0)} EGP`}
+              </span>
+              <span aria-hidden="true">·</span>
+              {satisfaction !== null ? (
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-amber-500" aria-hidden="true">★</span>
+                  {t("marketplace.card.satisfied", { pct: satisfaction })}
+                </span>
+              ) : (
+                <span className="text-muted-foreground/80 italic">
+                  {t("marketplace.card.newlyAdded")}
+                </span>
+              )}
+              {theme.install_count > 0 && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <TrendingUp className="h-3 w-3" />
+                    {t("marketplace.card.installs", {
+                      count: formatInstallCount(theme.install_count),
+                    })}
+                  </span>
+                </>
+              )}
+            </div>
+          );
+        })()}
+
         {theme.short_description && (
           <p className="text-sm text-muted-foreground line-clamp-2">
             {theme.short_description}
@@ -146,15 +242,29 @@ function CatalogCard({
         )}
 
         <div className="flex items-center gap-2 pt-1">
+          {/* Primary action — depends on install state.
+              - active:    Customize (links to editor-v3)
+              - installed: "In Library →" (jumps to Library tab)
+              - else:      Install (opens modal) */}
           {isActive ? (
             <Button
               variant="outline"
               size="sm"
               className="flex-1"
-              onClick={onPreview}
+              onClick={onCustomize}
             >
               <ExternalLink className="h-3.5 w-3.5 me-1.5" />
-              {isAr ? "تخصيص" : "Customize"}
+              {t("marketplace.card.customize")}
+            </Button>
+          ) : installedNotActive ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={onGoToLibrary}
+            >
+              <Library className="h-3.5 w-3.5 me-1.5" />
+              {t("marketplace.card.inLibrary")}
             </Button>
           ) : (
             <Button
@@ -165,36 +275,29 @@ function CatalogCard({
             >
               {busy ? (
                 <RefreshCw className="h-3.5 w-3.5 me-1.5 animate-spin" />
-              ) : hasUpdate ? (
-                <RefreshCw className="h-3.5 w-3.5 me-1.5" />
               ) : (
                 <Download className="h-3.5 w-3.5 me-1.5" />
               )}
               {busy
-                ? isAr
-                  ? "جاري..."
-                  : "Working…"
-                : installedNotActive
-                  ? isAr
-                    ? "تفعيل"
-                    : "Activate"
-                  : hasUpdate
-                    ? isAr
-                      ? "تحديث"
-                      : "Update"
-                    : isAr
-                      ? "تثبيت"
-                      : "Install"}
+                ? t("marketplace.card.working")
+                : t("marketplace.card.install")}
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onPreview}
-            className="shrink-0"
-          >
-            {isAr ? "معاينة" : "Preview"}
-          </Button>
+          {/* Preview — hidden on the active card (storefront already
+              shows it) and on the In-Library card (Activate first, then
+              preview lives at the storefront). Visible on non-installed
+              cards as a "try before installing" CTA, wired in Phase F
+              to /online-store/themes/preview/{slug}. */}
+          {!isActive && !installedNotActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onPreview}
+              className="shrink-0"
+            >
+              {t("marketplace.card.preview")}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -203,39 +306,31 @@ function CatalogCard({
 
 // ─── Empty / error states ───────────────────────────────────────────────────
 
-function EmptyState({ isAr }: { isAr: boolean }) {
+function EmptyState() {
+  const { t } = useTranslation();
   return (
     <div className="text-center py-16 px-4">
       <Sparkles className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
-      <p className="font-medium">
-        {isAr
-          ? "لا توجد ثيمات متاحة بعد"
-          : "No marketplace themes yet"}
-      </p>
+      <p className="font-medium">{t("marketplace.catalog.empty")}</p>
       <p className="text-sm text-muted-foreground mt-1">
-        {isAr
-          ? "ستظهر الثيمات هنا بمجرد نشرها."
-          : "Themes will show up here once developers publish them."}
+        {t("marketplace.catalog.emptyHint")}
       </p>
     </div>
   );
 }
 
 function ErrorState({
-  isAr,
   message,
   onRetry,
 }: {
-  isAr: boolean;
   message: string;
   onRetry: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="text-center py-12 px-4">
       <AlertCircle className="h-10 w-10 mx-auto text-destructive/60 mb-3" />
-      <p className="font-medium">
-        {isAr ? "تعذّر تحميل الثيمات" : "Could not load the marketplace"}
-      </p>
+      <p className="font-medium">{t("marketplace.catalog.error")}</p>
       <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
         {message}
       </p>
@@ -246,7 +341,7 @@ function ErrorState({
         className="mt-4"
       >
         <RefreshCw className="h-3.5 w-3.5 me-1.5" />
-        {isAr ? "إعادة المحاولة" : "Retry"}
+        {t("marketplace.catalog.retry")}
       </Button>
     </div>
   );
@@ -261,11 +356,25 @@ interface Props {
   /** Optional callback after a successful activate; the parent might
    *  navigate the merchant into the V3 customizer. */
   onActivated?: (themeId: string) => void;
+  /** Session E — filter state lifted into the parent so the rail and
+   *  the grid share one source of truth. When omitted, no filtering is
+   *  applied beyond the local `search` input below. */
+  filters?: MarketplaceFilters;
+  /** Session E — same as filters; controlled by the parent sort dropdown. */
+  sort?: MarketplaceSort;
+  /** Session E — surface the post-filter count back to the parent so it
+   *  can render a "Showing N of M" badge above the grid. Optional. */
+  onResultCountChange?: (filtered: number, total: number) => void;
 }
 
-export function MarketplaceCatalog({ hideChrome, onActivated }: Props) {
-  const { language } = useLanguage();
-  const isAr = language === "ar";
+export function MarketplaceCatalog({
+  hideChrome,
+  onActivated,
+  filters,
+  sort,
+  onResultCountChange,
+}: Props) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentStore } = useDashboardStore();
@@ -274,9 +383,13 @@ export function MarketplaceCatalog({ hideChrome, onActivated }: Props) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
+  // Session E bumped per_page to 50 because the rail filters client-side
+  // — we want the full visible catalog in memory so filters narrow without
+  // missing themes on later pages. Server-side filtering moves in when
+  // catalog grows past ~100.
   const catalogQuery = useQuery({
     queryKey: ["marketplace-catalog", page],
-    queryFn: () => browseMarketplace({ page, per_page: 24 }),
+    queryFn: () => browseMarketplace({ page, per_page: 50 }),
     staleTime: 60 * 1000,
   });
 
@@ -289,54 +402,95 @@ export function MarketplaceCatalog({ hideChrome, onActivated }: Props) {
     staleTime: 30 * 1000,
   });
 
+  // Map by the marketplace theme id so the card can look up its install
+  // state in O(1). After Session D the InstalledTheme shape is nested
+  // (`t.theme.id`), so this map key reads through the join. Rows whose
+  // theme was deleted from marketplace_themes after install come back
+  // with `t.theme === null`; we filter them out here so the catalog
+  // never tries to display a "ghost install".
   const installedById = useMemo(() => {
     const map = new Map<string, InstalledTheme>();
     for (const t of installedQuery.data?.installed ?? []) {
-      map.set(t.marketplace_theme_id, t);
+      if (t.theme?.id) map.set(t.theme.id, t);
     }
     return map;
   }, [installedQuery.data]);
 
-  // One-click install-and-activate. We use a single mutation per theme
-  // id so concurrent clicks are deduped; a second click on the same
-  // card while the first request is in-flight is a no-op.
+  // Session D — install-only (no auto-activate). After install, the
+  // theme lives in the merchant's library and the storefront stays on
+  // the previously-active theme. Merchant moves to the Library tab and
+  // clicks Activate to switch.
+  //
+  // The `onActivated` callback is preserved for compatibility but no
+  // longer fires from this mutation — it stayed in the prop signature
+  // because the call site (`Themes.tsx`) still passes it; making it a
+  // no-op here keeps that wiring intact without a parent refactor.
+  const [installTarget, setInstallTarget] = useState<CatalogTheme | null>(
+    null,
+  );
   const installMutation = useMutation({
     mutationFn: async (themeId: string) => {
       if (!storeId) throw new Error("No active store");
       await installTheme(storeId, themeId);
-      await activateTheme(storeId, themeId);
       return themeId;
     },
-    onSuccess: (themeId) => {
-      toast.success(
-        isAr ? "تم تثبيت الثيم بنجاح" : "Theme installed",
-      );
+    onSuccess: () => {
+      toast.success(t("marketplace.catalog.addedToLibrary"));
       void queryClient.invalidateQueries({
         queryKey: ["marketplace-installed", storeId],
       });
-      onActivated?.(themeId);
+      setInstallTarget(null);
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(isAr ? `فشل التثبيت: ${msg}` : `Install failed: ${msg}`);
+      toast.error(t("marketplace.catalog.installFailed", { msg }));
     },
   });
 
-  // Client-side filter on the displayed page only — the search input
-  // is a quick narrow rather than a server-side query, which would
-  // require a different backend route. When the catalog grows we can
-  // route the search through the API.
+  // Resolve the currently-active theme name once so the modal can show
+  // the "your storefront stays on Y" reassurance without a per-row
+  // lookup. Session E — B-19 fix: the API ships `is_active` on the
+  // installed row, not `active`. Without this fix the modal's "your
+  // storefront stays on Y" reassurance was always blank.
+  const activeThemeName = useMemo(() => {
+    return (
+      installedQuery.data?.installed.find((t) => t.is_active)?.theme?.name ??
+      null
+    );
+  }, [installedQuery.data]);
+
+  // Client-side filter chain. Order matters: search narrows first, then
+  // the rail filters, then the sort. Search runs over the raw catalog
+  // page; rail filters + sort run over the search-narrowed list.
   const themes = catalogQuery.data?.themes ?? [];
   const filtered = useMemo(() => {
-    if (!search.trim()) return themes;
-    const lower = search.toLowerCase();
-    return themes.filter(
-      (t) =>
-        t.name.toLowerCase().includes(lower) ||
-        (t.short_description ?? "").toLowerCase().includes(lower) ||
-        (t.category ?? "").toLowerCase().includes(lower),
-    );
-  }, [themes, search]);
+    let working = themes;
+
+    // Local search input (still relevant when chrome is shown — the
+    // filter rail is a separate surface in Session E and only kicks in
+    // when the parent passes `filters`).
+    if (search.trim()) {
+      const lower = search.toLowerCase();
+      working = working.filter(
+        (t) =>
+          t.name.toLowerCase().includes(lower) ||
+          (t.short_description ?? "").toLowerCase().includes(lower) ||
+          (t.category ?? "").toLowerCase().includes(lower),
+      );
+    }
+
+    if (filters) working = applyFilters(working, filters);
+    if (sort) working = applySort(working, sort);
+
+    return working;
+  }, [themes, search, filters, sort]);
+
+  // Surface the post-filter count to the parent for the "Showing N of M"
+  // badge. Effect not memo so we can fire it during render-stable changes
+  // without computing identity on the parent side.
+  useEffect(() => {
+    onResultCountChange?.(filtered.length, themes.length);
+  }, [filtered.length, themes.length, onResultCountChange]);
 
   if (catalogQuery.isLoading) {
     return (
@@ -358,7 +512,6 @@ export function MarketplaceCatalog({ hideChrome, onActivated }: Props) {
   if (catalogQuery.isError) {
     return (
       <ErrorState
-        isAr={isAr}
         message={
           catalogQuery.error instanceof Error
             ? catalogQuery.error.message
@@ -375,12 +528,10 @@ export function MarketplaceCatalog({ hideChrome, onActivated }: Props) {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">
-              {isAr ? "متجر الثيمات" : "Theme marketplace"}
+              {t("marketplace.catalog.title")}
             </h2>
             <p className="text-sm text-muted-foreground">
-              {isAr
-                ? `${themes.length} ثيم منشور — اختر واحدًا لتثبيته على متجرك.`
-                : `${themes.length} themes — install one with a single click.`}
+              {t("marketplace.catalog.subtitle", { count: themes.length })}
             </p>
           </div>
           <div className="relative w-64 max-w-full">
@@ -388,7 +539,7 @@ export function MarketplaceCatalog({ hideChrome, onActivated }: Props) {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={isAr ? "ابحث عن ثيم..." : "Search themes..."}
+              placeholder={t("marketplace.catalog.searchPlaceholder")}
               className="ps-9 rounded-xl"
             />
           </div>
@@ -396,7 +547,16 @@ export function MarketplaceCatalog({ hideChrome, onActivated }: Props) {
       )}
 
       {filtered.length === 0 ? (
-        <EmptyState isAr={isAr} />
+        // Distinguish a truly-empty catalog from "your filters/search
+        // excluded everything" — the merchant needs different guidance.
+        themes.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="text-center py-16 px-4">
+            <Search className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
+            <p className="font-medium">{t("marketplace.catalog.noMatch")}</p>
+          </div>
+        )
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((theme) => (
@@ -408,22 +568,43 @@ export function MarketplaceCatalog({ hideChrome, onActivated }: Props) {
                 installMutation.isPending &&
                 installMutation.variables === theme.id
               }
-              onInstall={() => installMutation.mutate(theme.id)}
-              onPreview={() => {
-                if (installedById.get(theme.id)?.active) {
-                  navigate("/online-store/themes/editor-v3");
-                } else {
-                  // Open marketplace detail in a new tab — eventually
-                  // this routes into the storefront's preview server
-                  // when the dedicated theme detail page lands.
-                  window.open(`/marketplace/themes/${theme.slug}`, "_blank");
-                }
+              // Click Install → open modal. Modal Confirm runs the
+              // mutation. We DON'T mutate immediately because Session D
+              // distinguishes Install from Activate; the modal copy
+              // explains what each step does so the merchant isn't
+              // surprised that their storefront didn't switch.
+              onInstall={() => setInstallTarget(theme)}
+              onGoToLibrary={() => {
+                // Navigate to the Library tab on the same page.
+                navigate("/online-store/themes?tab=library");
               }}
-              isAr={isAr}
+              onCustomize={() => navigate("/online-store/themes/editor-v3")}
+              onOpenDetail={() =>
+                navigate(`/online-store/themes/marketplace/${theme.slug}`)
+              }
+              onPreview={() =>
+                navigate(`/online-store/themes/preview/${theme.slug}`)
+              }
             />
           ))}
         </div>
       )}
+
+      {/* Session D — Install confirmation modal. Distinguished from
+          Activate so merchants understand the storefront stays on the
+          current theme until they explicitly activate. */}
+      <InstallModal
+        open={installTarget !== null}
+        onOpenChange={(v) => !v && setInstallTarget(null)}
+        themeName={installTarget?.name ?? ""}
+        currentlyActiveName={activeThemeName}
+        priceCents={installTarget?.price_cents ?? 0}
+        currency={installTarget?.currency ?? "EGP"}
+        loading={installMutation.isPending}
+        onConfirm={() =>
+          installTarget && installMutation.mutate(installTarget.id)
+        }
+      />
 
       {/* Pagination — appears only when the catalog has more than
           one page. Page state is in the local component; the query
@@ -437,12 +618,15 @@ export function MarketplaceCatalog({ hideChrome, onActivated }: Props) {
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
-            {isAr ? "السابق" : "Previous"}
+            {t("marketplace.catalog.previous")}
           </Button>
           <span className="text-sm text-muted-foreground self-center">
-            {isAr
-              ? `الصفحة ${page} من ${Math.ceil(catalogQuery.data.total / catalogQuery.data.per_page)}`
-              : `Page ${page} of ${Math.ceil(catalogQuery.data.total / catalogQuery.data.per_page)}`}
+            {t("marketplace.catalog.pageOf", {
+              page,
+              total: Math.ceil(
+                catalogQuery.data.total / catalogQuery.data.per_page,
+              ),
+            })}
           </span>
           <Button
             variant="outline"
@@ -450,12 +634,24 @@ export function MarketplaceCatalog({ hideChrome, onActivated }: Props) {
             disabled={page * catalogQuery.data.per_page >= catalogQuery.data.total}
             onClick={() => setPage((p) => p + 1)}
           >
-            {isAr ? "التالي" : "Next"}
+            {t("marketplace.catalog.next")}
           </Button>
         </div>
       )}
     </div>
   );
+}
+
+/**
+ * Compact "1.2k installs" style formatter — same convention Shopify's
+ * theme store uses. Sub-1k stays integer, then k for thousands, m for
+ * millions. We don't expect either bucket at the moment, but the format
+ * works the day we do.
+ */
+function formatInstallCount(n: number): string {
+  if (n < 1000) return n.toString();
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
+  return `${(n / 1_000_000).toFixed(1)}m`;
 }
 
 export default MarketplaceCatalog;

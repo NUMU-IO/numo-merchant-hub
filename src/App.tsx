@@ -38,6 +38,13 @@ const MyThemeSubmissions = lazy(
   () => import("@/pages/online-store/MyThemeSubmissions"),
 );
 const ThemeCustomizerV3 = lazy(() => import("@/features/theme-editor-v3/pages/ThemeCustomizerV3"));
+// Session E (2026-05-28) — marketplace detail + full-screen preview iframe.
+const MarketplaceThemeDetail = lazy(
+  () => import("@/pages/online-store/_marketplace/ThemeDetailPage"),
+);
+const MarketplaceThemePreview = lazy(
+  () => import("@/pages/online-store/_marketplace/ThemePreviewPage"),
+);
 const Payments = lazy(() => import("@/pages/Payments"));
 const WalletPage = lazy(() => import("@/pages/Wallet"));
 const StoreBalancePage = lazy(() => import("@/pages/StoreBalance"));
@@ -237,6 +244,20 @@ const App = () => (
                     }
                   />
 
+                  {/* Marketplace "Try theme" preview — full-screen iframe.
+                      Routes the storefront with ?preview_theme_slug=… so
+                      the merchant sees the theme rendered against their
+                      own products WITHOUT touching store_themes (file 06
+                      §5). */}
+                  <Route
+                    path="/online-store/themes/preview/:slug"
+                    element={
+                      <RouteResolver>
+                        <MarketplaceThemePreview />
+                      </RouteResolver>
+                    }
+                  />
+
                   {/* Auth + verified + store required — dashboard */}
                   <Route
                     element={
@@ -267,6 +288,13 @@ const App = () => (
                     <Route path="/store" element={<StoreSettings />} />
                     <Route path="/online-store" element={<OnlineStoreLanding />} />
                     <Route path="/online-store/themes" element={<OnlineStoreThemes />} />
+                    {/* Session E (2026-05-28) — public theme detail page.
+                        Inside DashboardLayout so the sidebar + tenant
+                        chrome stays around the detail content (file 06 §4.3). */}
+                    <Route
+                      path="/online-store/themes/marketplace/:slug"
+                      element={<MarketplaceThemeDetail />}
+                    />
                     <Route path="/online-store/pages" element={<OnlineStorePages />} />
                     <Route path="/online-store/navigation" element={<OnlineStoreNavigation />} />
                     <Route path="/online-store/preferences" element={<OnlineStorePreferences />} />

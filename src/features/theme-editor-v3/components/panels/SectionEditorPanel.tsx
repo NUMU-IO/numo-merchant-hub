@@ -9,7 +9,7 @@
  *  - Click block to open BlockEditorPanel
  */
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -42,6 +42,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCustomizerStore } from "../../store/customizerStore";
@@ -155,6 +165,10 @@ export function SectionEditorPanel() {
   const setSelection = useCustomizerStore((s) => s.setSelection);
   const setActivePanel = useCustomizerStore((s) => s.setActivePanel);
   const clearSelection = useCustomizerStore((s) => s.clearSelection);
+  const applyPreset = useCustomizerStore((s) => s.applyPreset);
+
+  // Preset about to be applied, held pending a destructive-change confirm.
+  const [pendingPreset, setPendingPreset] = useState<number | null>(null);
 
   const sectionId = selection.sectionId;
   const groupId = selection.groupId;
@@ -176,6 +190,37 @@ export function SectionEditorPanel() {
 
   const blocks = section?.blocks ?? {};
   const blockOrder = section?.block_order ?? [];
+
+  // Destructive-change summary for the pending preset switch. Counts how
+  // many settings would change (vs schema-defaults + preset) plus any block
+  // count delta, so the confirm dialog can tell the merchant what they'd
+  // lose. null when no preset is pending.
+  const presetConfirm = useMemo(() => {
+    if (pendingPreset === null || !section || !sectionSchema) return null;
+    const preset = sectionSchema.presets?.[pendingPreset];
+    if (!preset) return null;
+    const defaults: Record<string, unknown> = {};
+    sectionSchema.settings.forEach((s) => {
+      if (s.default !== undefined) defaults[s.id] = s.default;
+    });
+    const target = { ...defaults, ...(preset.settings ?? {}) };
+    const current = section.settings ?? {};
+    const keys = new Set([
+      ...Object.keys(target),
+      ...Object.keys(current),
+    ]);
+    let changed = 0;
+    keys.forEach((k) => {
+      if (JSON.stringify(current[k]) !== JSON.stringify(target[k])) changed++;
+    });
+    const curBlocks = section.block_order?.length ?? 0;
+    const presetBlocks = preset.blocks?.length ?? 0;
+    return {
+      name: preset.name,
+      changed,
+      blockChange: curBlocks !== presetBlocks,
+    };
+  }, [pendingPreset, section, sectionSchema]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -255,31 +300,14 @@ export function SectionEditorPanel() {
                       className="h-7 gap-1 text-xs"
                     >
                       <RotateCcw className="h-3 w-3" />
-                      {locale === "ar" ? "إعادة ضبط" : "Reset to preset"}
+                      {locale === "ar" ? "تبديل النمط" : "Switch preset"}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
                     {sectionSchema.presets.map((preset, i) => (
                       <DropdownMenuItem
                         key={`${preset.name}-${i}`}
-                        onClick={() => {
-                          // Apply each preset setting via the section-
-                          // update action. We loop instead of replacing
-                          // the whole settings object so the undo stack
-                          // gets one entry per change and the autosave
-                          // batches naturally.
-                          const presetSettings = preset.settings ?? {};
-                          for (const [key, value] of Object.entries(
-                            presetSettings,
-                          )) {
-                            updateSectionSetting(
-                              sectionId,
-                              key,
-                              value,
-                              groupId ?? undefined,
-                            );
-                          }
-                        }}
+                        onClick={() => setPendingPreset(i)}
                       >
                         <span className="truncate">{preset.name}</span>
                       </DropdownMenuItem>
@@ -394,6 +422,54 @@ export function SectionEditorPanel() {
           </div>
         )}
       </div>
+
+      {/* Destructive preset-switch confirmation (file 07 §5.3). Applying a
+          preset REPLACES settings + blocks, so warn when the merchant has
+          customizations that would be overwritten. */}
+      <AlertDialog
+        open={pendingPreset !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingPreset(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {locale === "ar" ? "تبديل النمط؟" : "Switch preset?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {locale === "ar"
+                ? `سيؤدي تطبيق "${presetConfirm?.name ?? ""}" إلى استبدال إعدادات هذا القسم${
+                    presetConfirm && presetConfirm.changed > 0
+                      ? ` (${presetConfirm.changed} تعديل سيُفقد)`
+                      : ""
+                  }${presetConfirm?.blockChange ? " وإعادة بناء عناصره" : ""}. يمكنك التراجع بعد ذلك.`
+                : `Applying "${presetConfirm?.name ?? ""}" will replace this section's settings${
+                    presetConfirm && presetConfirm.changed > 0
+                      ? ` (${presetConfirm.changed} customization${
+                          presetConfirm.changed === 1 ? "" : "s"
+                        } will be lost)`
+                      : ""
+                  }${presetConfirm?.blockChange ? " and rebuild its blocks" : ""}. You can undo afterwards.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {locale === "ar" ? "إلغاء" : "Cancel"}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingPreset !== null && sectionId) {
+                  applyPreset(sectionId, pendingPreset, groupId ?? undefined);
+                }
+                setPendingPreset(null);
+              }}
+            >
+              {locale === "ar" ? "تبديل واستبدال" : "Switch & replace"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
