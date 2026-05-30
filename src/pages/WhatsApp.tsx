@@ -23,6 +23,7 @@ import {
   Package,
   CreditCard,
   Clock,
+  ShieldCheck,
 } from "lucide-react";
 import {
   getWhatsAppStatus,
@@ -299,6 +300,12 @@ export default function WhatsApp() {
   // abandoned_cart and out_for_delivery intentionally absent — no
   // Meta template + dispatcher landed yet. They'll be added back when
   // US3 ships the scheduled-send dispatcher.
+  //
+  // `require_order_confirmation` is different from the other toggles —
+  // it doesn't add/remove a notification, it changes the SHAPE of the
+  // order_confirmation send (receipt vs interactive Confirm-button).
+  // Rendered in its own card below so it doesn't get visually conflated
+  // with the on/off rows.
   const notifItems: {
     key: keyof NotificationSettings;
     icon: React.ReactNode;
@@ -426,6 +433,43 @@ export default function WhatsApp() {
                   </div>
                 );
               })}
+            </CardContent>
+          </Card>
+
+          {/*
+            Customer-confirmation card — separate from the on/off
+            notifications above because it changes the SHAPE of the
+            order_confirmation send (interactive QUICK_REPLY vs the
+            receipt-style default), not whether it fires at all.
+            Backend handler reads the same dict key
+            (require_order_confirmation) at order-creation time.
+          */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">
+                {isAr ? "تأكيد العميل للطلب" : "Customer Order Confirmation"}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {isAr
+                  ? "لما تشغل الخيار ده، العميل بيستلم رسالة واتساب فيها تفاصيل الطلب والعنوان، وزرار تأكيد. لحد ما يضغط، الطلب يفضل 'بانتظار تأكيد العميل' في لوحة التحكم."
+                  : "When ON, the customer gets a WhatsApp message showing the order + shipping address with a Confirm button. Until they tap, the order stays 'awaiting customer confirmation' in the dashboard."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                    <ShieldCheck className="h-4 w-4" />
+                  </div>
+                  <span className="text-sm font-medium">
+                    {isAr ? "اطلب تأكيد العميل" : "Require customer to confirm order"}
+                  </span>
+                </div>
+                <Switch
+                  checked={notifications?.require_order_confirmation?.enabled ?? false}
+                  onCheckedChange={(v) => handleToggle("require_order_confirmation", v)}
+                />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

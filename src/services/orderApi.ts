@@ -64,6 +64,21 @@ export interface Order {
   delivered_at: string | null;
   created_at: string;
   updated_at: string;
+  /**
+   * backend-031 — WhatsApp customer-confirmation flow.
+   * null when the store didn't opt into require_order_confirmation
+   * for this order (the vast majority of rows today). When the store
+   * opts in, the order_confirmation_request_v1 template fires + this
+   * flips through "pending" → "confirmed" (+ reserved "declined" /
+   * "no_response" states).
+   */
+  customer_confirmation_status?:
+    | "pending"
+    | "confirmed"
+    | "declined"
+    | "no_response"
+    | null;
+  customer_confirmed_at?: string | null;
 }
 
 export interface OrderListItem {
@@ -88,6 +103,19 @@ export interface OrderListItem {
    * the campaign join (gracefully no-op badge).
    */
   campaign?: { id: string; name: string } | null;
+  /**
+   * backend-031 — surfaced on the orders list row so the merchant can
+   * see at a glance which orders are still waiting on a WhatsApp
+   * Confirm tap. Same column semantics as Order.customer_confirmation_status.
+   * Optional on the wire for back-compat with older backends.
+   */
+  customer_confirmation_status?:
+    | "pending"
+    | "confirmed"
+    | "declined"
+    | "no_response"
+    | null;
+  customer_confirmed_at?: string | null;
 }
 
 export interface PaginatedOrders {
