@@ -27,6 +27,35 @@ import { apiClient } from "./api";
 
 // ─── Catalog types ──────────────────────────────────────────────────────────
 
+/**
+ * One screenshot row from the admin metadata editor. Viewport drives
+ * whether the detail page renders it desktop-shaped or mobile-shaped.
+ */
+export interface ScreenshotOut {
+  url: string;
+  alt: string | null;
+  viewport: string;
+}
+
+/**
+ * One highlight tile on the detail page. Body is plain text; video_url
+ * is optional and triggers a poster-card layout when present.
+ */
+export interface HighlightOut {
+  title: string;
+  body: string;
+  video_url: string | null;
+}
+
+/**
+ * Catalog card shape — what the merchant sees in the grid. Mirrors
+ * `MarketplaceThemeOut` in `NUMU-api/src/api/v1/schemas/tenant/marketplace.py`.
+ *
+ * The card fields (screenshots, feature_tags, supported_languages,
+ * author_name, etc.) live at this level so the filter rail can apply
+ * client-side filtering over a single catalog GET — no second round-trip
+ * to the detail endpoint for each card.
+ */
 export interface CatalogTheme {
   id: string;
   slug: string;
@@ -34,14 +63,28 @@ export interface CatalogTheme {
   short_description: string | null;
   description: string | null;
   price_cents: number;
+  currency: string;
+  status: string;
   category: string | null;
   preview_url: string | null;
   thumbnail_url: string | null;
-  required_plan: string | null;
-  published_at: string | null;
-  /** Aggregate review score, if any. */
+  demo_store_url: string | null;
+  tags: string[];
+  supported_languages: string[];
+  supported_features: Record<string, unknown>;
+  install_count: number;
+  average_rating: number;
+  review_count: number;
+  /** Admin-curated metadata (Session A 2026-05-27, file 04 §6 + §8). */
+  author_name: string | null;
+  screenshots: ScreenshotOut[];
+  feature_tags: string[];
+  /** Pre-Session-A aspirational fields kept for backwards compat. */
+  required_plan?: string | null;
+  published_at?: string | null;
+  /** Convenience aliases used by some old callers — backend ships
+   *  `average_rating` / `install_count`, these mirror them. */
   rating?: number | null;
-  install_count?: number | null;
 }
 
 export interface CatalogListResponse {
@@ -51,48 +94,76 @@ export interface CatalogListResponse {
   total: number;
 }
 
-export interface ThemeVersion {
+/**
+ * One published version snapshot. Shape matches the dict the backend
+ * embeds under `latest_version` in `get_theme_detail`. Includes the
+ * artifacts needed by the storefront preview path.
+ */
+export interface LatestVersionMeta {
   id: string;
   version_string: string;
   release_notes: string | null;
-  published_at: string | null;
   bundle_url: string | null;
   css_url: string | null;
+  settings_schema: unknown;
+  section_schemas: unknown;
+  size_bytes: number | null;
 }
 
+/**
+ * Detail page payload. Inherits all the catalog fields and adds the
+ * detail-only extras (highlights, latest_version, author_url).
+ * Mirrors `ThemeDetailResponse` in the backend.
+ */
 export interface ThemeDetailResponse extends CatalogTheme {
-  /** All published versions, newest first. */
-  versions: ThemeVersion[];
-  /** Author display name + handle. */
-  developer?: {
-    id: string;
-    name: string;
-    handle?: string | null;
-  };
-  /** Optional gallery for the marketing page. */
-  screenshots?: string[];
+  latest_version: LatestVersionMeta | null;
+  author_url: string | null;
+  highlights: HighlightOut[];
 }
 
 // ─── Installed types ────────────────────────────────────────────────────────
 
+/**
+ * Shape of GET /stores/{id}/marketplace/installed — the actual JSON the
+ * backend ships, with nested `theme` + `version` objects.
+ *
+ * The previous flat shape this interface used was aspirational, not
+ * what the API actually sent — fixed in Session D after a runtime
+ * crash on the Library tab. See SESSION-D-COMPLETE.md B-17 for the
+ * trail.
+ */
 export interface InstalledTheme {
-  marketplace_theme_id: string;
-  name: string;
-  slug: string;
-  installed_version_id: string;
-  installed_version_string: string;
-  /** True if this is the currently-active theme on the store. */
-  active: boolean;
-  /** Bundle URL active right now (matches the storefront's external_theme). */
-  bundle_url: string | null;
-  css_url: string | null;
+  installation_id: string;
+  is_active: boolean;
   installed_at: string;
-  /** Population only when the merchant's pinned version isn't the latest. */
-  upgrade_available?: {
-    latest_version_id: string;
-    latest_version_string: string;
-    latest_published_at: string;
-    release_notes: string | null;
+  theme: {
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    short_description: string | null;
+    price_cents: number;
+    currency: string;
+    status: string;
+    thumbnail_url: string | null;
+    preview_url: string | null;
+    demo_store_url: string | null;
+    tags: string[];
+    category: string | null;
+    supported_languages: string[];
+    supported_features: Record<string, unknown>;
+    install_count: number;
+    average_rating: number;
+    review_count: number;
+    author_name?: string | null;
+    screenshots?: Array<{ url: string; alt: string | null; viewport: string }>;
+    feature_tags?: string[];
+  } | null;
+  version: {
+    id: string;
+    version_string: string;
+    bundle_url: string | null;
+    css_url: string | null;
   } | null;
 }
 
@@ -236,5 +307,47 @@ export function upgradeTheme(
   return apiClient<InstallationResponse>(
     `${STORE_BASE(storeId)}/upgrade/${marketplaceThemeId}`,
     { method: "POST" },
+  );
+}
+
+// ─── Snapshots (Session F, file 06 §9) ───────────────────────────────────────
+
+/**
+ * One theme snapshot row — the merchant-scoped mirror of the admin
+ * snapshot browser. Append-only audit trail; `restored_at` is the only
+ * mutable field (stamped by the future restore endpoint, which isn't
+ * built yet — Restore is disabled-with-tooltip in the UI).
+ *
+ * Shape matches `MerchantSnapshotItem` in
+ * `NUMU-api/src/api/v1/routes/marketplace/store_install.py`.
+ */
+export interface ThemeSnapshot {
+  id: string;
+  store_id: string;
+  theme_id: string | null;
+  theme_version_id: string | null;
+  reason: string;
+  created_at: string;
+  restored_at: string | null;
+  section_count: number;
+  section_group_count: number;
+  theme_name: string | null;
+}
+
+export interface SnapshotListResponse {
+  snapshots: ThemeSnapshot[];
+}
+
+/**
+ * List the calling merchant's own theme snapshots (read-only). Backed by
+ * `GET /stores/{id}/marketplace/snapshots`, gated by store ownership +
+ * RLS so a merchant can only ever read their own store's rows.
+ */
+export function listSnapshots(
+  storeId: string,
+  limit = 20,
+): Promise<SnapshotListResponse> {
+  return apiClient<SnapshotListResponse>(
+    `${STORE_BASE(storeId)}/snapshots?limit=${limit}`,
   );
 }

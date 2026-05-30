@@ -94,9 +94,11 @@ const DEVICES: { mode: DeviceMode; icon: typeof Monitor; label: Record<EditorLoc
 // product template selected here.
 const PAGES: { value: string; label: Record<EditorLocale, string> }[] = [
   { value: "home", label: { en: "Home", ar: "الرئيسية" } },
+  { value: "products", label: { en: "Products", ar: "المنتجات" } },
   { value: "product", label: { en: "Product", ar: "المنتج" } },
   { value: "collection", label: { en: "Collection", ar: "المجموعة" } },
   { value: "cart", label: { en: "Cart", ar: "السلة" } },
+  { value: "search", label: { en: "Search", ar: "البحث" } },
   { value: "checkout", label: { en: "Checkout", ar: "الدفع" } },
   { value: "order-confirmation", label: { en: "Order confirmation", ar: "تأكيد الطلب" } },
   { value: "profile", label: { en: "Profile", ar: "الحساب" } },

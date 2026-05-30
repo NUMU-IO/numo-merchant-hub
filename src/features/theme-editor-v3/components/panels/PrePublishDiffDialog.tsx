@@ -80,6 +80,9 @@ export function PrePublishDiffDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [firstPublish, setFirstPublish] = useState(false);
+  // A published version exists but its payload couldn't be loaded → we can't
+  // render a diff, but we must NEVER block Publish on a diff-preview failure.
+  const [diffUnavailable, setDiffUnavailable] = useState(false);
   const [focused, setFocused] = useState<FocusedSection | null>(null);
 
   useEffect(() => {
@@ -92,6 +95,8 @@ export function PrePublishDiffDialog({
     setLoading(true);
     setError(null);
     setFirstPublish(false);
+    setDiffUnavailable(false);
+    setLastPublished(null);
     void (async () => {
       try {
         // Fetch the most recent versions; pick the newest "published"
@@ -102,23 +107,25 @@ export function PrePublishDiffDialog({
         const published = list.versions.find((v) => v.is_published);
         if (!published) {
           setFirstPublish(true);
-          setLastPublished(null);
           return;
         }
         const payloadResp = await fetchVersionPayloadV3(storeId, published.id);
         if (cancelled) return;
-        setLastPublished(payloadResp.payload);
+        const payload = payloadResp?.payload;
+        if (payload && typeof payload === "object") {
+          setLastPublished(payload);
+        } else {
+          // A published version exists but its payload didn't come back as a
+          // usable object — degrade to "diff unavailable" so Publish still
+          // proceeds (never block on a diff-preview gap).
+          setDiffUnavailable(true);
+        }
       } catch (err) {
         if (cancelled) return;
-        // 404 on the payload endpoint = backend too old; fall through to
-        // first-publish UX so the merchant can still publish without
-        // the diff.
-        const msg = err instanceof Error ? err.message : String(err);
-        if (/404/.test(msg)) {
-          setFirstPublish(true);
-        } else {
-          setError(msg);
-        }
+        // ANY failure loading the baseline (missing endpoint, 404, network,
+        // deleted version) → diff unavailable, but Publish still proceeds.
+        // Blocking Publish on a diff-preview failure is never correct.
+        setDiffUnavailable(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -140,7 +147,14 @@ export function PrePublishDiffDialog({
     return entries.filter((e) => e.path.startsWith(focused.rootPath));
   }, [focused, entries]);
 
-  const noChanges = !loading && !firstPublish && entries.length === 0;
+  // Only a TRUE "nothing to publish" (baseline loaded + zero diff) disables
+  // Publish. firstPublish and diffUnavailable both keep Publish enabled.
+  const noChanges =
+    !loading &&
+    !firstPublish &&
+    !diffUnavailable &&
+    lastPublished !== null &&
+    entries.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -192,6 +206,19 @@ export function PrePublishDiffDialog({
               {isAr
                 ? "المسودة الحالية مطابقة لآخر إصدار منشور."
                 : "Your draft matches the last published version exactly."}
+            </p>
+          </div>
+        )}
+
+        {!loading && diffUnavailable && (
+          <div className="py-6 text-center space-y-2">
+            <p className="text-sm font-medium">
+              {isAr ? "تعذّر تحميل المقارنة" : "Diff preview unavailable"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {isAr
+                ? "تعذّر تحميل آخر إصدار منشور للمقارنة، لكن يمكنك المتابعة والنشر."
+                : "Couldn't load the last published version to compare — you can still publish."}
             </p>
           </div>
         )}
@@ -300,18 +327,22 @@ export function PrePublishDiffDialog({
           </Button>
           <Button
             onClick={() => void onConfirm()}
-            disabled={publishing || (noChanges && !firstPublish)}
+            disabled={publishing || noChanges}
           >
             {publishing && <Loader2 className="h-4 w-4 me-2 animate-spin" />}
             {firstPublish
               ? isAr
                 ? "نشر للمرة الأولى"
                 : "Publish for the first time"
-              : isAr
-                ? `نشر ${entries.length} تغيير`
-                : `Publish ${entries.length} change${
-                    entries.length === 1 ? "" : "s"
-                  }`}
+              : diffUnavailable
+                ? isAr
+                  ? "نشر"
+                  : "Publish"
+                : isAr
+                  ? `نشر ${entries.length} تغيير`
+                  : `Publish ${entries.length} change${
+                      entries.length === 1 ? "" : "s"
+                    }`}
           </Button>
         </DialogFooter>
       </DialogContent>

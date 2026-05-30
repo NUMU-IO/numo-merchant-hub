@@ -199,7 +199,11 @@ function SettingInputV3Input({ setting, value, locale, onChange, storeId }: Sett
   );
 
   const wrapper = (children: React.ReactNode, inline = false) => (
-    <div className={cn("space-y-1.5", inline && "flex items-center justify-between gap-3")} data-testid={testId}>
+    <div
+      className={cn("space-y-1.5", inline && "flex items-center justify-between gap-3")}
+      data-testid={testId}
+      data-setting-id={setting.id ?? undefined}
+    >
       {!inline && labelRow}
       {inline && (
         <Label className="text-sm font-medium text-foreground flex-1">{label}</Label>
@@ -455,7 +459,11 @@ function SettingInputV3Input({ setting, value, locale, onChange, storeId }: Sett
       );
 
     // ── 10. Font ──────────────────────────────────────────────────────
+    // Accept both `font` (canonical) and the `font_picker` alias some
+    // themes use (Shopify naming) so neither falls through to the silent
+    // text fallback.
     case "font":
+    case "font_picker":
       return wrapper(
         <FontPickerButton
           value={(value as string) ?? ""}
@@ -756,13 +764,28 @@ function SettingInputV3Input({ setting, value, locale, onChange, storeId }: Sett
       );
 
     // ── Fallback ──────────────────────────────────────────────────────
+    // Unknown setting type: render an editable text input (so the value is
+    // never lost) but LABEL it as unrecognized + warn in dev, instead of
+    // silently masquerading as a plain text field.
     default:
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[SettingInputV3] Unknown setting type "${setting.type}" for "${setting.id}" — rendering a plain text input.`,
+        );
+      }
       return wrapper(
-        <Input
-          value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-        />,
+        <div className="space-y-1">
+          <Input
+            value={String(value ?? "")}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+          />
+          <p className="text-[11px] text-amber-600 dark:text-amber-400">
+            {locale === "ar"
+              ? `نوع إعداد غير معروف: ${setting.type}`
+              : `Unrecognized setting type: ${setting.type}`}
+          </p>
+        </div>,
       );
   }
 }
