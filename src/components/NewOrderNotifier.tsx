@@ -19,7 +19,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingBag, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -65,9 +65,6 @@ interface OrderToastProps {
 function OrderToast({ order, isAr, toastId, onClick }: OrderToastProps) {
   const total = formatMoney(order.total, order.currency, isAr);
   const customer = order.customer_name?.trim();
-  const subtitle = customer
-    ? `${customer} · ${total}`
-    : `${order.order_number} · ${total}`;
 
   return (
     <button
@@ -76,22 +73,43 @@ function OrderToast({ order, isAr, toastId, onClick }: OrderToastProps) {
         toast.dismiss(toastId);
         onClick();
       }}
-      className="flex items-center gap-3 rounded-2xl bg-background/95 backdrop-blur-md border border-border/60 shadow-2xl shadow-black/10 dark:shadow-black/30 px-4 py-3 min-w-[280px] text-start hover:bg-background transition-colors"
+      className="group flex items-center gap-3 rounded-2xl bg-card border border-border shadow-pop ps-3 pe-4 py-3 min-w-[300px] max-w-[360px] text-start hover:bg-muted/40 transition-colors"
     >
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 shrink-0">
-        <ShoppingCart className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+      {/* Brand-tinted sage circle — perfect circle (aspect-square +
+          rounded-full), ShoppingBag sits cleanly inside. Bag glyph
+          has tighter visual bounds than ShoppingCart (no wheels
+          extending below the silhouette). */}
+      <div className="relative h-11 w-11 shrink-0 rounded-full bg-sage/15 grid place-items-center">
+        <ShoppingBag
+          className="h-5 w-5 text-sage"
+          strokeWidth={2.2}
+        />
+        {/* Sage pulse ring so the merchant catches the new order
+            in their periphery even with sound off. */}
+        <span className="absolute inset-0 rounded-full ring-2 ring-sage/40 animate-ping opacity-70" />
       </div>
+
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold leading-tight">
-          {isAr ? "طلب جديد!" : "New Order!"}
-        </p>
-        <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-          {subtitle}
+        <div className="flex items-baseline gap-2">
+          <p className="text-[13.5px] font-extrabold leading-tight">
+            {isAr ? "طلب جديد" : "New order"}
+          </p>
+          <span className="text-[10px] text-muted-foreground/70 shrink-0">
+            {isAr ? "الآن" : "now"}
+          </span>
+        </div>
+        <p className="text-[12px] text-muted-foreground mt-0.5 truncate">
+          {customer ? `${customer} · ` : ""}
+          <span className="font-mono tabular-nums">{order.order_number}</span>
+          <span className="mx-1">·</span>
+          <span className="font-extrabold text-foreground tabular-nums">{total}</span>
         </p>
       </div>
-      <span className="text-[10px] text-muted-foreground/60 shrink-0">
-        {isAr ? "الآن" : "now"}
-      </span>
+
+      <ArrowRight
+        className="h-4 w-4 text-muted-foreground/40 group-hover:text-foreground transition-colors shrink-0 rtl:rotate-180"
+        strokeWidth={2.2}
+      />
     </button>
   );
 }
