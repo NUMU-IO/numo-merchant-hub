@@ -287,6 +287,18 @@ export default function WhatsApp() {
   }
 
   // ── Connected State ──
+  // Toggle keys MUST match the backend's canonical schema at
+  // store.settings.whatsapp_notifications.{...} (see NUMU-api
+  // src/api/v1/schemas/stores/whatsapp.py::NotificationSettings).
+  //   shipping_update         — fires on OrderStatusChangedEvent(shipped)
+  //   delivery_confirmation   — fires on OrderStatusChangedEvent(delivered)
+  // Previous keys (order_shipped / order_delivered / out_for_delivery)
+  // wrote to a path the backend handler doesn't read, so the toggle
+  // appeared to work but had no effect on actual sends.
+  //
+  // abandoned_cart and out_for_delivery intentionally absent — no
+  // Meta template + dispatcher landed yet. They'll be added back when
+  // US3 ships the scheduled-send dispatcher.
   const notifItems: {
     key: keyof NotificationSettings;
     icon: React.ReactNode;
@@ -294,11 +306,9 @@ export default function WhatsApp() {
     labelAr: string;
   }[] = [
     { key: "order_confirmation", icon: <ShoppingCart className="h-4 w-4" />, label: "Order Confirmation", labelAr: "تأكيد الطلب" },
-    { key: "order_shipped", icon: <Truck className="h-4 w-4" />, label: "Order Shipped", labelAr: "تم الشحن" },
-    { key: "out_for_delivery", icon: <Package className="h-4 w-4" />, label: "Out for Delivery", labelAr: "في الطريق" },
-    { key: "order_delivered", icon: <CheckCheck className="h-4 w-4" />, label: "Delivered", labelAr: "تم التوصيل" },
     { key: "payment_received", icon: <CreditCard className="h-4 w-4" />, label: "Payment Received", labelAr: "تم الدفع" },
-    { key: "abandoned_cart", icon: <Clock className="h-4 w-4" />, label: "Abandoned Cart", labelAr: "سلة متروكة" },
+    { key: "shipping_update", icon: <Truck className="h-4 w-4" />, label: "Shipping Update", labelAr: "تم الشحن" },
+    { key: "delivery_confirmation", icon: <CheckCheck className="h-4 w-4" />, label: "Delivery Confirmation", labelAr: "تم التوصيل" },
   ];
 
   return (
