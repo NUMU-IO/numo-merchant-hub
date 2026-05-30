@@ -37,12 +37,20 @@ export interface NotificationToggle {
   sent_count_30d: number;
 }
 
+// Canonical key set — must match NUMU-api
+// `src/api/v1/schemas/stores/whatsapp.py::NotificationSettings`. Both
+// sides read/write `store.settings.whatsapp_notifications.{...}`; any
+// drift here silently breaks merchant toggles (they update a path the
+// backend handler doesn't read).
+//
+// `abandoned_cart` ships in the API surface so US3 can light it up
+// without an API bump, but the WhatsApp.tsx page intentionally does
+// NOT render a toggle for it (no scheduled-send dispatcher yet).
 export interface NotificationSettings {
   order_confirmation: NotificationToggle;
-  order_shipped: NotificationToggle;
-  out_for_delivery: NotificationToggle;
-  order_delivered: NotificationToggle;
   payment_received: NotificationToggle;
+  shipping_update: NotificationToggle;
+  delivery_confirmation: NotificationToggle;
   abandoned_cart: NotificationToggle;
 }
 
