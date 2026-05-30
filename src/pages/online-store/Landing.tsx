@@ -115,10 +115,25 @@ const OnlineStoreLanding = () => {
   // show whichever theme happens to come first in the catalog, which
   // is wrong when the merchant has switched away from the default.
   const activeThemeId = customizationQuery.data?.theme?.base_theme;
+  // Three-tier resolution: catalog match → catalog default → synthesized
+  // entry from the merchant's own base_theme id. The last fallback matters
+  // when the editor has been configured with a slug that the public
+  // /storefront/themes catalog doesn't surface (legacy / deprecated /
+  // BYOT), so the card still reads with the real theme name instead of
+  // a hardcoded "Souq" placeholder.
+  const catalogMatch = activeThemeId
+    ? themes.find((t) => t.id === activeThemeId)
+    : undefined;
   const liveTheme: AvailableTheme =
-    (activeThemeId && themes.find((t) => t.id === activeThemeId))
+    catalogMatch
     || themes[0]
-    || ({ id: "souq", name: "Souq", description: "" } as AvailableTheme);
+    || (activeThemeId
+      ? ({
+          id: activeThemeId,
+          name: activeThemeId.charAt(0).toUpperCase() + activeThemeId.slice(1),
+          description: "",
+        } as AvailableTheme)
+      : ({ id: "souq", name: "Souq", description: "" } as AvailableTheme));
   const otherThemes = themes.filter((t) => t.id !== liveTheme.id);
 
   return (
