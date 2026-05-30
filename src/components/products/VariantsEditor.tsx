@@ -91,7 +91,11 @@ export default function VariantsEditor({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Initial load.
+  // Initial load. The admin variants CRUD endpoint
+  // (`/stores/{id}/products/{id}/variants`) isn't deployed on every
+  // environment — the backend currently only resolves variants for the
+  // public storefront. Treat a 404 as "no variants yet" so the editor
+  // opens in build-from-scratch mode instead of firing an error toast.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -109,7 +113,16 @@ export default function VariantsEditor({
           })),
         );
       } catch (err) {
-        onError?.(err instanceof Error ? err.message : "Failed to load variants.");
+        if (cancelled) return;
+        const status = (err as { status?: number })?.status;
+        // 404 on first load = no variants yet (or backend not deployed).
+        // Silently treat as an empty list; surface only real errors.
+        if (status === 404) {
+          setVariants([]);
+          setRows([]);
+        } else {
+          onError?.(err instanceof Error ? err.message : "Failed to load variants.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

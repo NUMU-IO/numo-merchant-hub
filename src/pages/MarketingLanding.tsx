@@ -108,36 +108,33 @@ const MarketingLanding = () => {
         </Button>
       </div>
 
-      {/* ─── 4 KPI tiles (Souq spec) ──────────────────────────── */}
+      {/* ─── 4 KPI tiles — icons sit as a small top-right accent
+          (no chip background) so they read as labels, not as the
+          generic-SaaS tinted-square pattern. */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card><CardContent className="p-5 flex flex-col gap-3">
-          <div className="ichip ichip-navy"><Tag className="h-5 w-5" strokeWidth={2.2} /></div>
-          <div>
-            <p className="text-[12.5px] font-semibold text-muted-foreground">{isRTL ? "خصومات شغّالة" : "Active discounts"}</p>
-            <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">{fmtN(activeDiscounts)}</p>
-          </div>
-        </CardContent></Card>
-        <Card><CardContent className="p-5 flex flex-col gap-3">
-          <div className="ichip ichip-saffron"><Megaphone className="h-5 w-5" strokeWidth={2.2} /></div>
-          <div>
-            <p className="text-[12.5px] font-semibold text-muted-foreground">{isRTL ? "الحملات" : "Campaigns"}</p>
-            <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">{fmtN(campaigns.length)}</p>
-          </div>
-        </CardContent></Card>
-        <Card><CardContent className="p-5 flex flex-col gap-3">
-          <div className="ichip ichip-sage"><UsersRound className="h-5 w-5" strokeWidth={2.2} /></div>
-          <div>
-            <p className="text-[12.5px] font-semibold text-muted-foreground">{isRTL ? "الوصول" : "Reach"}</p>
-            <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">{fmtN(totalReach)}</p>
-          </div>
-        </CardContent></Card>
-        <Card><CardContent className="p-5 flex flex-col gap-3">
-          <div className="ichip ichip-terra"><Ticket className="h-5 w-5" strokeWidth={2.2} /></div>
-          <div>
-            <p className="text-[12.5px] font-semibold text-muted-foreground">{isRTL ? "اتستخدم" : "Redeemed"}</p>
-            <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">{fmtN(totalRedeemed)}</p>
-          </div>
-        </CardContent></Card>
+        {([
+          { label: isRTL ? "خصومات شغّالة" : "Active discounts", value: activeDiscounts, Icon: Tag, color: "text-navy" },
+          { label: isRTL ? "الحملات" : "Campaigns", value: campaigns.length, Icon: Megaphone, color: "text-saffron" },
+          { label: isRTL ? "الوصول" : "Reach", value: totalReach, Icon: UsersRound, color: "text-sage" },
+          { label: isRTL ? "اتستخدم" : "Redeemed", value: totalRedeemed, Icon: Ticket, color: "text-terracotta" },
+        ] as const).map((tile) => (
+          <Card key={tile.label}>
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between mb-3">
+                <p className="text-[12.5px] font-semibold text-muted-foreground">
+                  {tile.label}
+                </p>
+                <tile.Icon
+                  className={`h-5 w-5 ${tile.color}`}
+                  strokeWidth={1.8}
+                />
+              </div>
+              <p className="text-[26px] font-extrabold tabular-nums leading-none">
+                {fmtN(tile.value)}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* ─── Segmented control ─────────────────────────────────── */}
@@ -187,9 +184,10 @@ const MarketingLanding = () => {
               </div>
             ) : coupons.length === 0 ? (
               <div className="text-center py-10">
-                <div className="ichip ichip-saffron ichip-lg mx-auto mb-3">
-                  <Tag className="h-6 w-6" strokeWidth={2} />
-                </div>
+                <Tag
+                  className="h-10 w-10 mx-auto mb-3 text-saffron"
+                  strokeWidth={1.6}
+                />
                 <p className="text-sm font-bold">{isRTL ? "مفيش كوبونات لسه" : "No discount codes yet"}</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {isRTL ? "أنشئ أول كوبون عشان تجذب العملاء" : "Create your first code to attract shoppers"}
@@ -250,10 +248,8 @@ const MarketingLanding = () => {
         {/* WhatsApp broadcast card */}
         <Card>
           <CardContent className="p-5 flex flex-col gap-3 h-full">
-            <div className="flex items-center gap-3">
-              <div className="ichip ichip-sage">
-                <WhatsAppGlyph className="h-5 w-5" />
-              </div>
+            <div className="flex items-center gap-4">
+              <WhatsAppGlyph className="h-9 w-9 text-[#1F7A35] dark:text-emerald-400 shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-[15px] font-extrabold leading-tight">
                   {isRTL ? "رسالة واتساب جماعية" : "WhatsApp broadcast"}
@@ -309,9 +305,10 @@ const MarketingLanding = () => {
             </div>
           ) : campaigns.length === 0 ? (
             <div className="text-center py-10">
-              <div className="ichip ichip-saffron ichip-lg mx-auto mb-3">
-                <Megaphone className="h-6 w-6" strokeWidth={2} />
-              </div>
+              <Megaphone
+                className="h-10 w-10 mx-auto mb-3 text-saffron"
+                strokeWidth={1.6}
+              />
               <p className="text-sm font-bold">{isRTL ? "مفيش حملات لسه" : "No campaigns yet"}</p>
               <p className="text-xs text-muted-foreground mt-1">
                 {isRTL ? "اعمل حملة تتبع الإسناد لكل قناة" : "Launch a campaign to track attribution per channel"}
@@ -329,8 +326,8 @@ const MarketingLanding = () => {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {campaigns.slice(0, 4).map((c, i) => {
-                const tone = ["ichip-navy", "ichip-saffron", "ichip-sage", "ichip-terra"][i % 4];
-                const icon = i % 2 === 0 ? <Megaphone className="h-5 w-5" strokeWidth={2.2} /> : <Sparkles className="h-5 w-5" strokeWidth={2.2} />;
+                const accent = ["text-navy", "text-saffron", "text-sage", "text-terracotta"][i % 4];
+                const Icon = i % 2 === 0 ? Megaphone : Sparkles;
                 return (
                   <button
                     key={c.id}
@@ -338,8 +335,8 @@ const MarketingLanding = () => {
                     onClick={() => navigate(`/campaigns/${c.id}`)}
                     className="rounded-xl border border-border bg-card p-4 hover-lift text-start flex flex-col gap-3"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={`ichip ${tone}`}>{icon}</div>
+                    <div className="flex items-center gap-4">
+                      <Icon className={`h-8 w-8 ${accent} shrink-0`} strokeWidth={1.8} />
                       <div className="flex-1 min-w-0">
                         <div className="text-[14px] font-extrabold truncate">{c.name}</div>
                         <div className="text-[11px] text-muted-foreground truncate">{c.channel || "—"}</div>

@@ -84,6 +84,7 @@ const OnlineStoreLanding = () => {
   const { isRTL } = useLanguage();
   const { currentStore } = useDashboardStore();
   const navigate = useNavigate();
+  const storeId = currentStore?.id;
   const storeUrl = currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null;
 
   const themesQuery = useQuery({
