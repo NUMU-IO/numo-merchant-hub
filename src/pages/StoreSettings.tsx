@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { SettingsBreadcrumb } from "@/components/layout/SettingsBreadcrumb";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import {
   Card,
@@ -1421,7 +1422,12 @@ const StoreSettings = () => {
   const groupedThemeSettings = groupSettings(currentThemeSettings);
 
   return (
-    <div className="settings-layout">
+    <>
+      {/* Breadcrumb back to Settings hub */}
+      <div className="px-2 sm:px-0 pt-4">
+        <SettingsBreadcrumb current={language === "ar" ? "إعدادات المتجر" : "Store settings"} />
+      </div>
+      <div className="settings-layout">
       {/* ═══ Sidebar Navigation ═══ */}
       <nav className="settings-nav scrollbar-none">
         {navGroups.map((group) => (
@@ -3854,6 +3860,7 @@ const StoreSettings = () => {
         />
       )}
     </div>
+    </>
   );
 };
 

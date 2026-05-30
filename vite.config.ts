@@ -83,18 +83,14 @@ export default defineConfig(({ mode }) => ({
       "/api": {
         // Local FastAPI on :8021. Point at https://numueg.app to hit
         // staging/prod instead.
-        target: "http://localhost:8021",
+        target: "https://numueg.app",
         changeOrigin: true,
         cookieDomainRewrite: "",
         secure: false,
       },
     },
   },
-  plugins: [
-    react(),
-    vitePluginCSP(),
-    viteStripHeavyPreloads(),
-  ],
+  plugins: [react(), vitePluginCSP(), viteStripHeavyPreloads()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

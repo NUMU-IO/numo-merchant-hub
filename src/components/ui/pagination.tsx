@@ -31,14 +31,18 @@ type PaginationLinkProps = {
 } & Pick<ButtonProps, "size"> &
   React.ComponentProps<"a">;
 
+/* Souq pagination link — active page is solid navy (matches
+   `.souq-chip.on`), inactive is ghost with warm cream hover. */
 const PaginationLink = ({ className, isActive, size = "icon", ...props }: PaginationLinkProps) => (
   <a
     aria-current={isActive ? "page" : undefined}
     className={cn(
       buttonVariants({
-        variant: isActive ? "outline" : "ghost",
+        variant: isActive ? "default" : "ghost",
         size,
       }),
+      "rounded-xl h-10 min-w-10 px-3 text-[13.5px] font-bold tabular-nums",
+      !isActive && "text-ink-soft hover:text-foreground",
       className,
     )}
     {...props}

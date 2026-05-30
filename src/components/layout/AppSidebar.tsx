@@ -1,24 +1,37 @@
-import { useTranslation } from "react-i18next";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronLeft, Check, Plus } from "lucide-react";
+import { CaretUpDown } from "@phosphor-icons/react";
 import {
-  LayoutDashboard, Package, ShoppingCart, Store, CreditCard, Share2, Banknote,
-  Users, BarChart3, Megaphone, Settings, FolderOpen, Bell, Receipt, Truck, Wallet,
-  Palette, FileText, FileEdit, Navigation2, SlidersHorizontal, ClipboardList, ChevronLeft, Filter, Radio,
-  Lightbulb, LineChart, MousePointerClick, DollarSign, HandCoins, UserPlus,
-  UserCog, User, Inbox, PlugZap, Mail, Sparkles, Tag, ShoppingBag, Boxes,
-  Percent, Gift, Ticket, BadgePercent, TrendingUp, Compass, Send,
-  UserCheck, AlertTriangle, MessageCircle,
-} from "lucide-react";
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+// Phosphor icons match the Souq spec: duotone at rest, fill when active.
+// Each named here is the React component; the `weight` prop controls
+// the stylistic variant. Aliasing lets the rest of the file keep its
+// Souq-spec names (`House`, `Storefront`, `Money`, `Gear`) instead of
+// the lucide-style names that were here before.
+import {
+  House, ShoppingCart, Package, Users, Storefront, Megaphone,
+  ChartLineUp, Wallet, Money, Truck, Gear, Bell, Cube as Boxes,
+  Tag, NotePencil as FileEdit, ShoppingBag, FolderOpen, Receipt, SealPercent as BadgePercent,
+  Gift, Tray as Inbox, ChatCircle as MessageCircle, FileText, PaperPlaneTilt as Send,
+  TrendUp as TrendingUp, UserPlus, MapPin, Sparkle as Sparkles,
+  PlugsConnected as PlugZap, Envelope as Mail, Funnel as Filter, Broadcast as Radio,
+  Lightbulb, ChartLine as LineChart, Cursor as MousePointerClick,
+  ClipboardText as ClipboardList, ArrowsLeftRight as Navigation2,
+  SlidersHorizontal, Palette, User, UserGear as UserCog, UserCheck,
+  WarningCircle as AlertTriangle, ChartBar as BarChart3,
+  CreditCard,
+} from "@phosphor-icons/react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 import { listThreads } from "@/services/inboxApi";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem,
-  SidebarFooter, SidebarMenuSub, SidebarMenuSubItem,
+  SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
+  SidebarFooter, SidebarHeader, SidebarMenuSub, SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
 import {
@@ -27,580 +40,545 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { NavItemGate } from "./NavItemGate";
 
+type IconType = typeof House;
+type NavSubItem = { title: string; url: string; icon: IconType };
+
 const AppSidebar = () => {
-  const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const location = useLocation();
-  const { currentStore } = useDashboardStore();
-  // Offers-v2 promotions surface — hidden until the platform flips the
-  // tenant flag during phased rollout. Off by default → invisible nav row.
-  const promotionsV2Enabled = useFeatureFlag("ff_promotions_v2");
+  const navigate = useNavigate();
+  const { currentStore, stores, switchStore } = useDashboardStore();
 
   const { data: inboxData } = useQuery({
     queryKey: ["inbox", "threads", currentStore?.id],
     queryFn: () => listThreads(currentStore!.id),
     enabled: !!currentStore?.id,
   });
-
   const totalUnread = inboxData?.total_unread ?? 0;
 
   const isActive = (url: string) =>
     url === "/" ? location.pathname === "/" : location.pathname.startsWith(url);
 
-  const analyticsActive = isActive("/analytics");
-  const onlineStoreActive = isActive("/online-store") || isActive("/store");
-  const staffActive = isActive("/staff") || isActive("/roles");
-  const channelsActive = isActive("/channels") || isActive("/inbox");
-  const whatsappActive =
-    isActive("/whatsapp") || isActive("/channels/whatsapp");
-  const marketingActive = isActive("/marketing");
-  // Marketing parent — feature 002 US1. Distinct from `marketingActive`
-  // (which is the legacy `/marketing` URL hosting Coupons under the
-  // Discounts dropdown). The new Marketing parent wraps Campaigns +
-  // Attribution as a single nav group.
-  const campaignsNavActive =
-    isActive("/campaigns") ||
-    isActive("/marketing/attribution") ||
-    isActive("/marketing/audiences");
-  // Active state for the Orders parent — covers the list, the create flow,
-  // the detail page, and any /orders/* sub-page (drafts, etc.).
+  // ─── Group active states (parent highlights when any child is active) ──
   const ordersActive = isActive("/orders");
+  const productsActive = isActive("/products") || isActive("/categories");
+  const onlineStoreActive = isActive("/online-store") || isActive("/store");
+  const marketingActive =
+    isActive("/marketing") ||
+    isActive("/campaigns") ||
+    isActive("/gift-cards") ||
+    isActive("/whatsapp") ||
+    isActive("/email-templates") ||
+    isActive("/channels/whatsapp");
+  const analyticsActive = isActive("/analytics") || isActive("/health-score");
+  const financeActive =
+    isActive("/payments") ||
+    isActive("/wallet") ||
+    isActive("/store-balance") ||
+    isActive("/invoices") ||
+    isActive("/payment-setup") ||
+    isActive("/billing");
+  const logisticsActive =
+    isActive("/logistics") || isActive("/shipping");
+  const channelsActive = isActive("/channels") || isActive("/inbox");
 
-  // Discounts is the unified nav home for everything that reduces the
-  // customer's bill: coupons, promotions/offers (BOGO, %-off, tiered, etc.
-  // — all surface from the same PromotionsList page), and gift cards.
-  // The Promotions sub-item used to be hidden behind `ff_promotions_v2`,
-  // which left merchants unable to find their existing BOGO/offer rules;
-  // it's now always visible.
-  const discountsActive =
-    isActive("/marketing") || isActive("/gift-cards");
-  const discountsSubItems = [
-    { title: isRTL ? "الكوبونات" : "Coupons", url: "/marketing", icon: Ticket },
+  // ─── Sub-item lists (kept close to the parent for readability) ─────────
+  const ordersSub: NavSubItem[] = [
+    { title: isRTL ? "كل الطلبات" : "All orders", url: "/orders", icon: ShoppingCart },
+    { title: isRTL ? "المسودات" : "Drafts", url: "/orders/drafts", icon: FileEdit },
+    { title: isRTL ? "السلال المهجورة" : "Abandoned", url: "/orders/abandoned", icon: ShoppingBag },
+    { title: isRTL ? "بوالص الشحن" : "Shipping labels", url: "/orders/shipping-labels", icon: Tag },
+  ];
+  const productsSub: NavSubItem[] = [
+    { title: isRTL ? "كل المنتجات" : "All products", url: "/products", icon: Package },
+    { title: isRTL ? "الفئات" : "Categories", url: "/categories", icon: FolderOpen },
+  ];
+  // Marketing — discounts + campaigns + whatsapp + gift cards + email
+  // templates, all rolled into one parent the spec calls "Marketing".
+  const marketingSub: NavSubItem[] = [
+    { title: isRTL ? "نظرة عامة" : "Overview", url: "/marketing", icon: Megaphone },
+    { title: isRTL ? "الكوبونات" : "Coupons", url: "/marketing/coupons", icon: Tag },
     { title: isRTL ? "العروض" : "Promotions", url: "/marketing/promotions", icon: BadgePercent },
     { title: isRTL ? "بطاقات الهدايا" : "Gift cards", url: "/gift-cards", icon: Gift },
-  ];
-
-  // Marketing parent sub-items — feature 002 US1 + spec 005 US1
-  const marketingNavSubItems = [
     { title: isRTL ? "الحملات" : "Campaigns", url: "/campaigns", icon: Send },
-    {
-      title: isRTL ? "الإسناد" : "Attribution",
-      url: "/marketing/attribution",
-      icon: TrendingUp,
-    },
-    {
-      title: isRTL ? "الجماهير" : "Audiences",
-      url: "/marketing/audiences",
-      icon: Users,
-    },
+    { title: isRTL ? "واتساب" : "WhatsApp", url: "/whatsapp", icon: MessageCircle },
+    { title: isRTL ? "قوالب البريد" : "Email templates", url: "/email-templates", icon: Mail },
+    { title: isRTL ? "الإسناد" : "Attribution", url: "/marketing/attribution", icon: TrendingUp },
+    { title: isRTL ? "الجماهير" : "Audiences", url: "/marketing/audiences", icon: Users },
+    { title: isRTL ? "الإحالات" : "Referrals", url: "/referrals", icon: UserPlus },
   ];
-
-  // WhatsApp sub-items — backend-030 surfaced the BYO connect, opt-ins
-  // inbox, and dead-letters viewer as their own pages. They had no
-  // nav entry before this, so merchants couldn't reach them.
-  const whatsappNavSubItems = [
-    { title: isRTL ? "صندوق الوارد" : "Inbox", url: "/whatsapp/inbox", icon: Inbox },
-    { title: isRTL ? "الحملات" : "Campaigns", url: "/whatsapp/campaigns", icon: Send },
-    {
-      title: isRTL ? "القوالب" : "Templates",
-      url: "/channels/whatsapp/templates",
-      icon: FileText,
-    },
-    {
-      title: isRTL ? "اشتراكات العملاء" : "Opt-ins",
-      url: "/whatsapp/opt-ins",
-      icon: UserCheck,
-    },
-    {
-      title: isRTL ? "ربط الحساب" : "Connect (BYO)",
-      url: "/whatsapp/byo",
-      icon: PlugZap,
-    },
-    {
-      title: isRTL ? "الرسائل الفاشلة" : "Dead letters",
-      url: "/whatsapp/dead-letters",
-      icon: AlertTriangle,
-    },
-  ];
-
-  // Analytics sub-items
-  const analyticsSubItems = [
+  const analyticsSub: NavSubItem[] = [
     { title: isRTL ? "نظرة عامة" : "Overview", url: "/analytics/overview", icon: BarChart3 },
-    { title: isRTL ? "التقارير" : "Reports", url: "/analytics/reports", icon: FileText },
     { title: isRTL ? "المبيعات" : "Sales", url: "/analytics/sales", icon: CreditCard },
     { title: isRTL ? "الطلبات" : "Orders", url: "/analytics/orders", icon: ShoppingCart },
     { title: isRTL ? "العملاء" : "Customers", url: "/analytics/customers", icon: Users },
     { title: isRTL ? "المنتجات" : "Products", url: "/analytics/products", icon: Package },
     { title: isRTL ? "القمع" : "Funnel", url: "/analytics/funnel", icon: Filter },
-    { title: isRTL ? "التسويق" : "Marketing", url: "/analytics/marketing", icon: Megaphone },
-    // Analytics legacy sub-items — point at the new consolidated
-    // Attribution page (feature 002 US2). Old URLs still 302 here via
-    // App.tsx redirects, but linking directly skips the redirect flash.
-    { title: isRTL ? "القيمة مدى الحياة" : "LTV", url: "/marketing/attribution?tab=ltv", icon: TrendingUp },
-    { title: isRTL ? "إسناد متعدد" : "Multi-touch", url: "/marketing/attribution?tab=multi-touch", icon: Compass },
+    { title: isRTL ? "التقارير" : "Reports", url: "/analytics/reports", icon: FileText },
     { title: isRTL ? "مباشر" : "Live", url: "/analytics/live", icon: Radio },
     { title: isRTL ? "تحليلات ذكية" : "Insights", url: "/analytics/insights", icon: Lightbulb },
     { title: isRTL ? "التوقعات" : "Forecast", url: "/analytics/forecast", icon: LineChart },
     { title: isRTL ? "رحلة العميل" : "Journey", url: "/analytics/journey", icon: MousePointerClick },
+    { title: isRTL ? "صحة المتجر" : "Store health", url: "/health-score", icon: Sparkles },
   ];
-
-  // Online Store sub-items
-  const onlineStoreSubItems = [
+  const financeSub: NavSubItem[] = [
+    { title: isRTL ? "نظرة عامة" : "Overview", url: "/payments", icon: Wallet },
+    { title: isRTL ? "التحويلات" : "Payouts", url: "/wallet", icon: TrendingUp },
+    { title: isRTL ? "رصيد المتجر" : "Store balance", url: "/store-balance", icon: Money },
+    { title: isRTL ? "الفواتير" : "Invoices", url: "/invoices", icon: Receipt },
+    { title: isRTL ? "إعداد الدفع" : "Payment setup", url: "/payment-setup", icon: CreditCard },
+    { title: isRTL ? "الاشتراك" : "Billing", url: "/billing", icon: Sparkles },
+  ];
+  const onlineStoreSub: NavSubItem[] = [
+    { title: isRTL ? "نظرة عامة" : "Overview", url: "/online-store", icon: Storefront },
     { title: isRTL ? "الثيمات" : "Themes", url: "/online-store/themes", icon: Palette },
     { title: isRTL ? "الصفحات" : "Pages", url: "/online-store/pages", icon: FileText },
     { title: isRTL ? "التنقل" : "Navigation", url: "/online-store/navigation", icon: Navigation2 },
     { title: isRTL ? "التفضيلات" : "Preferences", url: "/online-store/preferences", icon: SlidersHorizontal },
     { title: isRTL ? "حقول الدفع" : "Checkout fields", url: "/online-store/checkout-fields", icon: ClipboardList },
-    { title: isRTL ? "إصداراتي" : "My theme submissions", url: "/online-store/my-themes", icon: Package },
+    { title: isRTL ? "إصداراتي" : "My themes", url: "/online-store/my-themes", icon: Package },
   ];
-
-  // Staff sub-items
-  const staffSubItems = [
+  const logisticsSub: NavSubItem[] = [
+    { title: isRTL ? "الشحنات" : "Shipments", url: "/logistics", icon: Truck },
+    { title: isRTL ? "المناطق" : "Zones", url: "/shipping/zones", icon: MapPin },
+    { title: isRTL ? "المواقع" : "Locations", url: "/locations", icon: MapPin },
+  ];
+  const whatsappOpsSub: NavSubItem[] = [
+    { title: isRTL ? "صندوق الوارد" : "Inbox", url: "/whatsapp/inbox", icon: Inbox },
+    { title: isRTL ? "الحملات" : "Campaigns", url: "/whatsapp/campaigns", icon: Send },
+    { title: isRTL ? "القوالب" : "Templates", url: "/channels/whatsapp/templates", icon: FileText },
+    { title: isRTL ? "اشتراكات العملاء" : "Opt-ins", url: "/whatsapp/opt-ins", icon: UserCheck },
+    { title: isRTL ? "ربط الحساب" : "Connect (BYO)", url: "/whatsapp/byo", icon: PlugZap },
+    { title: isRTL ? "الرسائل الفاشلة" : "Dead letters", url: "/whatsapp/dead-letters", icon: AlertTriangle },
+  ];
+  const staffSub: NavSubItem[] = [
     { title: isRTL ? "الأعضاء" : "Members", url: "/staff", icon: User },
     { title: isRTL ? "الأدوار" : "Roles", url: "/roles", icon: UserCog },
   ];
 
-  // Orders sub-items. "All orders" mirrors the parent's URL so clicking either
-  // the row label or this sub-item lands on the same page (matches the
-  // Shopify pattern). Drafts + Shipping labels + Abandoned checkouts are
-  // dedicated sub-pages.
-  const ordersSubItems = [
-    { title: isRTL ? "كل الطلبات" : "All orders", url: "/orders", icon: ShoppingCart },
-    { title: isRTL ? "المسودات" : "Drafts", url: "/orders/drafts", icon: FileEdit },
-    { title: isRTL ? "بطاقات الشحن" : "Shipping labels", url: "/orders/shipping-labels", icon: Tag },
-    { title: isRTL ? "السلال المهجورة" : "Abandoned checkouts", url: "/orders/abandoned", icon: ShoppingBag },
-  ];
-
-  // Collapsible section builder (for bottom sections)
-  const renderCollapsible = (
-    label: string,
-    items: { title: string; url: string; icon: typeof Store }[],
-    defaultOpen: boolean,
-    groupName: string,
-  ) => (
-    <Collapsible defaultOpen={defaultOpen} className={`group/${groupName}`}>
-      <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-[11px] font-semibold text-muted-foreground/60 hover:text-muted-foreground transition-colors">
-        <span>{label}</span>
-        <ChevronLeft className={`h-3.5 w-3.5 transition-transform duration-200 group-data-[state=open]/${groupName}:-rotate-90 ${isRTL ? "" : "rotate-180 group-data-[state=open]/" + groupName + ":rotate-90"}`} />
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.url}>
-              <SidebarMenuButton
-                asChild
-                isActive={isActive(item.url)}
-                tooltip={item.title}
-                className="h-9 rounded-lg px-3"
-              >
-                <NavLink to={item.url}>
-                  <item.icon className="h-[18px] w-[18px] opacity-70" />
-                  <span className="text-[13px]">{item.title}</span>
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-
-  // Expandable nav item: clickable link + chevron expands sub-items inline
-  const renderExpandableItem = (
+  // ─── Pure-flat (no sub) row ───────────────────────────────────────────
+  // Souq spec: Phosphor `duotone` at rest, `fill` when active. The icon
+  // turns saffron on active rows via the `data-[active=true]` CSS rule
+  // in index.css.
+  const navRow = (
     title: string,
     url: string,
-    icon: typeof BarChart3,
-    subItems: { title: string; url: string; icon: typeof BarChart3 }[],
+    Icon: IconType,
+    extra?: React.ReactNode,
+  ) => {
+    const active = isActive(url);
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          asChild
+          isActive={active}
+          tooltip={title}
+          className="h-10 rounded-lg px-3"
+        >
+          <NavLink to={url}>
+            <Icon size={20} weight={active ? "fill" : "duotone"} className="text-navy dark:text-saffron" />
+            <span className="text-[13px] font-medium">{title}</span>
+            {extra}
+          </NavLink>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  };
+
+  // ─── Parent row with sub-items (Souq spec) ────────────────────────────
+  // Parent is a real link; the chevron toggles the sub-list. Caret flips
+  // 180° on open. Children render as an indented list with a connecting
+  // hairline; the dot per child fills saffron when that child is active.
+  const navParent = (
+    title: string,
+    url: string,
+    Icon: IconType,
+    subItems: NavSubItem[],
     active: boolean,
     groupName: string,
-  ) => {
-    const Icon = icon;
-    return (
-      <Collapsible defaultOpen={active} className={`group/${groupName}`}>
-        <SidebarMenuItem>
-          <div className="flex items-center">
-            <SidebarMenuButton
-              asChild
-              isActive={active}
-              tooltip={title}
-              className="h-10 rounded-lg px-3 flex-1"
-            >
-              <NavLink to={url}>
-                <Icon className="h-[18px] w-[18px] opacity-70" />
-                <span className="text-[13px] font-medium">{title}</span>
-              </NavLink>
-            </SidebarMenuButton>
-            <CollapsibleTrigger className="p-1.5 rounded-md hover:bg-muted/60 transition-colors group-data-[collapsible=icon]:hidden">
-              <ChevronLeft className={`h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-200 group-data-[state=open]/${groupName}:-rotate-90 ${isRTL ? "" : "rotate-180 group-data-[state=open]/" + groupName + ":rotate-90"}`} />
-            </CollapsibleTrigger>
-          </div>
-          <CollapsibleContent>
-            <SidebarMenuSub>
-              {subItems.map((item) => (
+    badge?: React.ReactNode,
+  ) => (
+    <Collapsible defaultOpen={active} className={`group/${groupName}`}>
+      <SidebarMenuItem>
+        <div className="flex items-center">
+          <SidebarMenuButton
+            asChild
+            isActive={active}
+            tooltip={title}
+            className="h-10 rounded-lg px-3 flex-1"
+          >
+            <NavLink to={url}>
+              <Icon size={20} weight={active ? "fill" : "duotone"} className="text-navy dark:text-saffron" />
+              <span className="text-[13px] font-medium">{title}</span>
+              {badge}
+            </NavLink>
+          </SidebarMenuButton>
+          <CollapsibleTrigger className="p-1.5 rounded-md hover:bg-muted/60 transition-colors group-data-[collapsible=icon]:hidden">
+            <ChevronLeft className={`h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-200 group-data-[state=open]/${groupName}:-rotate-90 ${isRTL ? "" : "rotate-180 group-data-[state=open]/" + groupName + ":rotate-90"}`} />
+          </CollapsibleTrigger>
+        </div>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {subItems.map((item) => {
+              const subActive = isActive(item.url);
+              return (
                 <SidebarMenuSubItem key={item.url}>
-                  <SidebarMenuSubButton asChild isActive={isActive(item.url)}>
+                  <SidebarMenuSubButton asChild isActive={subActive}>
                     <NavLink to={item.url}>
-                      <item.icon className="h-3.5 w-3.5" />
+                      <item.icon size={14} weight={subActive ? "fill" : "duotone"} />
                       <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuSubButton>
                 </SidebarMenuSubItem>
-              ))}
-            </SidebarMenuSub>
-          </CollapsibleContent>
-        </SidebarMenuItem>
-      </Collapsible>
-    );
-  };
+              );
+            })}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  );
+
+  // Group label — built-in SidebarGroupLabel handles icon-mode collapse
+  // via its baked-in `-mt-8 opacity-0` transition (so the label slides
+  // up and fades out cleanly instead of remaining as truncated text).
+  // Souq spec: 11px / 700 / uppercase / +0.08em tracking / ink-faint.
+  const groupLabel = (label: string) => (
+    <SidebarGroupLabel className="px-3 pt-4 pb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/60">
+      {label}
+    </SidebarGroupLabel>
+  );
 
   return (
     <Sidebar collapsible="icon" side={isRTL ? "right" : "left"}>
-      <SidebarContent>
-        {/* Brand */}
-        <div className="flex h-14 items-center gap-2.5 px-4 group-data-[collapsible=icon]:justify-center border-b border-sidebar-border/40">
-          <img src="/numu-mark.webp" alt="" className="h-7 w-7 object-contain shrink-0" />
+      {/* Brand — sticky 68px row outside SidebarContent so it doesn't
+          scroll away with the nav (matches AppHeader chrome height). */}
+      <SidebarHeader className="p-0 border-b border-sidebar-border/60 bg-sidebar">
+        <div className="flex h-[68px] items-center gap-3 px-5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+          <img
+            src="/brand/numu-navy.png"
+            alt="NUMU"
+            className="h-10 w-auto shrink-0 object-contain"
+          />
           <div className="group-data-[collapsible=icon]:hidden">
             {isRTL ? (
-              <span className="auth-wordmark text-lg font-bold tracking-tight">نُمُو</span>
+              <span className="souq-wordmark text-[22px]">نُمُو</span>
             ) : (
-              <span className="auth-wordmark text-lg font-semibold tracking-tight lowercase">numu</span>
+              <span className="souq-wordmark text-[22px] lowercase">numu</span>
             )}
           </div>
         </div>
+      </SidebarHeader>
 
-        {/* Main nav */}
-        <div className="py-2">
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {/* Dashboard */}
-                <NavItemGate navKey="dashboard">
+      <SidebarContent>
+        {/* ─── PINNED (no label) — the daily drivers ─────────────────── */}
+        <SidebarGroup className="pt-2">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <NavItemGate navKey="dashboard">
+                {navRow(isRTL ? "الرئيسية" : "Home", "/", House)}
+              </NavItemGate>
+
+              <NavItemGate navKey="orders">
+                {navParent(
+                  isRTL ? "الطلبات" : "Orders",
+                  "/orders",
+                  ShoppingCart,
+                  ordersSub,
+                  ordersActive,
+                  "orders",
+                )}
+              </NavItemGate>
+
+              <NavItemGate navKey="products">
+                {navParent(
+                  isRTL ? "المنتجات" : "Products",
+                  "/products",
+                  Package,
+                  productsSub,
+                  productsActive,
+                  "products",
+                )}
+              </NavItemGate>
+
+              <NavItemGate navKey="customers">
+                {navRow(isRTL ? "العملاء" : "Customers", "/customers", Users)}
+              </NavItemGate>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* ─── SELL & GROW ───────────────────────────────────────────── */}
+        {groupLabel(isRTL ? "البيع والنمو" : "Sell & grow")}
+        <SidebarGroup className="pt-0">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <NavItemGate navKey="online-store">
+                {navParent(
+                  isRTL ? "المتجر الإلكتروني" : "Online Store",
+                  "/online-store",
+                  Storefront,
+                  onlineStoreSub,
+                  onlineStoreActive,
+                  "online-store",
+                )}
+              </NavItemGate>
+
+              <NavItemGate navKey="marketing">
+                {navParent(
+                  isRTL ? "التسويق" : "Marketing",
+                  "/marketing",
+                  Megaphone,
+                  marketingSub,
+                  marketingActive,
+                  "marketing",
+                )}
+              </NavItemGate>
+
+              <NavItemGate navKey="analytics">
+                {navParent(
+                  isRTL ? "التحليلات" : "Analytics",
+                  "/analytics/overview",
+                  ChartLineUp,
+                  analyticsSub,
+                  analyticsActive,
+                  "analytics",
+                )}
+              </NavItemGate>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* ─── MONEY ─────────────────────────────────────────────────── */}
+        {groupLabel(isRTL ? "الفلوس" : "Money")}
+        <SidebarGroup className="pt-0">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <NavItemGate navKey="payments">
+                {navParent(
+                  isRTL ? "المالية" : "Finance",
+                  "/payments",
+                  Wallet,
+                  financeSub,
+                  financeActive,
+                  "finance",
+                )}
+              </NavItemGate>
+
+              <NavItemGate navKey="cod">
+                {navRow(isRTL ? "تسوية الاستلام" : "COD reconcile", "/cod", Money)}
+              </NavItemGate>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* ─── OPERATIONS ────────────────────────────────────────────── */}
+        {groupLabel(isRTL ? "العمليات" : "Operations")}
+        <SidebarGroup className="pt-0">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <NavItemGate navKey="logistics">
+                {navParent(
+                  isRTL ? "الشحن والتوصيل" : "Logistics",
+                  "/logistics",
+                  Truck,
+                  logisticsSub,
+                  logisticsActive,
+                  "logistics",
+                )}
+              </NavItemGate>
+
+              <NavItemGate navKey="channels">
+                <Collapsible defaultOpen={channelsActive} className="group/channels">
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/")} tooltip={isRTL ? "لوحة التحكم" : "Dashboard"} className="h-10 rounded-lg px-3">
-                      <NavLink to="/" end>
-                        <LayoutDashboard className="h-[18px] w-[18px] opacity-70" />
-                        <span className="text-[13px] font-medium">{isRTL ? "لوحة التحكم" : "Dashboard"}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </NavItemGate>
-
-                {/* Orders — clickable + expandable sub-items (All / Drafts) */}
-                <NavItemGate navKey="orders">
-                  {renderExpandableItem(
-                    isRTL ? "الطلبات" : "Orders",
-                    "/orders",
-                    ShoppingCart,
-                    ordersSubItems,
-                    ordersActive,
-                    "orders",
-                  )}
-                </NavItemGate>
-
-                {/* Products */}
-                <NavItemGate navKey="products">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/products")} tooltip={isRTL ? "المنتجات" : "Products"} className="h-10 rounded-lg px-3">
-                      <NavLink to="/products">
-                        <Package className="h-[18px] w-[18px] opacity-70" />
-                        <span className="text-[13px] font-medium">{isRTL ? "المنتجات" : "Products"}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </NavItemGate>
-
-                {/* Categories */}
-                <NavItemGate navKey="categories">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/categories")} tooltip={isRTL ? "الفئات" : "Categories"} className="h-10 rounded-lg px-3">
-                      <NavLink to="/categories">
-                        <FolderOpen className="h-[18px] w-[18px] opacity-70" />
-                        <span className="text-[13px] font-medium">{isRTL ? "الفئات" : "Categories"}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </NavItemGate>
-
-                {/* Customers */}
-                <NavItemGate navKey="customers">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/customers")} tooltip={isRTL ? "العملاء" : "Customers"} className="h-10 rounded-lg px-3">
-                      <NavLink to="/customers">
-                        <Users className="h-[18px] w-[18px] opacity-70" />
-                        <span className="text-[13px] font-medium">{isRTL ? "العملاء" : "Customers"}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </NavItemGate>
-
-                {/* Discounts — unified parent for coupons (the Marketing page
-                    hosts the coupons tab), promotions, and gift cards. The
-                    `navKey="marketing"` gate is honoured because coupons live
-                    behind the same permission today; revisit if/when a
-                    separate gift-cards permission is needed. */}
-                <NavItemGate navKey="marketing">
-                  {renderExpandableItem(
-                    isRTL ? "الخصومات" : "Discounts",
-                    "/marketing",
-                    Percent,
-                    discountsSubItems,
-                    discountsActive,
-                    "discounts",
-                  )}
-                </NavItemGate>
-
-                {/* Locations — Phase 8.2 */}
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/locations")} tooltip={isRTL ? "المواقع" : "Locations"} className="h-10 rounded-lg px-3">
-                    <NavLink to="/locations">
-                      <Megaphone className="h-[18px] w-[18px] opacity-70" />
-                      <span className="text-[13px] font-medium">{isRTL ? "المواقع" : "Locations"}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-
-                {/* Marketing — feature 002 US1. Collapsible parent containing
-                    Campaigns + Attribution. Email Templates + WhatsApp stay
-                    as top-level items below (channel-specific operational
-                    pages, not analytics-style sub-views). */}
-                <NavItemGate navKey="campaigns">
-                  {renderExpandableItem(
-                    isRTL ? "التسويق" : "Marketing",
-                    "/campaigns",
-                    Send,
-                    marketingNavSubItems,
-                    campaignsNavActive,
-                    "marketing-nav",
-                  )}
-                </NavItemGate>
-
-                {/* Email Templates */}
-                <NavItemGate navKey="email-templates">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/email-templates")} tooltip={isRTL ? "قوالب البريد" : "Email Templates"} className="h-10 rounded-lg px-3">
-                      <NavLink to="/email-templates">
-                        <Mail className="h-[18px] w-[18px] opacity-70" />
-                        <span className="text-[13px] font-medium">{isRTL ? "قوالب البريد" : "Email Templates"}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </NavItemGate>
-
-                {/* WhatsApp — expandable. Surfaces backend-030's BYO
-                    connect, opt-ins inbox, and dead-letters viewer
-                    pages that were previously route-only. */}
-                <NavItemGate navKey="whatsapp">
-                  {renderExpandableItem(
-                    isRTL ? "واتساب" : "WhatsApp",
-                    "/whatsapp",
-                    MessageCircle,
-                    whatsappNavSubItems,
-                    whatsappActive,
-                    "whatsapp-nav",
-                  )}
-                </NavItemGate>
-
-                {/* Referrals */}
-                <NavItemGate navKey="referrals">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/referrals")} tooltip={isRTL ? "الإحالات" : "Referrals"} className="h-10 rounded-lg px-3">
-                      <NavLink to="/referrals">
-                        <UserPlus className="h-[18px] w-[18px] opacity-70" />
-                        <span className="text-[13px] font-medium">{isRTL ? "الإحالات" : "Referrals"}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </NavItemGate>
-
-                {/* Analytics — clickable + expandable sub-items */}
-                <NavItemGate navKey="analytics">
-                  {renderExpandableItem(
-                    isRTL ? "التحليلات" : "Analytics",
-                    "/analytics/overview",
-                    BarChart3,
-                    analyticsSubItems,
-                    analyticsActive,
-                    "analytics",
-                  )}
-                </NavItemGate>
-
-                {/* Online Store — clickable + expandable sub-items */}
-                <NavItemGate navKey="online-store">
-                  {renderExpandableItem(
-                    isRTL ? "المتجر الإلكتروني" : "Online Store",
-                    "/online-store/themes",
-                    Store,
-                    onlineStoreSubItems,
-                    onlineStoreActive,
-                    "store",
-                  )}
-                </NavItemGate>
-
-                {/* Finance */}
-                <NavItemGate navKey="payments">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive("/payments")} tooltip={isRTL ? "المالية" : "Finance"} className="h-10 rounded-lg px-3">
-                      <NavLink to="/payments">
-                        <DollarSign className="h-[18px] w-[18px] opacity-70" />
-                        <span className="text-[13px] font-medium">{isRTL ? "المالية" : "Finance"}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </NavItemGate>
-
-                {/* Staff — parent with Members + Roles sub-items */}
-                <NavItemGate navKey="staff">
-                  {renderExpandableItem(
-                    isRTL ? "فريق العمل" : "Staff",
-                    "/staff",
-                    Users,
-                    staffSubItems,
-                    staffActive,
-                    "staff",
-                  )}
-                </NavItemGate>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </div>
-
-        {/* Operations — collapsible section (auto-opens when Channels/Inbox is active) */}
-        <div className="group-data-[collapsible=icon]:hidden">
-          <Collapsible defaultOpen={channelsActive} className="group/operations">
-            <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-[11px] font-semibold text-muted-foreground/60 hover:text-muted-foreground transition-colors">
-              <span>{isRTL ? "العمليات" : "Operations"}</span>
-              <ChevronLeft className={`h-3.5 w-3.5 transition-transform duration-200 group-data-[state=open]/operations:-rotate-90 ${isRTL ? "" : "rotate-180 group-data-[state=open]/operations:rotate-90"}`} />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <SidebarMenu>
-                {/* Channels (parent) → Inbox (child) */}
-                <NavItemGate navKey="channels">
-                  <Collapsible defaultOpen={channelsActive} className="group/channels">
-                    <SidebarMenuItem>
-                      <div className="flex items-center">
-                        <SidebarMenuButton
-                          asChild
-                          isActive={isActive("/channels")}
-                          tooltip={isRTL ? "القنوات" : "Channels"}
-                          className="h-9 rounded-lg px-3 flex-1"
-                        >
-                          <NavLink to="/channels">
-                            <PlugZap className="h-[18px] w-[18px] opacity-70" />
-                            <span className="text-[13px]">{isRTL ? "القنوات" : "Channels"}</span>
-                            {totalUnread > 0 && (
-                              <Badge variant="destructive" className="ml-auto h-5 min-w-5 px-1.5 text-[10px]">
-                                {totalUnread > 99 ? "99+" : totalUnread}
-                              </Badge>
-                            )}
-                          </NavLink>
-                        </SidebarMenuButton>
-                        <CollapsibleTrigger className="p-1.5 rounded-md hover:bg-muted/60 transition-colors group-data-[collapsible=icon]:hidden">
-                          <ChevronLeft className={`h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-200 group-data-[state=open]/channels:-rotate-90 ${isRTL ? "" : "rotate-180 group-data-[state=open]/channels:rotate-90"}`} />
-                        </CollapsibleTrigger>
-                      </div>
-                      <CollapsibleContent>
-                        <SidebarMenuSub>
-                          <NavItemGate navKey="inbox">
-                            <SidebarMenuSubItem>
-                              <SidebarMenuSubButton asChild isActive={isActive("/inbox")}>
-                                <NavLink to="/inbox">
-                                  <Inbox className="h-3.5 w-3.5" />
-                                  <span>{isRTL ? "الرسائل" : "Inbox"}</span>
-                                  {totalUnread > 0 && (
-                                    <Badge variant="destructive" className="ml-auto h-4 min-w-4 px-1 text-[9px]">
-                                      {totalUnread > 99 ? "99+" : totalUnread}
-                                    </Badge>
-                                  )}
-                                </NavLink>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          </NavItemGate>
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
-                    </SidebarMenuItem>
-                  </Collapsible>
-                </NavItemGate>
-
-                {/* Flat operations items */}
-                {[
-                  { key: "payment-setup", title: isRTL ? "إعداد الدفع" : "Payment Setup", url: "/payment-setup", icon: Wallet },
-                  { key: "logistics", title: isRTL ? "الشحن والتوصيل" : "Logistics", url: "/logistics", icon: Truck },
-                  { key: "shipping-zones", title: isRTL ? "مناطق الشحن" : "Shipping Zones", url: "/shipping/zones", icon: Truck },
-                  { key: "cod", title: isRTL ? "الدفع عند الاستلام" : "COD", url: "/cod", icon: Banknote },
-                  { key: "social", title: isRTL ? "السوشيال ميديا" : "Social", url: "/social", icon: Share2 },
-                  { key: "invoices", title: isRTL ? "الفواتير" : "Invoices", url: "/invoices", icon: Receipt },
-                  { key: "billing", title: isRTL ? "الاشتراك والفواتير" : "Billing", url: "/billing", icon: HandCoins },
-                ].map((item) => (
-                  <NavItemGate key={item.url} navKey={item.key}>
-                    <SidebarMenuItem>
+                    <div className="flex items-center">
                       <SidebarMenuButton
                         asChild
-                        isActive={isActive(item.url)}
-                        tooltip={item.title}
-                        className="h-9 rounded-lg px-3"
+                        isActive={channelsActive}
+                        tooltip={isRTL ? "القنوات" : "Channels"}
+                        className="h-10 rounded-lg px-3 flex-1"
                       >
-                        <NavLink to={item.url}>
-                          <item.icon className="h-[18px] w-[18px] opacity-70" />
-                          <span className="text-[13px]">{item.title}</span>
+                        <NavLink to="/channels">
+                          <PlugZap size={20} weight={channelsActive ? "fill" : "duotone"} className="text-navy dark:text-saffron" />
+                          <span className="text-[13px] font-medium">{isRTL ? "القنوات" : "Channels"}</span>
+                          {totalUnread > 0 && (
+                            <Badge variant="accent" className="ms-auto h-5 min-w-5 px-1.5 text-[10px] group-data-[state=open]/channels:hidden">
+                              {totalUnread > 99 ? "99+" : totalUnread}
+                            </Badge>
+                          )}
                         </NavLink>
                       </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </NavItemGate>
-                ))}
-              </SidebarMenu>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
+                      <CollapsibleTrigger className="p-1.5 rounded-md hover:bg-muted/60 transition-colors group-data-[collapsible=icon]:hidden">
+                        <ChevronLeft className={`h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-200 group-data-[state=open]/channels:-rotate-90 ${isRTL ? "" : "rotate-180 group-data-[state=open]/channels:rotate-90"}`} />
+                      </CollapsibleTrigger>
+                    </div>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <NavItemGate navKey="inbox">
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/inbox")}>
+                              <NavLink to="/inbox">
+                                <Inbox size={14} weight={isActive("/inbox") ? "fill" : "duotone"} />
+                                <span>{isRTL ? "الرسائل" : "Inbox"}</span>
+                                {totalUnread > 0 && (
+                                  <Badge variant="accent" className="ms-auto h-4 min-w-4 px-1 text-[9px]">
+                                    {totalUnread > 99 ? "99+" : totalUnread}
+                                  </Badge>
+                                )}
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        </NavItemGate>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/social")}>
+                            <NavLink to="/social">
+                              <Sparkles size={14} weight={isActive("/social") ? "fill" : "duotone"} />
+                              <span>{isRTL ? "سوشيال" : "Social"}</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              </NavItemGate>
+
+              <NavItemGate navKey="whatsapp">
+                {navParent(
+                  isRTL ? "واتساب" : "WhatsApp",
+                  "/whatsapp",
+                  MessageCircle,
+                  whatsappOpsSub,
+                  isActive("/whatsapp"),
+                  "whatsapp-ops",
+                )}
+              </NavItemGate>
+
+              <NavItemGate navKey="staff">
+                {navParent(
+                  isRTL ? "فريق العمل" : "Staff",
+                  "/staff",
+                  Users,
+                  staffSub,
+                  isActive("/staff") || isActive("/roles"),
+                  "staff",
+                )}
+              </NavItemGate>
+
+              <NavItemGate navKey="apps">
+                {navRow(isRTL ? "التطبيقات" : "Apps", "/apps", Boxes)}
+              </NavItemGate>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
+      {/* ─── FOOTER — Notifications + Settings + Store switcher ─────
+          Matches the Souq spec: Settings sits in the footer with a
+          store-switcher card just below (CT avatar + name + plan +
+          caret-up-down menu). The store profile row is gone now that
+          the switcher includes a "Store settings" entry. */}
       <SidebarFooter>
         <SidebarMenu>
           <NavItemGate navKey="notifications">
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip={isRTL ? "الإشعارات" : "Notifications"} className="h-9 rounded-lg px-3" isActive={isActive("/notifications")}>
-                <NavLink to="/notifications">
-                  <Bell className="h-[18px] w-[18px] opacity-70" />
-                  <span className="text-[13px] font-medium">{isRTL ? "الإشعارات" : "Notifications"}</span>
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {navRow(isRTL ? "الإشعارات" : "Notifications", "/notifications", Bell)}
           </NavItemGate>
-
           <NavItemGate navKey="settings">
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip={isRTL ? "الإعدادات" : "Settings"} className="h-9 rounded-lg px-3" isActive={isActive("/settings")}>
-                <NavLink to="/settings">
-                  <Settings className="h-[18px] w-[18px] opacity-70" />
-                  <span className="text-[13px] font-medium">{isRTL ? "الإعدادات" : "Settings"}</span>
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </NavItemGate>
-          <NavItemGate navKey="apps">
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip={isRTL ? "التطبيقات" : "Apps"} className="h-9 rounded-lg px-3" isActive={isActive("/apps")}>
-                <NavLink to="/apps">
-                  <Boxes className="h-[18px] w-[18px] opacity-70" />
-                  <span className="text-[13px] font-medium">{isRTL ? "التطبيقات" : "Apps"}</span>
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </NavItemGate>
-          <NavItemGate navKey="store">
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip={isRTL ? "إعدادات المتجر" : "Store Profile"} className="h-9 rounded-lg px-3" isActive={isActive("/store")}>
-                <NavLink to="/store">
-                  <Store className="h-[18px] w-[18px] opacity-70" />
-                  <span className="text-[13px] font-medium">{isRTL ? "إعدادات المتجر" : "Store Profile"}</span>
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {navRow(isRTL ? "الإعدادات" : "Settings", "/settings", Gear)}
           </NavItemGate>
         </SidebarMenu>
+
+        {/* Store switcher card — saffron-tile avatar + name + plan.
+            Collapses to a bare avatar in icon mode. */}
+        {currentStore && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="mt-2 mx-2 mb-1 flex items-center gap-2.5 rounded-xl border border-sidebar-border bg-sidebar-accent/40 hover:bg-sidebar-accent/70 p-2 transition-colors group-data-[collapsible=icon]:mx-1 group-data-[collapsible=icon]:p-1.5 group-data-[collapsible=icon]:border-0"
+                aria-label={currentStore.name}
+              >
+                {currentStore.logo_url ? (
+                  <img
+                    src={currentStore.logo_url}
+                    alt=""
+                    className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border"
+                  />
+                ) : (
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-saffron-100 text-saffron-600 text-xs font-extrabold ring-1 ring-saffron-100">
+                    {currentStore.name?.slice(0, 2).toUpperCase() || "ST"}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0 text-start group-data-[collapsible=icon]:hidden">
+                  <div className="text-[13px] font-extrabold truncate leading-tight">
+                    {currentStore.name}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                    {isRTL ? "باقة Premium" : "Premium plan"}
+                  </div>
+                </div>
+                <CaretUpDown
+                  size={15}
+                  weight="bold"
+                  className="text-muted-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden"
+                />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="top"
+              align="start"
+              className="w-60 rounded-xl"
+            >
+              <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold">
+                {isRTL ? "متاجرك" : "Your stores"}
+              </DropdownMenuLabel>
+              {stores.map((store) => (
+                <DropdownMenuItem
+                  key={store.id}
+                  onClick={() => switchStore(store.id)}
+                  className="gap-2.5 rounded-lg py-2"
+                >
+                  {store.logo_url ? (
+                    <img src={store.logo_url} alt="" className="h-6 w-6 rounded-lg object-cover" />
+                  ) : (
+                    <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-saffron-100 text-saffron-600 text-[10px] font-extrabold shrink-0">
+                      {store.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="flex-1 truncate text-[13px] font-semibold">
+                    {store.name}
+                  </span>
+                  {store.id === currentStore.id && (
+                    <Check className="h-3.5 w-3.5 text-navy shrink-0" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <NavItemGate navKey="store">
+                <DropdownMenuItem
+                  onClick={() => navigate("/store")}
+                  className="gap-2.5 rounded-lg py-2"
+                >
+                  <Storefront size={16} weight="duotone" />
+                  <span className="text-[13px]">
+                    {isRTL ? "إعدادات المتجر" : "Store settings"}
+                  </span>
+                </DropdownMenuItem>
+              </NavItemGate>
+              <DropdownMenuItem
+                onClick={() => navigate("/create-store")}
+                className="gap-2.5 rounded-lg py-2"
+              >
+                <Plus className="h-4 w-4" strokeWidth={2.4} />
+                <span className="text-[13px]">
+                  {isRTL ? "متجر جديد" : "New store"}
+                </span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
 };
 
 export default AppSidebar;
-// omnichannel-v1

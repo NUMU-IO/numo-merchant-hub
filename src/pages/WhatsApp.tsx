@@ -306,8 +306,8 @@ export default function WhatsApp() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">{isAr ? "واتساب للأعمال" : "WhatsApp Business"}</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "واتساب للأعمال" : "WhatsApp Business"}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isAr ? "إدارة الرسائل والحملات" : "Manage messages and campaigns"}
           </p>
         </div>

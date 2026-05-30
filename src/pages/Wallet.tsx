@@ -41,13 +41,13 @@ const Wallet = () => {
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate("/payments")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-xl font-bold">{isAr ? "المحفظة" : "Wallet"}</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "المحفظة" : "Wallet"}</h1>
       </div>
 
       {/* Balance Card */}
       <div className="rounded-xl overflow-hidden text-white" style={{ background: NUMU_PRIMARY }}>
         <div className="relative">
-          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "80px", backgroundRepeat: "repeat" }} />
+          <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{ backgroundImage: "url('/numu-n-mark-transparent.png')", backgroundSize: "80px", backgroundRepeat: "repeat" }} />
           <div className="relative z-10 p-6 sm:p-8">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">

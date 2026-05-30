@@ -146,8 +146,8 @@ export default function OnlineStorePages() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">{isRTL ? "الصفحات" : "Pages"}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isRTL ? "الصفحات" : "Pages"}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isRTL ? "إدارة صفحات المحتوى الثابت في متجرك" : "Manage static content pages for your store"}
           </p>
         </div>

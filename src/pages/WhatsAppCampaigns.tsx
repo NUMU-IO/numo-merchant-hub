@@ -154,8 +154,8 @@ export default function WhatsAppCampaigns() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">{isAr ? "الحملات" : "Campaigns"}</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "الحملات" : "Campaigns"}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isAr ? "أرسل رسائل جماعية لعملاءك" : "Send broadcast messages to your customers"}
           </p>
         </div>

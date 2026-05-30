@@ -18,114 +18,178 @@
   direction: ltr;
 }
 
-/* NUMU Design System — Modern SaaS Dashboard
-   Inspired by Stripe, Linear, Vercel.
-   All colors in HSL. */
+/* NUMU "Souq" Design System (v2 — redesign)
+   White app ground + deep NUMU navy + saffron energy accent.
+   Warm cream/sand kept only in insets + hairlines. Chunky radii,
+   tactile press-down buttons, mobile-first. Tokens mirror
+   NHUB/colors_and_type.css; HSL form is used so Tailwind's
+   `hsl(var(--token))` pattern keeps working unchanged.
+   All colors in HSL unless otherwise noted. */
 
 @layer base {
   :root {
-    --background: 0 0% 99%;
-    --foreground: 222.2 84% 4.9%;
+    /* Core surfaces — white app ground, white cards */
+    --background: 0 0% 100%;
+    --foreground: 213 51% 16%;          /* ink #14253D */
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 213 51% 16%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 213 51% 16%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary = deep NUMU navy (#0C2D54). Replaces the near-black ink
+       that the legacy system used as primary; everything bg-primary
+       now renders navy, every text-primary renders navy. */
+    --primary: 212 75% 19%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary / muted = warm cream inset (#F5F2EB / #ECE7DC)
+       — kept just for the soft surface-2 used by hover rows,
+       avatars, skeletons, etc. */
+    --secondary: 42 24% 94%;
+    --secondary-foreground: 213 51% 16%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 42 24% 94%;                /* surface-2 */
+    --muted-foreground: 214 16% 43%;    /* ink-soft #5B6A7E */
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 42 24% 94%;
+    --accent-foreground: 213 51% 16%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 2 64% 55%;           /* danger #D64541 */
+    --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%;
+    --success: 143 55% 40%;             /* success #2E9E5B */
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
+    --warning: 38 76% 49%;              /* warning #DE941E */
     --warning-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 47 18% 91%;               /* warm hairline #ECEAE3 */
+    --input: 47 18% 91%;
+    --ring: 212 75% 19%;                /* navy focus ring */
 
-    --radius: 0.625rem;
+    /* Chunky radii — base 16px. rounded-lg=16, rounded-xl=20,
+       rounded-2xl=24, rounded-md=14, rounded-sm=12. */
+    --radius: 1rem;
 
-    --sidebar-background: 220 20% 97.5%;
-    --sidebar-foreground: 225 20% 22%;
-    --sidebar-primary: 225 30% 12%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 220 15% 94%;
-    --sidebar-accent-foreground: 225 20% 12%;
-    --sidebar-border: 220 15% 90%;
-    --sidebar-ring: 215 60% 55%;
+    /* Sidebar — white surface, navy active fill, saffron active icon.
+       Hover stays soft surface-2; active is intentionally distinct via
+       a separate selector in the sidebar component, so the same var
+       can't double as hover + active here. */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 214 16% 43%;
+    --sidebar-primary: 212 75% 19%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 42 24% 94%;       /* hover */
+    --sidebar-accent-foreground: 213 51% 16%;
+    --sidebar-border: 47 18% 91%;
+    --sidebar-ring: 212 75% 19%;
 
-    /* Shadows */
-    --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.03);
-    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.06), 0 1px 2px -1px hsl(0 0% 0% / 0.06);
-    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.05), 0 2px 4px -2px hsl(0 0% 0% / 0.05);
-    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.05), 0 4px 6px -4px hsl(0 0% 0% / 0.05);
-    --shadow-card: 0 1px 3px hsl(0 0% 0% / 0.04), 0 4px 12px hsl(0 0% 0% / 0.03);
+    /* ---- Souq extended palette (raw HEX exposed alongside HSL where
+       useful for new component code). Used by the chrome redesign and
+       new card / button variants. ---- */
+    --navy:       212 75% 19%;
+    --navy-700:   213 69% 25%;          /* navy hover */
+    --navy-900:   213 76% 13%;          /* navy press / depth shadow */
+    --saffron:    35 81% 54%;           /* energy accent */
+    --saffron-600: 35 78% 46%;          /* saffron hover */
+    --saffron-100: 38 87% 90%;          /* saffron tint surface */
+    --terracotta: 17 76% 43%;           /* hot accent */
+    --sage:       118 19% 45%;          /* cool positive */
+    --cream:      40 49% 92%;
+    --ink:        213 51% 16%;
+    --ink-soft:   214 16% 43%;
+    --ink-faint:  214 14% 62%;
+    --surface-2:  42 24% 94%;           /* warm inset */
+    --surface-3:  40 27% 89%;           /* deeper inset / track */
+    --border-strong: 41 23% 83%;
+
+    /* Shadows — warm, navy-tinted, present-but-soft */
+    --shadow-xs:   0 1px 2px 0 hsl(213 51% 16% / 0.06);
+    --shadow-sm:   0 1px 2px hsl(213 51% 16% / 0.06);
+    --shadow-md:   0 4px 12px -4px hsl(213 51% 16% / 0.12);
+    --shadow-lg:   0 22px 50px -24px hsl(213 51% 16% / 0.32);
+    --shadow-card: 0 1px 3px hsl(213 51% 16% / 0.05), 0 12px 28px -16px hsl(213 51% 16% / 0.20);
+    --shadow-pop:  0 16px 40px -12px hsl(213 51% 16% / 0.28);
+    /* Tactile "key" press depth for the signature navy + saffron buttons —
+       2px solid step + soft warm bloom. Collapses on :active to push the
+       button down 2px (handled in the .btn-tactile rules below). */
+    --shadow-depth-navy:    0 2px 0 hsl(213 76% 13%), 0 6px 14px -4px hsl(212 75% 19% / 0.45);
+    --shadow-depth-saffron: 0 2px 0 hsl(35 78% 46%), 0 6px 14px -4px hsl(35 78% 46% / 0.45);
   }
 
   .dark {
-    --background: 225 25% 6%;
-    --foreground: 210 30% 96%;
+    /* Dark mode mirrors NHUB's .dark — luminous navy as primary for
+       contrast, warm cream ink. */
+    --background: 216 50% 8%;           /* #0B1420 */
+    --foreground: 38 35% 89%;           /* warm cream text #ECE6DA */
 
-    --card: 225 25% 8.5%;
-    --card-foreground: 210 30% 96%;
+    --card: 217 41% 13%;                /* #131F2E */
+    --card-foreground: 38 35% 89%;
 
-    --popover: 225 25% 8.5%;
-    --popover-foreground: 210 30% 96%;
+    --popover: 217 41% 13%;
+    --popover-foreground: 38 35% 89%;
 
-    --primary: 210 30% 96%;
-    --primary-foreground: 225 30% 8%;
+    --primary: 212 60% 44%;             /* luminous navy #2E6BB3 */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 20% 14%;
-    --secondary-foreground: 210 30% 96%;
+    --secondary: 214 37% 17%;           /* #1A2838 */
+    --secondary-foreground: 38 35% 89%;
 
-    --muted: 220 18% 13%;
-    --muted-foreground: 215 15% 58%;
+    --muted: 214 37% 17%;
+    --muted-foreground: 214 14% 65%;    /* #97A4B4 */
 
-    --accent: 220 20% 14%;
-    --accent-foreground: 210 30% 96%;
+    --accent: 214 37% 17%;
+    --accent-foreground: 38 35% 89%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 30% 96%;
+    --destructive: 0 50% 45%;
+    --destructive-foreground: 38 35% 89%;
 
-    --success: 142 71% 35%;
+    --success: 143 50% 35%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 40%;
+    --warning: 35 82% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 220 15% 15%;
-    --input: 220 15% 15%;
-    --ring: 215 60% 60%;
+    --border: 216 32% 22%;              /* #25344A */
+    --input: 216 32% 22%;
+    --ring: 212 60% 44%;
 
-    --sidebar-background: 225 28% 7%;
-    --sidebar-foreground: 210 20% 88%;
-    --sidebar-primary: 215 60% 55%;
+    --sidebar-background: 216 50% 8%;
+    --sidebar-foreground: 214 14% 65%;
+    --sidebar-primary: 212 60% 44%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 18% 12%;
-    --sidebar-accent-foreground: 210 20% 88%;
-    --sidebar-border: 220 15% 12%;
-    --sidebar-ring: 215 60% 55%;
+    --sidebar-accent: 214 37% 17%;
+    --sidebar-accent-foreground: 38 35% 89%;
+    --sidebar-border: 216 32% 22%;
+    --sidebar-ring: 212 60% 44%;
 
-    --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.15);
-    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.25), 0 1px 2px -1px hsl(0 0% 0% / 0.15);
-    --shadow-md: 0 4px 8px -2px hsl(0 0% 0% / 0.2), 0 2px 4px -2px hsl(0 0% 0% / 0.1);
-    --shadow-lg: 0 12px 20px -4px hsl(0 0% 0% / 0.2), 0 4px 8px -4px hsl(0 0% 0% / 0.1);
-    --shadow-card: 0 0 0 1px hsl(0 0% 100% / 0.03), 0 2px 8px hsl(0 0% 0% / 0.12);
+    /* Souq extended palette — dark */
+    --navy:       212 60% 44%;
+    --navy-700:   212 53% 50%;
+    --navy-900:   212 62% 35%;
+    --saffron:    35 82% 58%;           /* #EBA63E */
+    --saffron-600: 35 78% 46%;
+    --saffron-100: 30 41% 13%;          /* tinted dark inset */
+    --terracotta: 17 60% 50%;
+    --sage:       118 19% 50%;
+    --cream:      38 35% 89%;
+    --ink:        38 35% 89%;
+    --ink-soft:   214 14% 65%;
+    --ink-faint:  214 12% 50%;
+    --surface-2:  214 37% 17%;
+    --surface-3:  216 34% 20%;
+    --border-strong: 217 32% 29%;
+
+    --shadow-xs:   0 1px 2px 0 hsl(0 0% 0% / 0.20);
+    --shadow-sm:   0 1px 2px hsl(0 0% 0% / 0.25);
+    --shadow-md:   0 4px 12px -4px hsl(0 0% 0% / 0.4);
+    --shadow-lg:   0 24px 50px -24px hsl(0 0% 0% / 0.7);
+    --shadow-card: 0 1px 3px hsl(0 0% 0% / 0.4), 0 14px 30px -16px hsl(0 0% 0% / 0.6);
+    --shadow-pop:  0 16px 40px -12px hsl(0 0% 0% / 0.6);
+    --shadow-depth-navy:    0 2px 0 hsl(212 62% 35%), 0 6px 14px -4px hsl(0 0% 0% / 0.5);
+    --shadow-depth-saffron: 0 2px 0 hsl(35 78% 46%), 0 6px 14px -4px hsl(0 0% 0% / 0.5);
   }
 }
 
@@ -140,6 +204,56 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+  }
+
+  /* Souq UX baseline — keyboard-only focus shows a generous 4px navy
+     glow ring on every interactive element. Per NHUB spec, the ring
+     is WCAG-AA friendly (high contrast against any background) and
+     doesn't shift layout. Mouse focus stays clean (no rings). */
+  :focus { outline: none; }
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 4px hsl(var(--navy) / 0.18);
+    border-radius: inherit;
+  }
+  /* Disable the default focus glow for elements that ship their own
+     ring (Inputs, Buttons, etc. via their `focus-visible:ring-4`
+     Tailwind classes — these set their own box-shadow). */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [role="button"]:focus-visible,
+  [role="menuitem"]:focus-visible,
+  [role="option"]:focus-visible {
+    box-shadow: none;
+  }
+
+  /* Smooth scrolling for in-page anchors. */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Saffron selection highlight (matches NHUB ::selection). */
+  ::selection {
+    background: hsl(var(--saffron));
+    color: hsl(var(--navy-900));
+  }
+
+  /* Better-looking scrollbar on the app — warm thumb, transparent
+     track, narrow. Webkit only; Firefox uses its own. */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border-strong));
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--ink-faint));
+    background-clip: content-box;
   }
 }
 
@@ -415,13 +529,13 @@
 
   /* ── Dashboard chrome ─────────────────────────── */
 
-  /* Frosted header bar */
+  /* Frosted header bar — Souq: 68px tall, deeper blur, warm hairline. */
   .dash-header {
-    @apply sticky top-0 z-30 flex h-14 items-center gap-2 px-4;
-    background: hsl(var(--background) / 0.72);
-    backdrop-filter: blur(16px) saturate(1.4);
-    -webkit-backdrop-filter: blur(16px) saturate(1.4);
-    border-bottom: 1px solid hsl(var(--border) / 0.6);
+    @apply sticky top-0 z-30 flex h-[68px] items-center gap-2 px-6;
+    background: hsl(var(--background) / 0.82);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+    border-bottom: 1px solid hsl(var(--border));
   }
 
   /* Dark mode card glass treatment */
@@ -710,4 +824,380 @@
       padding: 1rem 1.25rem;
     }
   }
+
+  /* ── Souq redesign — chrome & component helpers ─── */
+
+  /* Sidebar active state — overrides the shadcn sidebar primitive's
+     `data-[active=true]:bg-sidebar-accent` so the active row is the
+     signature navy fill with white text + saffron icon, while hover
+     remains the warm surface-2. We target the primitive's data-sidebar
+     hook so callers don't need to pass a custom class. */
+  [data-sidebar="menu-button"][data-active="true"] {
+    background: hsl(var(--navy)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    box-shadow: var(--shadow-sm);
+  }
+  [data-sidebar="menu-button"][data-active="true"]:hover {
+    background: hsl(var(--navy-700)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+  }
+  [data-sidebar="menu-button"][data-active="true"] svg {
+    color: hsl(var(--saffron));
+    opacity: 1;
+  }
+  /* Active sub-item — softer than the parent (cream chip with navy ink) */
+  [data-sidebar="menu-sub-button"][data-active="true"] {
+    background: hsl(var(--surface-2));
+    color: hsl(var(--navy)) !important;
+    font-weight: 600;
+  }
+  .dark [data-sidebar="menu-sub-button"][data-active="true"] {
+    color: hsl(var(--saffron)) !important;
+  }
+
+  /* Tactile press-down "key" — the signature interaction. Used by the
+     primary navy button and the saffron accent button. The 2px solid
+     drop shadow becomes the press depth; on :active the element
+     translates down 2px and the depth collapses. */
+  .btn-tactile-navy {
+    box-shadow: var(--shadow-depth-navy);
+    transition: transform 0.09s ease, background-color 0.16s, box-shadow 0.16s;
+  }
+  .btn-tactile-navy:active {
+    transform: translateY(2px);
+    box-shadow: 0 0 0 hsl(var(--navy-900));
+  }
+  .btn-tactile-saffron {
+    box-shadow: var(--shadow-depth-saffron);
+    transition: transform 0.09s ease, background-color 0.16s, box-shadow 0.16s;
+  }
+  .btn-tactile-saffron:active {
+    transform: translateY(2px);
+    box-shadow: 0 0 0 hsl(var(--saffron-600));
+  }
+
+  /* Saffron accent button — reserved for the single most important
+     CTA on a page (reward, premium upgrade, primary onboarding action).
+     Navy text on saffron so it reads as "energy". */
+  .btn-accent-saffron {
+    background-color: hsl(var(--saffron));
+    color: hsl(var(--navy-900));
+  }
+  .btn-accent-saffron:hover {
+    background-color: hsl(var(--saffron-600));
+  }
+
+  /* Feature icon chip — colored tile that sits beside a card title or
+     KPI. Maps directly to NHUB's `.ichip` (navy/saffron/sage/terra). */
+  .ichip {
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .ichip > svg { width: 1.5rem; height: 1.5rem; }
+  /* Large variant for empty states (56×56, 18px corners). */
+  .ichip-lg { width: 56px; height: 56px; border-radius: 18px; }
+  .ichip-lg > svg { width: 1.75rem; height: 1.75rem; }
+  .ichip-navy { background: hsl(var(--navy)); color: hsl(var(--saffron)); }
+  .ichip-saffron { background: hsl(var(--saffron-100)); color: hsl(var(--saffron-600)); }
+  .ichip-sage { background: hsl(118 28% 91%); color: hsl(var(--sage)); }
+  .ichip-terra { background: hsl(17 60% 90%); color: hsl(var(--terracotta)); }
+  .dark .ichip-sage { background: hsl(118 25% 12%); }
+  .dark .ichip-terra { background: hsl(17 30% 13%); }
+
+  /* Mobile bottom-nav FAB — the raised center pill that breaks the
+     76px tab bar. Navy ground, saffron icon, tactile depth. */
+  .mnav-fab {
+    width: 46px;
+    height: 46px;
+    border-radius: 16px;
+    background: hsl(var(--navy));
+    color: hsl(var(--saffron));
+    display: grid;
+    place-items: center;
+    box-shadow: var(--shadow-depth-navy);
+    margin-top: -10px;
+  }
+
+  /* Brand wordmark — Reem Kufi reserved for the `numu` / `نُمُو`
+     lockup only. Already defined for .auth-wordmark; alias for clarity
+     when used inside dashboard chrome (sidebar brand row). */
+  .souq-wordmark {
+    font-family: "Reem Kufi", "Tajawal", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: hsl(var(--navy));
+  }
+  .dark .souq-wordmark { color: hsl(var(--foreground)); }
+
+  /* Eyebrow — small uppercase JetBrains Mono label, terracotta. Used
+     above KPI section titles ("§ TODAY", "§ THIS WEEK"). */
+  .souq-eyebrow {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: hsl(var(--terracotta));
+  }
+
+  /* Filter chip — pill with white card surface + warm border. Active
+     state flips to solid navy. Matches NHUB `.chip` / `.chip.on`.
+     Use on Orders/Products status filters and segment toggles. */
+  .souq-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 38px;
+    padding: 0 15px;
+    border-radius: 999px;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    font-size: 13px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    transition: background 0.16s, border-color 0.16s;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .souq-chip:hover { background: hsl(var(--muted)); }
+  .souq-chip[data-active="true"],
+  .souq-chip.on {
+    background: hsl(var(--navy));
+    color: #fff;
+    border-color: hsl(var(--navy));
+  }
+
+  /* Section card — title row + content. Matches NHUB `SectionCard`. */
+  .souq-section {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 1.25rem;
+    box-shadow: var(--shadow-card);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .souq-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px 12px;
+  }
+  .souq-section-head h2 {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    margin: 0;
+  }
+
+  /* Soft tinted status pill — color-mix 14% background, full-color
+     text + dot. Matches NHUB `StatusPill`. Use the inline color
+     prop via `data-color` token (or pass the hex via style). */
+  .souq-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 12.5px;
+    font-weight: 700;
+  }
+  .souq-pill .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  /* Hoverrow — list row that highlights warm cream on hover. */
+  .souq-hoverrow:hover {
+    background: hsl(var(--muted));
+    cursor: pointer;
+  }
+
+  /* Souq thumb — square placeholder for product images / emoji. */
+  .souq-thumb {
+    border-radius: 13px;
+    background: hsl(var(--muted));
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  /* Souq skeleton shimmer — warm surface-2 → surface-3 ribbon that
+     sweeps left-to-right (right-to-left in RTL via the keyframe). */
+  .souq-skel {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--surface-2)) 25%,
+      hsl(var(--surface-3)) 37%,
+      hsl(var(--surface-2)) 63%
+    );
+    background-size: 400% 100%;
+    animation: souq-skel-shim 1.3s ease-in-out infinite;
+  }
+  @keyframes souq-skel-shim {
+    0%   { background-position: 100% 0; }
+    100% { background-position: 0 0; }
+  }
+
+  /* Delta pill — sage tint for up, terra tint for down. Used on the
+     navy hero KPI tile where the soft tints need to read against
+     navy (so we set explicit RGBA values, not the surface tokens). */
+  .souq-delta-up {
+    background: rgba(94, 138, 92, 0.25);
+    color: #9FD89C;
+  }
+  .souq-delta-down {
+    background: rgba(193, 74, 28, 0.22);
+    color: #F0AE91;
+  }
+
+  /* Navy hero card — used for the "Sales" KPI on the dashboard.
+     The brand N monogram (`/numu-n-mark.jpg`) ships baked onto its
+     own navy ground, so painting it directly over the card with
+     opacity or `mix-blend-mode: screen` leaks a visible square.
+     Instead we treat the JPG as a luminance MASK: the bright cream
+     N pixels become visible as a soft white silhouette, the dark
+     navy bg pixels are masked out completely. Pseudo-element is
+     filled with white at ~9% so the N reads as a subtle watermark. */
+  .souq-hero-navy {
+    position: relative;
+    overflow: hidden;
+    background: hsl(var(--navy));
+    color: #fff;
+    border-radius: 1.25rem;
+    box-shadow: var(--shadow-card);
+  }
+  .souq-hero-navy::before {
+    /* numu-n-mark-transparent.png — the brand N monogram with the
+       JPG's navy ground stripped to alpha (white-on-transparent, see
+       scripts/extract-n.js for how it was generated). Painted at
+       low opacity over the navy card; no blend-mode hack needed. */
+    content: "";
+    position: absolute;
+    top: -18px;
+    right: -18px;
+    width: 150px;
+    height: 150px;
+    background-image: url("/numu-n-mark-transparent.png");
+    background-repeat: no-repeat;
+    background-size: contain;
+    opacity: 0.1;
+    pointer-events: none;
+  }
+  [dir="rtl"] .souq-hero-navy::before {
+    right: auto;
+    left: -18px;
+  }
+  .souq-hero-navy > * { position: relative; z-index: 1; }
+
+  /* Zone head — the §EYEBROW + faint question + hairline rule that
+     opens each Dashboard zone (Souq spec §TODAY / §NEEDS YOU / §GROW). */
+  .souq-zhead {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .souq-zhead .q {
+    font-size: 13px;
+    color: hsl(var(--muted-foreground));
+    font-weight: 500;
+  }
+  .souq-zhead .line {
+    flex: 1;
+    height: 1px;
+    background: hsl(var(--border));
+  }
+
+  /* LTR-nums helper — keeps numbers/currency/codes left-to-right
+     inside an Arabic-direction parent (Stripe/Shopify/Salla pattern).
+     Wrap the numeric span with `dir="ltr"` or this utility. */
+  .ltr-nums { direction: ltr; display: inline-block; unicode-bidi: isolate; }
+
+  /* Triage row — list row used in §NEEDS YOU. Icon chip + lead/desc
+     + optional value + caret. Caret flips direction in RTL. */
+  .souq-triage-row {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    transition: background 0.16s;
+    cursor: pointer;
+  }
+  .souq-triage-row + .souq-triage-row { border-top: 1px solid hsl(var(--border)); }
+  .souq-triage-row:hover { background: hsl(var(--surface-2, var(--muted))); }
+  .souq-triage-row .lead { font-weight: 700; font-size: 13.5px; }
+  .souq-triage-row .desc { font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .souq-triage-row .cta {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12.5px; font-weight: 700; color: hsl(var(--navy));
+    white-space: nowrap;
+  }
+
+  /* Health ring — circular conic-gradient score indicator. The score
+     fills sage clockwise; the remainder is warm cream. White inset
+     hole shows the numeric score in the center. */
+  .souq-health-ring {
+    position: relative;
+    width: 130px; height: 130px;
+    border-radius: 999px;
+    display: grid; place-items: center;
+  }
+  .souq-health-ring > .hole {
+    position: absolute; inset: 10px;
+    border-radius: 999px;
+    background: hsl(var(--card));
+  }
+  .souq-health-ring > .score {
+    position: relative; z-index: 1;
+    font-family: "IBM Plex Sans Arabic", system-ui, sans-serif;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  .souq-health-ring > .score b { font-size: 28px; letter-spacing: -0.02em; }
+  .souq-health-ring > .score span { font-size: 13px; color: hsl(var(--muted-foreground)); margin-inline-start: 2px; }
+  /* On a navy hero panel, the inner hole becomes navy too so the ring
+     reads as a clean cutout. Score colors flip white-on-navy. */
+  .souq-health-ring.on-navy > .hole { background: hsl(var(--navy)); }
+  .souq-health-ring.on-navy > .score b { color: #fff; }
+  .souq-health-ring.on-navy > .score span { color: rgba(255, 255, 255, 0.55); }
+
+  /* Onboarding strip (first-time / zero-data variant). Navy panel,
+     saffron→sage progress bar, step pills (done/now/todo). */
+  .souq-onboard {
+    position: relative; overflow: hidden;
+    background: hsl(var(--navy)); color: #fff;
+    border-radius: 1.5rem;
+    padding: 22px;
+  }
+  .souq-onboard::before {
+    content: "";
+    position: absolute; top: -20px; right: -20px;
+    width: 180px; height: 180px;
+    background-image: url("/numu-n-mark-transparent.png");
+    background-repeat: no-repeat; background-size: contain;
+    opacity: 0.08; pointer-events: none;
+  }
+  [dir="rtl"] .souq-onboard::before { right: auto; left: -20px; }
+  .souq-onboard > * { position: relative; z-index: 1; }
+  .souq-onboard .progress {
+    height: 8px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+    margin-top: 14px;
+  }
+  .souq-onboard .progress > i {
+    display: block; height: 100%;
+    background: linear-gradient(90deg, hsl(var(--saffron)), hsl(var(--sage)));
+    border-radius: 999px;
+    transition: width 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
 }
+

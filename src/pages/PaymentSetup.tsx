@@ -270,7 +270,7 @@ const PaymentSetup = () => {
     <div className="p-6 max-w-[1100px] mx-auto space-y-8">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => navigate("/payments")}><ArrowLeft className="h-4 w-4" /></Button>
-        <h1 className="text-xl font-bold">{isAr ? "المدفوعات" : "Payments"}</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "المدفوعات" : "Payments"}</h1>
       </div>
 
       {/* ── Section: البطاقات — Cards ── */}
@@ -290,7 +290,7 @@ const PaymentSetup = () => {
 
           {/* Hero banner */}
           <div className="rounded-xl p-6 mb-6 text-white relative overflow-hidden" style={{ background: NUMU_PRIMARY }}>
-            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "120px", backgroundRepeat: "repeat" }} />
+            <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{ backgroundImage: "url('/numu-n-mark-transparent.png')", backgroundSize: "120px", backgroundRepeat: "repeat" }} />
             <div className="relative z-10">
               <h3 className="text-lg font-bold mb-1">{isAr ? "ابدأ باستقبال المدفوعات الإلكترونية فوراً من خلال نمو!" : "Start accepting payments instantly with NUMU!"}</h3>
               <div className="grid gap-4 sm:grid-cols-3 mt-5">

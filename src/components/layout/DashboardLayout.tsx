@@ -89,13 +89,17 @@ const DashboardLayout = () => {
                 <span>{isAr ? `© NUMU ${new Date().getFullYear()} جميع الحقوق محفوظة` : `© NUMU ${new Date().getFullYear()} All rights reserved`}</span>
                 <span className="flex items-center gap-1.5">
                   {isAr ? "صنع في مصر بواسطة" : "Made in Egypt by"}
-                  <img src="/numu-logo-320.webp" alt="NUMU" className="h-4 w-4 rounded" />
-                  <span className="font-semibold text-muted-foreground/80">NUMU</span>
+                  <img
+                    src="/brand/numu-navy.png"
+                    alt="NUMU"
+                    className="h-4 w-auto object-contain"
+                  />
+                  <span className="souq-wordmark text-[12px] text-muted-foreground/80">numu</span>
                 </span>
               </div>
 
-              {/* Spacer for mobile bottom nav */}
-              <div className="h-16 md:hidden" />
+              {/* Spacer for mobile bottom nav (76px Souq bar) */}
+              <div className="h-20 md:hidden" />
             </div>
           </main>
         </div>

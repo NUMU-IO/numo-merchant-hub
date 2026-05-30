@@ -136,8 +136,8 @@ export default function OnlineStoreNavigation() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">{isRTL ? "التنقل" : "Navigation"}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isRTL ? "التنقل" : "Navigation"}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isRTL
               ? "بناء القوائم والروابط في رأس وتذييل متجرك"
               : "Build the menus shown in your store's header and footer"}

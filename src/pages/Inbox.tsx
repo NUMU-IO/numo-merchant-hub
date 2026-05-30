@@ -354,8 +354,8 @@ export const Inbox = () => {
   if (!storeId) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold">{t("omnichannel.inbox")}</h1>
-        <p className="text-muted-foreground mt-2">{t("common.loading")}</p>
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{t("omnichannel.inbox")}</h1>
+        <p className="text-sm text-muted-foreground mt-2">{t("common.loading")}</p>
       </div>
     );
   }

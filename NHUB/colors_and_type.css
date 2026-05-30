@@ -1,0 +1,155 @@
+/* ============================================================================
+   NUMU "SOUQ" — Redesign Tokens  (v2)
+   A warmer, more tactile evolution of the NUMU brand. Same palette family
+   (navy + cream + saffron) reimagined: sand-cream app ground, deep navy
+   primary, saffron energy accent, chunky radii, soft warm depth.
+
+   Type : Cairo (display / Arabic+Latin, tactile bold) + IBM Plex Sans Arabic
+          (dense UI / body) + JetBrains Mono (§ labels, code).
+   Icons: Phosphor (bold + duotone) — see README ICONOGRAPHY.
+
+   Legacy app tokens (cool SaaS HSL system) are preserved at the bottom under
+   .numu-legacy for reference / back-compat.
+   ============================================================================ */
+@import url("https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Tajawal:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+:root {
+  /* ---- Core surfaces (white app, warmth kept only in insets/accents) ---- */
+  --bg:         #FFFFFF;   /* white app ground               */
+  --surface:    #FFFFFF;   /* card / paper (separated by border+shadow) */
+  --surface-2:  #F5F2EB;   /* warm light inset / secondary fill */
+  --surface-3:  #ECE7DC;   /* deeper inset / track           */
+
+  /* ---- Ink / text ---- */
+  --ink:        #14253D;   /* primary navy-ink text          */
+  --ink-soft:   #5B6A7E;   /* secondary text                 */
+  --ink-faint:  #909BAA;   /* tertiary / placeholder         */
+
+  /* ---- Brand ---- */
+  --navy:       #0C2D54;   /* PRIMARY — buttons, headers     */
+  --navy-700:   #143C6E;   /* navy hover (lighter)           */
+  --navy-900:   #081F3C;   /* navy press (darker, tactile)   */
+  --saffron:    #E89A2C;   /* ENERGY accent — CTAs, highlights */
+  --saffron-600:#D2841A;   /* saffron hover/press            */
+  --saffron-100:#FBEBCF;   /* saffron tint surface           */
+  --terracotta: #C14A1C;   /* hot accent                     */
+  --sage:       #5E8A5C;   /* cool support / positive        */
+  --cream:      #F4EDE0;
+
+  /* ---- Lines ---- */
+  --border:     #ECEAE3;   /* warm light hairline            */
+  --border-strong: #DCD6C9;
+  --ring:       #0C2D54;
+
+  /* ---- Semantic ---- */
+  --success:    #2E9E5B;
+  --success-bg: #E2F1E7;
+  --warning:    #DE941E;
+  --warning-bg: #FBEBCF;
+  --danger:     #D64541;
+  --danger-bg:  #F8E2E1;
+  --info:       #2D6CB5;
+  --info-bg:    #E2ECF7;
+
+  /* Status ramp (orders) — LTR-safe semantic colors */
+  --st-delivered: #2E9E5B;
+  --st-shipped:   #2D6CB5;
+  --st-confirmed: #2E8B8B;
+  --st-processing:#DE941E;
+  --st-pending:   #8A93A3;
+  --st-cancelled: #D64541;
+
+  /* ---- Radii (chunky / tactile) ---- */
+  --r-xs:  8px;
+  --r-sm:  12px;
+  --r:     16px;   /* base */
+  --r-lg:  20px;   /* cards */
+  --r-xl:  26px;   /* feature panels */
+  --r-pill: 999px;
+
+  /* ---- Shadows (warm, navy-tinted, present-but-soft) ---- */
+  --shadow-sm:   0 1px 2px rgba(20,37,61,.06);
+  --shadow-card: 0 1px 3px rgba(20,37,61,.05), 0 12px 28px -16px rgba(20,37,61,.20);
+  --shadow-lg:   0 22px 50px -24px rgba(20,37,61,.32);
+  --shadow-pop:  0 16px 40px -12px rgba(20,37,61,.28);
+  /* tactile "key" depth for primary buttons */
+  --depth-navy:    0 2px 0 var(--navy-900), 0 6px 14px -4px rgba(12,45,84,.45);
+  --depth-saffron: 0 2px 0 var(--saffron-600), 0 6px 14px -4px rgba(210,132,26,.45);
+
+  /* ---- Type ---- */
+  /* NUMU's real product fonts: IBM Plex Sans Arabic everywhere (Arabic-first,
+     dense-UI friendly), Reem Kufi reserved for the wordmark / brand lockup. */
+  --font-display: "IBM Plex Sans Arabic", system-ui, sans-serif;  /* headings, KPIs */
+  --font-ui:      "IBM Plex Sans Arabic", system-ui, sans-serif;  /* body, UI */
+  --font-ar:      "IBM Plex Sans Arabic", "Tajawal", sans-serif;
+  --font-brand:   "Reem Kufi", "Tajawal", system-ui, sans-serif;  /* wordmark only */
+  --font-mono:    "JetBrains Mono", ui-monospace, monospace;
+
+  /* type scale */
+  --t-display: 2rem;      /* 32  page hero / big KPI       */
+  --t-h1:      1.5rem;    /* 24  page title               */
+  --t-h2:      1.1875rem; /* 19  card / section title     */
+  --t-body:    0.9375rem; /* 15  body                     */
+  --t-sm:      0.8125rem; /* 13  secondary / nav          */
+  --t-xs:      0.75rem;   /* 12  meta                     */
+  --t-2xs:     0.6875rem; /* 11  micro caps               */
+}
+
+.dark {
+  --bg:         #0B1420;
+  --surface:    #131F2E;
+  --surface-2:  #1A2838;
+  --surface-3:  #223145;
+  --ink:        #ECE6DA;   /* warm cream text */
+  --ink-soft:   #97A4B4;
+  --ink-faint:  #67748699; --ink-faint: #6B7889;
+  --navy:       #2E6BB3;   /* luminous navy for contrast */
+  --navy-700:   #3A7BC6;
+  --navy-900:   #21558F;
+  --saffron:    #EBA63E;
+  --saffron-600:#D2841A;
+  --saffron-100:#2A2113;
+  --border:     #25344A;
+  --border-strong: #324563;
+  --ring:       #3A7BC6;
+  --success-bg: #14271C;
+  --warning-bg: #2A2113;
+  --danger-bg:  #2C1817;
+  --info-bg:    #14233A;
+  --shadow-card: 0 1px 3px rgba(0,0,0,.4), 0 14px 30px -16px rgba(0,0,0,.6);
+  --shadow-lg:   0 24px 50px -24px rgba(0,0,0,.7);
+  --depth-navy:    0 2px 0 var(--navy-900), 0 6px 14px -4px rgba(0,0,0,.5);
+  --depth-saffron: 0 2px 0 var(--saffron-600), 0 6px 14px -4px rgba(0,0,0,.5);
+}
+
+/* ============================================================================
+   Helpers for standalone HTML artifacts
+   ============================================================================ */
+.numu {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-ui); -webkit-font-smoothing: antialiased;
+}
+.numu h1, .numu h2, .numu h3, .numu .display { font-family: var(--font-display); }
+.numu h1 { font-size: var(--t-h1); font-weight: 800; letter-spacing: -.01em; line-height: 1.15; }
+.numu h2 { font-size: var(--t-h2); font-weight: 700; letter-spacing: -.005em; }
+.numu .display-xl { font-family: var(--font-display); font-size: var(--t-display); font-weight: 800; letter-spacing: -.02em; }
+.numu p { font-size: var(--t-body); line-height: 1.6; }
+.numu .muted { color: var(--ink-soft); }
+.numu .tnum { font-variant-numeric: tabular-nums; }
+.numu .mono { font-family: var(--font-mono); }
+.numu .eyebrow {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .16em;
+  text-transform: uppercase; font-weight: 600; color: var(--terracotta);
+}
+[dir="rtl"] .ltr-nums { direction: ltr; display: inline-block; }
+
+/* ============================================================================
+   LEGACY app tokens (cool SaaS HSL) — kept for reference / back-compat only.
+   The redesign above is the canonical NUMU "Souq" system.
+   ============================================================================ */
+.numu-legacy {
+  --background: 0 0% 99%;        --foreground: 222.2 84% 4.9%;
+  --primary: 222.2 47.4% 11.2%;  --muted-foreground: 215.4 16.3% 46.9%;
+  --border: 214.3 31.8% 91.4%;   --radius: 0.625rem;
+  /* full legacy set lived in numo-merchant-hub/src/index.css */
+}

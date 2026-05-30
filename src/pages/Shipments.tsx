@@ -538,11 +538,11 @@ const Shipments = () => {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
-            <Package className="h-5 w-5" />
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight flex items-center gap-2.5">
+            <Package className="h-6 w-6 text-saffron" />
             {isAr ? "الشحنات" : "Shipments"}
           </h1>
-          <p className="text-[13px] text-muted-foreground mt-0.5">
+          <p className="text-sm text-muted-foreground mt-1">
             {isAr ? "إدارة شحنات Bosta وتتبعها" : "Manage and track your Bosta shipments"}
           </p>
         </div>

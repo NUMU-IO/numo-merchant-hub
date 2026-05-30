@@ -213,13 +213,12 @@ const Products = () => {
 
   return (
     <div className="space-y-5">
-      {/* ─── Header ─── */}
-      <div className="flex items-start justify-between gap-4">
-        {/* Right side (title) — visually on the right in RTL */}
-        <div className={`space-y-0.5 ${isAr ? "text-right" : "text-left"}`}>
-          <h1 className="text-2xl font-bold tracking-tight">{t("products.title")}</h1>
-          <p className="text-sm text-muted-foreground">
-            {isAr ? "جميع منتجات متجرك هنا" : "All your store products are here"}
+      {/* Souq page head — display title + subtitle */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className={`${isAr ? "text-right" : "text-left"}`}>
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{t("products.title")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isAr ? "أضف وعدّل منتجاتك" : "Add and manage your catalog"}
           </p>
         </div>
 
@@ -258,26 +257,20 @@ const Products = () => {
         </div>
       </div>
 
-      {/* ─── Status pill tabs ─── */}
+      {/* Souq filter chips — navy when active, count in saffron */}
       <div className="flex items-center gap-2 flex-wrap">
         {statusTabs.map(tab => {
           const isActive = statusFilter === tab.value;
           return (
             <button
               key={tab.value}
+              type="button"
+              data-active={isActive}
               onClick={() => setStatusFilter(tab.value)}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors border
-                ${isActive
-                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                  : "bg-background text-muted-foreground border-border hover:bg-muted/60 hover:text-foreground"
-                }`}
+              className="souq-chip"
             >
               {isAr ? tab.label : tab.labelEn}
-              <span className={`inline-flex items-center justify-center rounded-full text-[11px] tabular-nums min-w-[20px] h-5 px-1.5
-                ${isActive
-                  ? "bg-primary-foreground/20 text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
-                }`}>
+              <span className="inline-flex items-center justify-center rounded-full text-[10px] tabular-nums font-extrabold min-w-[20px] h-5 px-1.5 bg-saffron text-navy-900">
                 {tabCounts[tab.value] ?? 0}
               </span>
             </button>
@@ -411,39 +404,62 @@ const Products = () => {
               </div>
             </div>
           ) : viewMode === "grid" ? (
-            // Grid view — card-per-product. Same data + actions as the list,
-            // just denser visually for merchants browsing product photography.
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3 p-4">
-              {filtered.map((p) => (
-                <button
-                  type="button"
-                  key={p.id}
-                  onClick={() => navigate(`/products/${p.id}/edit`)}
-                  className="group/card text-start rounded-xl border border-border/60 bg-background hover:border-primary/40 hover:shadow-md transition-all overflow-hidden flex flex-col"
-                >
-                  <div className="relative aspect-square bg-muted/40">
-                    {p.image.startsWith("http") ? (
-                      <img src={p.image} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-                    ) : (
-                      <span className="absolute inset-0 flex items-center justify-center text-4xl">{p.image}</span>
-                    )}
-                    <Badge variant="outline" className={`absolute top-2 ${isAr ? "left-2" : "right-2"} text-[10px] font-medium gap-1 rounded-full py-0.5 px-2 ${statusConfig[p.status].bg}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${statusConfig[p.status].dot}`} />
-                      {t(`products.${p.status}`)}
-                    </Badge>
-                  </div>
-                  <div className="p-3 flex-1 flex flex-col gap-1">
-                    <p className="text-[13px] font-medium leading-tight line-clamp-2">{isAr ? p.nameAr : p.name}</p>
-                    <p className="text-[11px] text-muted-foreground/60 font-mono truncate">{p.sku || "—"}</p>
-                    <div className="mt-auto flex items-center justify-between pt-1.5">
-                      <span className="text-[13px] font-semibold tabular-nums">{formatCurrency(p.price)}</span>
-                      <span className={`text-[11px] tabular-nums ${p.stock === 0 ? "text-destructive" : p.stock < 20 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/70"}`}>
-                        {p.stock} {isAr ? "في المخزون" : "in stock"}
-                      </span>
+            /* Souq product card grid — square thumb, name, sku, price,
+               and a sage/terracotta stock progress bar that pops to
+               terracotta when stock <= 10. Matches NHUB Products spec. */
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 p-4">
+              {filtered.map((p) => {
+                const low = p.stock > 0 && p.stock <= 10;
+                const out = p.stock === 0;
+                const stockPct = Math.min(100, Math.max(out ? 0 : 6, Math.round((p.stock / 120) * 100)));
+                return (
+                  <button
+                    type="button"
+                    key={p.id}
+                    onClick={() => navigate(`/products/${p.id}/edit`)}
+                    className="group/card text-start rounded-2xl border border-border bg-card shadow-card hover-lift overflow-hidden flex flex-col"
+                  >
+                    <div className="relative aspect-square bg-muted">
+                      {p.image.startsWith("http") ? (
+                        <img src={p.image} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <span className="absolute inset-0 flex items-center justify-center text-5xl">{p.image}</span>
+                      )}
+                      <Badge variant="outline" className={`absolute top-2 ${isAr ? "left-2" : "right-2"} text-[10px] font-bold gap-1 rounded-full py-0.5 px-2 ${statusConfig[p.status].bg}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusConfig[p.status].dot}`} />
+                        {t(`products.${p.status}`)}
+                      </Badge>
                     </div>
-                  </div>
-                </button>
-              ))}
+                    <div className="p-3.5 flex-1 flex flex-col gap-2">
+                      <div>
+                        <p className="text-[14px] font-bold leading-tight line-clamp-2">{isAr ? p.nameAr : p.name}</p>
+                        <p className="text-[11px] text-muted-foreground/70 font-mono truncate mt-0.5">{p.sku || "—"}</p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[15px] font-extrabold tabular-nums">{formatCurrency(p.price)}</span>
+                        {p.compareAtPrice && (
+                          <span className="text-[11px] tabular-nums text-muted-foreground line-through">{formatCurrency(p.compareAtPrice)}</span>
+                        )}
+                      </div>
+                      {/* Stock progress bar — sage normal, terracotta low/out */}
+                      <div className="mt-auto pt-1">
+                        <div className="flex justify-between items-center text-[11px] mb-1.5">
+                          <span className="text-muted-foreground">{t("products.stock")}</span>
+                          <span className={`tabular-nums font-bold ${out ? "text-destructive" : low ? "text-terracotta" : "text-foreground"}`}>
+                            {p.stock} {isAr ? "وحدة" : "units"}
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${out ? "bg-destructive" : low ? "bg-terracotta" : "bg-sage"}`}
+                            style={{ width: `${stockPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <div className="overflow-x-auto">

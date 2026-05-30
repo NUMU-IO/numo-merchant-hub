@@ -46,6 +46,7 @@ import { fetchPendingInstapayOrders } from "@/services/storeApi";
 import {
   DateRangePicker, useDateRangeUrlState,
 } from "@/components/filters/DateRangePicker";
+import OrderDrawer from "@/components/orders/OrderDrawer";
 
 type FulfillmentStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
 const WORKFLOW: FulfillmentStatus[] = ["pending", "processing", "shipped", "delivered"];
@@ -59,7 +60,15 @@ const Orders = () => {
   const navigate = useNavigate();
 
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<"all" | FulfillmentStatus>("all");
+  // Initial status filter respects `?status=...` so links from the
+  // dashboard attention card (e.g. "/orders?status=pending") land on
+  // the right filtered view instead of dropping the merchant on "all".
+  const initialStatus = (() => {
+    const s = new URLSearchParams(window.location.search).get("status");
+    const valid = ["pending", "processing", "shipped", "delivered", "cancelled"] as const;
+    return s && (valid as readonly string[]).includes(s) ? (s as FulfillmentStatus) : "all";
+  })();
+  const [statusFilter, setStatusFilter] = useState<"all" | FulfillmentStatus>(initialStatus);
   // Secondary view: InstaPay orders with an awaiting-review proof. Mutually
   // exclusive with statusFilter — clicking this chip clears statusFilter.
   const [pendingInstapay, setPendingInstapay] = useState(false);
@@ -165,12 +174,22 @@ const Orders = () => {
     queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
-  const openOrderDetail = (orderId: string) => {
+  // Souq drawer-first flow: clicking a row opens the side OrderDrawer
+  // (quick summary + items + payment + timeline). The drawer header
+  // and footer both link through to the full /orders/:id page for
+  // edit-grade work. Holding ⌘/Ctrl on click bypasses the drawer
+  // (power-user shortcut to jump straight to the full page).
+  const [drawerOrderId, setDrawerOrderId] = useState<string | null>(null);
+  const openOrderDetail = (
+    orderId: string,
+    e?: React.MouseEvent<HTMLElement>,
+  ) => {
     if (!storeId) return;
-    // Always route to the new /orders/:id Shopify-style detail page.
-    // The legacy inline detail block below is dead code kept around for
-    // one release; safe to delete in a follow-up cleanup PR.
-    navigate(`/orders/${orderId}`);
+    if (e && (e.metaKey || e.ctrlKey)) {
+      navigate(`/orders/${orderId}`);
+      return;
+    }
+    setDrawerOrderId(orderId);
   };
 
   const statusColor: Record<string, string> = {
@@ -925,11 +944,11 @@ const Orders = () => {
 
   return (
     <div className="p-6 max-w-[1200px] mx-auto space-y-4">
-      {/* Header */}
-      <div className="flex items-start justify-between">
+      {/* Souq page head — display title + subtitle */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold">{isAr ? "قائمة الطلبات" : "Orders"}</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">{isAr ? "جميع طلبات متجرك هنا" : "All your store orders in one place"}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "قائمة الطلبات" : "Orders"}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{isAr ? "تابع طلباتك وجهّزها" : "Track and fulfill your orders"}</p>
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
@@ -982,16 +1001,14 @@ const Orders = () => {
               return (
                 <button
                   key={f.v}
+                  type="button"
+                  data-active={active}
                   onClick={() => { setStatusFilter(f.v); setPendingInstapay(false); setPage(1); setSelected(new Set()); }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border whitespace-nowrap cursor-pointer ${
-                    active
-                      ? "border-foreground/20 bg-foreground text-background shadow-sm"
-                      : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/80"
-                  }`}
+                  className="souq-chip h-9"
                 >
                   {f.l}
                   {f.v === "all" && totalOrders > 0 && !pendingInstapay && (
-                    <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold tabular-nums ms-1.5 ${active ? "bg-background/20 text-background" : "bg-primary text-primary-foreground"}`}>
+                    <span className={`inline-flex items-center justify-center min-w-[20px] h-[20px] rounded-full text-[10px] font-extrabold tabular-nums ms-1 ${active ? "bg-saffron text-navy-900" : "bg-saffron text-navy-900"}`}>
                       {totalOrders > 99 ? "99+" : totalOrders}
                     </span>
                   )}
@@ -1045,25 +1062,35 @@ const Orders = () => {
           </div>
         </div>
 
-        {/* Bulk actions bar */}
+        {/* Souq bulk actions bar — navy fill, white text, saffron count.
+            Matches NHUB Orders pattern (navy strip with selection chip). */}
         {selected.size > 0 && (
-          <div className="flex items-center gap-3 px-5 py-2.5 bg-muted/30 border-b animate-in fade-in slide-in-from-top-2 duration-200">
-            <span className="text-xs font-medium">{selected.size} {isAr ? "محدد" : "selected"}</span>
+          <div className="flex items-center gap-3 px-5 py-3 bg-navy text-white animate-in fade-in slide-in-from-top-2 duration-200">
+            <span className="text-[13px] font-bold">
+              <span className="tabular-nums">{selected.size}</span> {isAr ? "متحدد" : "selected"}
+            </span>
             <div className="flex items-center gap-2 ms-auto">
               <Select onValueChange={(v) => handleBulkStatus(v)}>
-                <SelectTrigger className="w-[140px] h-7 text-[11px]"><SelectValue placeholder={t("orders.bulkStatus")} /></SelectTrigger>
+                <SelectTrigger className="w-[150px] h-8 text-xs bg-white/10 border-white/20 text-white hover:bg-white/15"><SelectValue placeholder={t("orders.bulkStatus")} /></SelectTrigger>
                 <SelectContent>{(["processing", "shipped", "delivered", "cancelled"] as const).map(s => <SelectItem key={s} value={s}>{t(`orders.${s}`)}</SelectItem>)}</SelectContent>
               </Select>
               <Button
-                variant="outline"
                 size="sm"
-                className="h-7 text-[11px] gap-1"
+                className="h-8 text-xs gap-1.5 bg-white/10 border-white/20 text-white hover:bg-white/15 shadow-none"
                 onClick={handleBulkMarkReturned}
               >
-                <RotateCcw className="h-3 w-3" />
+                <RotateCcw className="h-3.5 w-3.5" />
                 {isAr ? "تحديد كمرتجع" : "Mark Returned"}
               </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => setSelected(new Set())}>{isAr ? "إلغاء" : "Clear"}</Button>
+              <Button
+                variant="accent"
+                size="sm"
+                className="h-8 text-xs gap-1.5"
+                onClick={() => { handleBulkStatus("processing"); }}
+              >
+                {isAr ? "تجهيز" : "Fulfill"}
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-white hover:bg-white/10 hover:text-white" onClick={() => setSelected(new Set())}>{isAr ? "إلغاء" : "Clear"}</Button>
             </div>
           </div>
         )}
@@ -1109,7 +1136,7 @@ const Orders = () => {
                 <button
                   key={o.id}
                   type="button"
-                  onClick={() => openOrderDetail(o.id)}
+                  onClick={(e) => openOrderDetail(o.id, e)}
                   className="w-full flex items-start gap-3 px-4 py-3 text-start hover:bg-muted/20 transition-colors"
                 >
                   <div onClick={e => { e.stopPropagation(); }} className="pt-0.5">
@@ -1190,7 +1217,7 @@ const Orders = () => {
               </TableHeader>
               <TableBody>
                 {orders.map((o) => (
-                  <TableRow key={o.id} className="group cursor-pointer" onClick={() => openOrderDetail(o.id)}>
+                  <TableRow key={o.id} className="group cursor-pointer" onClick={(e) => openOrderDetail(o.id, e)}>
                     <TableCell onClick={e => e.stopPropagation()}>
                       <Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggleSelect(o.id)} />
                     </TableCell>
@@ -1265,6 +1292,14 @@ const Orders = () => {
       </div>
 
       {rtoDialog}
+
+      {/* Souq order drawer — slides in on row click. Header/footer
+          buttons navigate to the full /orders/:id page. ⌘/Ctrl+click
+          on a row bypasses the drawer entirely. */}
+      <OrderDrawer
+        orderId={drawerOrderId}
+        onClose={() => setDrawerOrderId(null)}
+      />
     </div>
   );
 };

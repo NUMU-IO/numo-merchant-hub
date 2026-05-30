@@ -187,8 +187,8 @@ const CreateOrder = () => {
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => navigate("/orders")}><ArrowLeft className="h-4 w-4" /></Button>
         <div>
-          <h1 className="text-xl font-bold">{isAr ? "إنشاء طلب يدوي جديد" : "Create New Manual Order"}</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">{isAr ? "يمكنك إنشاء الطلبات وإنهاؤها دون تدخل العميل" : "Create and fulfill orders without customer involvement"}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "إنشاء طلب يدوي جديد" : "Create New Manual Order"}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{isAr ? "يمكنك إنشاء الطلبات وإنهاؤها دون تدخل العميل" : "Create and fulfill orders without customer involvement"}</p>
         </div>
       </div>
 

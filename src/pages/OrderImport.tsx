@@ -165,10 +165,10 @@ export default function OrderImport() {
           <ArrowLeft className="h-3.5 w-3.5" />
           {isAr ? "الطلبات" : "Orders"}
         </Link>
-        <h1 className="text-xl font-semibold tracking-tight">
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
           {isAr ? "استيراد الطلبات" : "Import orders"}
         </h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
+        <p className="mt-1 text-sm text-muted-foreground">
           {isAr
             ? "ارفع ملف CSV من إكسل أو جوجل شيتس. هنعرض لك أول كام صف عشان تتأكد قبل الاستيراد الفعلي."
             : "Upload a CSV exported from Excel or Google Sheets. You'll preview the column mapping before anything gets imported."}
