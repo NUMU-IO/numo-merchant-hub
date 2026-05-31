@@ -105,6 +105,14 @@ const NOTIFICATION_EVENTS: Array<{
     descAr: "تُرسل عند تسليم الطلب.",
     icon: PackageCheck,
   },
+  {
+    key: "abandoned_cart",
+    en: "Abandoned cart",
+    ar: "السلة المتروكة",
+    descEn: "Recover carts customers left without paying. Send instantly from the Abandoned checkouts page.",
+    descAr: "استرجع السلات التي تركها العملاء دون دفع. أرسل فوراً من صفحة السلات المتروكة.",
+    icon: ShoppingCart,
+  },
 ];
 
 const LANGUAGE_OPTIONS: Array<{

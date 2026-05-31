@@ -32,12 +32,14 @@ import {
   ExternalLink,
   Loader2,
   Mail,
+  MessageCircle,
   ShoppingBag,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   listAbandonedCheckouts,
   markAbandonedCheckoutRecovered,
+  notifyAbandonedCheckoutWhatsApp,
   sendRecoveryEmail,
   type AbandonedCheckout,
 } from "@/services/abandonedCheckoutApi";
@@ -105,6 +107,38 @@ const AbandonedCheckouts = () => {
         isAr ? "تم تحديد السلة كمستردة" : "Checkout marked as recovered",
       );
       invalidate();
+    },
+    onError: (err) => showError(err, language),
+  });
+
+  // Maps the backend's machine-readable skip reason to a human message.
+  const notifyReason = (reason: string | null): string => {
+    switch (reason) {
+      case "no_phone":
+        return isAr ? "لا يوجد رقم هاتف لهذا العميل" : "No phone number on file";
+      case "already_recovered":
+        return isAr ? "تم استرداد هذه السلة بالفعل" : "This cart was already recovered";
+      case "no_credentials":
+      case "credentials_invalid":
+        return isAr ? "واتساب غير مُعد لهذا المتجر" : "WhatsApp isn't set up for this store";
+      case "template_not_approved":
+        return isAr
+          ? "قالب السلة المتروكة غير معتمد بعد"
+          : "Abandoned-cart template not approved yet";
+      default:
+        return isAr ? "تعذر إرسال الرسالة" : "Couldn't send the message";
+    }
+  };
+
+  const notifyWhatsApp = useMutation({
+    mutationFn: (checkoutId: string) =>
+      notifyAbandonedCheckoutWhatsApp(storeId!, checkoutId),
+    onSuccess: (res) => {
+      if (res.sent) {
+        toast.success(isAr ? "تم إرسال رسالة واتساب" : "WhatsApp message sent");
+      } else {
+        toast.error(notifyReason(res.reason));
+      }
     },
     onError: (err) => showError(err, language),
   });
@@ -300,6 +334,26 @@ const AbandonedCheckouts = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {!c.recovered_at && c.phone && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px] gap-1 text-emerald-600 border-emerald-200/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                            disabled={
+                              notifyWhatsApp.isPending &&
+                              notifyWhatsApp.variables === c.id
+                            }
+                            onClick={() => notifyWhatsApp.mutate(c.id)}
+                          >
+                            {notifyWhatsApp.isPending &&
+                            notifyWhatsApp.variables === c.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <MessageCircle className="h-3 w-3" />
+                            )}
+                            {isAr ? "واتساب" : "WhatsApp"}
+                          </Button>
+                        )}
                         {!c.recovered_at && c.email && (
                           <Button
                             size="sm"

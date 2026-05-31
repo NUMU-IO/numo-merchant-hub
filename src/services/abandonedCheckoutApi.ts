@@ -117,3 +117,21 @@ export async function markAbandonedCheckoutRecovered(
     { method: "POST" },
   );
 }
+
+export interface NotifyWhatsAppResult {
+  sent: boolean;
+  // Machine-readable skip reason when sent is false (no_phone,
+  // no_credentials, template_not_approved, send_failed, already_recovered…).
+  reason: string | null;
+  message_id?: string | null;
+}
+
+export async function notifyAbandonedCheckoutWhatsApp(
+  storeId: string,
+  checkoutId: string,
+): Promise<NotifyWhatsAppResult> {
+  return apiClient<NotifyWhatsAppResult>(
+    `/stores/${storeId}/abandoned-checkouts/${checkoutId}/notify-whatsapp`,
+    { method: "POST" },
+  );
+}
