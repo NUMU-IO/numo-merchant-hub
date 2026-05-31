@@ -40,6 +40,7 @@ import {
   Globe,
   Languages,
   ShoppingBag,
+  ShoppingCart,
   CreditCard,
   Truck,
   PackageCheck,
