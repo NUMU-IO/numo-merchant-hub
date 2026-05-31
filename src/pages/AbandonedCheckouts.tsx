@@ -125,6 +125,13 @@ const AbandonedCheckouts = () => {
         return isAr
           ? "قالب السلة المتروكة غير معتمد بعد"
           : "Abandoned-cart template not approved yet";
+      case "already_notified_recently":
+        // Not an error: WhatsApp caps marketing messages per customer, so we
+        // block a repeat nudge within 24h (whether sent here or by the
+        // scheduled job) instead of firing a send Meta would silently drop.
+        return isAr
+          ? "تم تنبيه هذا العميل خلال آخر ٢٤ ساعة"
+          : "This customer was already nudged in the last 24 hours";
       default:
         return isAr ? "تعذر إرسال الرسالة" : "Couldn't send the message";
     }
@@ -136,6 +143,9 @@ const AbandonedCheckouts = () => {
     onSuccess: (res) => {
       if (res.sent) {
         toast.success(isAr ? "تم إرسال رسالة واتساب" : "WhatsApp message sent");
+      } else if (res.reason === "already_notified_recently") {
+        // Benign cooldown, not a failure — use an info toast, not an error.
+        toast.info(notifyReason(res.reason));
       } else {
         toast.error(notifyReason(res.reason));
       }

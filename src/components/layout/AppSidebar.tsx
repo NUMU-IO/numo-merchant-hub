@@ -42,7 +42,9 @@ import { Badge } from "@/components/ui/badge";
 import { NavItemGate } from "./NavItemGate";
 
 type IconType = typeof House;
-type NavSubItem = { title: string; url: string; icon: IconType };
+// `navKey` gates the sub-item against the platform-admin nav config
+// (see NavItemGate / merchant_hub_nav.py). Convention: "parent.child".
+type NavSubItem = { title: string; url: string; icon: IconType; navKey: string };
 
 // The WhatsApp brand mark rendered as a nav icon. It accepts the same
 // `size`/`weight`/`className` props phosphor icons get (weight is a
@@ -91,76 +93,76 @@ const AppSidebar = () => {
 
   // ─── Sub-item lists (kept close to the parent for readability) ─────────
   const ordersSub: NavSubItem[] = [
-    { title: isRTL ? "كل الطلبات" : "All orders", url: "/orders", icon: ShoppingCart },
-    { title: isRTL ? "المسودات" : "Drafts", url: "/orders/drafts", icon: FileEdit },
-    { title: isRTL ? "السلال المهجورة" : "Abandoned", url: "/orders/abandoned", icon: ShoppingBag },
-    { title: isRTL ? "بوالص الشحن" : "Shipping labels", url: "/orders/shipping-labels", icon: Tag },
+    { title: isRTL ? "كل الطلبات" : "All orders", url: "/orders", icon: ShoppingCart, navKey: "orders.all" },
+    { title: isRTL ? "المسودات" : "Drafts", url: "/orders/drafts", icon: FileEdit, navKey: "orders.drafts" },
+    { title: isRTL ? "السلال المهجورة" : "Abandoned", url: "/orders/abandoned", icon: ShoppingBag, navKey: "orders.abandoned" },
+    { title: isRTL ? "بوالص الشحن" : "Shipping labels", url: "/orders/shipping-labels", icon: Tag, navKey: "orders.shipping-labels" },
   ];
   const productsSub: NavSubItem[] = [
-    { title: isRTL ? "كل المنتجات" : "All products", url: "/products", icon: Package },
-    { title: isRTL ? "الفئات" : "Categories", url: "/categories", icon: FolderOpen },
+    { title: isRTL ? "كل المنتجات" : "All products", url: "/products", icon: Package, navKey: "products.all" },
+    { title: isRTL ? "الفئات" : "Categories", url: "/categories", icon: FolderOpen, navKey: "products.categories" },
   ];
   // Marketing — discounts + campaigns + whatsapp + gift cards + email
   // templates, all rolled into one parent the spec calls "Marketing".
   const marketingSub: NavSubItem[] = [
-    { title: isRTL ? "نظرة عامة" : "Overview", url: "/marketing", icon: Megaphone },
-    { title: isRTL ? "الكوبونات" : "Coupons", url: "/marketing/coupons", icon: Tag },
-    { title: isRTL ? "العروض" : "Promotions", url: "/marketing/promotions", icon: BadgePercent },
-    { title: isRTL ? "بطاقات الهدايا" : "Gift cards", url: "/gift-cards", icon: Gift },
-    { title: isRTL ? "الحملات" : "Campaigns", url: "/campaigns", icon: Send },
-    { title: isRTL ? "واتساب" : "WhatsApp", url: "/whatsapp", icon: WhatsAppNavIcon },
-    { title: isRTL ? "قوالب البريد" : "Email templates", url: "/email-templates", icon: Mail },
-    { title: isRTL ? "الإسناد" : "Attribution", url: "/marketing/attribution", icon: TrendingUp },
-    { title: isRTL ? "الجماهير" : "Audiences", url: "/marketing/audiences", icon: Users },
-    { title: isRTL ? "الإحالات" : "Referrals", url: "/referrals", icon: UserPlus },
+    { title: isRTL ? "نظرة عامة" : "Overview", url: "/marketing", icon: Megaphone, navKey: "marketing.overview" },
+    { title: isRTL ? "الكوبونات" : "Coupons", url: "/marketing/coupons", icon: Tag, navKey: "marketing.coupons" },
+    { title: isRTL ? "العروض" : "Promotions", url: "/marketing/promotions", icon: BadgePercent, navKey: "marketing.promotions" },
+    { title: isRTL ? "بطاقات الهدايا" : "Gift cards", url: "/gift-cards", icon: Gift, navKey: "marketing.gift-cards" },
+    { title: isRTL ? "الحملات" : "Campaigns", url: "/campaigns", icon: Send, navKey: "marketing.campaigns" },
+    { title: isRTL ? "واتساب" : "WhatsApp", url: "/whatsapp", icon: WhatsAppNavIcon, navKey: "marketing.whatsapp" },
+    { title: isRTL ? "قوالب البريد" : "Email templates", url: "/email-templates", icon: Mail, navKey: "marketing.email-templates" },
+    { title: isRTL ? "الإسناد" : "Attribution", url: "/marketing/attribution", icon: TrendingUp, navKey: "marketing.attribution" },
+    { title: isRTL ? "الجماهير" : "Audiences", url: "/marketing/audiences", icon: Users, navKey: "marketing.audiences" },
+    { title: isRTL ? "الإحالات" : "Referrals", url: "/referrals", icon: UserPlus, navKey: "marketing.referrals" },
   ];
   const analyticsSub: NavSubItem[] = [
-    { title: isRTL ? "نظرة عامة" : "Overview", url: "/analytics/overview", icon: BarChart3 },
-    { title: isRTL ? "المبيعات" : "Sales", url: "/analytics/sales", icon: CreditCard },
-    { title: isRTL ? "الطلبات" : "Orders", url: "/analytics/orders", icon: ShoppingCart },
-    { title: isRTL ? "العملاء" : "Customers", url: "/analytics/customers", icon: Users },
-    { title: isRTL ? "المنتجات" : "Products", url: "/analytics/products", icon: Package },
-    { title: isRTL ? "القمع" : "Funnel", url: "/analytics/funnel", icon: Filter },
-    { title: isRTL ? "التقارير" : "Reports", url: "/analytics/reports", icon: FileText },
-    { title: isRTL ? "مباشر" : "Live", url: "/analytics/live", icon: Radio },
-    { title: isRTL ? "تحليلات ذكية" : "Insights", url: "/analytics/insights", icon: Lightbulb },
-    { title: isRTL ? "التوقعات" : "Forecast", url: "/analytics/forecast", icon: LineChart },
-    { title: isRTL ? "رحلة العميل" : "Journey", url: "/analytics/journey", icon: MousePointerClick },
-    { title: isRTL ? "صحة المتجر" : "Store health", url: "/health-score", icon: Sparkles },
+    { title: isRTL ? "نظرة عامة" : "Overview", url: "/analytics/overview", icon: BarChart3, navKey: "analytics.overview" },
+    { title: isRTL ? "المبيعات" : "Sales", url: "/analytics/sales", icon: CreditCard, navKey: "analytics.sales" },
+    { title: isRTL ? "الطلبات" : "Orders", url: "/analytics/orders", icon: ShoppingCart, navKey: "analytics.orders" },
+    { title: isRTL ? "العملاء" : "Customers", url: "/analytics/customers", icon: Users, navKey: "analytics.customers" },
+    { title: isRTL ? "المنتجات" : "Products", url: "/analytics/products", icon: Package, navKey: "analytics.products" },
+    { title: isRTL ? "القمع" : "Funnel", url: "/analytics/funnel", icon: Filter, navKey: "analytics.funnel" },
+    { title: isRTL ? "التقارير" : "Reports", url: "/analytics/reports", icon: FileText, navKey: "analytics.reports" },
+    { title: isRTL ? "مباشر" : "Live", url: "/analytics/live", icon: Radio, navKey: "analytics.live" },
+    { title: isRTL ? "تحليلات ذكية" : "Insights", url: "/analytics/insights", icon: Lightbulb, navKey: "analytics.insights" },
+    { title: isRTL ? "التوقعات" : "Forecast", url: "/analytics/forecast", icon: LineChart, navKey: "analytics.forecast" },
+    { title: isRTL ? "رحلة العميل" : "Journey", url: "/analytics/journey", icon: MousePointerClick, navKey: "analytics.journey" },
+    { title: isRTL ? "صحة المتجر" : "Store health", url: "/health-score", icon: Sparkles, navKey: "analytics.health" },
   ];
   const financeSub: NavSubItem[] = [
-    { title: isRTL ? "نظرة عامة" : "Overview", url: "/payments", icon: Wallet },
-    { title: isRTL ? "التحويلات" : "Payouts", url: "/wallet", icon: TrendingUp },
-    { title: isRTL ? "رصيد المتجر" : "Store balance", url: "/store-balance", icon: Money },
-    { title: isRTL ? "الفواتير" : "Invoices", url: "/invoices", icon: Receipt },
-    { title: isRTL ? "إعداد الدفع" : "Payment setup", url: "/payment-setup", icon: CreditCard },
-    { title: isRTL ? "الاشتراك" : "Billing", url: "/billing", icon: Sparkles },
+    { title: isRTL ? "نظرة عامة" : "Overview", url: "/payments", icon: Wallet, navKey: "payments.overview" },
+    { title: isRTL ? "التحويلات" : "Payouts", url: "/wallet", icon: TrendingUp, navKey: "payments.payouts" },
+    { title: isRTL ? "رصيد المتجر" : "Store balance", url: "/store-balance", icon: Money, navKey: "payments.store-balance" },
+    { title: isRTL ? "الفواتير" : "Invoices", url: "/invoices", icon: Receipt, navKey: "payments.invoices" },
+    { title: isRTL ? "إعداد الدفع" : "Payment setup", url: "/payment-setup", icon: CreditCard, navKey: "payments.payment-setup" },
+    { title: isRTL ? "الاشتراك" : "Billing", url: "/billing", icon: Sparkles, navKey: "payments.billing" },
   ];
   const onlineStoreSub: NavSubItem[] = [
-    { title: isRTL ? "نظرة عامة" : "Overview", url: "/online-store", icon: Storefront },
-    { title: isRTL ? "الثيمات" : "Themes", url: "/online-store/themes", icon: Palette },
-    { title: isRTL ? "الصفحات" : "Pages", url: "/online-store/pages", icon: FileText },
-    { title: isRTL ? "التنقل" : "Navigation", url: "/online-store/navigation", icon: Navigation2 },
-    { title: isRTL ? "التفضيلات" : "Preferences", url: "/online-store/preferences", icon: SlidersHorizontal },
-    { title: isRTL ? "حقول الدفع" : "Checkout fields", url: "/online-store/checkout-fields", icon: ClipboardList },
-    { title: isRTL ? "إصداراتي" : "My themes", url: "/online-store/my-themes", icon: Package },
+    { title: isRTL ? "نظرة عامة" : "Overview", url: "/online-store", icon: Storefront, navKey: "online-store.overview" },
+    { title: isRTL ? "الثيمات" : "Themes", url: "/online-store/themes", icon: Palette, navKey: "online-store.themes" },
+    { title: isRTL ? "الصفحات" : "Pages", url: "/online-store/pages", icon: FileText, navKey: "online-store.pages" },
+    { title: isRTL ? "التنقل" : "Navigation", url: "/online-store/navigation", icon: Navigation2, navKey: "online-store.navigation" },
+    { title: isRTL ? "التفضيلات" : "Preferences", url: "/online-store/preferences", icon: SlidersHorizontal, navKey: "online-store.preferences" },
+    { title: isRTL ? "حقول الدفع" : "Checkout fields", url: "/online-store/checkout-fields", icon: ClipboardList, navKey: "online-store.checkout-fields" },
+    { title: isRTL ? "إصداراتي" : "My themes", url: "/online-store/my-themes", icon: Package, navKey: "online-store.my-themes" },
   ];
   const logisticsSub: NavSubItem[] = [
-    { title: isRTL ? "الشحنات" : "Shipments", url: "/logistics", icon: Truck },
-    { title: isRTL ? "المناطق" : "Zones", url: "/shipping/zones", icon: MapPin },
-    { title: isRTL ? "المواقع" : "Locations", url: "/locations", icon: MapPin },
+    { title: isRTL ? "الشحنات" : "Shipments", url: "/logistics", icon: Truck, navKey: "logistics.shipments" },
+    { title: isRTL ? "المناطق" : "Zones", url: "/shipping/zones", icon: MapPin, navKey: "logistics.zones" },
+    { title: isRTL ? "المواقع" : "Locations", url: "/locations", icon: MapPin, navKey: "logistics.locations" },
   ];
   const whatsappOpsSub: NavSubItem[] = [
-    { title: isRTL ? "صندوق الوارد" : "Inbox", url: "/whatsapp/inbox", icon: Inbox },
-    { title: isRTL ? "الحملات" : "Campaigns", url: "/whatsapp/campaigns", icon: Send },
-    { title: isRTL ? "القوالب" : "Templates", url: "/channels/whatsapp/templates", icon: FileText },
-    { title: isRTL ? "اشتراكات العملاء" : "Opt-ins", url: "/whatsapp/opt-ins", icon: UserCheck },
-    { title: isRTL ? "ربط الحساب" : "Connect (BYO)", url: "/whatsapp/byo", icon: PlugZap },
-    { title: isRTL ? "الرسائل الفاشلة" : "Dead letters", url: "/whatsapp/dead-letters", icon: AlertTriangle },
+    { title: isRTL ? "صندوق الوارد" : "Inbox", url: "/whatsapp/inbox", icon: Inbox, navKey: "whatsapp.inbox" },
+    { title: isRTL ? "الحملات" : "Campaigns", url: "/whatsapp/campaigns", icon: Send, navKey: "whatsapp.campaigns" },
+    { title: isRTL ? "القوالب" : "Templates", url: "/channels/whatsapp/templates", icon: FileText, navKey: "whatsapp.templates" },
+    { title: isRTL ? "اشتراكات العملاء" : "Opt-ins", url: "/whatsapp/opt-ins", icon: UserCheck, navKey: "whatsapp.opt-ins" },
+    { title: isRTL ? "ربط الحساب" : "Connect (BYO)", url: "/whatsapp/byo", icon: PlugZap, navKey: "whatsapp.byo" },
+    { title: isRTL ? "الرسائل الفاشلة" : "Dead letters", url: "/whatsapp/dead-letters", icon: AlertTriangle, navKey: "whatsapp.dead-letters" },
   ];
   const staffSub: NavSubItem[] = [
-    { title: isRTL ? "الأعضاء" : "Members", url: "/staff", icon: User },
-    { title: isRTL ? "الأدوار" : "Roles", url: "/roles", icon: UserCog },
+    { title: isRTL ? "الأعضاء" : "Members", url: "/staff", icon: User, navKey: "staff.members" },
+    { title: isRTL ? "الأدوار" : "Roles", url: "/roles", icon: UserCog, navKey: "staff.roles" },
   ];
 
   // ─── Pure-flat (no sub) row ───────────────────────────────────────────
@@ -229,14 +231,16 @@ const AppSidebar = () => {
             {subItems.map((item) => {
               const subActive = isActive(item.url);
               return (
-                <SidebarMenuSubItem key={item.url}>
-                  <SidebarMenuSubButton asChild isActive={subActive}>
-                    <NavLink to={item.url}>
-                      <item.icon size={14} weight={subActive ? "fill" : "duotone"} />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
+                <NavItemGate key={item.url} navKey={item.navKey}>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton asChild isActive={subActive}>
+                      <NavLink to={item.url}>
+                        <item.icon size={14} weight={subActive ? "fill" : "duotone"} />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                </NavItemGate>
               );
             })}
           </SidebarMenuSub>
@@ -420,7 +424,7 @@ const AppSidebar = () => {
                     </div>
                     <CollapsibleContent>
                       <SidebarMenuSub>
-                        <NavItemGate navKey="inbox">
+                        <NavItemGate navKey="channels.inbox">
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/inbox")}>
                               <NavLink to="/inbox">
@@ -435,14 +439,16 @@ const AppSidebar = () => {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         </NavItemGate>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/social")}>
-                            <NavLink to="/social">
-                              <Sparkles size={14} weight={isActive("/social") ? "fill" : "duotone"} />
-                              <span>{isRTL ? "سوشيال" : "Social"}</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
+                        <NavItemGate navKey="channels.social">
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/social")}>
+                              <NavLink to="/social">
+                                <Sparkles size={14} weight={isActive("/social") ? "fill" : "duotone"} />
+                                <span>{isRTL ? "سوشيال" : "Social"}</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        </NavItemGate>
                       </SidebarMenuSub>
                     </CollapsibleContent>
                   </SidebarMenuItem>
