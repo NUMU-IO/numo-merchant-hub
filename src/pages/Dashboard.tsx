@@ -23,6 +23,7 @@ import {
   getRevenueChart,
   getTopProducts,
   getHealthScore,
+  getOrderStreak,
 } from "@/services/analyticsApi";
 import type { HealthScoreData } from "@/services/analyticsApi";
 import { dateRangeKey } from "@/services/dateRangeParams";
@@ -146,6 +147,16 @@ const Dashboard = () => {
     staleTime: 1000 * 60 * 60,
   });
 
+  // Consecutive-days-with-orders streak (computed server-side, store tz).
+  // Not range-scoped — independent of the date picker. Cache 30 min.
+  const streakQuery = useQuery({
+    queryKey: ["dashboard", "streak", storeId],
+    queryFn: () => getOrderStreak(storeId!),
+    enabled: !!storeId,
+    staleTime: 1000 * 60 * 30,
+  });
+  const streak = streakQuery.data ?? null;
+
   const healthScore: HealthScoreData | null = healthScoreQuery.data ?? null;
   const stats = statsQuery.data ?? null;
   const chartData = chartQuery.data ?? [];
@@ -236,6 +247,27 @@ const Dashboard = () => {
     if (hour < 12) return isAr ? "صباح الفل" : "Good morning";
     if (hour < 18) return isAr ? "نهارك سعيد" : "Good afternoon";
     return isAr ? "مساء النور" : "Good evening";
+  })();
+
+  // Order streak badge. Day 1 (only when today actually has an order) shows
+  // a "let's start" nudge; 2+ days shows the celebratory run. A streak of 1
+  // anchored on yesterday (no order today yet) shows nothing — saying "first
+  // order today" would be wrong. Egyptian Arabic pluralization: يومين for 2,
+  // أيام for 3–10, يوم for 11+.
+  const streakDays = streak?.current_streak ?? 0;
+  const isDayOneNudge = streakDays === 1 && (streak?.active_today ?? false);
+  const showStreak = streakDays >= 2 || isDayOneNudge;
+  const streakLabel = (() => {
+    if (isDayOneNudge) {
+      return isAr
+        ? "أول طلب النهارده، يلا نبدأ!"
+        : "First order today — let's start a streak!";
+    }
+    if (!isAr) return `${streakDays}-day order streak — you're on fire!`;
+    const n = streakDays.toLocaleString("ar-EG");
+    const dayPhrase =
+      streakDays === 2 ? "يومين" : streakDays <= 10 ? `${n} أيام` : `${n} يوم`;
+    return `${dayPhrase} ورا بعض وفيهم طلبات — مولّعها ما شاء الله!`;
   })();
 
   // Status pill colors (Souq order-status ramp via inline color-mix)
@@ -428,6 +460,21 @@ const Dashboard = () => {
                     ? "كل حاجة تمام النهارده"
                     : "All good for today"}
             </p>
+            {showStreak && (
+              <Badge
+                variant="accent"
+                className="mt-2.5 gap-1.5 px-3 py-1 text-xs font-extrabold"
+                title={
+                  isDayOneNudge
+                    ? undefined
+                    : isAr
+                      ? `أطول سلسلة ليك: ${(streak?.longest_streak ?? streakDays).toLocaleString("ar-EG")} يوم`
+                      : `Your longest streak: ${streak?.longest_streak ?? streakDays} days`
+                }
+              >
+                🔥 {streakLabel}
+              </Badge>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
