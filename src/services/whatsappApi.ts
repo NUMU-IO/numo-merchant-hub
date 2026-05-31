@@ -384,14 +384,24 @@ export interface WhatsAppNotificationSettings {
   marketing: boolean;
 }
 
+// Language the automated order-lifecycle notifications go out in.
+// "auto" follows the store's default language; "ar"/"en" force every
+// notification to that language. Mirrors NUMU-api
+// `whatsapp_connection.MessageLanguage`. Persisted at
+// `store.settings.whatsapp.message_language` and honored at send time by
+// the order-event handler's `_resolve_send_context`.
+export type WhatsAppMessageLanguage = "auto" | "ar" | "en";
+
 export interface WhatsAppStatus {
   mode: WhatsAppMode;
   connected: boolean;
   phone_display_name: string | null;
   display_phone_number: string | null;
   waba_id: string | null;
+  quality_rating?: "GREEN" | "YELLOW" | "RED" | "UNKNOWN" | null;
   last_validated_at: string | null;
   credential_error: string | null;
+  message_language: WhatsAppMessageLanguage;
   notifications: WhatsAppNotificationSettings;
 }
 
@@ -460,6 +470,26 @@ export async function updateByoNotifications(
   return apiClient<WhatsAppNotificationSettings>(
     `/stores/${storeId}/whatsapp/byo/notifications`,
     { method: "PATCH", body: JSON.stringify(toggles) }
+  );
+}
+
+// ── Store-level WhatsApp settings (message language, …) ──
+
+/**
+ * Update store-level WhatsApp preferences that are not per-message
+ * toggles. Currently just `message_language`. Returns the refreshed
+ * WhatsAppStatus so the Overview can re-render from one source of truth.
+ * Wired end-to-end: the backend send path (`_resolve_send_context`)
+ * reads this value when choosing the Meta template language for every
+ * automated order notification.
+ */
+export async function updateWhatsAppSettings(
+  storeId: string,
+  settings: { message_language?: WhatsAppMessageLanguage }
+) {
+  return apiClient<WhatsAppStatus>(
+    `/stores/${storeId}/whatsapp/settings`,
+    { method: "PATCH", body: JSON.stringify(settings) }
   );
 }
 

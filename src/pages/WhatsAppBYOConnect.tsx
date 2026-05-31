@@ -1,528 +1,365 @@
-/**
- * BYO Meta WhatsApp Business Account connection page.
- *
- * Three modes the page renders:
- *
- * 1. Loading — initial /byo/status fetch.
- * 2. Platform-managed — the merchant is on NUMU's shared number.
- *    Shows a banner explaining the difference + a "Connect your own
- *    WABA" button that opens the form.
- * 3. BYO connected — shows the phone display name + last validation
- *    timestamp + a per-message-type toggle grid + a disconnect button.
- *
- * On submit, the 3-step Meta validation runs server-side. A 422 with a
- * BYOValidationFailure body lets us tell the merchant *which* step
- * failed (phone metadata / WABA info / template list) and surface
- * Meta's sanitized error code + message — way more actionable than a
- * generic "invalid credentials".
- */
-
-import { useEffect, useState, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  getByoStatus,
+  byoConnect,
+  byoDisconnect,
+  type WhatsAppStatus,
+  type BYOConnectRequest,
+  type BYOValidationFailure,
+} from "@/services/whatsappApi";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
-  Loader2,
-  Unplug,
   CheckCircle2,
-  AlertTriangle,
+  XCircle,
+  Loader2,
   ExternalLink,
+  ShieldCheck,
+  AlertTriangle,
+  ArrowLeft,
+  Phone,
+  KeyRound,
+  Info,
 } from "lucide-react";
-import {
-  byoConnect,
-  byoDisconnect,
-  getByoStatus,
-  updateByoNotifications,
-  type BYOConnectRequest,
-  type BYOValidationFailure,
-  type WhatsAppNotificationSettings,
-  type WhatsAppStatus,
-} from "@/services/whatsappApi";
 
-const NOTIFICATION_KEYS: (keyof WhatsAppNotificationSettings)[] = [
-  "order_confirmation",
-  "payment_received",
-  "shipping_update",
-  "delivery_confirmation",
-  "abandoned_cart",
-  "marketing",
-];
+// ── BYO (Bring-Your-Own Meta WABA) connection page ──
+// Manual credential-paste path: a merchant enters their own Meta
+// access_token + phone_number_id + waba_id + app_secret. On submit we
+// POST /byo/connect; the backend runs Meta's 3-step validation and
+// returns either a connected WhatsAppStatus or a 422 with the failed
+// step. See whatsappApi.byoConnect. Reachable from the WhatsApp Overview
+// "Use your own number" button and the sidebar (Connect / BYO).
+
+const META_DEV_URL = "https://developers.facebook.com/apps";
+
+// Map the backend's sanitized error code to a merchant-friendly,
+// bilingual hint. Falls back to the raw Meta message when unknown.
+const ERROR_HINTS: Record<
+  BYOValidationFailure["code"],
+  { en: string; ar: string }
+> = {
+  phone_number_unreachable: {
+    en: "We couldn't reach that phone number. Double-check the Phone Number ID.",
+    ar: "تعذّر الوصول إلى رقم الهاتف. تأكّد من معرّف رقم الهاتف.",
+  },
+  waba_mismatch: {
+    en: "The WhatsApp Business Account ID doesn't match this token. Re-check the WABA ID.",
+    ar: "معرّف حساب واتساب للأعمال لا يطابق الرمز. راجع معرّف WABA.",
+  },
+  insufficient_scope: {
+    en: "This token is missing required permissions (whatsapp_business_management + messaging).",
+    ar: "الرمز ينقصه الصلاحيات المطلوبة (إدارة + مراسلة واتساب للأعمال).",
+  },
+  meta_api_unavailable: {
+    en: "Meta's API didn't respond. Please try again in a moment.",
+    ar: "لم تستجب واجهة Meta. حاول مرة أخرى بعد قليل.",
+  },
+  unknown: {
+    en: "Something went wrong validating these credentials.",
+    ar: "حدث خطأ أثناء التحقق من البيانات.",
+  },
+};
 
 export default function WhatsAppBYOConnect() {
-  const { t, i18n } = useTranslation();
-  const isAr = i18n.language === "ar";
   const { currentStore } = useDashboardStore();
+  const { language } = useLanguage();
+  const isAr = language === "ar";
+  const dir = isAr ? "rtl" : "ltr";
+  const navigate = useNavigate();
   const storeId = currentStore?.id;
 
   const [status, setStatus] = useState<WhatsAppStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [disconnecting, setDisconnecting] = useState(false);
-  const [formError, setFormError] =
-    useState<BYOValidationFailure | string | null>(null);
+  const [validationError, setValidationError] = useState<BYOValidationFailure | null>(null);
 
-  // Form state
-  const [accessToken, setAccessToken] = useState("");
-  const [phoneNumberId, setPhoneNumberId] = useState("");
-  const [wabaId, setWabaId] = useState("");
-  const [appSecret, setAppSecret] = useState("");
+  const [form, setForm] = useState<BYOConnectRequest>({
+    access_token: "",
+    phone_number_id: "",
+    waba_id: "",
+    app_secret: "",
+  });
 
-  const refresh = useCallback(async () => {
+  const loadStatus = useCallback(async () => {
     if (!storeId) return;
-    setLoading(true);
     try {
-      // apiClient already unwraps { data: T } to T. Null means the
-      // endpoint isn't deployed (test env without the WhatsApp PR
-      // merged) — render the empty/disconnected state instead of
-      // crashing the page.
       const res = await getByoStatus(storeId);
-      if (res) setStatus(res);
+      setStatus(res);
     } catch {
-      toast.error(
-        isAr
-          ? "تعذر تحميل حالة واتساب"
-          : "Could not load WhatsApp status"
-      );
+      // ignore — page still usable for first connect
     } finally {
       setLoading(false);
     }
-  }, [storeId, isAr]);
+  }, [storeId]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    loadStatus();
+  }, [loadStatus]);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleConnect = async () => {
     if (!storeId) return;
-    setFormError(null);
     setSubmitting(true);
+    setValidationError(null);
     try {
-      const body: BYOConnectRequest = {
-        access_token: accessToken.trim(),
-        phone_number_id: phoneNumberId.trim(),
-        waba_id: wabaId.trim(),
-        app_secret: appSecret.trim(),
-      };
-      const res = await byoConnect(storeId, body);
-      if (res) setStatus(res);
-      setShowForm(false);
-      setAccessToken("");
-      setPhoneNumberId("");
-      setWabaId("");
-      setAppSecret("");
-      toast.success(
-        isAr
-          ? "تم ربط حساب واتساب الخاص بك"
-          : "Your WhatsApp Business Account is connected"
-      );
-    } catch (err) {
-      // The backend's 422 has a typed BYOValidationFailure body. The
-      // api client surfaces it via err.detail when available; fall back
-      // to a generic message otherwise.
-      const detail =
-        (err as { detail?: BYOValidationFailure | string } | undefined)?.detail ??
-        null;
+      const res = await byoConnect(storeId, form);
+      setStatus(res);
+      toast.success(isAr ? "تم الاتصال بنجاح" : "Connected successfully");
+    } catch (e: unknown) {
+      const err = e as { detail?: BYOValidationFailure; body?: { detail?: BYOValidationFailure } };
+      const detail = err?.detail || err?.body?.detail;
       if (detail && typeof detail === "object" && "failed_step" in detail) {
-        setFormError(detail);
+        setValidationError(detail as BYOValidationFailure);
       } else {
-        setFormError(
-          isAr
-            ? "فشل الاتصال بـ Meta. تحقق من البيانات وحاول مجددًا."
-            : "Connection to Meta failed. Check the credentials and try again."
-        );
+        toast.error(isAr ? "فشل الاتصال" : "Connection failed");
       }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const onDisconnect = async () => {
+  const handleDisconnect = async () => {
     if (!storeId) return;
-    if (
-      !window.confirm(
-        isAr
-          ? "هل تريد فصل واتساب الخاص بك والعودة إلى رقم NUMU المشترك؟ سيتم إعادة ضبط إعدادات الإشعارات."
-          : "Disconnect your WhatsApp and revert to NUMU's shared number? Your notification toggles will be restored from the snapshot taken at connect time."
-      )
-    )
-      return;
-    setDisconnecting(true);
+    if (!confirm(isAr ? "فصل رقمك والعودة لرقم NUMU؟" : "Disconnect your number and revert to NUMU?")) return;
     try {
       const res = await byoDisconnect(storeId);
-      if (res) setStatus(res);
-      toast.success(
-        isAr
-          ? "تم فصل واتساب البيز الخاص بك"
-          : "Your BYO WhatsApp has been disconnected"
-      );
+      setStatus(res);
+      toast.success(isAr ? "تم الفصل" : "Disconnected");
     } catch {
-      toast.error(
-        isAr ? "فشل الفصل" : "Disconnect failed"
-      );
-    } finally {
-      setDisconnecting(false);
+      toast.error(isAr ? "فشل الفصل" : "Disconnect failed");
     }
   };
 
-  const onToggleNotification = async (
-    key: keyof WhatsAppNotificationSettings,
-    value: boolean
-  ) => {
-    if (!storeId || !status) return;
-    // Optimistic update
-    setStatus({
-      ...status,
-      notifications: { ...status.notifications, [key]: value },
-    });
-    try {
-      const res = await updateByoNotifications(storeId, { [key]: value });
-      setStatus((prev) =>
-        prev && res ? { ...prev, notifications: res } : prev
-      );
-    } catch {
-      toast.error(
-        isAr ? "تعذر حفظ الإعداد" : "Could not save toggle"
-      );
-      refresh(); // re-sync on failure
-    }
-  };
+  const isByo = status?.mode === "byo";
+  const formValid = Object.values(form).every((v) => v.trim().length > 0);
 
-  if (loading) {
-    return (
-      <div className="space-y-4 p-6">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-48 w-full" />
-        <Skeleton className="h-48 w-full" />
-      </div>
-    );
-  }
+  const fields: Array<{
+    key: keyof BYOConnectRequest;
+    label_en: string;
+    label_ar: string;
+    hint_en: string;
+    hint_ar: string;
+    mono?: boolean;
+  }> = [
+    {
+      key: "phone_number_id",
+      label_en: "Phone Number ID",
+      label_ar: "معرّف رقم الهاتف",
+      hint_en: "WhatsApp > API Setup",
+      hint_ar: "واتساب > إعداد API",
+    },
+    {
+      key: "waba_id",
+      label_en: "WhatsApp Business Account ID",
+      label_ar: "معرّف حساب واتساب للأعمال",
+      hint_en: "Business Settings > Accounts",
+      hint_ar: "إعدادات الأعمال > الحسابات",
+    },
+    {
+      key: "access_token",
+      label_en: "Access Token",
+      label_ar: "رمز الوصول",
+      hint_en: "System User > Generate Token",
+      hint_ar: "مستخدم النظام > إنشاء رمز",
+      mono: true,
+    },
+    {
+      key: "app_secret",
+      label_en: "App Secret",
+      label_ar: "سر التطبيق",
+      hint_en: "App > Settings > Basic",
+      hint_ar: "التطبيق > الإعدادات > أساسي",
+      mono: true,
+    },
+  ];
 
   return (
-    <div className="space-y-6 p-6" dir={isAr ? "rtl" : "ltr"}>
-      <header>
-        <h1 className="text-2xl font-bold">
-          {isAr ? "اتصال واتساب الأعمال" : "WhatsApp Business Connection"}
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {isAr
-            ? "اربط رقمك الخاص أو استخدم رقم NUMU المشترك."
-            : "Use NUMU's shared number, or connect your own Meta WhatsApp Business Account."}
-        </p>
-      </header>
+    <div className="p-4 md:p-8 max-w-3xl mx-auto space-y-6" dir={dir}>
+        {/* Back to overview */}
+        <button
+          onClick={() => navigate("/whatsapp")}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className={`h-4 w-4 ${isAr ? "rotate-180" : ""}`} />
+          {isAr ? "رجوع إلى واتساب" : "Back to WhatsApp"}
+        </button>
 
-      {/* Connection-state card */}
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between space-y-0">
-          <div className="space-y-1.5">
-            <CardTitle className="flex items-center gap-2">
-              {isAr ? "حالة الاتصال" : "Connection status"}
-              {status?.mode === "byo" && (
-                <Badge variant="default">
-                  {isAr ? "رقمك الخاص" : "Your own number (BYO)"}
-                </Badge>
-              )}
-              {status?.mode === "platform_managed" && (
-                <Badge variant="secondary">
-                  {isAr ? "رقم NUMU المشترك" : "NUMU shared number"}
-                </Badge>
-              )}
-            </CardTitle>
-            <CardDescription>
-              {status?.mode === "byo" && status?.display_phone_number
-                ? `${status.phone_display_name ?? ""} (${status.display_phone_number})`
-                : isAr
-                ? "إشعارات الطلبات تُرسل من رقم NUMU."
-                : "Order notifications are sent from NUMU's shared number."}
-            </CardDescription>
-          </div>
-          {status?.mode === "byo" ? (
-            <Button
-              variant="outline"
-              onClick={onDisconnect}
-              disabled={disconnecting}
-            >
-              {disconnecting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Unplug className="h-4 w-4 me-2" />
-              )}
-              {isAr ? "فصل" : "Disconnect"}
-            </Button>
-          ) : (
-            <Button onClick={() => setShowForm((s) => !s)}>
-              {showForm
-                ? isAr
-                  ? "إغلاق"
-                  : "Cancel"
-                : isAr
-                ? "اربط رقمك الخاص"
-                : "Connect your own WABA"}
-            </Button>
-          )}
-        </CardHeader>
-
-        {status?.credential_error && (
-          <CardContent>
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>
-                {isAr ? "خطأ في بيانات الاعتماد" : "Credential error"}
-              </AlertTitle>
-              <AlertDescription>
-                {status.credential_error}
-                <br />
-                <span className="text-xs">
-                  {isAr
-                    ? "أعد الاتصال أو حدّث الرمز في Meta."
-                    : "Reconnect or refresh the token at Meta."}
-                </span>
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        )}
-
-        {status?.last_validated_at && status.mode === "byo" && (
-          <CardContent className="pt-0">
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3 text-green-500" />
-              {isAr ? "آخر تحقق:" : "Last validated:"}{" "}
-              {new Date(status.last_validated_at).toLocaleString(
-                isAr ? "ar-EG" : "en-US"
-              )}
-            </p>
-          </CardContent>
-        )}
-      </Card>
-
-      {/* BYO connect form (only shown when explicitly opened, and only on platform-managed) */}
-      {showForm && status?.mode === "platform_managed" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {isAr
-                ? "أدخل بيانات حساب واتساب الأعمال"
-                : "Paste your Meta WABA credentials"}
-            </CardTitle>
-            <CardDescription>
-              {isAr ? (
-                <>
-                  ستجدها في{" "}
-                  <a
-                    href="https://business.facebook.com/wa/manage/home/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline inline-flex items-center gap-0.5"
-                  >
-                    Meta Business Manager
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                  . سنتحقق منها مع Meta قبل الحفظ.
-                </>
-              ) : (
-                <>
-                  Find them in your{" "}
-                  <a
-                    href="https://business.facebook.com/wa/manage/home/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline inline-flex items-center gap-0.5"
-                  >
-                    Meta Business Manager
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                  . We'll validate them against Meta before saving.
-                </>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={onSubmit} className="space-y-4">
+        {loading ? (
+          <Skeleton className="h-64 w-full rounded-2xl" />
+        ) : (
+          <>
+            {/* Header */}
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-950/30">
+                <Phone className="h-6 w-6 text-emerald-600" />
+              </div>
               <div>
-                <Label htmlFor="access_token">
-                  {isAr ? "رمز الوصول (Access Token)" : "Access Token"}
-                </Label>
-                <Input
-                  id="access_token"
-                  type="password"
-                  value={accessToken}
-                  onChange={(e) => setAccessToken(e.target.value)}
-                  required
-                  autoComplete="off"
-                  placeholder="EAA..."
-                />
-                <p className="text-xs text-muted-foreground mt-1">
+                <h1 className="text-2xl font-bold tracking-tight">
+                  {isAr ? "اربط رقم واتساب الخاص بك" : "Connect your own WhatsApp number"}
+                </h1>
+                <p className="text-muted-foreground mt-1">
                   {isAr
-                    ? "System User token. لا يتم تخزينه بدون تشفير."
-                    : "System User token. Stored encrypted (AES-256). Never logged in plaintext."}
+                    ? "استخدم حساب Meta WhatsApp Business الخاص بك بدلاً من رقم NUMU المشترك — رسائلك تصل من اسم علامتك التجارية."
+                    : "Use your own Meta WhatsApp Business account instead of the shared NUMU number — messages arrive from your own brand name."}
                 </p>
               </div>
+            </div>
 
-              <div>
-                <Label htmlFor="phone_number_id">
-                  {isAr ? "معرّف رقم الهاتف" : "Phone Number ID"}
-                </Label>
-                <Input
-                  id="phone_number_id"
-                  value={phoneNumberId}
-                  onChange={(e) => setPhoneNumberId(e.target.value)}
-                  required
-                  placeholder="123456789012345"
-                />
-              </div>
+            {isByo ? (
+              /* ── Connected state ── */
+              <Card className="border-emerald-200 dark:border-emerald-900/50">
+                <CardContent className="p-6 space-y-5">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+                      <ShieldCheck className="h-6 w-6 text-emerald-600" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold">{status?.phone_display_name || (isAr ? "متصل" : "Connected")}</p>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <p className="text-sm text-muted-foreground">{status?.display_phone_number}</p>
+                    </div>
+                  </div>
 
-              <div>
-                <Label htmlFor="waba_id">
-                  {isAr ? "معرّف حساب الأعمال (WABA ID)" : "WhatsApp Business Account ID"}
-                </Label>
-                <Input
-                  id="waba_id"
-                  value={wabaId}
-                  onChange={(e) => setWabaId(e.target.value)}
-                  required
-                  placeholder="123456789012345"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="app_secret">
-                  {isAr ? "سر التطبيق (App Secret)" : "App Secret"}
-                </Label>
-                <Input
-                  id="app_secret"
-                  type="password"
-                  value={appSecret}
-                  onChange={(e) => setAppSecret(e.target.value)}
-                  required
-                  autoComplete="off"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isAr
-                    ? "يُستخدم للتحقق من توقيع الويبهوك."
-                    : "Used to verify webhook signatures from Meta."}
-                </p>
-              </div>
-
-              {formError && typeof formError === "object" && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>
-                    {isAr ? "فشل التحقق" : "Validation failed"}
-                    {": "}
-                    <code className="text-xs">{formError.failed_step}</code>
-                  </AlertTitle>
-                  <AlertDescription>
-                    <p>{formError.message}</p>
-                    {formError.meta_error?.message && (
-                      <p className="text-xs mt-1 opacity-80">
-                        Meta: {formError.meta_error.message}
-                        {formError.meta_error.code != null && (
-                          <> (code {formError.meta_error.code})</>
-                        )}
-                      </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    {status?.waba_id && (
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">WABA ID</p>
+                        <p className="font-mono text-xs truncate mt-0.5">{status.waba_id}</p>
+                      </div>
                     )}
-                  </AlertDescription>
-                </Alert>
-              )}
-              {formError && typeof formError === "string" && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>{formError}</AlertDescription>
-                </Alert>
-              )}
+                    {status?.last_validated_at && (
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">{isAr ? "آخر تحقق" : "Last validated"}</p>
+                        <p className="text-xs mt-0.5">
+                          {new Date(status.last_validated_at).toLocaleString(isAr ? "ar-EG" : "en-US")}
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
-              <div className="flex gap-2">
-                <Button type="submit" disabled={submitting}>
-                  {submitting && <Loader2 className="h-4 w-4 animate-spin me-2" />}
-                  {isAr ? "تحقّق وحفظ" : "Validate & save"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setShowForm(false)}
-                  disabled={submitting}
-                >
-                  {isAr ? "إلغاء" : "Cancel"}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+                  {status?.credential_error && (
+                    <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-800 dark:text-amber-200">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>{status.credential_error}</span>
+                    </div>
+                  )}
 
-      {/* Notification toggles. Always shown; in BYO mode they default to OFF
-          per FR-019a so the merchant explicitly enables each one after
-          confirming the corresponding template is approved at Meta. */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{isAr ? "إشعارات الرسائل" : "Message notifications"}</CardTitle>
-          <CardDescription>
-            {status?.mode === "byo"
-              ? isAr
-                ? "تُعطّل افتراضياً عند الاتصال البِيز. فعّل كل خيار بعد التأكد من اعتماد القالب في Meta."
-                : "Default to OFF on BYO connect (FR-019a). Enable each one after confirming the matching template is APPROVED under your own WABA."
-              : isAr
-              ? "تُرسل تلقائيًا من رقم NUMU المشترك."
-              : "Sent automatically from NUMU's shared number when enabled."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {NOTIFICATION_KEYS.map((key) => {
-            const labelAr: Record<typeof key, string> = {
-              order_confirmation: "تأكيد الطلب",
-              payment_received: "تأكيد الدفع",
-              shipping_update: "تحديث الشحن",
-              delivery_confirmation: "تأكيد التسليم",
-              abandoned_cart: "السلة المتروكة",
-              marketing: "حملات تسويقية",
-            };
-            const labelEn: Record<typeof key, string> = {
-              order_confirmation: "Order confirmation",
-              payment_received: "Payment received",
-              shipping_update: "Shipping update",
-              delivery_confirmation: "Delivery confirmation",
-              abandoned_cart: "Abandoned cart",
-              marketing: "Marketing",
-            };
-            return (
-              <div
-                key={key}
-                className="flex items-center justify-between border rounded-md p-3"
-              >
-                <div>
-                  <p className="font-medium">{isAr ? labelAr[key] : labelEn[key]}</p>
-                  <p className="text-xs text-muted-foreground">
-                    <code>{key}</code>
-                  </p>
-                </div>
-                <Switch
-                  checked={Boolean(status?.notifications?.[key])}
-                  onCheckedChange={(v) => onToggleNotification(key, v)}
-                />
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-    </div>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <Button variant="outline" onClick={handleDisconnect}>
+                      {isAr ? "فصل الرقم والعودة لـ NUMU" : "Disconnect & revert to NUMU"}
+                    </Button>
+                    <Button variant="ghost" onClick={() => navigate("/whatsapp")}>
+                      {isAr ? "إدارة الإشعارات" : "Manage notifications"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              /* ── Connect form ── */
+              <>
+                {/* What you'll need */}
+                <Card className="bg-muted/30 border-dashed">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                      {isAr ? "ما الذي تحتاجه؟" : "What you'll need"}
+                    </CardTitle>
+                    <CardDescription>
+                      {isAr
+                        ? "أربع قيم من لوحة مطوّري Meta. لا نخزّن رمزك إلا مشفّراً، وللإرسال فقط."
+                        : "Four values from your Meta developer dashboard. Your token is stored encrypted and used only to send."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <a
+                      href={META_DEV_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 hover:underline"
+                    >
+                      {isAr ? "افتح لوحة مطوّري Meta" : "Open Meta developer dashboard"}
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </CardContent>
+                </Card>
+
+                {/* Validation error */}
+                {validationError && (
+                  <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4">
+                    <div className="flex items-start gap-2">
+                      <XCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium text-destructive">
+                          {isAr ? "فشل التحقق" : "Validation failed"}
+                          <span className="text-muted-foreground font-normal"> · {validationError.failed_step}</span>
+                        </p>
+                        <p className="text-foreground/80 mt-1">
+                          {ERROR_HINTS[validationError.code]
+                            ? isAr
+                              ? ERROR_HINTS[validationError.code].ar
+                              : ERROR_HINTS[validationError.code].en
+                            : validationError.message}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Credential fields */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <KeyRound className="h-4 w-4 text-emerald-600" />
+                      {isAr ? "بيانات الاعتماد" : "Credentials"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {fields.map((f) => (
+                      <div key={f.key} className="space-y-1.5">
+                        <Label htmlFor={f.key}>{isAr ? f.label_ar : f.label_en}</Label>
+                        <Input
+                          id={f.key}
+                          type={f.mono ? "password" : "text"}
+                          value={form[f.key]}
+                          onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                          className={f.mono ? "font-mono text-xs" : ""}
+                          dir="ltr"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {isAr ? "من: " : "From: "}
+                          {isAr ? f.hint_ar : f.hint_en}
+                        </p>
+                      </div>
+                    ))}
+
+                    <Button
+                      onClick={handleConnect}
+                      disabled={submitting || !formValid}
+                      className="w-full gap-2"
+                    >
+                      {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {isAr ? "ربط الحساب" : "Connect account"}
+                    </Button>
+
+                    <p className="text-xs text-muted-foreground text-center">
+                      {isAr
+                        ? "تذكّر: يمكنك العودة لرقم NUMU في أي وقت."
+                        : "You can switch back to the NUMU number anytime."}
+                    </p>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </>
+        )}
+      </div>
   );
 }

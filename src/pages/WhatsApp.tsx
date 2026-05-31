@@ -1,664 +1,566 @@
-import { useState, useEffect, useCallback } from "react";
-import { useLanguage } from "@/contexts/LanguageContext";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import {
+  getByoStatus,
+  getWhatsAppAnalytics,
+  updateByoNotifications,
+  updateWhatsAppSettings,
+  type WhatsAppStatus,
+  type WhatsAppNotificationSettings,
+  type WhatsAppMessageLanguage,
+  type WhatsAppAnalytics,
+} from "@/services/whatsappApi";
+import { listTemplates, type WhatsAppTemplate } from "@/services/templatesApi";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { WhatsAppTemplatePreview } from "@/components/whatsapp/WhatsAppTemplatePreview";
 import { toast } from "sonner";
 import {
-  MessageSquare,
-  Phone,
-  Zap,
-  TrendingUp,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  Tooltip as RechartsTooltip,
+  CartesianGrid,
+} from "recharts";
+import {
+  MessageCircle,
+  CheckCircle2,
   Send,
-  CheckCheck,
   Eye,
-  AlertCircle,
-  Unplug,
-  RefreshCw,
-  ShoppingCart,
-  Truck,
-  Package,
+  Sparkles,
+  Phone,
+  Globe,
+  Languages,
+  ShoppingBag,
   CreditCard,
-  Clock,
+  Truck,
+  PackageCheck,
+  ArrowRight,
+  Settings2,
   ShieldCheck,
 } from "lucide-react";
-import { listTemplates, type WhatsAppTemplate } from "@/services/templatesApi";
-import { WhatsAppTemplatePreview } from "@/components/whatsapp/WhatsAppTemplatePreview";
-import {
-  getWhatsAppStatus,
-  getSignupConfig,
-  completeSignup,
-  disconnectWhatsApp,
-  getNotificationSettings,
-  updateNotificationSettings,
-  getWhatsAppAnalytics,
-  type WhatsAppConnectionStatus,
-  type NotificationSettings,
-  type WhatsAppAnalytics as AnalyticsType,
-} from "@/services/whatsappApi";
 
-declare global {
-  interface Window {
-    FB?: {
-      init: (config: Record<string, unknown>) => void;
-      login: (
-        callback: (response: { authResponse?: { code?: string } }) => void,
-        config: Record<string, unknown>
-      ) => void;
-    };
-    fbAsyncInit?: () => void;
-  }
+// WhatsApp brand green — used sparingly for the channel identity (hero,
+// connected state, "delivered" series). Everything else uses the app's
+// neutral design tokens so the page reads as part of the NUMU dashboard.
+const WA_GREEN = "#25D366";
+
+const PERIODS: Array<{ key: string; en: string; ar: string }> = [
+  { key: "7d", en: "7 days", ar: "٧ أيام" },
+  { key: "30d", en: "30 days", ar: "٣٠ يوم" },
+  { key: "90d", en: "90 days", ar: "٩٠ يوم" },
+];
+
+// The four automated, order-lifecycle notifications a merchant can switch
+// on. Keys match WhatsAppNotificationSettings / the backend canonical path
+// `store.settings.whatsapp_notifications`.
+const NOTIFICATION_EVENTS: Array<{
+  key: keyof WhatsAppNotificationSettings;
+  en: string;
+  ar: string;
+  descEn: string;
+  descAr: string;
+  icon: typeof ShoppingBag;
+}> = [
+  {
+    key: "order_confirmation",
+    en: "Order confirmation",
+    ar: "تأكيد الطلب",
+    descEn: "Sent the moment a customer places an order.",
+    descAr: "تُرسل فور قيام العميل بإتمام الطلب.",
+    icon: ShoppingBag,
+  },
+  {
+    key: "payment_received",
+    en: "Payment received",
+    ar: "تأكيد الدفع",
+    descEn: "Sent when an order's payment is confirmed.",
+    descAr: "تُرسل عند تأكيد دفع الطلب.",
+    icon: CreditCard,
+  },
+  {
+    key: "shipping_update",
+    en: "Shipping update",
+    ar: "تحديث الشحن",
+    descEn: "Sent with the tracking number when the order ships.",
+    descAr: "تُرسل مع رقم التتبع عند شحن الطلب.",
+    icon: Truck,
+  },
+  {
+    key: "delivery_confirmation",
+    en: "Delivery confirmation",
+    ar: "تأكيد التسليم",
+    descEn: "Sent once the order is marked delivered.",
+    descAr: "تُرسل عند تسليم الطلب.",
+    icon: PackageCheck,
+  },
+];
+
+const LANGUAGE_OPTIONS: Array<{
+  key: WhatsAppMessageLanguage;
+  en: string;
+  ar: string;
+  subEn: string;
+  subAr: string;
+}> = [
+  { key: "auto", en: "Auto", ar: "تلقائي", subEn: "Follow store language", subAr: "حسب لغة المتجر" },
+  { key: "ar", en: "Arabic", ar: "العربية", subEn: "Always Arabic", subAr: "دائماً بالعربية" },
+  { key: "en", en: "English", ar: "الإنجليزية", subEn: "Always English", subAr: "دائماً بالإنجليزية" },
+];
+
+// Short body preview — the first BODY component's text.
+function templateBody(t: WhatsAppTemplate): string {
+  const body = t.components?.find((c) => c.type === "BODY");
+  return body?.text || "";
 }
 
 export default function WhatsApp() {
-  const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
+  const { language } = useLanguage();
   const isAr = language === "ar";
+  const dir = isAr ? "rtl" : "ltr";
+  const navigate = useNavigate();
   const storeId = currentStore?.id;
 
-  const [status, setStatus] = useState<WhatsAppConnectionStatus | null>(null);
-  const [notifications, setNotifications] = useState<NotificationSettings | null>(null);
-  const [analytics, setAnalytics] = useState<AnalyticsType | null>(null);
+  const [status, setStatus] = useState<WhatsAppStatus | null>(null);
+  const [analytics, setAnalytics] = useState<WhatsAppAnalytics | null>(null);
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
-  const [previewTemplate, setPreviewTemplate] = useState<WhatsAppTemplate | null>(null);
   const [loading, setLoading] = useState(true);
-  const [connecting, setConnecting] = useState(false);
-  // Templates is the suite's "what you're getting" view — make it the
-  // landing tab so merchants immediately see the WhatsApp messages
-  // their customers will receive, with previews.
-  const [tab, setTab] = useState("templates");
+  const [period, setPeriod] = useState("30d");
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<WhatsAppTemplate | null>(null);
 
   const loadData = useCallback(async () => {
     if (!storeId) return;
     setLoading(true);
-    try {
-      // Templates load is best-effort — the page still works without
-      // them (the Notifications + Analytics tabs don't need them).
-      const [statusRes, notifsRes, analyticsRes, templatesRes] = await Promise.all([
-        getWhatsAppStatus(storeId),
-        getNotificationSettings(storeId),
-        getWhatsAppAnalytics(storeId, "30d"),
-        listTemplates(storeId, undefined, 50).catch(() => ({
-          templates: [] as WhatsAppTemplate[],
-          next_cursor: null,
-        })),
-      ]);
-      setStatus(statusRes.data);
-      setNotifications(notifsRes.data);
-      setAnalytics(analyticsRes.data);
-      setTemplates(templatesRes?.templates ?? []);
-    } catch {
+    const [statusRes, analyticsRes, templatesRes] = await Promise.allSettled([
+      getByoStatus(storeId),
+      getWhatsAppAnalytics(storeId, period),
+      listTemplates(storeId),
+    ]);
+    if (statusRes.status === "fulfilled") setStatus(statusRes.value);
+    if (analyticsRes.status === "fulfilled") setAnalytics(analyticsRes.value);
+    if (templatesRes.status === "fulfilled") setTemplates(templatesRes.value.templates);
+    if (statusRes.status === "rejected" && analyticsRes.status === "rejected") {
       toast.error(isAr ? "فشل تحميل بيانات واتساب" : "Failed to load WhatsApp data");
-    } finally {
-      setLoading(false);
     }
-  }, [storeId, isAr]);
+    setLoading(false);
+  }, [storeId, period, isAr]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const handleConnect = async () => {
-    if (!storeId) return;
-    setConnecting(true);
+  const handleToggle = async (key: keyof WhatsAppNotificationSettings, value: boolean) => {
+    if (!storeId || !status) return;
+    setSavingKey(key);
+    setStatus({ ...status, notifications: { ...status.notifications, [key]: value } });
     try {
-      const config = await getSignupConfig(storeId);
-      if (!config.app_id) {
-        toast.error(isAr ? "ربط واتساب غير متاح حالياً" : "WhatsApp connection not available yet");
-        return;
-      }
-
-      // Load Facebook SDK
-      if (!window.FB) {
-        await new Promise<void>((resolve) => {
-          window.fbAsyncInit = () => {
-            window.FB!.init({
-              appId: config.app_id,
-              cookie: true,
-              xfbml: false,
-              version: "v18.0",
-            });
-            resolve();
-          };
-          const script = document.createElement("script");
-          script.src = "https://connect.facebook.net/en_US/sdk.js";
-          script.async = true;
-          document.body.appendChild(script);
-        });
-      }
-
-      // Trigger embedded signup.
-      //
-      // FB.login validates the callback shape with
-      //   typeof callback === 'function'
-      // and explicitly rejects async functions with
-      //   `Expression is of type asyncfunction, not function`.
-      // (async functions ARE functions but typeof returns "asyncfunction"
-      // in their internal check.) We pass a SYNC callback that fires the
-      // async post-processing via a fire-and-forget IIFE — same UX, but
-      // the SDK accepts it.
-      window.FB!.login(
-        (response) => {
-          void (async () => {
-            const code = response.authResponse?.code;
-            if (!code) {
-              toast.error(isAr ? "تم إلغاء الربط" : "Connection cancelled");
-              setConnecting(false);
-              return;
-            }
-            try {
-              const result = await completeSignup(storeId, code);
-              // apiClient unwraps `{ data: T }` to T — same drop-`.data`
-              // pattern as elsewhere in this file.
-              if (result?.connected) {
-                toast.success(
-                  isAr
-                    ? `تم ربط واتساب بنجاح! ${result.phone_number || ""}`
-                    : `WhatsApp connected! ${result.phone_number || ""}`
-                );
-                loadData();
-              }
-            } catch (err) {
-              console.error("[whatsapp-connect/complete]", err);
-              toast.error(isAr ? "فشل ربط واتساب" : "Failed to connect WhatsApp");
-            } finally {
-              setConnecting(false);
-            }
-          })();
-        },
-        {
-          // apiClient already unwraps `{ data: T }` to T, so config_id
-          // sits directly on `config`.
-          config_id: config.config_id,
-          response_type: "code",
-          override_default_response_type: true,
-          extras: {
-            setup: {},
-            featureType: "",
-            sessionInfoVersion: 2,
-          },
-        }
-      );
-    } catch (err) {
-      // Surface the actual error class in the console so future debugs
-      // don't get stuck on a generic toast.
-      console.error("[whatsapp-connect]", err);
-      toast.error(isAr ? "خطأ في التحميل" : "Failed to load signup config");
-      setConnecting(false);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    if (!storeId || !confirm(isAr ? "هل أنت متأكد من فصل واتساب؟" : "Disconnect WhatsApp?"))
-      return;
-    try {
-      await disconnectWhatsApp(storeId);
-      toast.success(isAr ? "تم فصل واتساب" : "WhatsApp disconnected");
-      loadData();
+      await updateByoNotifications(storeId, { [key]: value });
+      toast.success(isAr ? "تم الحفظ" : "Saved");
     } catch {
-      toast.error(isAr ? "فشل فصل واتساب" : "Failed to disconnect");
+      setStatus({ ...status, notifications: { ...status.notifications, [key]: !value } });
+      toast.error(isAr ? "فشل الحفظ" : "Failed to save");
+    } finally {
+      setSavingKey(null);
     }
   };
 
-  const handleToggle = async (key: keyof NotificationSettings, value: boolean) => {
-    if (!storeId) return;
+  const handleLanguage = async (lang: WhatsAppMessageLanguage) => {
+    if (!storeId || !status || status.message_language === lang) return;
+    const prev = status.message_language;
+    setSavingKey(`lang:${lang}`);
+    setStatus({ ...status, message_language: lang });
     try {
-      const res = await updateNotificationSettings(storeId, { [key]: value });
-      setNotifications(res.data);
-      toast.success(isAr ? "تم التحديث" : "Updated");
+      const res = await updateWhatsAppSettings(storeId, { message_language: lang });
+      setStatus(res);
+      toast.success(isAr ? "تم تحديث لغة الرسائل" : "Message language updated");
     } catch {
-      toast.error(isAr ? "فشل التحديث" : "Failed to update");
+      setStatus({ ...status, message_language: prev });
+      toast.error(isAr ? "فشل تحديث اللغة" : "Failed to update language");
+    } finally {
+      setSavingKey(null);
     }
   };
+
+  const connected = status?.connected ?? false;
+  const isByo = status?.mode === "byo";
+
+  const fmtNum = (n: number) => new Intl.NumberFormat(isAr ? "ar-EG" : "en-US").format(n);
+
+  const chartData = useMemo(
+    () =>
+      (analytics?.daily_stats ?? []).map((d) => ({
+        date: d.date.slice(5),
+        sent: d.sent,
+        delivered: d.delivered,
+      })),
+    [analytics]
+  );
+
+  const approvedTemplates = useMemo(
+    () => templates.filter((t) => t.status === "APPROVED"),
+    [templates]
+  );
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="p-4 md:p-8 space-y-6 max-w-6xl mx-auto">
+        <Skeleton className="h-40 w-full rounded-2xl" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-72 w-full rounded-2xl" />
       </div>
     );
   }
 
-  const connected = status?.connected ?? false;
-  const isShared = status?.connection_type === "shared";
-
-  // The landing page shows the same suite to everyone — connected via
-  // Numu (default), connected via BYO, or not yet configured. The
-  // status banner at the top tells the merchant which path they're
-  // on. The old "empty state → Connect WhatsApp Business" gate has
-  // been removed; BYO connect is now a sub-action under the Settings
-  // tab so it doesn't dominate the first-touch experience.
-
-  // ── Suite Landing ──
-  // Toggle keys MUST match the backend's canonical schema at
-  // store.settings.whatsapp_notifications.{...} (see NUMU-api
-  // src/api/v1/schemas/stores/whatsapp.py::NotificationSettings).
-  //   shipping_update         — fires on OrderStatusChangedEvent(shipped)
-  //   delivery_confirmation   — fires on OrderStatusChangedEvent(delivered)
-  // Previous keys (order_shipped / order_delivered / out_for_delivery)
-  // wrote to a path the backend handler doesn't read, so the toggle
-  // appeared to work but had no effect on actual sends.
-  //
-  // abandoned_cart and out_for_delivery intentionally absent — no
-  // Meta template + dispatcher landed yet. They'll be added back when
-  // US3 ships the scheduled-send dispatcher.
-  //
-  // `require_order_confirmation` is different from the other toggles —
-  // it doesn't add/remove a notification, it changes the SHAPE of the
-  // order_confirmation send (receipt vs interactive Confirm-button).
-  // Rendered in its own card below so it doesn't get visually conflated
-  // with the on/off rows.
-  const notifItems: {
-    key: keyof NotificationSettings;
-    icon: React.ReactNode;
-    label: string;
-    labelAr: string;
-  }[] = [
-    { key: "order_confirmation", icon: <ShoppingCart className="h-4 w-4" />, label: "Order Confirmation", labelAr: "تأكيد الطلب" },
-    { key: "payment_received", icon: <CreditCard className="h-4 w-4" />, label: "Payment Received", labelAr: "تم الدفع" },
-    { key: "shipping_update", icon: <Truck className="h-4 w-4" />, label: "Shipping Update", labelAr: "تم الشحن" },
-    { key: "delivery_confirmation", icon: <CheckCheck className="h-4 w-4" />, label: "Delivery Confirmation", labelAr: "تم التوصيل" },
-  ];
-
-  // Status of the merchant's WhatsApp setup, displayed as a chip in
-  // the hero. Three states: connected via Numu's platform-managed
-  // WABA (the default — every store gets this for free), connected
-  // via the merchant's own WABA (BYO mode), or not yet configured
-  // (rare — would mean platform creds aren't set in the backend).
-  const statusBadge = !connected
-    ? {
-        label: isAr ? "غير متصل" : "Not configured",
-        dotClass: "bg-red-500",
-        chipClass: "text-red-600 border-red-200 bg-red-50",
-      }
-    : isShared
-      ? {
-          label: isAr ? "متصل عبر رقم نُمو" : "Connected via Numu",
-          dotClass: "bg-green-500",
-          chipClass: "text-green-600 border-green-200 bg-green-50",
-        }
-      : {
-          label: isAr ? "متصل برقمك الخاص" : "Connected via your own WABA",
-          dotClass: "bg-blue-500",
-          chipClass: "text-blue-600 border-blue-200 bg-blue-50",
-        };
-
-  // Suite features showcased in the hero. The merchant lands here and
-  // immediately sees what NUMU's WhatsApp pipeline does for them —
-  // not a generic "connect Meta" pitch. Mirrors the four notification
-  // toggles below + the customer-confirmation interactive flow.
-  const suiteFeatures = [
-    {
-      icon: <ShoppingCart className="h-5 w-5 text-blue-500" />,
-      title: isAr ? "تأكيد الطلب" : "Order Confirmation",
-      desc: isAr ? "بمجرد إنشاء الطلب" : "The moment an order is placed",
-    },
-    {
-      icon: <ShieldCheck className="h-5 w-5 text-emerald-500" />,
-      title: isAr ? "تأكيد العميل" : "Customer Confirmation",
-      desc: isAr ? "زر تأكيد قبل الشحن" : "One-tap Confirm before shipping",
-    },
-    {
-      icon: <Truck className="h-5 w-5 text-amber-500" />,
-      title: isAr ? "تحديثات الشحن" : "Shipping Updates",
-      desc: isAr ? "شحن وتسليم تلقائي" : "Auto on shipped + delivered",
-    },
-    {
-      icon: <CreditCard className="h-5 w-5 text-purple-500" />,
-      title: isAr ? "إيصال الدفع" : "Payment Receipts",
-      desc: isAr ? "بعد تأكيد الدفع" : "Right after payment clears",
-    },
-  ];
-
   return (
-    <div className="space-y-6" dir={isAr ? "rtl" : "ltr"}>
-      {/* Hero */}
-      <div className="space-y-4">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
-              {isAr ? "أتمتة واتساب للمتجر" : "WhatsApp Automation Suite"}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-              {isAr
-                ? "تأكيد الطلب، تأكيد العميل، تحديثات الشحن، وإيصالات الدفع — كلها على واتساب وبدون إعدادات."
-                : "Order confirmation, customer confirmation, shipping updates, and payment receipts — all on WhatsApp, zero setup."}
-            </p>
-          </div>
-          <Badge variant="outline" className={`gap-1 ${statusBadge.chipClass}`}>
-            <span className={`w-2 h-2 rounded-full ${statusBadge.dotClass}`} />
-            {statusBadge.label}
-            {connected && !isShared && status?.phone_number && (
-              <span className="text-xs opacity-70 ms-1">({status.phone_number})</span>
-            )}
-          </Badge>
-        </div>
-
-        {/* Feature showcase — what the suite actually does */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {suiteFeatures.map((f, i) => (
-            <Card key={i} className="border-muted">
-              <CardContent className="pt-4 pb-3 space-y-1.5">
-                <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-muted">
-                  {f.icon}
-                </div>
-                <h3 className="font-semibold text-sm leading-tight">{f.title}</h3>
-                <p className="text-xs text-muted-foreground leading-snug">{f.desc}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="templates">{isAr ? "القوالب" : "Templates"}</TabsTrigger>
-          <TabsTrigger value="notifications">{isAr ? "الإشعارات" : "Notifications"}</TabsTrigger>
-          <TabsTrigger value="overview">{isAr ? "نظرة عامة" : "Overview"}</TabsTrigger>
-          <TabsTrigger value="analytics">{isAr ? "التحليلات" : "Analytics"}</TabsTrigger>
-          <TabsTrigger value="settings">{isAr ? "إعدادات" : "Settings"}</TabsTrigger>
-        </TabsList>
-
-        {/* Overview */}
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { label: isAr ? "مرسلة" : "Sent", value: analytics?.total_sent ?? 0, icon: <Send className="h-4 w-4 text-blue-500" /> },
-              { label: isAr ? "وصلت" : "Delivered", value: analytics?.total_delivered ?? 0, icon: <CheckCheck className="h-4 w-4 text-green-500" /> },
-              { label: isAr ? "مقروءة" : "Read", value: analytics?.total_read ?? 0, icon: <Eye className="h-4 w-4 text-purple-500" /> },
-              { label: isAr ? "فشلت" : "Failed", value: analytics?.total_failed ?? 0, icon: <AlertCircle className="h-4 w-4 text-red-500" /> },
-            ].map((stat, i) => (
-              <Card key={i}>
-                <CardContent className="pt-4 pb-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    {stat.icon}
-                    <span className="text-xs text-muted-foreground">{stat.label}</span>
-                  </div>
-                  <p className="text-2xl font-bold">{stat.value.toLocaleString()}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Card>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground mb-1">{isAr ? "نسبة التوصيل" : "Delivery Rate"}</p>
-                <p className="text-2xl font-bold text-green-600">{analytics?.delivery_rate ?? 0}%</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground mb-1">{isAr ? "نسبة القراءة" : "Read Rate"}</p>
-                <p className="text-2xl font-bold text-purple-600">{analytics?.read_rate ?? 0}%</p>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Templates — the suite's "what your customers get" view.
-            Lists every approved (or pending) template the platform-managed
-            WABA has registered, plus a Preview button that opens the
-            WhatsApp-styled chat bubble showing what the actual message
-            will look like with realistic sample values. */}
-        <TabsContent value="templates" className="space-y-3">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">
-                {isAr ? "قوالب الرسائل" : "Message Templates"}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {isAr
-                  ? "ده اللي بيوصل لعميلك على واتساب. كل القوالب موافق عليها من Meta وجاهزة للإرسال. اضغط معاينة لتشوف الرسالة كاملة."
-                  : "This is what lands on your customer's WhatsApp. Every template is Meta-approved and ready to fire. Tap Preview to see the full bubble."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {templates.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  {isAr
-                    ? "لسة مفيش قوالب متاحة على متجرك. لما القوالب الافتراضية تتزامن من Meta هتظهر هنا."
-                    : "No templates available for this store yet. The defaults sync from Meta on next deploy."}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {templates.map((t) => (
-                    <Card key={t.id} className="border-muted">
-                      <CardContent className="pt-4 pb-3 space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium text-sm truncate">{t.name}</p>
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              <Badge variant="outline" className="text-[10px] py-0">
-                                {t.category}
-                              </Badge>
-                              <Badge variant="outline" className="text-[10px] py-0 uppercase">
-                                {t.language}
-                              </Badge>
-                              <Badge
-                                variant="outline"
-                                className={`text-[10px] py-0 ${
-                                  t.status === "APPROVED"
-                                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-200/50"
-                                    : t.status === "PENDING"
-                                      ? "bg-amber-500/10 text-amber-600 border-amber-200/50"
-                                      : "bg-red-500/10 text-red-600 border-red-200/50"
-                                }`}
-                              >
-                                {t.status}
-                              </Badge>
-                            </div>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setPreviewTemplate(t)}
-                            disabled={t.status !== "APPROVED"}
-                          >
-                            <Eye className="h-3.5 w-3.5 me-1" />
-                            {isAr ? "معاينة" : "Preview"}
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Notifications */}
-        <TabsContent value="notifications" className="space-y-3">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{isAr ? "إشعارات تلقائية" : "Automated Notifications"}</CardTitle>
-              <CardDescription className="text-xs">
-                {isAr
-                  ? "اختر الرسائل اللي تتبعت تلقائياً لعملاءك"
-                  : "Choose which messages are automatically sent to your customers"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {notifItems.map((item) => {
-                const toggle = notifications?.[item.key];
-                return (
-                  <div key={item.key} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                        {item.icon}
-                      </div>
-                      <span className="text-sm font-medium">{isAr ? item.labelAr : item.label}</span>
-                    </div>
-                    <Switch
-                      checked={toggle?.enabled ?? false}
-                      onCheckedChange={(v) => handleToggle(item.key, v)}
-                    />
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-
-          {/*
-            Customer-confirmation card — separate from the on/off
-            notifications above because it changes the SHAPE of the
-            order_confirmation send (interactive QUICK_REPLY vs the
-            receipt-style default), not whether it fires at all.
-            Backend handler reads the same dict key
-            (require_order_confirmation) at order-creation time.
-          */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">
-                {isAr ? "تأكيد العميل للطلب" : "Customer Order Confirmation"}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {isAr
-                  ? "لما تشغل الخيار ده، العميل بيستلم رسالة واتساب فيها تفاصيل الطلب والعنوان، وزرار تأكيد. لحد ما يضغط، الطلب يفضل 'بانتظار تأكيد العميل' في لوحة التحكم."
-                  : "When ON, the customer gets a WhatsApp message showing the order + shipping address with a Confirm button. Until they tap, the order stays 'awaiting customer confirmation' in the dashboard."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                    <ShieldCheck className="h-4 w-4" />
-                  </div>
-                  <span className="text-sm font-medium">
-                    {isAr ? "اطلب تأكيد العميل" : "Require customer to confirm order"}
-                  </span>
-                </div>
-                <Switch
-                  checked={notifications?.require_order_confirmation?.enabled ?? false}
-                  onCheckedChange={(v) => handleToggle("require_order_confirmation", v)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Analytics */}
-        <TabsContent value="analytics" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{isAr ? "الرسائل يومياً" : "Messages Per Day"}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {analytics?.daily_stats && analytics.daily_stats.length > 0 ? (
-                <div className="space-y-2">
-                  {analytics.daily_stats.slice(-14).map((day) => (
-                    <div key={day.date} className="flex items-center gap-3 text-xs">
-                      <span className="w-20 text-muted-foreground">{day.date}</span>
-                      <div className="flex-1 flex gap-1 h-4">
-                        {day.sent > 0 && (
-                          <div
-                            className="bg-blue-400 rounded-sm"
-                            style={{ width: `${Math.min((day.sent / Math.max(...analytics.daily_stats.map(d => d.sent || 1))) * 100, 100)}%` }}
-                            title={`Sent: ${day.sent}`}
-                          />
-                        )}
-                      </div>
-                      <span className="w-8 text-right">{day.sent}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  {isAr ? "لا توجد بيانات بعد" : "No data yet"}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Settings — sub-nav location for the BYO connect flow + the
-            disconnect action. Demoted from the page's primary CTA
-            (which used to dominate the empty state) to a secondary
-            tab; most merchants stay on Numu's platform WABA and
-            never need to touch BYO. */}
-        <TabsContent value="settings" className="space-y-3">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">
-                {isAr ? "وضع الاتصال" : "Connection Mode"}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {isAr
-                  ? "افتراضياً، الرسايل بتطلع من رقم نُمو المشترك — صفر إعدادات. لو عايز ترسل من رقم بزنس بتاعك (Meta WABA الخاص بيك) عشان ظهور الاسم تبعك على واتساب، اربطه من هنا."
-                  : "By default messages go out from Numu's shared number — zero setup. If you want them branded with your own Meta WABA so your name shows on customers' WhatsApp, connect it here."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Current state summary */}
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">
-                      {connected
-                        ? isShared
-                          ? isAr
-                            ? "رقم نُمو المشترك"
-                            : "Numu shared number"
-                          : status?.phone_display_name || (isAr ? "رقمك الخاص" : "Your own WABA")
-                        : isAr
-                          ? "غير متصل"
-                          : "Not configured"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {status?.phone_number || (isAr ? "—" : "—")}
-                    </p>
-                  </div>
-                </div>
-                {connected && !isShared && (
-                  <Button variant="ghost" size="sm" onClick={handleDisconnect}>
-                    <Unplug className="h-4 w-4 me-1" />
-                    {isAr ? "فصل" : "Disconnect"}
-                  </Button>
+    <>
+      <div className="p-4 md:p-8 space-y-6 max-w-6xl mx-auto" dir={dir}>
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-emerald-50 to-teal-50/40 dark:from-emerald-950/30 dark:to-teal-950/10 p-6 md:p-8">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-5">
+            <div
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-sm"
+              style={{ backgroundColor: WA_GREEN }}
+            >
+              <MessageCircle className="h-7 w-7 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+                  {isAr ? "واتساب للأعمال" : "WhatsApp Business"}
+                </h1>
+                {connected ? (
+                  <Badge className="gap-1 border-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {isByo
+                      ? isAr
+                        ? "متصل برقمك"
+                        : "Your number"
+                      : isAr
+                      ? "مفعّل عبر NUMU"
+                      : "Live via NUMU"}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-muted-foreground">
+                    {isAr ? "غير مفعّل" : "Not active"}
+                  </Badge>
                 )}
               </div>
+              <p className="mt-1.5 text-sm md:text-base text-muted-foreground max-w-2xl">
+                {isAr
+                  ? "أبلغ عملاءك تلقائياً بكل خطوة في طلبهم عبر واتساب — تأكيد الطلب، الدفع، الشحن، والتسليم. تصل الرسائل من رقم NUMU الموثّق دون أي إعداد."
+                  : "Automatically keep customers updated at every step on WhatsApp — order, payment, shipping and delivery. Messages go out from NUMU's verified number with zero setup."}
+              </p>
+            </div>
+          </div>
+        </div>
 
-              {/* BYO connect button — only relevant when not already on BYO */}
-              {(!connected || isShared) && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">
-                    {isAr ? "ربط رقم بزنس بتاعك" : "Bring your own WABA"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
+        {/* Not-connected explainer */}
+        {!connected && (
+          <Card className="border-emerald-200 dark:border-emerald-900/50">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-3">
+                <Sparkles className="h-5 w-5 mt-0.5 text-emerald-600 shrink-0" />
+                <div>
+                  <h3 className="font-semibold">
+                    {isAr ? "واتساب غير مُعدّ لهذا المتجر بعد" : "WhatsApp isn't set up for this store yet"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
                     {isAr
-                      ? "هتحتاج: حساب Meta Business، رقم تم التحقق منه، وقالب موافق عليه. الإعداد عبر شاشة Meta Embedded Signup."
-                      : "Requires: a Meta Business Account, a verified phone number, and at least one approved template. Setup via Meta Embedded Signup."}
+                      ? "بمجرد تفعيل رقم NUMU المشترك، يمكنك تشغيل الإشعارات أدناه فوراً — أو اربط رقم واتساب الخاص بك."
+                      : "Once the shared NUMU number is enabled, switch on the notifications below — or connect your own WhatsApp number."}
                   </p>
-                  <Button
-                    onClick={handleConnect}
-                    disabled={connecting}
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    {connecting ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Phone className="h-4 w-4" />
-                    )}
-                    {isAr ? "ربط واتساب للأعمال" : "Connect WhatsApp Business"}
-                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Analytics */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">{isAr ? "الأداء" : "Performance"}</h2>
+            <div className="inline-flex rounded-lg border bg-card p-0.5">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setPeriod(p.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    period === p.key
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {isAr ? p.ar : p.en}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label={isAr ? "أُرسلت" : "Sent"} value={fmtNum(analytics?.total_sent ?? 0)} icon={Send} tone="default" />
+            <StatCard
+              label={isAr ? "وصلت" : "Delivered"}
+              value={fmtNum(analytics?.total_delivered ?? 0)}
+              icon={CheckCircle2}
+              tone="success"
+              sub={analytics ? `${analytics.delivery_rate}%` : undefined}
+            />
+            <StatCard
+              label={isAr ? "قُرئت" : "Read"}
+              value={fmtNum(analytics?.total_read ?? 0)}
+              icon={Eye}
+              tone="info"
+              sub={analytics ? `${analytics.read_rate}%` : undefined}
+            />
+            <StatCard
+              label={isAr ? "محادثات نشطة" : "Active chats"}
+              value={fmtNum(analytics?.active_conversations ?? 0)}
+              icon={MessageCircle}
+              tone="default"
+            />
+          </div>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {isAr ? "الرسائل اليومية" : "Daily messages"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {chartData.length === 0 ? (
+                <div className="h-56 flex items-center justify-center text-sm text-muted-foreground">
+                  {isAr ? "لا توجد بيانات بعد لهذه الفترة" : "No data yet for this period"}
+                </div>
+              ) : (
+                <div className="h-56" dir="ltr">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                      <RechartsTooltip
+                        contentStyle={{
+                          borderRadius: 12,
+                          border: "1px solid hsl(var(--border))",
+                          background: "hsl(var(--popover))",
+                          fontSize: 12,
+                        }}
+                      />
+                      <Bar dataKey="sent" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                      <Bar dataKey="delivered" fill={WA_GREEN} radius={[4, 4, 0, 0]} maxBarSize={28} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
 
-      {/* Template preview modal — opens from the Templates tab. Renders
-          the body text with realistic sample values in a WhatsApp-styled
-          chat bubble + any URL/QUICK_REPLY buttons the template declares. */}
+        {/* Notifications */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="h-4 w-4 text-emerald-600" />
+              {isAr ? "الإشعارات التلقائية" : "Automatic notifications"}
+            </CardTitle>
+            <CardDescription>
+              {isAr
+                ? "اختر أي رسائل تُرسَل لعملائك تلقائياً عند كل خطوة في الطلب."
+                : "Choose which messages go to customers automatically at each order step."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {NOTIFICATION_EVENTS.map((evt) => {
+              const Icon = evt.icon;
+              const enabled = status?.notifications?.[evt.key] ?? false;
+              return (
+                <div
+                  key={evt.key}
+                  className="flex items-center gap-4 rounded-xl border p-3.5 transition-colors hover:bg-muted/40"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <Icon className="h-5 w-5 text-foreground/70" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">{isAr ? evt.ar : evt.en}</p>
+                    <p className="text-xs text-muted-foreground">{isAr ? evt.descAr : evt.descEn}</p>
+                  </div>
+                  <Switch
+                    checked={enabled}
+                    disabled={!connected || savingKey === evt.key}
+                    onCheckedChange={(v) => handleToggle(evt.key, v)}
+                  />
+                </div>
+              );
+            })}
+            {!connected && (
+              <p className="text-xs text-muted-foreground pt-1">
+                {isAr ? "فعّل واتساب أولاً لتشغيل الإشعارات." : "Connect WhatsApp first to switch these on."}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Language */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Languages className="h-4 w-4 text-emerald-600" />
+              {isAr ? "لغة الرسائل" : "Message language"}
+            </CardTitle>
+            <CardDescription>
+              {isAr
+                ? "بأي لغة تصل الإشعارات التلقائية إلى عملائك؟"
+                : "Which language should automatic notifications be sent in?"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {LANGUAGE_OPTIONS.map((opt) => {
+                const active = (status?.message_language ?? "auto") === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => handleLanguage(opt.key)}
+                    disabled={!status || savingKey === `lang:${opt.key}`}
+                    className={`flex flex-col items-start gap-0.5 rounded-xl border p-4 text-start transition-all disabled:opacity-60 ${
+                      active
+                        ? "border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
+                        : "hover:border-foreground/20 hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className="flex w-full items-center justify-between">
+                      <span className="font-semibold text-sm">{isAr ? opt.ar : opt.en}</span>
+                      {active && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{isAr ? opt.subAr : opt.subEn}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Templates preview */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Eye className="h-4 w-4 text-emerald-600" />
+                  {isAr ? "معاينة القوالب" : "Message previews"}
+                </CardTitle>
+                <CardDescription>
+                  {isAr ? "هكذا تظهر رسائلك على واتساب العميل." : "Exactly how your messages land on a customer's WhatsApp."}
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 shrink-0"
+                onClick={() => navigate("/channels/whatsapp/templates")}
+              >
+                {isAr ? "كل القوالب" : "All templates"}
+                <ArrowRight className={`h-4 w-4 ${isAr ? "rotate-180" : ""}`} />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {approvedTemplates.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                {isAr ? "لا توجد قوالب معتمدة بعد." : "No approved templates yet."}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {approvedTemplates.slice(0, 6).map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setPreviewTemplate(t)}
+                    className="group flex flex-col gap-2 rounded-xl border p-4 text-start transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {t.language}
+                      </span>
+                      <Badge className="border-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 text-[10px]">
+                        {isAr ? "معتمد" : "Approved"}
+                      </Badge>
+                    </div>
+                    <p className="font-medium text-sm truncate">{t.name}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{templateBody(t)}</p>
+                    <span className="mt-auto inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                      <Eye className="h-3.5 w-3.5" />
+                      {isAr ? "معاينة" : "Preview"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Connection / BYO entry */}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted">
+                {isByo ? <Phone className="h-5 w-5" /> : <Globe className="h-5 w-5" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-sm">
+                    {isByo
+                      ? isAr
+                        ? "متصل برقم واتساب الخاص بك"
+                        : "Connected with your own WhatsApp number"
+                      : isAr
+                      ? "تستخدم رقم NUMU المشترك"
+                      : "Using the shared NUMU number"}
+                  </p>
+                  {isByo && <ShieldCheck className="h-4 w-4 text-emerald-600" />}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isByo
+                    ? status?.display_phone_number || status?.phone_display_name || ""
+                    : isAr
+                    ? "مناسب لمعظم المتاجر. تريد رقمك الخاص وعلامتك التجارية؟ اربط حساب Meta WABA."
+                    : "Great for most stores. Want your own branded number? Connect your Meta WABA."}
+                </p>
+              </div>
+              <Button
+                variant={isByo ? "outline" : "default"}
+                className="gap-1.5 shrink-0"
+                onClick={() => navigate("/whatsapp/byo")}
+              >
+                <Settings2 className="h-4 w-4" />
+                {isByo
+                  ? isAr
+                    ? "إدارة الاتصال"
+                    : "Manage connection"
+                  : isAr
+                  ? "استخدم رقمك الخاص"
+                  : "Use your own number"}
+                <ArrowRight className={`h-4 w-4 ${isAr ? "rotate-180" : ""}`} />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {previewTemplate && (
         <WhatsAppTemplatePreview
           template={previewTemplate}
@@ -666,6 +568,41 @@ export default function WhatsApp() {
           isAr={isAr}
         />
       )}
-    </div>
+    </>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  tone,
+  sub,
+}: {
+  label: string;
+  value: string;
+  icon: typeof Send;
+  tone: "default" | "success" | "info";
+  sub?: string;
+}) {
+  const toneClass =
+    tone === "success"
+      ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
+      : tone === "info"
+      ? "text-sky-600 bg-sky-50 dark:bg-sky-950/30"
+      : "text-foreground/70 bg-muted";
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${toneClass}`}>
+            <Icon className="h-4 w-4" />
+          </span>
+          {sub && <span className="text-xs font-medium text-muted-foreground">{sub}</span>}
+        </div>
+        <p className="mt-3 text-2xl font-bold tabular-nums">{value}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
+      </CardContent>
+    </Card>
   );
 }
