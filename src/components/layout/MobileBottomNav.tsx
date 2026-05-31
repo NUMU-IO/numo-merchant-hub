@@ -3,9 +3,10 @@ import {
   Home, ShoppingCart, Package, Plus, MoreHorizontal, X,
   CreditCard, Truck, Banknote, Receipt, Megaphone, BarChart3,
   Share2, Store, Bell, Settings, Users, FolderOpen, Wallet,
-  Tag, FileEdit, ShoppingBag, MessageCircle, Inbox, Mail, Send,
+  Tag, FileEdit, ShoppingBag, Inbox, Mail, Send,
   Sparkles, Gift, MapPin, PlugZap, Boxes, ChevronRight,
 } from "lucide-react";
+import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -14,6 +15,11 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 type IconType = typeof Home;
+
+// WhatsApp brand mark as a nav icon — sized via `className` like the
+// lucide icons around it. Cast bridges our plain function component to
+// lucide's forwardRef icon type.
+const WhatsAppNavIcon = WhatsAppGlyph as unknown as IconType;
 
 const MobileBottomNav = () => {
   const { isRTL } = useLanguage();
@@ -71,7 +77,7 @@ const MobileBottomNav = () => {
         { Icon: Truck, label: isRTL ? "الشحن" : "Logistics", href: "/logistics" },
         { Icon: MapPin, label: isRTL ? "المناطق" : "Zones", href: "/shipping/zones" },
         { Icon: Inbox, label: isRTL ? "الرسائل" : "Inbox", href: "/inbox" },
-        { Icon: MessageCircle, label: isRTL ? "واتساب" : "WhatsApp", href: "/whatsapp" },
+        { Icon: WhatsAppNavIcon, label: isRTL ? "واتساب" : "WhatsApp", href: "/whatsapp" },
         { Icon: Mail, label: isRTL ? "قوالب البريد" : "Email", href: "/email-templates" },
         { Icon: PlugZap, label: isRTL ? "القنوات" : "Channels", href: "/channels" },
         { Icon: Users, label: isRTL ? "الفريق" : "Staff", href: "/staff" },

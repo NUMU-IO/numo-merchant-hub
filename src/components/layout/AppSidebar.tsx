@@ -15,7 +15,7 @@ import {
   House, ShoppingCart, Package, Users, Storefront, Megaphone,
   ChartLineUp, Wallet, Money, Truck, Gear, Bell, Cube as Boxes,
   Tag, NotePencil as FileEdit, ShoppingBag, FolderOpen, Receipt, SealPercent as BadgePercent,
-  Gift, Tray as Inbox, ChatCircle as MessageCircle, FileText, PaperPlaneTilt as Send,
+  Gift, Tray as Inbox, FileText, PaperPlaneTilt as Send,
   TrendUp as TrendingUp, UserPlus, MapPin, Sparkle as Sparkles,
   PlugsConnected as PlugZap, Envelope as Mail, Funnel as Filter, Broadcast as Radio,
   Lightbulb, ChartLine as LineChart, Cursor as MousePointerClick,
@@ -24,6 +24,7 @@ import {
   WarningCircle as AlertTriangle, ChartBar as BarChart3,
   CreditCard,
 } from "@phosphor-icons/react";
+import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { listThreads } from "@/services/inboxApi";
@@ -42,6 +43,12 @@ import { NavItemGate } from "./NavItemGate";
 
 type IconType = typeof House;
 type NavSubItem = { title: string; url: string; icon: IconType };
+
+// The WhatsApp brand mark rendered as a nav icon. It accepts the same
+// `size`/`weight`/`className` props phosphor icons get (weight is a
+// no-op), so it's a drop-in for the WhatsApp entries; the cast bridges
+// our plain function component to phosphor's forwardRef icon type.
+const WhatsAppNavIcon = WhatsAppGlyph as unknown as IconType;
 
 const AppSidebar = () => {
   const { isRTL } = useLanguage();
@@ -101,7 +108,7 @@ const AppSidebar = () => {
     { title: isRTL ? "العروض" : "Promotions", url: "/marketing/promotions", icon: BadgePercent },
     { title: isRTL ? "بطاقات الهدايا" : "Gift cards", url: "/gift-cards", icon: Gift },
     { title: isRTL ? "الحملات" : "Campaigns", url: "/campaigns", icon: Send },
-    { title: isRTL ? "واتساب" : "WhatsApp", url: "/whatsapp", icon: MessageCircle },
+    { title: isRTL ? "واتساب" : "WhatsApp", url: "/whatsapp", icon: WhatsAppNavIcon },
     { title: isRTL ? "قوالب البريد" : "Email templates", url: "/email-templates", icon: Mail },
     { title: isRTL ? "الإسناد" : "Attribution", url: "/marketing/attribution", icon: TrendingUp },
     { title: isRTL ? "الجماهير" : "Audiences", url: "/marketing/audiences", icon: Users },
@@ -446,7 +453,7 @@ const AppSidebar = () => {
                 {navParent(
                   isRTL ? "واتساب" : "WhatsApp",
                   "/whatsapp",
-                  MessageCircle,
+                  WhatsAppNavIcon,
                   whatsappOpsSub,
                   isActive("/whatsapp"),
                   "whatsapp-ops",

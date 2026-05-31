@@ -202,6 +202,37 @@ export async function updateNotificationSettings(
   );
 }
 
+// ── Message activity feed ──
+
+// One row of the store's WhatsApp message log — every sent/received
+// message, including automated order-lifecycle notifications that never
+// opened a conversation thread. Backed by NUMU-api
+// GET /stores/{id}/whatsapp/messages (the `message_logs` table), which
+// is a superset of what `listConversations` surfaces.
+export interface WhatsAppMessageLogItem {
+  id: string;
+  phone: string;
+  direction: "inbound" | "outbound";
+  template_name: string | null;
+  content: string | null;
+  status: "queued" | "sent" | "delivered" | "read" | "failed";
+  created_at: string;
+}
+
+export async function listWhatsAppMessages(
+  storeId: string,
+  params: { direction?: "inbound" | "outbound"; skip?: number; limit?: number } = {}
+) {
+  const qs = new URLSearchParams();
+  if (params.direction) qs.set("direction", params.direction);
+  if (params.skip != null) qs.set("skip", String(params.skip));
+  if (params.limit != null) qs.set("limit", String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiClient<{ messages: WhatsAppMessageLogItem[]; total: number }>(
+    `/stores/${storeId}/whatsapp/messages${suffix}`
+  );
+}
+
 // ── Analytics ──
 
 export async function getWhatsAppAnalytics(storeId: string, period = "30d") {
