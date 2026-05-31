@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, type ComponentType } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type ComponentType } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -211,7 +211,27 @@ export default function WhatsApp() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("30d");
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  // Briefly marks a row as just-persisted so the merchant gets a visible
+  // "Saved ✓" confirmation that the change reached the backend (the toast
+  // is transient and easy to miss).
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+  // Session-scoped time of the last successful settings save — a durable
+  // "saved just now" reassurance. Not persisted server-side; resets on
+  // reload (the authoritative proof is that the toggles come back set).
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<WhatsAppTemplate | null>(null);
+
+  const flashSaved = useCallback((key: string) => {
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    setSavedKey(key);
+    setLastSavedAt(new Date());
+    savedTimer.current = setTimeout(() => setSavedKey(null), 2500);
+  }, []);
+
+  useEffect(() => () => {
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!storeId) return;
@@ -241,8 +261,12 @@ export default function WhatsApp() {
     setSavingKey(key);
     setStatus({ ...status, notifications: { ...status.notifications, [key]: value } });
     try {
-      await updateByoNotifications(storeId, { [key]: value });
-      toast.success(isAr ? "تم الحفظ" : "Saved");
+      // The PATCH returns the full, server-persisted notification set —
+      // reconcile against it instead of trusting the optimistic flip, so
+      // the switch reflects exactly what's now in the backend.
+      const saved = await updateByoNotifications(storeId, { [key]: value });
+      setStatus((s) => (s ? { ...s, notifications: { ...s.notifications, ...saved } } : s));
+      flashSaved(key);
     } catch {
       setStatus({ ...status, notifications: { ...status.notifications, [key]: !value } });
       toast.error(isAr ? "فشل الحفظ" : "Failed to save");
@@ -259,7 +283,7 @@ export default function WhatsApp() {
     try {
       const res = await updateWhatsAppSettings(storeId, { message_language: lang });
       setStatus(res);
-      toast.success(isAr ? "تم تحديث لغة الرسائل" : "Message language updated");
+      flashSaved(`lang:${lang}`);
     } catch {
       setStatus({ ...status, message_language: prev });
       toast.error(isAr ? "فشل تحديث اللغة" : "Failed to update language");
@@ -543,10 +567,22 @@ export default function WhatsApp() {
         {/* Notifications */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="h-4 w-4 text-emerald-600" />
-              {isAr ? "الإشعارات التلقائية" : "Automatic notifications"}
-            </CardTitle>
+            <div className="flex items-start justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="h-4 w-4 text-emerald-600" />
+                {isAr ? "الإشعارات التلقائية" : "Automatic notifications"}
+              </CardTitle>
+              {lastSavedAt && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  {isAr ? "حُفظ " : "Saved "}
+                  {lastSavedAt.toLocaleTimeString(isAr ? "ar-EG" : "en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              )}
+            </div>
             <CardDescription>
               {isAr
                 ? "اختر أي رسائل تُرسَل لعملائك تلقائياً عند كل خطوة في الطلب."
@@ -569,6 +605,16 @@ export default function WhatsApp() {
                     <p className="font-medium text-sm">{isAr ? evt.ar : evt.en}</p>
                     <p className="text-xs text-muted-foreground">{isAr ? evt.descAr : evt.descEn}</p>
                   </div>
+                  {savingKey === evt.key ? (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {isAr ? "جارٍ الحفظ…" : "Saving…"}
+                    </span>
+                  ) : savedKey === evt.key ? (
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 shrink-0">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {isAr ? "تم الحفظ" : "Saved"}
+                    </span>
+                  ) : null}
                   <Switch
                     checked={enabled}
                     disabled={!connected || savingKey === evt.key}
@@ -616,7 +662,18 @@ export default function WhatsApp() {
                   >
                     <div className="flex w-full items-center justify-between">
                       <span className="font-semibold text-sm">{isAr ? opt.ar : opt.en}</span>
-                      {active && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+                      {savingKey === `lang:${opt.key}` ? (
+                        <span className="text-[11px] text-muted-foreground">
+                          {isAr ? "جارٍ الحفظ…" : "Saving…"}
+                        </span>
+                      ) : active && savedKey === `lang:${opt.key}` ? (
+                        <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          {isAr ? "تم الحفظ" : "Saved"}
+                        </span>
+                      ) : (
+                        active && <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      )}
                     </div>
                     <span className="text-xs text-muted-foreground">{isAr ? opt.subAr : opt.subEn}</span>
                   </button>
