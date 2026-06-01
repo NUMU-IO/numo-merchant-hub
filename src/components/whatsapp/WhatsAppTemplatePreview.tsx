@@ -14,7 +14,7 @@
  * Meta-approved body is the source of truth.
  */
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { X, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type {
@@ -24,11 +24,29 @@ import type {
 
 // Sample values used to fill {{1}}, {{2}}, ... in template bodies for
 // the preview. Indexed by placeholder position. The order matches the
-// EGYPTIAN_TEMPLATES seed in NUMU-api so the rendered preview looks
-// like the merchant's typical send (Egyptian customer, EGP, etc.).
+// richest template (order_confirmation_request_v2: name, store, order,
+// total, payment, items, address) so that one renders perfectly; other
+// templates reuse the same positional slots and read plausibly enough for
+// a sample. The values mirror the EGYPTIAN_TEMPLATES seed in NUMU-api.
 const SAMPLE_VALUES: Record<string, string[]> = {
-  en: ["Ahmed", "#1042", "EGP 250", "12 Tahrir St, Cairo", "Aramex"],
-  ar: ["أحمد", "#1042", "EGP 250", "١٢ شارع التحرير، القاهرة", "أرامكس"],
+  en: [
+    "Ahmed",
+    "Cairo Style",
+    "ORD-000032",
+    "EGP 250.00",
+    "Cash on delivery",
+    "2",
+    "12 Tahrir St, Cairo",
+  ],
+  ar: [
+    "أحمد",
+    "متجر القاهرة",
+    "ORD-000032",
+    "EGP 250.00",
+    "الدفع عند الاستلام",
+    "٢",
+    "١٢ شارع التحرير، القاهرة",
+  ],
 };
 
 function renderBodyText(body: string, lang: string): string {
@@ -37,6 +55,25 @@ function renderBodyText(body: string, lang: string): string {
   return body.replace(/\{\{(\d+)\}\}/g, (_match, idx) => {
     const i = Number.parseInt(idx, 10) - 1;
     return samples[i] ?? `(sample ${idx})`;
+  });
+}
+
+// Render WhatsApp inline markup (*bold*, _italic_, ~strike~) as React nodes.
+// Single-level only (WhatsApp itself doesn't nest), and tokens never span a
+// newline so a literal "*" in body text won't accidentally bold a paragraph.
+function renderWhatsAppMarkup(text: string): ReactNode[] {
+  const tokens = text.split(/(\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~)/g);
+  return tokens.map((tok, i) => {
+    if (/^\*[^*\n]+\*$/.test(tok)) {
+      return <strong key={i}>{tok.slice(1, -1)}</strong>;
+    }
+    if (/^_[^_\n]+_$/.test(tok)) {
+      return <em key={i}>{tok.slice(1, -1)}</em>;
+    }
+    if (/^~[^~\n]+~$/.test(tok)) {
+      return <s key={i}>{tok.slice(1, -1)}</s>;
+    }
+    return <span key={i}>{tok}</span>;
   });
 }
 
@@ -64,15 +101,19 @@ export function WhatsAppTemplatePreview({
   // Pull body + button components out of the template's components
   // array. Defensive — Meta sometimes returns the body wrapped in an
   // extra layer or with omitted text on PENDING templates.
-  const { bodyText, buttons } = useMemo(() => {
+  const { bodyText, footerText, buttons } = useMemo(() => {
     const bodyComp = template.components.find(
       (c: TemplateComponent) => c.type === "BODY",
+    );
+    const footerComp = template.components.find(
+      (c: TemplateComponent) => c.type === "FOOTER",
     );
     const buttonsComp = template.components.find(
       (c: TemplateComponent) => c.type === "BUTTONS",
     );
     return {
       bodyText: bodyComp?.text ?? "(template has no body — Meta validation may have stripped it)",
+      footerText: footerComp?.text ?? "",
       buttons: buttonsComp?.buttons ?? [],
     };
   }, [template]);
@@ -128,8 +169,13 @@ export function WhatsAppTemplatePreview({
               dir={bodyDir}
             >
               <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-                {rendered}
+                {renderWhatsAppMarkup(rendered)}
               </p>
+              {footerText && (
+                <p className="text-xs text-muted-foreground/80 mt-2 whitespace-pre-wrap">
+                  {footerText}
+                </p>
+              )}
               <p className="text-[10px] text-muted-foreground/70 mt-1 text-end">
                 13:49
               </p>
