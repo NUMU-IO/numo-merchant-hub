@@ -413,6 +413,11 @@ export interface WhatsAppNotificationSettings {
   delivery_confirmation: boolean;
   abandoned_cart: boolean;
   marketing: boolean;
+  // COD "tap to confirm" flow (backend-031, order_confirmation_request_v1).
+  // Opt-in; when on, COD orders get the active confirm request instead of
+  // the passive order_confirmation notice. The customer's tap flips
+  // orders.customer_confirmation_status to "confirmed".
+  require_order_confirmation: boolean;
 }
 
 // Language the automated order-lifecycle notifications go out in.
@@ -433,6 +438,9 @@ export interface WhatsAppStatus {
   last_validated_at: string | null;
   credential_error: string | null;
   message_language: WhatsAppMessageLanguage;
+  // Delay (minutes) before the COD confirm-order request fires. 0 = send
+  // immediately on order creation; >0 schedules it that many minutes later.
+  confirm_order_delay_minutes: number;
   notifications: WhatsAppNotificationSettings;
 }
 
@@ -516,7 +524,10 @@ export async function updateByoNotifications(
  */
 export async function updateWhatsAppSettings(
   storeId: string,
-  settings: { message_language?: WhatsAppMessageLanguage }
+  settings: {
+    message_language?: WhatsAppMessageLanguage;
+    confirm_order_delay_minutes?: number;
+  }
 ) {
   return apiClient<WhatsAppStatus>(
     `/stores/${storeId}/whatsapp/settings`,

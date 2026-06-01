@@ -47,6 +47,7 @@ import {
   ArrowRight,
   Settings2,
   ShieldCheck,
+  Clock,
   Inbox,
   ArrowDownLeft,
   ArrowUpRight,
@@ -81,6 +82,16 @@ const NOTIFICATION_EVENTS: Array<{
     descEn: "Sent the moment a customer places an order.",
     descAr: "تُرسل فور قيام العميل بإتمام الطلب.",
     icon: ShoppingBag,
+  },
+  {
+    key: "require_order_confirmation",
+    en: "Confirm order in WhatsApp",
+    ar: "تأكيد الطلب على واتساب",
+    descEn:
+      "For COD orders: ask the customer to tap Confirm. The order is held until they do. Replaces the order-confirmation notice for COD.",
+    descAr:
+      "لطلبات الدفع عند الاستلام: اطلب من العميل الضغط على تأكيد، ويبقى الطلب معلقاً حتى يؤكده. يحل محل رسالة تأكيد الطلب لطلبات الدفع عند الاستلام.",
+    icon: ShieldCheck,
   },
   {
     key: "payment_received",
@@ -230,6 +241,10 @@ export default function WhatsApp() {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<WhatsAppTemplate | null>(null);
+  // Editable draft for the COD confirm-order delay. Stored server-side as a
+  // single minutes value; the UI lets the merchant pick minutes or hours.
+  const [delayValue, setDelayValue] = useState<number>(30);
+  const [delayUnitHours, setDelayUnitHours] = useState<boolean>(false);
 
   const flashSaved = useCallback((key: string) => {
     if (savedTimer.current) clearTimeout(savedTimer.current);
@@ -282,6 +297,48 @@ export default function WhatsApp() {
     } finally {
       setSavingKey(null);
     }
+  };
+
+  // Mirror the persisted delay into the editable draft whenever it changes
+  // (initial load + after a save). Only re-derives when a delay is set so
+  // it doesn't clobber the merchant's in-progress edit before they apply.
+  const confirmDelayMinutes = status?.confirm_order_delay_minutes ?? 0;
+  useEffect(() => {
+    if (confirmDelayMinutes > 0) {
+      if (confirmDelayMinutes % 60 === 0) {
+        setDelayUnitHours(true);
+        setDelayValue(confirmDelayMinutes / 60);
+      } else {
+        setDelayUnitHours(false);
+        setDelayValue(confirmDelayMinutes);
+      }
+    }
+  }, [confirmDelayMinutes]);
+
+  const saveConfirmDelay = async (minutes: number) => {
+    if (!storeId || !status) return;
+    const prev = status.confirm_order_delay_minutes;
+    if (prev === minutes) return;
+    setSavingKey("confirm_delay");
+    setStatus({ ...status, confirm_order_delay_minutes: minutes });
+    try {
+      const res = await updateWhatsAppSettings(storeId, {
+        confirm_order_delay_minutes: minutes,
+      });
+      setStatus(res);
+      flashSaved("confirm_delay");
+    } catch {
+      setStatus({ ...status, confirm_order_delay_minutes: prev });
+      toast.error(isAr ? "فشل الحفظ" : "Failed to save");
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  // Apply the current draft (value + unit) as a minutes total.
+  const applyDelayDraft = () => {
+    const v = Math.max(1, Math.floor(delayValue || 0));
+    saveConfirmDelay(delayUnitHours ? v * 60 : v);
   };
 
   const handleLanguage = async (lang: WhatsAppMessageLanguage) => {
@@ -639,6 +696,106 @@ export default function WhatsApp() {
             )}
           </CardContent>
         </Card>
+
+        {/* Confirm-order timing — only relevant when the feature is on */}
+        {connected && status?.notifications?.require_order_confirmation && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Clock className="h-4 w-4 text-emerald-600" />
+                {isAr ? "توقيت رسالة التأكيد" : "Confirmation timing"}
+              </CardTitle>
+              <CardDescription>
+                {isAr
+                  ? "متى تُرسل رسالة «تأكيد الطلب» إلى العميل بعد إنشاء الطلب؟"
+                  : "When should the “confirm order” request be sent after an order is placed?"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => saveConfirmDelay(0)}
+                  disabled={savingKey === "confirm_delay"}
+                  className={`flex flex-col items-start gap-0.5 rounded-xl border p-4 text-start transition-all disabled:opacity-60 ${
+                    confirmDelayMinutes === 0
+                      ? "border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
+                      : "hover:border-foreground/20 hover:bg-muted/40"
+                  }`}
+                >
+                  <span className="font-semibold text-sm">
+                    {isAr ? "فوراً" : "Immediately"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {isAr ? "تُرسل لحظة إنشاء الطلب" : "Sent the moment the order is placed"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirmDelayMinutes === 0) {
+                      saveConfirmDelay(delayUnitHours ? delayValue * 60 : delayValue);
+                    }
+                  }}
+                  disabled={savingKey === "confirm_delay"}
+                  className={`flex flex-col items-start gap-0.5 rounded-xl border p-4 text-start transition-all disabled:opacity-60 ${
+                    confirmDelayMinutes > 0
+                      ? "border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
+                      : "hover:border-foreground/20 hover:bg-muted/40"
+                  }`}
+                >
+                  <span className="font-semibold text-sm">
+                    {isAr ? "بعد فترة" : "After a delay"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {isAr ? "أمهل العميل بعض الوقت" : "Give the customer some time first"}
+                  </span>
+                </button>
+              </div>
+              {confirmDelayMinutes > 0 && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    value={delayValue}
+                    onChange={(e) => setDelayValue(Number(e.target.value))}
+                    onBlur={applyDelayDraft}
+                    disabled={savingKey === "confirm_delay"}
+                    aria-label={isAr ? "مدة التأخير" : "Delay amount"}
+                    title={isAr ? "مدة التأخير" : "Delay amount"}
+                    className="h-9 w-24 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <select
+                    value={delayUnitHours ? "hours" : "minutes"}
+                    onChange={(e) => {
+                      const hours = e.target.value === "hours";
+                      setDelayUnitHours(hours);
+                      const v = Math.max(1, Math.floor(delayValue || 0));
+                      saveConfirmDelay(hours ? v * 60 : v);
+                    }}
+                    disabled={savingKey === "confirm_delay"}
+                    aria-label={isAr ? "وحدة التأخير" : "Delay unit"}
+                    title={isAr ? "وحدة التأخير" : "Delay unit"}
+                    className="h-9 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="minutes">{isAr ? "دقيقة" : "minutes"}</option>
+                    <option value="hours">{isAr ? "ساعة" : "hours"}</option>
+                  </select>
+                  {savingKey === "confirm_delay" ? (
+                    <span className="text-xs text-muted-foreground">
+                      {isAr ? "جارٍ الحفظ…" : "Saving…"}
+                    </span>
+                  ) : savedKey === "confirm_delay" ? (
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {isAr ? "تم الحفظ" : "Saved"}
+                    </span>
+                  ) : null}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Language */}
         <Card>
