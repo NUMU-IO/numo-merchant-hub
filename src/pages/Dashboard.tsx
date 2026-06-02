@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatMoney } from "@/lib/format-money";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -163,12 +164,8 @@ const Dashboard = () => {
   const topProducts = topProductsQuery.data ?? [];
   const recentOrders = recentOrdersQuery.data?.items ?? [];
 
-  const formatCurrency = (cents: number) => {
-    const val = cents / 100;
-    return isAr
-      ? `${val.toLocaleString("ar-EG")} ج.م`
-      : `EGP ${val.toLocaleString()}`;
-  };
+  const formatCurrency = (cents: number) =>
+    formatMoney(cents, { fromCents: true, locale: isAr ? "ar" : "en" });
 
   const todayRevenue = stats ? stats.total_revenue : 0;
   const todayOrders = stats ? stats.total_orders : 0;

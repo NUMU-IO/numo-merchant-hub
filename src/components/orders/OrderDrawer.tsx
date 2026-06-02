@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { formatMoney } from "@/lib/format-money";
 import { getOrder, updateOrderStatus } from "@/services/orderApi";
 import { getProduct } from "@/services/productApi";
 import { Button } from "@/components/ui/button";
@@ -109,10 +110,8 @@ const OrderDrawer = ({ orderId, onClose }: OrderDrawerProps) => {
   };
   const flowAction = order ? STATUS_FLOW[order.status] : null;
 
-  const fmt = (cents: number) => {
-    const v = cents / 100;
-    return isRTL ? `${v.toLocaleString("ar-EG")} ج.م` : `EGP ${v.toLocaleString()}`;
-  };
+  const fmt = (cents: number) =>
+    formatMoney(cents, { fromCents: true, locale: isRTL ? "ar" : "en" });
 
   const fmtTimeAgo = (dt: string) => {
     const ms = Date.now() - new Date(dt).getTime();

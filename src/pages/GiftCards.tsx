@@ -60,7 +60,7 @@ export default function GiftCardsPage() {
     try {
       const result = await issueGiftCard(storeId, {
         initial_balance_cents: cents,
-        currency: currentStore?.currency || "EGP",
+        currency: currentStore?.default_currency || "EGP",
         expires_at: expiresAt || null,
         note: note || null,
       });
@@ -100,7 +100,7 @@ export default function GiftCardsPage() {
     }
   }
 
-  const currency = currentStore?.currency || "EGP";
+  const currency = currentStore?.default_currency || "EGP";
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-8">

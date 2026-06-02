@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { formatMoney } from "@/lib/format-money";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty,
@@ -107,10 +108,8 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
     { value: "customers", label: isAr ? "عملاء" : "Customers", icon: Users },
   ];
 
-  const formatCurrency = (cents: number) => {
-    const val = cents / 100;
-    return isAr ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
-  };
+  const formatCurrency = (cents: number) =>
+    formatMoney(cents, { fromCents: true, locale: isAr ? "ar" : "en" });
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange} shouldFilter={false}>

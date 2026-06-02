@@ -1,4 +1,5 @@
 import { useLanguage } from "@/contexts/LanguageContext";
+import { formatMoney } from "@/lib/format-money";
 import { Button } from "@/components/ui/button";
 import { Download, RefreshCw } from "lucide-react";
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
@@ -89,10 +90,8 @@ export function AnalyticsLayout({
   };
 
   const formatCurrency = useCallback(
-    (cents: number) => {
-      const val = cents / 100;
-      return isAr ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
-    },
+    (cents: number) =>
+      formatMoney(cents, { fromCents: true, locale: isAr ? "ar" : "en" }),
     [isAr],
   );
 

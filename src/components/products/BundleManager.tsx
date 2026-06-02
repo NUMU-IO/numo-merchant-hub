@@ -62,6 +62,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
+import { formatMoney } from "@/lib/format-money";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -89,10 +90,7 @@ interface BundleManagerProps {
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function formatPrice(cents: number, lang: string): string {
-  const val = cents / 100;
-  return lang === "ar"
-    ? `${val.toLocaleString("ar-EG")} ج.م`
-    : `EGP ${val.toLocaleString()}`;
+  return formatMoney(cents, { fromCents: true, locale: lang === "ar" ? "ar" : "en" });
 }
 
 function calculateDiscountedPrice(

@@ -16,6 +16,7 @@ import React, {
 import { useAuth } from "./AuthContext";
 import { listStores } from "@/services/storeApi";
 import type { StoreData } from "@/services/storeApi";
+import { setActiveStoreCurrency } from "@/lib/format-money";
 
 const STORE_KEY = "numu-current-store";
 
@@ -90,6 +91,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
     if (authLoading) return;
     fetchStores();
   }, [authLoading, fetchStores]);
+
+  // Keep the module-level home currency in sync with the selected store
+  // so `formatMoney()` renders every figure in the merchant's market
+  // currency (SAR for a Saudi store) instead of a hardcoded EGP.
+  useEffect(() => {
+    setActiveStoreCurrency(currentStore?.default_currency);
+  }, [currentStore]);
 
   const switchStore = useCallback(
     (storeId: string) => {
