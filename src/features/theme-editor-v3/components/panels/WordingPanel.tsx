@@ -1,110 +1,60 @@
 /**
- * WordingPanel — default wording / translation editor.
+ * WordingPanel — "Edit theme content" (Shopify parity).
  *
- * Shopify-parity. Storefront themes ship default strings like "Add to
- * cart", "Sold out", "Continue shopping", "Search". Merchants want to
- * override those without touching code — especially in Arabic where
- * dialect varies between merchants (formal فصحى vs. Egyptian masri).
+ * Data-driven: when the active theme ships a locale catalog
+ * (`locales/<lang>.json`, embedded in the bundle manifest as
+ * `manifest.locales`), this panel lists the theme's REAL, FULL string
+ * set — flattened to dot-keys, grouped by namespace, searchable, with
+ * EN + AR columns. That replaces the old fixed ~25-key dictionary, which
+ * now only serves as a FALLBACK for themes that ship no locale catalog.
  *
- * Storage shape:
+ * Storage shape (unchanged):
  *   `draft.global_settings.__translations: {
- *      en: { addToCart: "Add to cart", soldOut: "Sold out", ... },
- *      ar: { addToCart: "أضف إلى السلة", soldOut: "نفد المخزون", ... }
+ *      en: { "cart.subtotal": "Basket total", ... },
+ *      ar: { "cart.subtotal": "إجمالي السلة", ... }
  *    }`
+ *   Reserved `__translations` namespace; the bundle's ThemeSettingsBridge
+ *   passes `__translations[locale]` to `<NuMuProvider translations>` and
+ *   sections call `useTranslation().t("cart.subtotal", "Subtotal")`.
  *
- *   Reserved `__translations` namespace under global_settings so the
- *   value piggybacks on the existing field without an SDK type
- *   change. Themes that don't consume translations ignore the key
- *   entirely.
- *
- * Bundle integration:
- *   `empire-engine-V3/src/main.tsx`'s ThemeSettingsBridge picks
- *   `themeSettings.global_settings.__translations?.[ctx.locale]` and
- *   passes it as `<NuMuProvider translations={...}>`. Sections call
- *   `useTranslation("addToCart", "Add to cart")` and get the
- *   override when present, the fallback otherwise.
- *
- * Categories:
- *   The canonical list below covers the ~25 most-edited Shopify wording
- *   keys. Extending later is easy — just add entries; the panel and
- *   the live-preview round-trip pick them up automatically.
+ * Catalog source: the editor fetches `<bundle_base>/manifest.json` (R2
+ * sends permissive CORS) and reads `.locales`. No backend round-trip.
  */
 
-import { useMemo, useState } from "react";
-import { ArrowLeft, Type, RotateCcw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Type, RotateCcw, Loader2 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 import { useCustomizerStore } from "../../store/customizerStore";
 
-// ─── Canonical wording dictionary ────────────────────────────────────
-//
-// Each entry: a stable key, an English fallback, an Arabic fallback,
-// and a category for grouping in the UI. The defaults shown match what
-// most Empire-class themes hard-code today — merchants editing here
-// just type the override they want.
-
+// ─── Entry shape (unified for catalog + fallback) ────────────────────
 interface WordingEntry {
   key: string;
   defaultEn: string;
   defaultAr: string;
-  category: WordingCategory;
-  /** Optional context hint shown under the field for ambiguous keys. */
-  context?: { en: string; ar: string };
+  group: string;
 }
 
-type WordingCategory =
-  | "product"
-  | "cart"
-  | "checkout"
-  | "search"
-  | "navigation"
-  | "general";
-
-const WORDING: WordingEntry[] = [
-  // Product
-  { key: "addToCart", defaultEn: "Add to cart", defaultAr: "أضف إلى السلة", category: "product" },
-  { key: "buyNow", defaultEn: "Buy now", defaultAr: "اشترِ الآن", category: "product" },
-  { key: "soldOut", defaultEn: "Sold out", defaultAr: "نفد المخزون", category: "product" },
-  { key: "outOfStock", defaultEn: "Out of stock", defaultAr: "غير متوفر", category: "product" },
-  { key: "quantity", defaultEn: "Quantity", defaultAr: "الكمية", category: "product" },
-  { key: "viewDetails", defaultEn: "View details", defaultAr: "عرض التفاصيل", category: "product" },
-  { key: "selectSize", defaultEn: "Select size", defaultAr: "اختر المقاس", category: "product" },
-  { key: "selectColor", defaultEn: "Select color", defaultAr: "اختر اللون", category: "product" },
-
-  // Cart
-  { key: "cartTitle", defaultEn: "Cart", defaultAr: "السلة", category: "cart" },
-  { key: "cartEmpty", defaultEn: "Your cart is empty", defaultAr: "سلتك فارغة", category: "cart" },
-  { key: "subtotal", defaultEn: "Subtotal", defaultAr: "المجموع الفرعي", category: "cart" },
-  { key: "continueShopping", defaultEn: "Continue shopping", defaultAr: "متابعة التسوق", category: "cart" },
-  { key: "removeItem", defaultEn: "Remove", defaultAr: "إزالة", category: "cart" },
-
-  // Checkout
-  { key: "checkout", defaultEn: "Check out", defaultAr: "إتمام الشراء", category: "checkout" },
-  { key: "free", defaultEn: "Free", defaultAr: "مجاناً", category: "checkout", context: { en: "Used for free shipping / free items", ar: "تستخدم للشحن المجاني والعناصر المجانية" } },
-  { key: "orderConfirmed", defaultEn: "Order confirmed", defaultAr: "تم تأكيد الطلب", category: "checkout" },
-
-  // Search
-  { key: "searchPlaceholder", defaultEn: "Search the store", defaultAr: "ابحث في المتجر", category: "search" },
-  { key: "searchResults", defaultEn: "Results for", defaultAr: "نتائج البحث عن", category: "search" },
-  { key: "searchNoResults", defaultEn: "No results found", defaultAr: "لا توجد نتائج", category: "search" },
-
-  // Navigation
-  { key: "navHome", defaultEn: "Home", defaultAr: "الرئيسية", category: "navigation" },
-  { key: "navShop", defaultEn: "Shop", defaultAr: "تسوق", category: "navigation" },
-  { key: "navContact", defaultEn: "Contact", defaultAr: "تواصل معنا", category: "navigation" },
-
-  // General
-  { key: "loading", defaultEn: "Loading…", defaultAr: "جاري التحميل...", category: "general" },
-  { key: "errorGeneric", defaultEn: "Something went wrong", defaultAr: "حدث خطأ ما", category: "general" },
-  { key: "save", defaultEn: "Save", defaultAr: "حفظ", category: "general" },
-  { key: "cancel", defaultEn: "Cancel", defaultAr: "إلغاء", category: "general" },
+// ─── Fallback dictionary (themes with no locale catalog) ─────────────
+const FALLBACK_WORDING: WordingEntry[] = [
+  { key: "addToCart", defaultEn: "Add to cart", defaultAr: "أضف إلى السلة", group: "product" },
+  { key: "buyNow", defaultEn: "Buy now", defaultAr: "اشترِ الآن", group: "product" },
+  { key: "soldOut", defaultEn: "Sold out", defaultAr: "نفد المخزون", group: "product" },
+  { key: "quantity", defaultEn: "Quantity", defaultAr: "الكمية", group: "product" },
+  { key: "cartTitle", defaultEn: "Cart", defaultAr: "السلة", group: "cart" },
+  { key: "cartEmpty", defaultEn: "Your cart is empty", defaultAr: "سلتك فارغة", group: "cart" },
+  { key: "subtotal", defaultEn: "Subtotal", defaultAr: "المجموع الفرعي", group: "cart" },
+  { key: "continueShopping", defaultEn: "Continue shopping", defaultAr: "متابعة التسوق", group: "cart" },
+  { key: "checkout", defaultEn: "Check out", defaultAr: "إتمام الشراء", group: "checkout" },
+  { key: "searchPlaceholder", defaultEn: "Search the store", defaultAr: "ابحث في المتجر", group: "search" },
+  { key: "searchNoResults", defaultEn: "No results found", defaultAr: "لا توجد نتائج", group: "search" },
+  { key: "loading", defaultEn: "Loading…", defaultAr: "جاري التحميل...", group: "general" },
+  { key: "errorGeneric", defaultEn: "Something went wrong", defaultAr: "حدث خطأ ما", group: "general" },
 ];
 
-const CATEGORY_LABELS: Record<WordingCategory, { en: string; ar: string }> = {
+const GROUP_LABELS: Record<string, { en: string; ar: string }> = {
   product: { en: "Product", ar: "المنتج" },
   cart: { en: "Cart", ar: "السلة" },
   checkout: { en: "Checkout", ar: "الدفع" },
@@ -113,14 +63,28 @@ const CATEGORY_LABELS: Record<WordingCategory, { en: string; ar: string }> = {
   general: { en: "General", ar: "عام" },
 };
 
-const CATEGORY_ORDER: WordingCategory[] = [
-  "product",
-  "cart",
-  "checkout",
-  "search",
-  "navigation",
-  "general",
-];
+/** Flatten a nested locale object to dot-keys: { cart: { subtotal } } → { "cart.subtotal" }. */
+function flattenLocale(
+  obj: unknown,
+  prefix = "",
+  out: Record<string, string> = {},
+): Record<string, string> {
+  if (!obj || typeof obj !== "object") return out;
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      flattenLocale(v, key, out);
+    } else if (v != null) {
+      out[key] = String(v);
+    }
+  }
+  return out;
+}
+
+function humanizeGroup(group: string, isAr: boolean): string {
+  if (GROUP_LABELS[group]) return GROUP_LABELS[group][isAr ? "ar" : "en"];
+  return group.charAt(0).toUpperCase() + group.slice(1).replace(/[_-]/g, " ");
+}
 
 // ─── Component ────────────────────────────────────────────────────────
 
@@ -129,54 +93,96 @@ export function WordingPanel() {
   const locale = useCustomizerStore((s) => s.locale);
   const updateTranslation = useCustomizerStore((s) => s.updateTranslation);
   const setActiveMode = useCustomizerStore((s) => s.setActiveMode);
+  const bundleUrl = useCustomizerStore(
+    (s) => s.draft?.external_theme?.bundle_url,
+  );
   const isAr = locale === "ar";
 
   const [filter, setFilter] = useState("");
-  // Which locale is the merchant editing right now. Defaults to the
-  // editor's active locale so the merchant lands on the language they
-  // toggled to in the top bar. They can flip independently via the
-  // tab strip — letting them edit AR strings while viewing the EN
-  // preview if they want.
   const [editingLocale, setEditingLocale] = useState<"en" | "ar">(
     isAr ? "ar" : "en",
   );
 
-  // Pull current overrides off the draft. Defensive against the
-  // namespace being missing (themes that haven't been customized yet).
+  // ── Fetch the theme's locale catalog from its bundle manifest ──
+  const [catalog, setCatalog] = useState<{
+    en: Record<string, string>;
+    ar: Record<string, string>;
+  } | null>(null);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+
+  useEffect(() => {
+    if (!bundleUrl) {
+      setCatalog(null);
+      return;
+    }
+    const manifestUrl = bundleUrl.replace(/\/[^/]*$/, "/manifest.json");
+    let cancelled = false;
+    setLoadingCatalog(true);
+    fetch(manifestUrl)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m) => {
+        if (cancelled) return;
+        const locales = (m?.locales ?? {}) as Record<string, unknown>;
+        const en = flattenLocale(locales.en);
+        const ar = flattenLocale(locales.ar);
+        // Only adopt the catalog when it actually carries keys; else the
+        // fallback dictionary stays in charge.
+        setCatalog(Object.keys(en).length > 0 ? { en, ar } : null);
+      })
+      .catch(() => {
+        if (!cancelled) setCatalog(null);
+      })
+      .finally(() => !cancelled && setLoadingCatalog(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [bundleUrl]);
+
+  // Build the entry list from the theme catalog (preferred) or fallback.
+  const entries: WordingEntry[] = useMemo(() => {
+    if (catalog) {
+      return Object.keys(catalog.en)
+        .sort()
+        .map((key) => ({
+          key,
+          defaultEn: catalog.en[key] ?? "",
+          defaultAr: catalog.ar[key] ?? "",
+          group: key.includes(".") ? key.split(".")[0] : "general",
+        }));
+    }
+    return FALLBACK_WORDING;
+  }, [catalog]);
+
   const overrides = useMemo(() => {
     const gs = (draft?.global_settings ?? {}) as Record<string, unknown>;
-    const map = (gs.__translations ?? {}) as Record<
+    return (gs.__translations ?? {}) as Record<
       string,
       Record<string, string>
     >;
-    return map;
   }, [draft]);
 
   const filtered = useMemo(() => {
     const q = filter.toLowerCase().trim();
-    if (!q) return WORDING;
-    return WORDING.filter((w) => {
-      const en = w.defaultEn.toLowerCase();
-      const ar = w.defaultAr.toLowerCase();
-      return (
+    if (!q) return entries;
+    return entries.filter(
+      (w) =>
         w.key.toLowerCase().includes(q) ||
-        en.includes(q) ||
-        ar.includes(q)
-      );
-    });
-  }, [filter]);
+        w.defaultEn.toLowerCase().includes(q) ||
+        w.defaultAr.toLowerCase().includes(q),
+    );
+  }, [filter, entries]);
 
-  // Group filtered entries by category, preserving the canonical order.
   const grouped = useMemo(() => {
-    const out: Array<{ category: WordingCategory; items: WordingEntry[] }> = [];
-    for (const cat of CATEGORY_ORDER) {
-      const items = filtered.filter((w) => w.category === cat);
-      if (items.length > 0) out.push({ category: cat, items });
+    const byGroup = new Map<string, WordingEntry[]>();
+    for (const e of filtered) {
+      if (!byGroup.has(e.group)) byGroup.set(e.group, []);
+      byGroup.get(e.group)!.push(e);
     }
-    return out;
+    return Array.from(byGroup.entries()).sort((a, b) =>
+      a[0].localeCompare(b[0]),
+    );
   }, [filtered]);
 
-  // How many overrides per locale, for the small badge on each tab.
   const overrideCount = useMemo(
     () => ({
       en: Object.keys(overrides.en ?? {}).length,
@@ -198,14 +204,25 @@ export function WordingPanel() {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <Type className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold truncate">
+        <h2 className="flex-1 truncate text-sm font-semibold">
           {isAr ? "نصوص الثيم" : "Theme content"}
         </h2>
+        {loadingCatalog ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+        ) : (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            {catalog
+              ? isAr
+                ? "من الثيم"
+                : "From theme"
+              : isAr
+                ? "الافتراضي"
+                : "Defaults"}
+          </span>
+        )}
       </div>
 
-      {/* Locale tab strip — merchant picks WHICH language they're
-          editing. Distinct from the top-bar EN/AR toggle which
-          controls preview language only. */}
+      {/* Locale tab strip */}
       <div className="border-b px-4 py-2">
         <div role="tablist" className="flex gap-1">
           {(["en", "ar"] as const).map((loc) => {
@@ -225,7 +242,15 @@ export function WordingPanel() {
                     : "text-muted-foreground hover:bg-muted",
                 )}
               >
-                <span>{loc === "ar" ? (isAr ? "العربية" : "Arabic") : (isAr ? "الإنجليزية" : "English")}</span>
+                <span>
+                  {loc === "ar"
+                    ? isAr
+                      ? "العربية"
+                      : "Arabic"
+                    : isAr
+                      ? "الإنجليزية"
+                      : "English"}
+                </span>
                 {count > 0 && (
                   <span
                     className={cn(
@@ -260,10 +285,10 @@ export function WordingPanel() {
           </p>
         ) : (
           <div className="space-y-6">
-            {grouped.map(({ category, items }) => (
-              <div key={category} className="space-y-2">
+            {grouped.map(([group, items]) => (
+              <div key={group} className="space-y-2">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {CATEGORY_LABELS[category][isAr ? "ar" : "en"]}
+                  {humanizeGroup(group, isAr)}
                 </h3>
                 {items.map((entry) => (
                   <WordingRow
@@ -303,12 +328,7 @@ function WordingRow({
 }) {
   const fallback = editingLocale === "ar" ? entry.defaultAr : entry.defaultEn;
   const hasOverride = override !== undefined && override.length > 0;
-  // Local input state so we don't fire a store update per keystroke
-  // (autosave debounces, but the undo stack would still get an entry
-  // per character). Commit on blur instead — same pattern V2 used.
   const [draft, setDraft] = useState(override ?? "");
-  // Keep local state in sync when the override changes from outside
-  // (locale tab flip, undo/redo).
   useMemo(() => setDraft(override ?? ""), [override]);
 
   function commit() {
@@ -320,9 +340,9 @@ function WordingRow({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-sm font-medium text-foreground">
-          {fallback}
-        </Label>
+        <label className="text-sm font-medium text-foreground">
+          {fallback || entry.key}
+        </label>
         {hasOverride && (
           <button
             type="button"
@@ -343,25 +363,13 @@ function WordingRow({
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            (e.target as HTMLInputElement).blur();
-          }
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         }}
         placeholder={fallback}
         dir={editingLocale === "ar" ? "rtl" : "ltr"}
-        className={cn(
-          "text-sm",
-          hasOverride && "border-primary/40 bg-primary/5",
-        )}
+        className={cn("text-sm", hasOverride && "border-primary/40 bg-primary/5")}
       />
-      {entry.context && (
-        <p className="text-[11px] text-muted-foreground">
-          {entry.context[isAr ? "ar" : "en"]}
-        </p>
-      )}
-      <p className="font-mono text-[10px] text-muted-foreground/60">
-        {entry.key}
-      </p>
+      <p className="font-mono text-[10px] text-muted-foreground/60">{entry.key}</p>
     </div>
   );
 }

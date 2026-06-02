@@ -26,13 +26,11 @@
  *     between "deliberately decorative" and "I forgot to add alt".
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Image as ImageIcon,
   Upload,
   Link2,
   Loader2,
-  X,
   Library,
   AlertCircle,
 } from "lucide-react";
@@ -48,7 +46,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { uploadStoreAsset, listStoreAssets, type StoreAsset } from "@/services/storeApi";
+import { uploadStoreAsset, type StoreAsset } from "@/services/storeApi";
+import { MediaManager } from "@/components/media/MediaManager";
 
 import type { EditorLocale } from "../../types";
 
@@ -115,44 +114,6 @@ export function MediaLibraryDialog({
   useEffect(() => {
     if (open) setAltDraft(currentAlt);
   }, [open, currentAlt]);
-
-  // ── Library tab ─────────────────────────────────────────────────────
-  const [assets, setAssets] = useState<StoreAsset[]>([]);
-  const [loadingAssets, setLoadingAssets] = useState(false);
-  const [assetsError, setAssetsError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!open || !storeId) return;
-    let cancelled = false;
-    setLoadingAssets(true);
-    setAssetsError(null);
-    listStoreAssets(storeId)
-      .then((list) => {
-        if (cancelled) return;
-        // Filter to image extensions — the assets endpoint mixes
-        // section images with PDFs and fonts when the theme has
-        // file_upload settings. We only want pickable images here.
-        const imageOnly = list.filter((a) =>
-          /\.(jpg|jpeg|png|webp|gif|svg|ico)$/i.test(a.key),
-        );
-        // Newest first — local_storage doesn't always populate
-        // last_modified, so fall back to a stable key sort.
-        imageOnly.sort((a, b) => {
-          if (a.last_modified && b.last_modified) {
-            return b.last_modified.localeCompare(a.last_modified);
-          }
-          return b.key.localeCompare(a.key);
-        });
-        setAssets(imageOnly);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setAssetsError(err instanceof Error ? err.message : "Failed to load library");
-      })
-      .finally(() => !cancelled && setLoadingAssets(false));
-    return () => {
-      cancelled = true;
-    };
-  }, [open, storeId]);
 
   // ── Upload tab ──────────────────────────────────────────────────────
   const [uploading, setUploading] = useState(false);
@@ -288,13 +249,12 @@ export function MediaLibraryDialog({
         {/* Body */}
         <div className="min-h-[280px] max-h-[60vh] overflow-y-auto">
           {tab === "library" && (
-            <LibraryTab
-              isAr={isAr}
-              loading={loadingAssets}
-              error={assetsError}
-              assets={assets}
-              currentUrl={currentUrl}
+            <MediaManager
+              storeId={storeId}
+              isRTL={isAr}
               onPick={commitLibraryPick}
+              selectedUrl={currentUrl}
+              filterKind="images"
             />
           )}
 
@@ -379,90 +339,6 @@ export function MediaLibraryDialog({
 }
 
 // ─── Tab subcomponents ─────────────────────────────────────────────────
-
-function LibraryTab({
-  isAr,
-  loading,
-  error,
-  assets,
-  currentUrl,
-  onPick,
-}: {
-  isAr: boolean;
-  loading: boolean;
-  error: string | null;
-  assets: StoreAsset[];
-  currentUrl: string;
-  onPick: (a: StoreAsset) => void;
-}) {
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin" />
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="flex items-start gap-2 p-4 text-sm text-destructive">
-        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-        <span>{error}</span>
-      </div>
-    );
-  }
-  if (assets.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <ImageIcon className="h-10 w-10 text-muted-foreground/40" />
-        <p className="mt-3 text-sm font-medium">
-          {isAr ? "لا توجد صور في المكتبة بعد" : "No images in your library yet"}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground max-w-sm">
-          {isAr
-            ? "ارفع صورة من تبويب «رفع» وستظهر هنا في كل مرة لاحقة."
-            : "Upload an image from the Upload tab and it'll appear here for reuse next time."}
-        </p>
-      </div>
-    );
-  }
-
-  const filenameOf = (a: StoreAsset) => a.key.split("/").pop() ?? a.key;
-
-  return (
-    <div className="grid grid-cols-3 gap-2 p-1 sm:grid-cols-4 lg:grid-cols-5">
-      {assets.map((a) => {
-        const isSelected = currentUrl === a.url;
-        return (
-          <button
-            key={a.key}
-            type="button"
-            onClick={() => onPick(a)}
-            className={cn(
-              "group relative aspect-square overflow-hidden rounded-md border bg-muted/30 transition-all",
-              isSelected
-                ? "border-primary ring-2 ring-primary/30"
-                : "hover:border-primary/40",
-            )}
-            title={filenameOf(a)}
-          >
-            <img
-              src={a.url}
-              alt={filenameOf(a)}
-              loading="lazy"
-              className="h-full w-full object-cover transition-transform group-hover:scale-105"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
-            <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-3 text-[10px] text-white">
-              {filenameOf(a)}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function UploadTab({
   isAr,

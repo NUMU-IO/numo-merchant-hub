@@ -85,6 +85,13 @@ export function ThemeCustomizerV3() {
   const setLocale = useCustomizerStore((s) => s.setLocale);
   const sessionExpired = useCustomizerStore((s) => s.sessionExpired);
   const retryAfterReauth = useCustomizerStore((s) => s.retryAfterReauth);
+  const editConflict = useCustomizerStore((s) => s.editConflict);
+  const resolveConflictReload = useCustomizerStore(
+    (s) => s.resolveConflictReload,
+  );
+  const resolveConflictKeepMine = useCustomizerStore(
+    (s) => s.resolveConflictKeepMine,
+  );
 
   const [showVersionHistory, setShowVersionHistory] = useState(false);
 
@@ -239,6 +246,21 @@ export function ThemeCustomizerV3() {
       {/* Add Section Dialog (modal overlay) */}
       <AddSectionDialog />
 
+      {/* Autosave conflict banner — surfaced when a save hit 409 because
+          another tab/session saved a newer draft. Non-blocking: the
+          merchant keeps seeing their edits and chooses how to resolve. */}
+      {editConflict && (
+        <ConflictBanner
+          locale={locale}
+          onReload={() => {
+            resolveConflictReload();
+          }}
+          onKeepMine={() => {
+            void resolveConflictKeepMine();
+          }}
+        />
+      )}
+
       {/* Session-expired overlay. Surfaced by the V3 service layer when
           a 401 escapes the silent refresh. We block the whole editor
           rather than letting the merchant edit a dead session (the
@@ -315,6 +337,55 @@ function SessionExpiredOverlay({
             {locale === "ar" ? "حاول مجدداً" : "Try again"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Autosave Conflict Banner ───────────────────────────────────────────────
+
+/**
+ * Non-blocking banner shown after an autosave 409 (another tab/session saved
+ * a newer draft). Offers reload (adopt the other draft) or keep-my-changes
+ * (force-overwrite with the fresh etag). Floats at the bottom so it never
+ * covers the toolbar.
+ */
+function ConflictBanner({
+  locale,
+  onReload,
+  onKeepMine,
+}: {
+  locale: "ar" | "en";
+  onReload: () => void;
+  onKeepMine: () => void;
+}) {
+  const isAr = locale === "ar";
+  return (
+    <div
+      role="alert"
+      dir={isAr ? "rtl" : "ltr"}
+      className="absolute inset-x-0 bottom-4 z-40 mx-auto flex w-fit max-w-[92%] flex-wrap items-center justify-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-lg"
+    >
+      <span className="font-medium">
+        {isAr
+          ? "تم تعديل هذا الثيم في مكان آخر. أعد التحميل للمتابعة أو احتفظ بتغييراتك."
+          : "This theme was edited elsewhere. Reload to continue, or keep your changes."}
+      </span>
+      <div className="flex shrink-0 gap-2">
+        <button
+          type="button"
+          onClick={onReload}
+          className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-amber-100"
+        >
+          {isAr ? "إعادة التحميل" : "Reload"}
+        </button>
+        <button
+          type="button"
+          onClick={onKeepMine}
+          className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+        >
+          {isAr ? "احتفظ بتغييراتي" : "Keep my changes"}
+        </button>
       </div>
     </div>
   );

@@ -147,6 +147,10 @@ function redirectToLogin(): never {
  */
 export interface ApiClientOptions {
   noAutoRedirect401?: boolean;
+  /** Invoked with the raw successful Response before its body is parsed.
+   *  Lets callers read response headers (e.g. `ETag` for optimistic
+   *  concurrency) that the unwrapped `{data}` return value can't carry. */
+  onResponse?: (res: Response) => void;
 }
 
 export async function apiClient<T>(
@@ -192,6 +196,11 @@ export async function apiClient<T>(
   if (!res.ok) {
     throw await apiErrorFromResponse(res);
   }
+
+  // Expose the successful response (headers/status) to callers that opted
+  // in, before we consume the body. Used by the theme editor to capture the
+  // draft `ETag` for optimistic-concurrency autosave.
+  apiOpts?.onResponse?.(res);
 
   if (res.status === 204) {
     return undefined as T;

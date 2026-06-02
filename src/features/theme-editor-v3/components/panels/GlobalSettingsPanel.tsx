@@ -27,6 +27,7 @@ import { ArrowLeft, Settings as SettingsIcon } from "lucide-react";
 
 import { useCustomizerStore } from "../../store/customizerStore";
 import { SchemaFormV3 } from "../inputs/SchemaFormV3";
+import { SocialLinksEditor } from "./SocialLinksEditor";
 
 export function GlobalSettingsPanel() {
   const draft = useCustomizerStore((s) => s.draft);
@@ -62,13 +63,13 @@ export function GlobalSettingsPanel() {
         </h2>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {settings.length === 0 ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {isAr
               ? "هذا الثيم لا يعرض إعدادات عامة قابلة للتعديل."
-              : "This theme doesn't expose any global settings."}
-          </div>
+              : "This theme doesn't expose theme-level settings."}
+          </p>
         ) : (
           <SchemaFormV3
             settings={settings}
@@ -78,6 +79,10 @@ export function GlobalSettingsPanel() {
             storeId={storeId ?? undefined}
           />
         )}
+
+        {/* Store-level social links — always available, even when the theme
+            exposes no global settings. Drives the storefront footer icons. */}
+        <SocialLinksEditor locale={locale} />
       </div>
     </div>
   );

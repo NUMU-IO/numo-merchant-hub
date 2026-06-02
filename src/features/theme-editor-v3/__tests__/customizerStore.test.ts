@@ -84,6 +84,18 @@ const sampleSchemas: ThemeSchemaBundle = {
           settings: [
             { id: "label", type: "text", label: "Label", default: "Click" },
           ],
+          // Nestable: a button can hold child "link" blocks (tests
+          // blocks-in-blocks path addressing).
+          blocks: [
+            {
+              type: "link",
+              name: "Link",
+              settings: [
+                { id: "url", type: "url", label: "URL", default: "/" },
+              ],
+            },
+          ],
+          max_blocks: 4,
         },
       ],
       max_blocks: 3,
@@ -304,6 +316,72 @@ describe("block CRUD", () => {
       .sections[sid];
     expect(section.block_order?.length).toBe(3);
   });
+
+  it("addBlock rejects a block type the container doesn't allow", async () => {
+    await bootStore();
+    useCustomizerStore.getState().addBlock("hero_1", "not-a-real-type");
+    const section = useCustomizerStore.getState().draft!.templates.home
+      .sections["hero_1"];
+    expect(section.block_order?.length ?? 0).toBe(0);
+  });
+
+  it("nests blocks: add a child block into a parent block via path", async () => {
+    await bootStore();
+    const sid = "hero_1";
+    // Add a top-level button, then a nested link inside it.
+    useCustomizerStore.getState().addBlock(sid, "button");
+    const section1 = useCustomizerStore.getState().draft!.templates.home
+      .sections[sid];
+    const buttonId = section1.block_order![0];
+
+    useCustomizerStore.getState().addBlock(sid, "link", undefined, [buttonId]);
+    const section2 = useCustomizerStore.getState().draft!.templates.home
+      .sections[sid];
+    const button = section2.blocks![buttonId];
+    expect(button.block_order?.length).toBe(1);
+    const linkId = button.block_order![0];
+    expect(button.blocks![linkId].type).toBe("link");
+
+    // Update the nested block's setting via its full path.
+    useCustomizerStore
+      .getState()
+      .updateBlockSetting(sid, [buttonId, linkId], "url", "/about");
+    const button2 = useCustomizerStore.getState().draft!.templates.home
+      .sections[sid].blocks![buttonId];
+    expect(button2.blocks![linkId].settings.url).toBe("/about");
+
+    // Remove the nested block via path; the parent button survives.
+    useCustomizerStore.getState().removeBlock(sid, [buttonId, linkId]);
+    const button3 = useCustomizerStore.getState().draft!.templates.home
+      .sections[sid].blocks![buttonId];
+    expect(button3.block_order?.length ?? 0).toBe(0);
+    expect(
+      useCustomizerStore.getState().draft!.templates.home.sections[sid]
+        .block_order,
+    ).toContain(buttonId);
+  });
+
+  it("enforces MAX_BLOCK_DEPTH", async () => {
+    await bootStore();
+    const sid = "hero_1";
+    // Build a chain button → link, then keep trying to nest links. The
+    // 'link' block declares no children, so a link can't accept one —
+    // proves the container-schema gate (and, by extension, the depth
+    // guard) stops runaway nesting.
+    useCustomizerStore.getState().addBlock(sid, "button");
+    const buttonId = useCustomizerStore.getState().draft!.templates.home
+      .sections[sid].block_order![0];
+    useCustomizerStore.getState().addBlock(sid, "link", undefined, [buttonId]);
+    const linkId = useCustomizerStore.getState().draft!.templates.home
+      .sections[sid].blocks![buttonId].block_order![0];
+    // link has no allowed child blocks → this add is a no-op.
+    useCustomizerStore
+      .getState()
+      .addBlock(sid, "link", undefined, [buttonId, linkId]);
+    const link = useCustomizerStore.getState().draft!.templates.home
+      .sections[sid].blocks![buttonId].blocks![linkId];
+    expect(link.block_order?.length ?? 0).toBe(0);
+  });
 });
 
 describe("autosave debounce + dedup", () => {
@@ -356,5 +434,84 @@ describe("publish", () => {
     expect(mockSave).toHaveBeenCalledTimes(1);
     expect(mockPublish).toHaveBeenCalledTimes(1);
     expect(useCustomizerStore.getState().isDirty).toBe(false);
+  });
+});
+
+describe("applyPreset", () => {
+  // A hero schema that ships a preset with a nested starter-block tree
+  // (button → link), so applyPreset must rebuild settings AND materialize
+  // nested blocks (the Phase 4.1/4.2 path).
+  const schemasWithPresets: ThemeSchemaBundle = {
+    ...sampleSchemas,
+    section_schemas: {
+      ...sampleSchemas.section_schemas,
+      hero: {
+        ...sampleSchemas.section_schemas.hero,
+        presets: [
+          {
+            name: "With CTA",
+            settings: { headline: "Big Sale" },
+            blocks: [
+              {
+                type: "button",
+                settings: { label: "Shop" },
+                blocks: [{ type: "link", settings: { url: "/sale" } }],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  } as ThemeSchemaBundle;
+
+  async function bootWithPresets(): Promise<void> {
+    mockFetchDraft.mockResolvedValueOnce(sampleDraft);
+    mockFetchSchemas.mockResolvedValueOnce(schemasWithPresets);
+    await useCustomizerStore.getState().initialize("store-1");
+  }
+
+  it("replaces settings (defaults + preset) and materializes nested blocks", async () => {
+    await bootWithPresets();
+    useCustomizerStore.getState().applyPreset("hero_1", 0);
+
+    const hero = useCustomizerStore.getState().draft!.templates.home.sections
+      .hero_1;
+    expect(hero.settings.headline).toBe("Big Sale");
+    expect(hero.block_order?.length).toBe(1);
+
+    const btnId = hero.block_order![0];
+    const btn = hero.blocks![btnId];
+    expect(btn.type).toBe("button");
+    expect(btn.settings.label).toBe("Shop");
+
+    // The nested starter block (link) was materialized too.
+    expect(btn.block_order?.length).toBe(1);
+    const linkId = btn.block_order![0];
+    expect(btn.blocks![linkId].type).toBe("link");
+    expect(btn.blocks![linkId].settings.url).toBe("/sale");
+
+    expect(useCustomizerStore.getState().isDirty).toBe(true);
+    expect(useCustomizerStore.getState().past.length).toBe(1);
+  });
+
+  it("is a no-op for an out-of-range preset index", async () => {
+    await bootWithPresets();
+    const before = JSON.stringify(
+      useCustomizerStore.getState().draft!.templates.home.sections.hero_1,
+    );
+    useCustomizerStore.getState().applyPreset("hero_1", 5);
+    const after = JSON.stringify(
+      useCustomizerStore.getState().draft!.templates.home.sections.hero_1,
+    );
+    expect(after).toBe(before);
+    expect(useCustomizerStore.getState().past.length).toBe(0);
+  });
+
+  it("is a no-op for an unknown section id", async () => {
+    await bootWithPresets();
+    useCustomizerStore.getState().applyPreset("nope_1", 0);
+    expect(
+      useCustomizerStore.getState().draft!.templates.home.sections.nope_1,
+    ).toBeUndefined();
   });
 });

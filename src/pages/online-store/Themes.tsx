@@ -10,6 +10,7 @@ import { canUnlockTheme, type Tier } from "@/lib/themePlan";
 import { LockedThemeBadge } from "./LockedThemeBadge";
 import { UpgradeCTAButton } from "./UpgradeCTAButton";
 import { ThemePreviewModal } from "./ThemePreviewModal";
+import { ThemeUpdatesAlert } from "./ThemeUpdatesAlert";
 import {
   fetchThemes,
   fetchCustomization,
@@ -444,6 +445,10 @@ export default function OnlineStoreThemes() {
           </Button>
         )}
       </div>
+
+      {/* Theme update channel — surfaces a newer published version of the
+          installed theme; Apply is snapshot-first on the backend (Phase 5.1). */}
+      {storeId && <ThemeUpdatesAlert storeId={storeId} />}
 
       {/* Library | Marketplace | Snapshots tabs (Snapshots shipped Session F). */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
