@@ -14,9 +14,12 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["IBM Plex Sans Arabic", "Cairo", "-apple-system", "Helvetica", "Arial", "sans-serif"],
-        brand: ["Reem Kufi", "Tajawal", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "ui-monospace", "monospace"],
+        // "saudi_riyal" trails every stack (unicode-range U+20C1 only) so the
+        // new riyal symbol renders in SAR amounts without affecting any other
+        // glyph. See the @font-face in index.css.
+        sans: ["IBM Plex Sans Arabic", "Cairo", "-apple-system", "Helvetica", "Arial", "sans-serif", "saudi_riyal"],
+        brand: ["Reem Kufi", "Tajawal", "system-ui", "sans-serif", "saudi_riyal"],
+        mono: ["JetBrains Mono", "ui-monospace", "monospace", "saudi_riyal"],
       },
       colors: {
         border: "hsl(var(--border))",

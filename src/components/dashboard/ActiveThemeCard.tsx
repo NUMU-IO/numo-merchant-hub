@@ -2,17 +2,20 @@
  * ActiveThemeCard — Session F (2026-05-29). File 06 §10.
  *
  * A compact "Your storefront" card on the dashboard home that surfaces
- * the merchant's currently-active marketplace theme: thumbnail, name,
- * version, a Live badge, and [View store] + [Customize] CTAs.
+ * the merchant's currently-active theme: thumbnail, name, version, a Live
+ * badge, and [View store] + [Customize] CTAs.
  *
- * Driven entirely by `listInstalled()` (no new endpoint) — the active
- * install carries theme.name / theme.thumbnail_url / version.version_string.
+ * Source of truth: the storefront customization's `theme.base_theme`
+ * (same as the Online Store pages) decides whether *any* theme is live —
+ * built-in / default / BYOT themes never appear in the marketplace
+ * install list, so keying off `listInstalled().is_active` alone would
+ * wrongly show "No active theme yet" for those stores. The marketplace
+ * install, when present, only enriches the card (thumbnail / version).
  *
  * Render policy (so the dashboard never shows a broken card):
- *   - no store / query loading  → render nothing
- *   - active install present     → the full card
- *   - installed-but-none-active OR nothing installed → a quiet
- *     "no active theme · Browse themes" nudge
+ *   - no store / queries loading → render nothing
+ *   - a theme is live (base_theme or active install) → the full card
+ *   - nothing live → a quiet "no active theme · Browse themes" nudge
  *
  * Note: there's no pre-existing in-tree "Theme: Modern" card to remove
  * on this dashboard (confirmed in Phase A) — this is a pure add.
@@ -26,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Palette, Pencil } from "lucide-react";
 import { listInstalled } from "@/services/marketplaceApi";
+import { fetchCustomization, fetchThemes } from "@/services/themeApi";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { getStoreUrl } from "@/lib/storefront";
 
@@ -44,18 +48,52 @@ export function ActiveThemeCard() {
     enabled: storeId !== null,
     staleTime: 30_000,
   });
+  // The marketplace install list only knows about themes installed through
+  // the marketplace. Built-in / default / BYOT themes never appear there,
+  // so we resolve the *actual* live theme the same way the Online Store
+  // pages do — from `customization.theme.base_theme` — and use the
+  // marketplace install only to enrich the card (thumbnail, version).
+  const customizationQuery = useQuery({
+    queryKey: ["customization", storeId],
+    queryFn: () => fetchCustomization(storeId as string),
+    enabled: storeId !== null,
+    staleTime: 60_000,
+  });
+  const themesQuery = useQuery({
+    queryKey: ["themes-available"],
+    queryFn: fetchThemes,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Render nothing until we have data — no skeleton, so the dashboard's
-  // existing rhythm isn't disturbed for stores with no marketplace theme.
-  if (!storeId || installedQuery.isLoading || installedQuery.isError) return null;
+  // existing rhythm isn't disturbed for stores with no theme resolved yet.
+  if (
+    !storeId ||
+    installedQuery.isLoading ||
+    installedQuery.isError ||
+    customizationQuery.isLoading ||
+    customizationQuery.isError
+  )
+    return null;
 
   const installed = (installedQuery.data?.installed ?? []).filter(
     (i) => i.theme !== null,
   );
-  const active = installed.find((i) => i.is_active) ?? null;
+  const activeInstall = installed.find((i) => i.is_active) ?? null;
 
-  // No active marketplace theme — quiet nudge into the marketplace.
-  if (!active) {
+  // Primary source of truth: the customization's base_theme. An active
+  // marketplace install implies a base_theme too, but the converse isn't
+  // true — so base_theme is what tells us whether *any* theme is live.
+  const baseThemeId = customizationQuery.data?.theme?.base_theme ?? null;
+  const catalogTheme = baseThemeId
+    ? (themesQuery.data ?? []).find((th) => th.id === baseThemeId)
+    : undefined;
+
+  // A theme is live if we have a marketplace install OR a base_theme.
+  const hasActiveTheme = activeInstall !== null || baseThemeId !== null;
+
+  // No theme live anywhere — quiet nudge into the marketplace.
+  if (!hasActiveTheme) {
     return (
       <Card className="overflow-hidden">
         <CardContent className="p-5 flex items-center justify-between gap-4 flex-wrap">
@@ -78,9 +116,22 @@ export function ActiveThemeCard() {
     );
   }
 
-  const name = active.theme?.name ?? active.theme?.slug ?? "";
-  const version = active.version?.version_string ?? null;
-  const thumbnail = active.theme?.thumbnail_url ?? null;
+  // Prefer the marketplace install's metadata when present; otherwise fall
+  // back to the storefront catalog entry for the base_theme, and finally to
+  // a title-cased base_theme id so the card still reads with a real name.
+  const name =
+    activeInstall?.theme?.name ??
+    activeInstall?.theme?.slug ??
+    catalogTheme?.name ??
+    (baseThemeId
+      ? baseThemeId.charAt(0).toUpperCase() + baseThemeId.slice(1)
+      : "");
+  // Only marketplace installs carry a version string; built-ins don't.
+  const version = activeInstall?.version?.version_string ?? null;
+  const thumbnail =
+    activeInstall?.theme?.thumbnail_url ??
+    catalogTheme?.preview_image_url ??
+    null;
 
   return (
     <Card className="overflow-hidden">

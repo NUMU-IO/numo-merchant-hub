@@ -40,6 +40,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
+import { formatMoney } from "@/lib/format-money";
 import {
   getCampaignPerformance,
   type CampaignPerformanceResponse,
@@ -61,8 +62,7 @@ function daysAgoIsoDate(days: number): string {
 }
 
 function formatCents(cents: number, isAr: boolean): string {
-  const egp = (cents / 100).toFixed(0);
-  return isAr ? `${egp} ج.م` : `EGP ${egp}`;
+  return formatMoney(Math.round(cents / 100), { locale: isAr ? "ar" : "en" });
 }
 
 function formatPercent(value: number): string {

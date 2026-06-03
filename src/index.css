@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* New Saudi Riyal symbol (Unicode 17.0, U+20C1). Self-hosted OFL font;
+   `unicode-range` scopes it to that one codepoint so appending
+   "saudi_riyal" to any font stack is side-effect-free. */
+@font-face {
+  font-family: "saudi_riyal";
+  src: url("/fonts/saudi_riyal.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+20C1;
+}
+
 /* iOS safe area for bottom nav */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);

@@ -18,6 +18,8 @@ export interface StoreData {
   banner_url: string | null;
   status: string;
   default_currency: string;
+  /** ISO 3166-1 alpha-2 market code (e.g. "EG", "SA"). */
+  country?: string;
   default_language: string;
   contact_email: string | null;
   contact_phone: string | null;
@@ -44,6 +46,8 @@ export interface CreateStoreData {
   slug?: string;
   description?: string;
   default_currency?: string;
+  /** ISO 3166-1 alpha-2 market code; defaults to "EG" server-side. */
+  country?: string;
   default_language?: string;
   contact_email?: string;
   contact_phone?: string;
@@ -807,6 +811,46 @@ export async function deleteFawaterakCredentials(
   storeId: string
 ): Promise<void> {
   await apiClient(`/stores/${storeId}/settings/payment/fawaterak/credentials`, {
+    method: "DELETE",
+  });
+}
+
+// ─── Moyasar Credentials (KSA) ─────────────────────────────────────────────
+
+export interface MoyasarCredentialsResponse {
+  is_configured: boolean;
+  secret_key_masked: string | null;
+  publishable_key_masked: string | null;
+  webhook_secret_masked: string | null;
+  last_configured: string | null;
+}
+
+export async function fetchMoyasarCredentials(
+  storeId: string
+): Promise<MoyasarCredentialsResponse> {
+  return apiClient<MoyasarCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/moyasar/credentials`
+  );
+}
+
+export async function saveMoyasarCredentials(
+  storeId: string,
+  data: {
+    secret_key: string;
+    publishable_key?: string;
+    webhook_secret?: string;
+  }
+): Promise<MoyasarCredentialsResponse> {
+  return apiClient<MoyasarCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/moyasar/credentials`,
+    { method: "PUT", body: JSON.stringify(data) }
+  );
+}
+
+export async function deleteMoyasarCredentials(
+  storeId: string
+): Promise<void> {
+  await apiClient(`/stores/${storeId}/settings/payment/moyasar/credentials`, {
     method: "DELETE",
   });
 }

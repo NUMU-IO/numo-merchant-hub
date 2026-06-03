@@ -125,6 +125,21 @@ export async function getTopProducts(
   );
 }
 
+// ── Order streak ──
+
+export interface OrderStreak {
+  current_streak: number; // consecutive days with orders (today or yesterday)
+  longest_streak: number;
+  last_order_date: string | null; // YYYY-MM-DD in store tz, or null
+  active_today: boolean; // an order already landed today
+}
+
+export async function getOrderStreak(storeId: string): Promise<OrderStreak> {
+  // Not range-scoped: the streak is computed over a fixed lookback window
+  // server-side, independent of the dashboard date picker.
+  return apiClient<OrderStreak>(`/stores/${storeId}/dashboard/streak`);
+}
+
 // ── Analytics API calls ──
 
 export async function getSalesOverview(

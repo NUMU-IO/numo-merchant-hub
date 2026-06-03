@@ -34,6 +34,9 @@ export default function CreateStore() {
 
   const [name, setName] = useState("");
   const [subdomain, setSubdomain] = useState("");
+  // Market the store operates in — drives base currency (SAR/EGP), VAT
+  // (15%/14%) and the payment-gateway allow-list on the backend.
+  const [country, setCountry] = useState("EG");
   const [subdomainStatus, setSubdomainStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
   const [subdomainMsg, setSubdomainMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -88,7 +91,7 @@ export default function CreateStore() {
       // env), so it matches the host the storefront SSR app extracts from
       // <store>-test.numueg.app. On prod the suffix is empty, so user
       // input is saved as-is.
-      const created = await createStore({ name, subdomain: withEnvSuffix(subdomain) });
+      const created = await createStore({ name, subdomain: withEnvSuffix(subdomain), country });
       // Phase 5.11 — fire-and-forget seed. We don't block navigation
       // on it because the catalog inserts can take a couple of
       // seconds and the merchant gets to the dashboard sooner.
@@ -193,6 +196,42 @@ export default function CreateStore() {
                 <p className={`text-xs ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>{subdomainMsg}</p>
               )}
               {fieldErrors.subdomain && <p className="text-xs text-destructive">{fieldErrors.subdomain}</p>}
+            </div>
+
+            {/* Market selector — drives base currency, VAT rate and the
+                payment-gateway allow-list. Defaults to Egypt. */}
+            <div className="space-y-1.5">
+              <Label className="text-[13px] font-medium">
+                {isAr ? "السوق" : "Market"}
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { code: "EG", flag: "🇪🇬", en: "Egypt", ar: "مصر", ccy: "EGP" },
+                  { code: "SA", flag: "🇸🇦", en: "Saudi Arabia", ar: "السعودية", ccy: "SAR" },
+                ].map((m) => (
+                  <button
+                    key={m.code}
+                    type="button"
+                    onClick={() => setCountry(m.code)}
+                    className={`flex items-center justify-between rounded-lg border px-3 h-11 text-sm transition-colors ${
+                      country === m.code
+                        ? "border-foreground ring-1 ring-foreground/5 bg-muted/40"
+                        : "border-border/70 hover:border-foreground/40"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span aria-hidden>{m.flag}</span>
+                      <span className="font-medium">{isAr ? m.ar : m.en}</span>
+                    </span>
+                    <span className="text-xs text-muted-foreground">{m.ccy}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isAr
+                  ? "نضبط العملة وضريبة القيمة المضافة ووسائل الدفع تلقائياً حسب السوق."
+                  : "We auto-set currency, VAT and payment methods for this market."}
+              </p>
             </div>
 
             {/* Phase 5.11 — demo seed toggle.

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type ComponentType } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -7,10 +7,12 @@ import {
   getWhatsAppAnalytics,
   updateByoNotifications,
   updateWhatsAppSettings,
+  listWhatsAppMessages,
   type WhatsAppStatus,
   type WhatsAppNotificationSettings,
   type WhatsAppMessageLanguage,
   type WhatsAppAnalytics,
+  type WhatsAppMessageLogItem,
 } from "@/services/whatsappApi";
 import { listTemplates, type WhatsAppTemplate } from "@/services/templatesApi";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -19,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WhatsAppTemplatePreview } from "@/components/whatsapp/WhatsAppTemplatePreview";
+import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
 import { toast } from "sonner";
 import {
   ResponsiveContainer,
@@ -29,7 +32,6 @@ import {
   CartesianGrid,
 } from "recharts";
 import {
-  MessageCircle,
   CheckCircle2,
   Send,
   Eye,
@@ -38,12 +40,17 @@ import {
   Globe,
   Languages,
   ShoppingBag,
+  ShoppingCart,
   CreditCard,
   Truck,
   PackageCheck,
   ArrowRight,
   Settings2,
   ShieldCheck,
+  Clock,
+  Inbox,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from "lucide-react";
 
 // WhatsApp brand green — used sparingly for the channel identity (hero,
@@ -77,6 +84,16 @@ const NOTIFICATION_EVENTS: Array<{
     icon: ShoppingBag,
   },
   {
+    key: "require_order_confirmation",
+    en: "Confirm order in WhatsApp",
+    ar: "تأكيد الطلب على واتساب",
+    descEn:
+      "For COD orders: ask the customer to tap Confirm. The order is held until they do. Replaces the order-confirmation notice for COD.",
+    descAr:
+      "لطلبات الدفع عند الاستلام: اطلب من العميل الضغط على تأكيد، ويبقى الطلب معلقاً حتى يؤكده. يحل محل رسالة تأكيد الطلب لطلبات الدفع عند الاستلام.",
+    icon: ShieldCheck,
+  },
+  {
     key: "payment_received",
     en: "Payment received",
     ar: "تأكيد الدفع",
@@ -100,6 +117,14 @@ const NOTIFICATION_EVENTS: Array<{
     descAr: "تُرسل عند تسليم الطلب.",
     icon: PackageCheck,
   },
+  {
+    key: "abandoned_cart",
+    en: "Abandoned cart",
+    ar: "السلة المتروكة",
+    descEn: "Recover carts customers left without paying. Send instantly from the Abandoned checkouts page.",
+    descAr: "استرجع السلات التي تركها العملاء دون دفع. أرسل فوراً من صفحة السلات المتروكة.",
+    icon: ShoppingCart,
+  },
 ];
 
 const LANGUAGE_OPTIONS: Array<{
@@ -120,6 +145,77 @@ function templateBody(t: WhatsAppTemplate): string {
   return body?.text || "";
 }
 
+// Compact "time ago" label for the recent-messages list. Falls back to
+// a localized date once a message is older than a day.
+function timeAgo(iso: string | null, isAr: boolean): string {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const mins = Math.floor((Date.now() - then) / 60000);
+  if (mins < 1) return isAr ? "الآن" : "now";
+  if (mins < 60) return isAr ? `${mins} د` : `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return isAr ? `${hrs} س` : `${hrs}h`;
+  return new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+// "order_confirmation_v2" → "Order confirmation v2" — a readable label
+// for a sent template message when it carried no inline content.
+function humanizeTemplate(name: string): string {
+  const cleaned = name.replace(/_/g, " ").trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+// Delivery-status pill for a row in the recent-messages feed. Only the
+// states worth calling out get a badge; plain "sent"/"queued" stay
+// unbadged to keep the list calm.
+function messageStatusStyle(
+  status: string,
+  isAr: boolean
+): { label: string; cls: string } | null {
+  switch (status) {
+    case "read":
+      return {
+        label: isAr ? "قُرئت" : "Read",
+        cls: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+      };
+    case "delivered":
+      return {
+        label: isAr ? "وصلت" : "Delivered",
+        cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+      };
+    case "failed":
+      return {
+        label: isAr ? "فشلت" : "Failed",
+        cls: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+      };
+    default:
+      return null;
+  }
+}
+
+// Status badge colour + label for a template across its Meta lifecycle.
+function templateStatusStyle(status: string, isAr: boolean): { label: string; cls: string } {
+  const s = status.toUpperCase();
+  if (s === "APPROVED")
+    return {
+      label: isAr ? "معتمد" : "Approved",
+      cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    };
+  if (s === "REJECTED")
+    return {
+      label: isAr ? "مرفوض" : "Rejected",
+      cls: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+    };
+  return {
+    label: isAr ? "قيد المراجعة" : "Pending",
+    cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  };
+}
+
 export default function WhatsApp() {
   const { currentStore } = useDashboardStore();
   const { language } = useLanguage();
@@ -131,22 +227,49 @@ export default function WhatsApp() {
   const [status, setStatus] = useState<WhatsAppStatus | null>(null);
   const [analytics, setAnalytics] = useState<WhatsAppAnalytics | null>(null);
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [messages, setMessages] = useState<WhatsAppMessageLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("30d");
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  // Briefly marks a row as just-persisted so the merchant gets a visible
+  // "Saved ✓" confirmation that the change reached the backend (the toast
+  // is transient and easy to miss).
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+  // Session-scoped time of the last successful settings save — a durable
+  // "saved just now" reassurance. Not persisted server-side; resets on
+  // reload (the authoritative proof is that the toggles come back set).
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<WhatsAppTemplate | null>(null);
+  // Editable draft for the COD confirm-order delay. Stored server-side as a
+  // single minutes value; the UI lets the merchant pick minutes or hours.
+  const [delayValue, setDelayValue] = useState<number>(30);
+  const [delayUnitHours, setDelayUnitHours] = useState<boolean>(false);
+
+  const flashSaved = useCallback((key: string) => {
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    setSavedKey(key);
+    setLastSavedAt(new Date());
+    savedTimer.current = setTimeout(() => setSavedKey(null), 2500);
+  }, []);
+
+  useEffect(() => () => {
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!storeId) return;
     setLoading(true);
-    const [statusRes, analyticsRes, templatesRes] = await Promise.allSettled([
+    const [statusRes, analyticsRes, templatesRes, messagesRes] = await Promise.allSettled([
       getByoStatus(storeId),
       getWhatsAppAnalytics(storeId, period),
       listTemplates(storeId),
+      listWhatsAppMessages(storeId, { limit: 8 }),
     ]);
     if (statusRes.status === "fulfilled") setStatus(statusRes.value);
     if (analyticsRes.status === "fulfilled") setAnalytics(analyticsRes.value);
     if (templatesRes.status === "fulfilled") setTemplates(templatesRes.value.templates);
+    if (messagesRes.status === "fulfilled") setMessages(messagesRes.value.messages);
     if (statusRes.status === "rejected" && analyticsRes.status === "rejected") {
       toast.error(isAr ? "فشل تحميل بيانات واتساب" : "Failed to load WhatsApp data");
     }
@@ -162,14 +285,60 @@ export default function WhatsApp() {
     setSavingKey(key);
     setStatus({ ...status, notifications: { ...status.notifications, [key]: value } });
     try {
-      await updateByoNotifications(storeId, { [key]: value });
-      toast.success(isAr ? "تم الحفظ" : "Saved");
+      // The PATCH returns the full, server-persisted notification set —
+      // reconcile against it instead of trusting the optimistic flip, so
+      // the switch reflects exactly what's now in the backend.
+      const saved = await updateByoNotifications(storeId, { [key]: value });
+      setStatus((s) => (s ? { ...s, notifications: { ...s.notifications, ...saved } } : s));
+      flashSaved(key);
     } catch {
       setStatus({ ...status, notifications: { ...status.notifications, [key]: !value } });
       toast.error(isAr ? "فشل الحفظ" : "Failed to save");
     } finally {
       setSavingKey(null);
     }
+  };
+
+  // Mirror the persisted delay into the editable draft whenever it changes
+  // (initial load + after a save). Only re-derives when a delay is set so
+  // it doesn't clobber the merchant's in-progress edit before they apply.
+  const confirmDelayMinutes = status?.confirm_order_delay_minutes ?? 0;
+  useEffect(() => {
+    if (confirmDelayMinutes > 0) {
+      if (confirmDelayMinutes % 60 === 0) {
+        setDelayUnitHours(true);
+        setDelayValue(confirmDelayMinutes / 60);
+      } else {
+        setDelayUnitHours(false);
+        setDelayValue(confirmDelayMinutes);
+      }
+    }
+  }, [confirmDelayMinutes]);
+
+  const saveConfirmDelay = async (minutes: number) => {
+    if (!storeId || !status) return;
+    const prev = status.confirm_order_delay_minutes;
+    if (prev === minutes) return;
+    setSavingKey("confirm_delay");
+    setStatus({ ...status, confirm_order_delay_minutes: minutes });
+    try {
+      const res = await updateWhatsAppSettings(storeId, {
+        confirm_order_delay_minutes: minutes,
+      });
+      setStatus(res);
+      flashSaved("confirm_delay");
+    } catch {
+      setStatus({ ...status, confirm_order_delay_minutes: prev });
+      toast.error(isAr ? "فشل الحفظ" : "Failed to save");
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  // Apply the current draft (value + unit) as a minutes total.
+  const applyDelayDraft = () => {
+    const v = Math.max(1, Math.floor(delayValue || 0));
+    saveConfirmDelay(delayUnitHours ? v * 60 : v);
   };
 
   const handleLanguage = async (lang: WhatsAppMessageLanguage) => {
@@ -180,7 +349,7 @@ export default function WhatsApp() {
     try {
       const res = await updateWhatsAppSettings(storeId, { message_language: lang });
       setStatus(res);
-      toast.success(isAr ? "تم تحديث لغة الرسائل" : "Message language updated");
+      flashSaved(`lang:${lang}`);
     } catch {
       setStatus({ ...status, message_language: prev });
       toast.error(isAr ? "فشل تحديث اللغة" : "Failed to update language");
@@ -204,10 +373,15 @@ export default function WhatsApp() {
     [analytics]
   );
 
-  const approvedTemplates = useMemo(
-    () => templates.filter((t) => t.status === "APPROVED"),
-    [templates]
-  );
+  // Show every template the store has, not only Meta-APPROVED ones —
+  // a merchant who created/submitted templates expects to see them here
+  // (with their real status) rather than an empty card. Approved first,
+  // then pending, then rejected.
+  const visibleTemplates = useMemo(() => {
+    const rank = (s: string) =>
+      s.toUpperCase() === "APPROVED" ? 0 : s.toUpperCase() === "REJECTED" ? 2 : 1;
+    return [...templates].sort((a, b) => rank(a.status) - rank(b.status));
+  }, [templates]);
 
   if (loading) {
     return (
@@ -233,7 +407,7 @@ export default function WhatsApp() {
               className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-sm"
               style={{ backgroundColor: WA_GREEN }}
             >
-              <MessageCircle className="h-7 w-7 text-white" />
+              <WhatsAppGlyph className="h-8 w-8 text-white" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -328,7 +502,7 @@ export default function WhatsApp() {
             <StatCard
               label={isAr ? "محادثات نشطة" : "Active chats"}
               value={fmtNum(analytics?.active_conversations ?? 0)}
-              icon={MessageCircle}
+              icon={WhatsAppGlyph}
               tone="default"
             />
           </div>
@@ -368,13 +542,113 @@ export default function WhatsApp() {
           </Card>
         </div>
 
+        {/* Recent messages — live feed of what's actually been sent to /
+            received from this store's customers on WhatsApp. */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <WhatsAppGlyph className="h-4 w-4" style={{ color: WA_GREEN }} />
+                  {isAr ? "أحدث الرسائل" : "Recent messages"}
+                </CardTitle>
+                <CardDescription>
+                  {isAr
+                    ? "آخر الرسائل المُرسلة والمستلمة عبر واتساب لهذا المتجر."
+                    : "The latest messages sent to and received from this store's customers."}
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 shrink-0"
+                onClick={() => navigate("/whatsapp/inbox")}
+              >
+                {isAr ? "صندوق الوارد" : "Open inbox"}
+                <ArrowRight className={`h-4 w-4 ${isAr ? "rotate-180" : ""}`} />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {messages.length === 0 ? (
+              <div className="py-8 flex flex-col items-center gap-2 text-center">
+                <Inbox className="h-8 w-8 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">
+                  {isAr ? "لا توجد رسائل بعد." : "No messages yet."}
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y rounded-xl border">
+                {messages.map((m) => {
+                  const outbound = m.direction === "outbound";
+                  const DirIcon = outbound ? ArrowUpRight : ArrowDownLeft;
+                  const st = messageStatusStyle(m.status, isAr);
+                  const preview =
+                    m.content ||
+                    (m.template_name
+                      ? humanizeTemplate(m.template_name)
+                      : isAr
+                      ? "بدون معاينة"
+                      : "No preview");
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => navigate("/whatsapp/inbox")}
+                      className="flex w-full items-center gap-3 p-3.5 text-start transition-colors hover:bg-muted/40"
+                    >
+                      <div
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                          outbound
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            : "bg-muted text-foreground/70"
+                        }`}
+                      >
+                        <DirIcon className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-sm truncate" dir="ltr">
+                            {m.phone}
+                          </p>
+                          {st && (
+                            <Badge className={`border-0 text-[10px] px-1.5 py-0 h-4 ${st.cls}`}>
+                              {st.label}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{preview}</p>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
+                        {timeAgo(m.created_at, isAr)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Notifications */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="h-4 w-4 text-emerald-600" />
-              {isAr ? "الإشعارات التلقائية" : "Automatic notifications"}
-            </CardTitle>
+            <div className="flex items-start justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="h-4 w-4 text-emerald-600" />
+                {isAr ? "الإشعارات التلقائية" : "Automatic notifications"}
+              </CardTitle>
+              {lastSavedAt && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  {isAr ? "حُفظ " : "Saved "}
+                  {lastSavedAt.toLocaleTimeString(isAr ? "ar-EG" : "en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              )}
+            </div>
             <CardDescription>
               {isAr
                 ? "اختر أي رسائل تُرسَل لعملائك تلقائياً عند كل خطوة في الطلب."
@@ -397,6 +671,16 @@ export default function WhatsApp() {
                     <p className="font-medium text-sm">{isAr ? evt.ar : evt.en}</p>
                     <p className="text-xs text-muted-foreground">{isAr ? evt.descAr : evt.descEn}</p>
                   </div>
+                  {savingKey === evt.key ? (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {isAr ? "جارٍ الحفظ…" : "Saving…"}
+                    </span>
+                  ) : savedKey === evt.key ? (
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 shrink-0">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {isAr ? "تم الحفظ" : "Saved"}
+                    </span>
+                  ) : null}
                   <Switch
                     checked={enabled}
                     disabled={!connected || savingKey === evt.key}
@@ -412,6 +696,106 @@ export default function WhatsApp() {
             )}
           </CardContent>
         </Card>
+
+        {/* Confirm-order timing — only relevant when the feature is on */}
+        {connected && status?.notifications?.require_order_confirmation && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Clock className="h-4 w-4 text-emerald-600" />
+                {isAr ? "توقيت رسالة التأكيد" : "Confirmation timing"}
+              </CardTitle>
+              <CardDescription>
+                {isAr
+                  ? "متى تُرسل رسالة «تأكيد الطلب» إلى العميل بعد إنشاء الطلب؟"
+                  : "When should the “confirm order” request be sent after an order is placed?"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => saveConfirmDelay(0)}
+                  disabled={savingKey === "confirm_delay"}
+                  className={`flex flex-col items-start gap-0.5 rounded-xl border p-4 text-start transition-all disabled:opacity-60 ${
+                    confirmDelayMinutes === 0
+                      ? "border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
+                      : "hover:border-foreground/20 hover:bg-muted/40"
+                  }`}
+                >
+                  <span className="font-semibold text-sm">
+                    {isAr ? "فوراً" : "Immediately"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {isAr ? "تُرسل لحظة إنشاء الطلب" : "Sent the moment the order is placed"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirmDelayMinutes === 0) {
+                      saveConfirmDelay(delayUnitHours ? delayValue * 60 : delayValue);
+                    }
+                  }}
+                  disabled={savingKey === "confirm_delay"}
+                  className={`flex flex-col items-start gap-0.5 rounded-xl border p-4 text-start transition-all disabled:opacity-60 ${
+                    confirmDelayMinutes > 0
+                      ? "border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
+                      : "hover:border-foreground/20 hover:bg-muted/40"
+                  }`}
+                >
+                  <span className="font-semibold text-sm">
+                    {isAr ? "بعد فترة" : "After a delay"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {isAr ? "أمهل العميل بعض الوقت" : "Give the customer some time first"}
+                  </span>
+                </button>
+              </div>
+              {confirmDelayMinutes > 0 && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    value={delayValue}
+                    onChange={(e) => setDelayValue(Number(e.target.value))}
+                    onBlur={applyDelayDraft}
+                    disabled={savingKey === "confirm_delay"}
+                    aria-label={isAr ? "مدة التأخير" : "Delay amount"}
+                    title={isAr ? "مدة التأخير" : "Delay amount"}
+                    className="h-9 w-24 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <select
+                    value={delayUnitHours ? "hours" : "minutes"}
+                    onChange={(e) => {
+                      const hours = e.target.value === "hours";
+                      setDelayUnitHours(hours);
+                      const v = Math.max(1, Math.floor(delayValue || 0));
+                      saveConfirmDelay(hours ? v * 60 : v);
+                    }}
+                    disabled={savingKey === "confirm_delay"}
+                    aria-label={isAr ? "وحدة التأخير" : "Delay unit"}
+                    title={isAr ? "وحدة التأخير" : "Delay unit"}
+                    className="h-9 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="minutes">{isAr ? "دقيقة" : "minutes"}</option>
+                    <option value="hours">{isAr ? "ساعة" : "hours"}</option>
+                  </select>
+                  {savingKey === "confirm_delay" ? (
+                    <span className="text-xs text-muted-foreground">
+                      {isAr ? "جارٍ الحفظ…" : "Saving…"}
+                    </span>
+                  ) : savedKey === "confirm_delay" ? (
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {isAr ? "تم الحفظ" : "Saved"}
+                    </span>
+                  ) : null}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Language */}
         <Card>
@@ -444,7 +828,18 @@ export default function WhatsApp() {
                   >
                     <div className="flex w-full items-center justify-between">
                       <span className="font-semibold text-sm">{isAr ? opt.ar : opt.en}</span>
-                      {active && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+                      {savingKey === `lang:${opt.key}` ? (
+                        <span className="text-[11px] text-muted-foreground">
+                          {isAr ? "جارٍ الحفظ…" : "Saving…"}
+                        </span>
+                      ) : active && savedKey === `lang:${opt.key}` ? (
+                        <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          {isAr ? "تم الحفظ" : "Saved"}
+                        </span>
+                      ) : (
+                        active && <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      )}
                     </div>
                     <span className="text-xs text-muted-foreground">{isAr ? opt.subAr : opt.subEn}</span>
                   </button>
@@ -479,35 +874,36 @@ export default function WhatsApp() {
             </div>
           </CardHeader>
           <CardContent>
-            {approvedTemplates.length === 0 ? (
+            {visibleTemplates.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                {isAr ? "لا توجد قوالب معتمدة بعد." : "No approved templates yet."}
+                {isAr ? "لم تُرسل أي قوالب إلى Meta بعد." : "No templates submitted to Meta yet."}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {approvedTemplates.slice(0, 6).map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setPreviewTemplate(t)}
-                    className="group flex flex-col gap-2 rounded-xl border p-4 text-start transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        {t.language}
+                {visibleTemplates.slice(0, 6).map((t) => {
+                  const st = templateStatusStyle(t.status, isAr);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setPreviewTemplate(t)}
+                      className="group flex flex-col gap-2 rounded-xl border p-4 text-start transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          {t.language}
+                        </span>
+                        <Badge className={`border-0 text-[10px] ${st.cls}`}>{st.label}</Badge>
+                      </div>
+                      <p className="font-medium text-sm truncate">{t.name}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{templateBody(t)}</p>
+                      <span className="mt-auto inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                        <Eye className="h-3.5 w-3.5" />
+                        {isAr ? "معاينة" : "Preview"}
                       </span>
-                      <Badge className="border-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 text-[10px]">
-                        {isAr ? "معتمد" : "Approved"}
-                      </Badge>
-                    </div>
-                    <p className="font-medium text-sm truncate">{t.name}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{templateBody(t)}</p>
-                    <span className="mt-auto inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
-                      <Eye className="h-3.5 w-3.5" />
-                      {isAr ? "معاينة" : "Preview"}
-                    </span>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -581,7 +977,7 @@ function StatCard({
 }: {
   label: string;
   value: string;
-  icon: typeof Send;
+  icon: ComponentType<{ className?: string }>;
   tone: "default" | "success" | "info";
   sub?: string;
 }) {
