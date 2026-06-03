@@ -197,7 +197,12 @@ interface PageDef {
 const EDITABLE_PAGES: PageDef[] = [
   { id: "home", name: "Home", nameAr: "الرئيسية", icon: Layout, previewPath: "/" },
   { id: "products", name: "Products", nameAr: "المنتجات", icon: Package, previewPath: "/products" },
-  { id: "product-detail", name: "Product Detail", nameAr: "تفاصيل المنتج", icon: Package, previewPath: "/product/demo" },
+  // `/product/demo` was singular + a fake slug → storefront catch-all →
+  // notFound → theme 404 (the reported "product page 404"). The real route is
+  // plural `/products/<slug>`; this legacy editor has no product slug to hand,
+  // so it points at the products route (no 404). The V3 editor's
+  // PreviewResourcePicker auto-picks a real product for a true PDP preview.
+  { id: "product-detail", name: "Product Detail", nameAr: "تفاصيل المنتج", icon: Package, previewPath: "/products" },
   { id: "checkout", name: "Checkout", nameAr: "الدفع", icon: CreditCard, previewPath: "/checkout" },
   { id: "contact", name: "Contact", nameAr: "التواصل", icon: MessageCircle, previewPath: "/contact" },
   { id: "about", name: "About", nameAr: "من نحن", icon: Layout, previewPath: "/about" },

@@ -209,22 +209,28 @@ export function AddSectionDialog() {
       // Skip sections that belong to a group — they're added via the
       // group editor, not this dialog.
       if (s.tag && GROUP_TAGS.has(s.tag)) continue;
-      if (!s.presets || s.presets.length === 0) continue;
 
       const sectionName = isAr
         ? s.locales?.ar?.name || s.name
         : s.locales?.en?.name || s.name;
-      const hasMultiplePresets = s.presets.length > 1;
       const fallbackCategory = CATEGORY_BY_TYPE[s.type] ?? "content";
 
-      s.presets.forEach((preset, idx) => {
+      // Most theme schemas ship ZERO presets, which previously skipped the
+      // section entirely → merchants saw "0 sections" on EVERY theme. But
+      // `addSection` already falls back to the schema's default settings when
+      // a preset is absent, so surface ONE default card per preset-less
+      // section here. Authored presets still each render their own card.
+      const realPresets = s.presets ?? [];
+      const presetCount = Math.max(1, realPresets.length);
+      const hasMultiplePresets = realPresets.length > 1;
+
+      for (let idx = 0; idx < presetCount; idx++) {
+        const preset = realPresets[idx];
         const presetName =
-          (isAr
-            ? preset.locales?.ar?.name
-            : preset.locales?.en?.name) ||
-          preset.name ||
+          (isAr ? preset?.locales?.ar?.name : preset?.locales?.en?.name) ||
+          preset?.name ||
           (hasMultiplePresets ? `Variant ${idx + 1}` : sectionName);
-        const presetCategory = preset.category ?? fallbackCategory;
+        const presetCategory = preset?.category ?? fallbackCategory;
         cards.push({
           sectionType: s.type,
           sectionTag: s.tag ?? null,
@@ -234,7 +240,7 @@ export function AddSectionDialog() {
           hasMultiplePresets,
           category: presetCategory,
         });
-      });
+      }
     }
     return cards;
   }, [schemas, isAr]);

@@ -12,11 +12,16 @@ export class ApiError extends Error {
   serverDetail: string | null;
   /** Parsed field-level validation errors (422) */
   fieldErrors: Record<string, string> | null;
+  /** Raw parsed response body, if any. Carries structured error payloads the
+   *  flat `serverDetail` string can't represent — e.g. the 409 stale-etag
+   *  conflict `{ detail: { current_etag, current_draft } }`. */
+  body: unknown;
 
   constructor(
     status: number,
     serverDetail: string | null,
     fieldErrors?: Record<string, string> | null,
+    body?: unknown,
   ) {
     const msg = serverDetail || statusToMessage(status, "en");
     super(msg);
@@ -24,6 +29,7 @@ export class ApiError extends Error {
     this.status = status;
     this.serverDetail = serverDetail;
     this.fieldErrors = fieldErrors ?? null;
+    this.body = body ?? null;
   }
 
   /** Get a user-friendly message in the given language */
@@ -216,7 +222,7 @@ export async function apiErrorFromResponse(res: Response): Promise<ApiError> {
   if (res.status === 422 && body) {
     const parsed = parse422Detail(body);
     if (parsed) {
-      return new ApiError(res.status, parsed.message, parsed.fields);
+      return new ApiError(res.status, parsed.message, parsed.fields, body);
     }
   }
 
@@ -236,7 +242,7 @@ export async function apiErrorFromResponse(res: Response): Promise<ApiError> {
             ? body.message
             : null;
 
-  return new ApiError(res.status, detailStr);
+  return new ApiError(res.status, detailStr, null, body);
 }
 
 // ─── Network error helper ────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { createStore, checkSubdomain, seedDemoCatalog } from "@/services/storeApi";
+import { activateDefaultTheme } from "@/services/marketplaceApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -99,6 +100,14 @@ export default function CreateStore() {
       // so the merchant has a path forward either way.
       if (seedDemo && created?.id) {
         void seedDemoCatalog(created.id).catch(() => {});
+      }
+      // Default the new store to the luxury-minimal V3 theme so the
+      // onboarding preview (and live storefront) show a polished theme
+      // instead of the legacy green/modern default. Fire-and-forget like
+      // the demo seed — the merchant passes through several wizard steps
+      // before the preview step, by which point activation has landed.
+      if (created?.id) {
+        void activateDefaultTheme(created.id).catch(() => {});
       }
       await refetchStores();
       navigate("/onboarding-wizard", { replace: true });
