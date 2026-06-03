@@ -75,12 +75,28 @@ import type { CatalogTheme } from "@/services/marketplaceApi";
  *     comes back; React Query already invalidates on mount, this just
  *     makes the iframe key change for free.
  */
+// V3 (BYOT) themes can ONLY render on the V3 storefront — it reads
+// `?preview_theme_slug` and federates the marketplace bundle via
+// ByotThemeBoundary. The legacy storefront ignores the param and just shows
+// the store's active theme. So for V3 themes we point the iframe at the V3
+// storefront host; everything else keeps the default storefront.
+// VITE_V3_STOREFRONT_URL is a `{subdomain}` template set per-env at build
+// (test → https://{subdomain}.v3.test.numueg.app); when unset (envs where the
+// V3 storefront isn't deployed) we fall back to the default storefront.
+const V3_STOREFRONT_TEMPLATE = import.meta.env.VITE_V3_STOREFRONT_URL as
+  | string
+  | undefined;
+
 function buildPreviewSrc(
   subdomain: string | null | undefined,
   slug: string,
+  isV3: boolean,
 ): string | null {
   if (!subdomain) return null;
-  const base = getStoreUrl(subdomain);
+  const base =
+    isV3 && V3_STOREFRONT_TEMPLATE
+      ? V3_STOREFRONT_TEMPLATE.replace(/\{subdomain\}/g, subdomain)
+      : getStoreUrl(subdomain);
   if (!base) return null;
   const url = new URL(base);
   url.searchParams.set("preview_theme_slug", slug);
@@ -140,10 +156,15 @@ export default function ThemePreviewPage() {
     },
   });
 
-  const previewSrc = useMemo(() => buildPreviewSrc(subdomain, slug), [
-    subdomain,
-    slug,
-  ]);
+  const previewSrc = useMemo(
+    () =>
+      buildPreviewSrc(
+        subdomain,
+        slug,
+        !!detailQuery.data?.latest_version?.bundle_url,
+      ),
+    [subdomain, slug, detailQuery.data?.latest_version?.bundle_url],
+  );
 
   const theme = detailQuery.data;
   const installed = installedQuery.data?.installed.find(
