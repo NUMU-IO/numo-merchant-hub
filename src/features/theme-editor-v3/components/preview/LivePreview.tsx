@@ -135,9 +135,13 @@ export function LivePreview() {
   const previewUrl = useMemo(() => {
     if (!storeId) return "about:blank";
 
-    const configured = import.meta.env.VITE_STOREFRONT_URL as
-      | string
-      | undefined;
+    // The V3 editor previews V3 (BYOT) themes, which only render on the V3
+    // storefront (ByotThemeBoundary federates the bundle + PreviewBridge
+    // applies live draft edits). The legacy storefront can't render them, so
+    // prefer VITE_V3_STOREFRONT_URL when set (envs with a V3 storefront);
+    // fall back to the default storefront otherwise.
+    const configured = (import.meta.env.VITE_V3_STOREFRONT_URL ||
+      import.meta.env.VITE_STOREFRONT_URL) as string | undefined;
     const subdomain = currentStore?.subdomain;
 
     let base: string;
