@@ -1534,6 +1534,17 @@ export const useCustomizerStore = create<CustomizerStore>()(
           // Ensure the latest draft is on the server first (will dedup if
           // an autosave is already in flight).
           await performSave();
+          // performSave surfaces an optimistic-concurrency conflict via
+          // `editConflict` (it does NOT throw). If the flush conflicted, stop
+          // here and let the conflict banner drive resolution — publishing now
+          // would clobber a newer draft (or just 409 again). Without this the
+          // publish proceeded blindly and the error escaped uncaught.
+          if (get().editConflict) {
+            set((s) => {
+              s.isPublishing = false;
+            });
+            return;
+          }
           // Forward the merchant-supplied label so the published version
           // row carries it (named-versions UX). Backend that hasn't
           // rolled out the label support yet drops it harmlessly.
@@ -1561,10 +1572,20 @@ export const useCustomizerStore = create<CustomizerStore>()(
             s.future = [];
           });
         } catch (err) {
+          // A stale-etag 409 from publishV3 (or the flush) becomes the same
+          // recoverable conflict banner instead of an uncaught error — the
+          // merchant chooses reload vs keep-my-changes, then re-publishes.
+          const conflict = readEtagConflict(err);
           set((s) => {
             s.isPublishing = false;
             if (isSessionExpiredError(err)) s.sessionExpired = true;
+            if (conflict) {
+              s.editConflict = true;
+              s._remoteEtag = conflict.currentEtag;
+              s._remoteDraft = conflict.currentDraft;
+            }
           });
+          if (conflict) return; // handled via the conflict banner
           throw err;
         }
       },
