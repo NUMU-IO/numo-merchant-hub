@@ -47,11 +47,15 @@ const EDITOR_OPTS = { noAutoRedirect401: true } as const;
  */
 export function fetchDraftV3(
   storeId: string,
+  onEtag?: (etag: string | null) => void,
 ): Promise<ThemeSettingsV3 | Record<string, never>> {
   return apiClient<ThemeSettingsV3 | Record<string, never>>(
     `${BASE(storeId)}/draft`,
     undefined,
-    EDITOR_OPTS,
+    {
+      ...EDITOR_OPTS,
+      onResponse: onEtag ? (res) => onEtag(res.headers.get("ETag")) : undefined,
+    },
   );
 }
 
@@ -59,19 +63,42 @@ export function fetchDraftV3(
  * Autosave V3 draft with Dual-Write to legacy columns.
  * Body shape matches AutosaveDraftRequest on the backend.
  */
+export interface SaveDraftOptions {
+  changeSummary?: string;
+  /** Current draft ETag for optimistic concurrency. Sent as `If-Match` and
+   *  `expected_etag`; on mismatch the backend returns 409 (`stale_etag`)
+   *  with the server's current etag + draft so we never silently clobber. */
+  expectedEtag?: string | null;
+  /** Receives the new ETag echoed by a successful save. */
+  onEtag?: (etag: string | null) => void;
+}
+
 export function saveDraftV3(
   storeId: string,
   payload: ThemeSettingsV3,
-  changeSummary?: string,
+  opts?: SaveDraftOptions,
 ): Promise<AutosaveDraftResponse> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (opts?.expectedEtag) headers["If-Match"] = opts.expectedEtag;
   return apiClient<AutosaveDraftResponse>(
     `${BASE(storeId)}/autosave`,
     {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ payload, change_summary: changeSummary }),
+      headers,
+      body: JSON.stringify({
+        payload,
+        change_summary: opts?.changeSummary,
+        expected_etag: opts?.expectedEtag ?? undefined,
+      }),
     },
-    EDITOR_OPTS,
+    {
+      ...EDITOR_OPTS,
+      onResponse: opts?.onEtag
+        ? (res) => opts.onEtag!(res.headers.get("ETag"))
+        : undefined,
+    },
   );
 }
 

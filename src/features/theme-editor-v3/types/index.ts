@@ -13,7 +13,11 @@ export interface BlockInstance {
   type: string;
   disabled?: boolean;
   settings: Record<string, unknown>;
+  /** Nested child blocks (blocks-in-blocks). Same container shape as a
+   *  section — `block_order` orders the entries in `blocks`. Absent on
+   *  leaf blocks so pre-nesting drafts load unchanged. */
   blocks?: Record<string, BlockInstance>;
+  block_order?: string[];
 }
 
 // ─── Section Instance ───────────────────────────────────────────────────────
@@ -180,6 +184,20 @@ export interface BlockSchemaDefinition {
   locales?: { ar?: { name?: string } };
   limit?: number;
   settings: SettingDefinition[];
+  /** Child block types this block accepts (recursive — blocks-in-blocks).
+   *  When present, the customizer renders a nested block list with its
+   *  own Add/remove/reorder, capped at `max_blocks` and the global
+   *  MAX_BLOCK_DEPTH. */
+  blocks?: BlockSchemaDefinition[];
+  max_blocks?: number;
+}
+
+/** A starter block inside a section preset (recursive — a preset can
+ *  ship pre-populated nested blocks, e.g. a footer column with links). */
+export interface PresetBlockDefinition {
+  type: string;
+  settings?: Record<string, unknown>;
+  blocks?: PresetBlockDefinition[];
 }
 
 export interface SectionSchemaDefinition {
@@ -198,7 +216,7 @@ export interface SectionSchemaDefinition {
     category?: string;
     category_locales?: { ar?: string };
     settings?: Record<string, unknown>;
-    blocks?: Array<{ type: string; settings?: Record<string, unknown> }>;
+    blocks?: PresetBlockDefinition[];
   }>;
 }
 
@@ -331,4 +349,12 @@ export interface EditorSelection {
   sectionId: string | null;
   blockId: string | null;
   groupId: string | null;
+  /**
+   * Full path to a nested block, from the section's direct child down to
+   * the selected block (e.g. `["col1", "link2"]`). For a top-level block
+   * this is `[blockId]`. `blockId` always mirrors the LEAF for
+   * back-compat with code that reads it directly; resolvers prefer
+   * `blockPath`. Absent/null when no block is selected.
+   */
+  blockPath?: string[] | null;
 }

@@ -189,6 +189,10 @@ export interface StoreAsset {
   size?: number;
   /** ISO timestamp string or empty when the storage backend doesn't track it. */
   last_modified?: string;
+  /** Merchant-authored alt text (library default; seeds image-picker alt). */
+  alt?: string;
+  /** Friendly display label — metadata only, the object key never changes. */
+  name?: string;
 }
 
 /**
@@ -200,6 +204,37 @@ export async function listStoreAssets(storeId: string): Promise<StoreAsset[]> {
   return apiClient<StoreAsset[]>(
     `/stores/${storeId}/settings/customization/assets`,
   );
+}
+
+/**
+ * Update an asset's library metadata (alt text + friendly display
+ * name). The object key / URL is immutable — only metadata changes —
+ * so any section already referencing the URL keeps working.
+ */
+export async function updateStoreAsset(
+  storeId: string,
+  key: string,
+  meta: { alt?: string; name?: string },
+): Promise<{ key: string; alt?: string; name?: string }> {
+  return apiClient(`/stores/${storeId}/settings/customization/assets`, {
+    method: "PATCH",
+    body: JSON.stringify({ key, ...meta }),
+  });
+}
+
+/**
+ * Delete an uploaded asset from storage. The caller is responsible for
+ * ensuring it isn't still referenced by a published section (Shopify
+ * behaves the same — it warns but allows the delete).
+ */
+export async function deleteStoreAsset(
+  storeId: string,
+  key: string,
+): Promise<{ key: string }> {
+  return apiClient(`/stores/${storeId}/settings/customization/assets`, {
+    method: "DELETE",
+    body: JSON.stringify({ key }),
+  });
 }
 
 // ─── Shipping Settings ────────────────────────────────────────────────────────

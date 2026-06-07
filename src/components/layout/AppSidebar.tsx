@@ -143,6 +143,7 @@ const AppSidebar = () => {
     { title: isRTL ? "نظرة عامة" : "Overview", url: "/online-store", icon: Storefront, navKey: "online-store.overview" },
     { title: isRTL ? "الثيمات" : "Themes", url: "/online-store/themes", icon: Palette, navKey: "online-store.themes" },
     { title: isRTL ? "الصفحات" : "Pages", url: "/online-store/pages", icon: FileText, navKey: "online-store.pages" },
+    { title: isRTL ? "الملفات" : "Files", url: "/online-store/files", icon: FolderOpen, navKey: "online-store.files" },
     { title: isRTL ? "التنقل" : "Navigation", url: "/online-store/navigation", icon: Navigation2, navKey: "online-store.navigation" },
     { title: isRTL ? "التفضيلات" : "Preferences", url: "/online-store/preferences", icon: SlidersHorizontal, navKey: "online-store.preferences" },
     { title: isRTL ? "حقول الدفع" : "Checkout fields", url: "/online-store/checkout-fields", icon: ClipboardList, navKey: "online-store.checkout-fields" },

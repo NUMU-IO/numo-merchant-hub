@@ -20,6 +20,8 @@ import type {
   ThemeSchemaBundle,
   NormalizedSchemas,
   SectionSchemaDefinition,
+  BlockSchemaDefinition,
+  PresetBlockDefinition,
   SectionInstance,
   BlockInstance,
   SettingDefinition,
@@ -42,6 +44,17 @@ import {
   clearUndoStack,
 } from "@/services/customizerUndoApi";
 import { ApiError } from "@/lib/api-error";
+import {
+  MAX_BLOCK_DEPTH,
+  asBlockPath,
+  resolveSectionRef,
+  resolveContainer,
+  resolveBlockAt,
+  containerSchemaAt,
+} from "./blockPaths";
+
+// Re-export so panels that import MAX_BLOCK_DEPTH from the store keep working.
+export { MAX_BLOCK_DEPTH } from "./blockPaths";
 
 /**
  * Recognize the 401-after-refresh-failure error that the V3 API service
@@ -61,6 +74,30 @@ function isSessionExpiredError(err: unknown): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Backend 409 from autosave when the draft ETag is stale — another tab or
+ * session saved a newer draft. The response carries the server's current
+ * etag + draft under `detail` so we can offer reload vs keep-my-changes
+ * instead of silently clobbering. Returns null for any other error.
+ */
+interface EtagConflict {
+  currentEtag: string | null;
+  currentDraft: ThemeSettingsV3 | null;
+}
+
+function readEtagConflict(err: unknown): EtagConflict | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const detail = (err.body as { detail?: Record<string, unknown> } | null)
+    ?.detail;
+  if (!detail) return null;
+  const currentEtag = (detail.current_etag as string | undefined) ?? null;
+  if (detail.code !== "stale_etag" && !currentEtag) return null;
+  return {
+    currentEtag,
+    currentDraft: (detail.current_draft as ThemeSettingsV3 | undefined) ?? null,
+  };
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -150,6 +187,17 @@ interface CustomizerState {
   // Internal — autosave timer + in-flight save promise (dedup)
   _autosaveTimer: ReturnType<typeof setTimeout> | null;
   _savingPromise: Promise<void> | null;
+
+  // Optimistic concurrency (autosave conflict detection)
+  /** ETag of the draft we last loaded/saved; sent as `If-Match` on autosave
+   *  so a stale write is rejected (409) instead of silently clobbering a
+   *  newer draft saved by another tab/session. */
+  draftEtag: string | null;
+  /** True after a 409 conflict — autosave pauses and the editor shows a
+   *  non-blocking banner offering reload vs keep-my-changes. */
+  editConflict: boolean;
+  _remoteEtag: string | null;
+  _remoteDraft: ThemeSettingsV3 | null;
 }
 
 // ─── Store Actions ──────────────────────────────────────────────────────────
@@ -158,6 +206,12 @@ interface CustomizerActions {
   // Initialization
   initialize: (storeId: string) => Promise<void>;
   reset: () => void;
+
+  // Autosave conflict resolution (after a 409 stale-etag)
+  /** Discard local edits and adopt the newer draft from the other session. */
+  resolveConflictReload: () => void;
+  /** Keep local edits and force-overwrite using the server's fresh etag. */
+  resolveConflictKeepMine: () => Promise<void>;
 
   // Draft mutations (push to undo stack + trigger autosave)
   updateGlobalSetting: (key: string, value: unknown) => void;
@@ -182,7 +236,8 @@ interface CustomizerActions {
   ) => void;
   updateBlockSetting: (
     sectionId: string,
-    blockId: string,
+    /** Leaf block id (top-level, legacy) or full nested path. */
+    blockId: string | string[],
     key: string,
     value: unknown,
     groupId?: string,
@@ -210,15 +265,21 @@ interface CustomizerActions {
   ) => void;
 
   // Block CRUD
-  addBlock: (sectionId: string, blockType: string, groupId?: string) => void;
+  addBlock: (
+    sectionId: string,
+    blockType: string,
+    groupId?: string,
+    /** Path to the parent block to nest inside; omit/[] = top-level. */
+    parentPath?: string[],
+  ) => void;
   removeBlock: (
     sectionId: string,
-    blockId: string,
+    blockId: string | string[],
     groupId?: string,
   ) => void;
   moveBlock: (
     sectionId: string,
-    blockId: string,
+    blockId: string | string[],
     direction: "up" | "down",
     groupId?: string,
   ) => void;
@@ -226,10 +287,12 @@ interface CustomizerActions {
     sectionId: string,
     newOrder: string[],
     groupId?: string,
+    /** Path to the container being reordered; omit/[] = section's own blocks. */
+    parentPath?: string[],
   ) => void;
   toggleBlock: (
     sectionId: string,
-    blockId: string,
+    blockId: string | string[],
     groupId?: string,
   ) => void;
 
@@ -318,6 +381,39 @@ function generateId(prefix = "s"): string {
  *  structuredClone refuses to clone. */
 function cloneDeep<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
+}
+
+// Nested-block addressing helpers (asBlockPath / resolveSectionRef /
+// resolveContainer / resolveBlockAt / containerSchemaAt / MAX_BLOCK_DEPTH)
+// live in ./blockPaths so the panels can share them. Imported at top.
+
+/** Recursively materialize a preset's (possibly nested) starter blocks
+ *  into instances with fresh ids + schema defaults. */
+function materializePresetBlocks(
+  presetBlocks: PresetBlockDefinition[] | undefined,
+  allowedSchemas: BlockSchemaDefinition[],
+): { blocks: Record<string, BlockInstance>; order: string[] } {
+  const blocks: Record<string, BlockInstance> = {};
+  const order: string[] = [];
+  if (!presetBlocks) return { blocks, order };
+  for (const pb of presetBlocks) {
+    const id = generateId("blk");
+    const schema = allowedSchemas.find((b) => b.type === pb.type);
+    const defaults: Record<string, unknown> = {};
+    schema?.settings.forEach((s) => {
+      if (s.default !== undefined) defaults[s.id] = s.default;
+    });
+    const child = materializePresetBlocks(pb.blocks, schema?.blocks ?? []);
+    blocks[id] = {
+      type: pb.type,
+      settings: { ...defaults, ...(pb.settings ?? {}) },
+      ...(child.order.length > 0
+        ? { blocks: child.blocks, block_order: child.order }
+        : {}),
+    };
+    order.push(id);
+  }
+  return { blocks, order };
 }
 
 /**
@@ -511,6 +607,10 @@ const initialState: CustomizerState = {
   insertAfterSectionId: null,
   _autosaveTimer: null,
   _savingPromise: null,
+  draftEtag: null,
+  editConflict: false,
+  _remoteEtag: null,
+  _remoteDraft: null,
 };
 
 // ─── Store ──────────────────────────────────────────────────────────────────
@@ -600,7 +700,7 @@ export const useCustomizerStore = create<CustomizerStore>()(
       const inflight = get()._savingPromise;
       if (inflight) return inflight;
 
-      const { storeId, draft } = get();
+      const { storeId, draft, draftEtag } = get();
       if (!storeId || !draft) return;
 
       const promise = (async () => {
@@ -608,7 +708,17 @@ export const useCustomizerStore = create<CustomizerStore>()(
           set((s) => {
             s.isSaving = true;
           });
-          await saveDraftV3(storeId, draft);
+          await saveDraftV3(storeId, draft, {
+            expectedEtag: draftEtag,
+            // The echoed ETag becomes the baseline for the next autosave.
+            onEtag: (etag) => {
+              if (etag) {
+                set((s) => {
+                  s.draftEtag = etag;
+                });
+              }
+            },
+          });
           set((s) => {
             s.isSaving = false;
             s.isDirty = false;
@@ -619,6 +729,19 @@ export const useCustomizerStore = create<CustomizerStore>()(
             s.isSaving = false;
             if (isSessionExpiredError(err)) s.sessionExpired = true;
           });
+          // Optimistic-concurrency conflict: another tab/session saved a
+          // newer draft. Do NOT clobber it — pause autosave and surface a
+          // banner so the merchant chooses reload vs keep-my-changes.
+          const conflict = readEtagConflict(err);
+          if (conflict) {
+            cancelAutosaveTimer();
+            set((s) => {
+              s.editConflict = true;
+              s._remoteEtag = conflict.currentEtag;
+              s._remoteDraft = conflict.currentDraft;
+            });
+            return; // handled via the conflict banner — don't rethrow
+          }
           throw err;
         } finally {
           set((s) => {
@@ -634,10 +757,14 @@ export const useCustomizerStore = create<CustomizerStore>()(
     }
 
     function scheduleAutosave() {
+      // While a conflict banner is open, autosave is paused — saving would
+      // just hit 409 again. Edits still accumulate locally (isDirty) and
+      // flush once the merchant resolves the conflict.
+      if (get().editConflict) return;
       cancelAutosaveTimer();
       const newTimer = setTimeout(() => {
-        const { storeId, draft, isDirty } = get();
-        if (!storeId || !draft || !isDirty) return;
+        const { storeId, draft, isDirty, editConflict } = get();
+        if (!storeId || !draft || !isDirty || editConflict) return;
         performSave().catch((err) => {
           // Non-fatal: autosaves should never throw out of the timer.
           console.error("[V3 Autosave] Failed:", err);
@@ -673,8 +800,11 @@ export const useCustomizerStore = create<CustomizerStore>()(
           s.storeId = storeId;
         });
         try {
+          let loadedEtag: string | null = null;
           const [draftRaw, schemasRaw] = await Promise.all([
-            fetchDraftV3(storeId),
+            fetchDraftV3(storeId, (etag) => {
+              loadedEtag = etag;
+            }),
             fetchSchemasV3(storeId),
           ]);
           // Backend returns `{}` (empty dict) when the store has no V3 draft
@@ -719,6 +849,12 @@ export const useCustomizerStore = create<CustomizerStore>()(
             s.past = [];
             s.future = [];
             s.lastSavedAt = new Date().toISOString();
+            // Baseline etag for optimistic-concurrency autosave; clear any
+            // stale conflict from a previous store/session.
+            s.draftEtag = loadedEtag;
+            s.editConflict = false;
+            s._remoteEtag = null;
+            s._remoteDraft = null;
           });
         } catch (err) {
           if (isSessionExpiredError(err)) {
@@ -739,6 +875,41 @@ export const useCustomizerStore = create<CustomizerStore>()(
       reset: () => {
         cancelAutosaveTimer();
         set(initialState);
+      },
+
+      resolveConflictReload: () => {
+        // Discard local edits and adopt the other session's newer draft
+        // (carried in the 409 payload). The in-memory undo history no
+        // longer applies, so it's cleared.
+        const remoteDraft = get()._remoteDraft;
+        const remoteEtag = get()._remoteEtag;
+        cancelAutosaveTimer();
+        set((s) => {
+          if (remoteDraft) s.draft = remoteDraft;
+          s.draftEtag = remoteEtag;
+          s.editConflict = false;
+          s._remoteEtag = null;
+          s._remoteDraft = null;
+          s.isDirty = false;
+          s.past = [];
+          s.future = [];
+          s.lastSavedAt = new Date().toISOString();
+        });
+      },
+
+      resolveConflictKeepMine: async () => {
+        // Adopt the server's fresh etag so our overwrite passes the
+        // If-Match check, clear the conflict, then force-save the LOCAL
+        // draft (preserving the merchant's edits).
+        const remoteEtag = get()._remoteEtag;
+        set((s) => {
+          s.draftEtag = remoteEtag;
+          s.editConflict = false;
+          s._remoteEtag = null;
+          s._remoteDraft = null;
+          s.isDirty = true;
+        });
+        await performSave();
       },
 
       // ── Global Settings ──────────────────────────────────────────────
@@ -800,8 +971,33 @@ export const useCustomizerStore = create<CustomizerStore>()(
             }
           } else {
             const tpl = s.draft.templates[s.activePage];
-            if (tpl?.sections[sectionId]) {
-              tpl.sections[sectionId].settings[key] = value;
+            const section = tpl?.sections[sectionId];
+            if (section) {
+              section.settings[key] = value;
+              // Phase 2.5 — single source of truth for chrome. Header/footer
+              // are in-template sections that appear in EVERY template, so an
+              // edit to one must apply across all templates (one effective
+              // header/footer per store, matching Shopify's section-group-once
+              // behaviour). A section TYPE present in every template is treated
+              // as chrome; propagate the edited key to all its instances
+              // (their ids can differ per template, so match by type). The
+              // frontend is the authoritative source — the just-edited value
+              // is what fans out, so no stale value can clobber the edit.
+              const templates = Object.values(s.draft.templates);
+              if (
+                templates.length > 1 &&
+                templates.every((t) =>
+                  Object.values(t.sections).some(
+                    (sec) => sec.type === section.type,
+                  ),
+                )
+              ) {
+                for (const t of templates) {
+                  for (const sec of Object.values(t.sections)) {
+                    if (sec.type === section.type) sec.settings[key] = value;
+                  }
+                }
+              }
             }
           }
         });
@@ -811,21 +1007,21 @@ export const useCustomizerStore = create<CustomizerStore>()(
       // ── Block Settings ───────────────────────────────────────────────
 
       updateBlockSetting: (sectionId, blockId, key, value, groupId) => {
+        const path = asBlockPath(blockId);
         pushHistory(
-          `block:${groupId ?? "tpl"}:${sectionId}:${blockId}:${key}`,
+          `block:${groupId ?? "tpl"}:${sectionId}:${path.join(".")}:${key}`,
           `Update block ${key}`,
         );
         set((s) => {
           if (!s.draft) return;
-          let section: SectionInstance | undefined;
-          if (groupId) {
-            section = s.draft.section_groups[groupId]?.sections[sectionId];
-          } else {
-            section = s.draft.templates[s.activePage]?.sections[sectionId];
-          }
-          if (section?.blocks?.[blockId]) {
-            section.blocks[blockId].settings[key] = value;
-          }
+          const section = resolveSectionRef(
+            s.draft,
+            s.activePage,
+            sectionId,
+            groupId,
+          );
+          const block = resolveBlockAt(section, path);
+          if (block) block.settings[key] = value;
         });
         markDirty();
       },
@@ -849,25 +1045,13 @@ export const useCustomizerStore = create<CustomizerStore>()(
         const preset = schema.presets?.[presetIndex];
         const presetSettings = preset?.settings ?? {};
 
-        const blocks: Record<string, BlockInstance> = {};
-        const blockOrder: string[] = [];
-        if (preset?.blocks) {
-          for (const presetBlock of preset.blocks) {
-            const blockId = generateId("blk");
-            const blockSchema = schema.blocks?.find(
-              (b) => b.type === presetBlock.type,
-            );
-            const blockDefaults: Record<string, unknown> = {};
-            blockSchema?.settings.forEach((s) => {
-              if (s.default !== undefined) blockDefaults[s.id] = s.default;
-            });
-            blocks[blockId] = {
-              type: presetBlock.type,
-              settings: { ...blockDefaults, ...(presetBlock.settings ?? {}) },
-            };
-            blockOrder.push(blockId);
-          }
-        }
+        // Materialize the preset's starter blocks (recursively — a preset
+        // can ship pre-populated nested blocks like a footer column with
+        // links).
+        const { blocks, order: blockOrder } = materializePresetBlocks(
+          preset?.blocks,
+          schema.blocks ?? [],
+        );
 
         const newSection: SectionInstance = {
           type: sectionType,
@@ -1036,26 +1220,12 @@ export const useCustomizerStore = create<CustomizerStore>()(
         const newSettings = { ...defaults, ...(preset.settings ?? {}) };
 
         // Rebuild blocks fresh from preset.blocks (the per-key merge path
-        // never touched blocks — that was the bug).
-        const blocks: Record<string, BlockInstance> = {};
-        const blockOrder: string[] = [];
-        if (preset.blocks) {
-          for (const presetBlock of preset.blocks) {
-            const blockId = generateId("blk");
-            const blockSchema = schema.blocks?.find(
-              (b) => b.type === presetBlock.type,
-            );
-            const blockDefaults: Record<string, unknown> = {};
-            blockSchema?.settings.forEach((s) => {
-              if (s.default !== undefined) blockDefaults[s.id] = s.default;
-            });
-            blocks[blockId] = {
-              type: presetBlock.type,
-              settings: { ...blockDefaults, ...(presetBlock.settings ?? {}) },
-            };
-            blockOrder.push(blockId);
-          }
-        }
+        // never touched blocks — that was the bug). Recursive so nested
+        // starter blocks are materialized too.
+        const { blocks, order: blockOrder } = materializePresetBlocks(
+          preset.blocks,
+          schema.blocks ?? [],
+        );
 
         set((s) => {
           if (!s.draft) return;
@@ -1072,47 +1242,57 @@ export const useCustomizerStore = create<CustomizerStore>()(
 
       // ── Block CRUD ───────────────────────────────────────────────────
 
-      addBlock: (sectionId, blockType, groupId) => {
+      addBlock: (sectionId, blockType, groupId, parentPath = []) => {
         pushHistory(`add-block:${sectionId}:${Date.now()}`, `Add block`);
         const { schemas } = get();
         set((s) => {
           if (!s.draft || !schemas) return;
-          let section: SectionInstance | undefined;
-          if (groupId) {
-            section = s.draft.section_groups[groupId]?.sections[sectionId];
-          } else {
-            section = s.draft.templates[s.activePage]?.sections[sectionId];
-          }
+          const section = resolveSectionRef(
+            s.draft,
+            s.activePage,
+            sectionId,
+            groupId,
+          );
           if (!section) return;
 
+          // Depth guard: a block added under `parentPath` sits at depth
+          // parentPath.length + 1. Refuse once the parent is already at
+          // the cap (a block at MAX_BLOCK_DEPTH can't take children).
+          if (parentPath.length >= MAX_BLOCK_DEPTH) return;
+
           const sectionSchema = schemas.sections.find(
-            (sc) => sc.type === section!.type,
+            (sc) => sc.type === section.type,
           );
-          const blockSchema = sectionSchema?.blocks?.find(
-            (b) => b.type === blockType,
+          // Which child types + limit does THIS container allow?
+          const { blocks: allowed, maxBlocks } = containerSchemaAt(
+            sectionSchema,
+            section,
+            parentPath,
           );
+          const blockSchema = allowed.find((b) => b.type === blockType);
+          if (!blockSchema) return; // type not permitted in this container
+
+          const container = resolveContainer(section, parentPath);
+          if (!container) return;
+          const currentBlockCount = container.block_order?.length ?? 0;
+          if (maxBlocks && currentBlockCount >= maxBlocks) return;
+
           const defaults: Record<string, unknown> = {};
-          blockSchema?.settings.forEach((bs) => {
+          blockSchema.settings.forEach((bs) => {
             if (bs.default !== undefined) defaults[bs.id] = bs.default;
           });
 
-          const currentBlockCount = section.block_order?.length ?? 0;
-          if (
-            sectionSchema?.max_blocks &&
-            currentBlockCount >= sectionSchema.max_blocks
-          )
-            return;
-
           const blockId = generateId("blk");
-          if (!section.blocks) section.blocks = {};
-          if (!section.block_order) section.block_order = [];
-          section.blocks[blockId] = { type: blockType, settings: defaults };
-          section.block_order.push(blockId);
+          if (!container.blocks) container.blocks = {};
+          if (!container.block_order) container.block_order = [];
+          container.blocks[blockId] = { type: blockType, settings: defaults };
+          container.block_order.push(blockId);
 
           s.selection = {
             type: "block",
             sectionId,
             blockId,
+            blockPath: [...parentPath, blockId],
             groupId: groupId ?? null,
           };
           s.activePanel = "block-editor";
@@ -1121,82 +1301,111 @@ export const useCustomizerStore = create<CustomizerStore>()(
       },
 
       removeBlock: (sectionId, blockId, groupId) => {
-        pushHistory(`remove-block:${blockId}`, `Remove block`);
+        const path = asBlockPath(blockId);
+        const leaf = path[path.length - 1];
+        pushHistory(`remove-block:${path.join(".")}`, `Remove block`);
         set((s) => {
           if (!s.draft) return;
-          let section: SectionInstance | undefined;
-          if (groupId) {
-            section = s.draft.section_groups[groupId]?.sections[sectionId];
-          } else {
-            section = s.draft.templates[s.activePage]?.sections[sectionId];
-          }
-          if (!section?.blocks) return;
-          delete section.blocks[blockId];
-          section.block_order = (section.block_order ?? []).filter(
-            (id) => id !== blockId,
+          const section = resolveSectionRef(
+            s.draft,
+            s.activePage,
+            sectionId,
+            groupId,
           );
-          if (s.selection.blockId === blockId) {
-            s.selection = {
-              type: "section",
-              sectionId,
-              blockId: null,
-              groupId: groupId ?? null,
-            };
-            s.activePanel = "section-editor";
+          const parent = resolveContainer(section, path.slice(0, -1));
+          if (!parent?.blocks) return;
+          delete parent.blocks[leaf];
+          parent.block_order = (parent.block_order ?? []).filter(
+            (id) => id !== leaf,
+          );
+
+          // If the removed block — or an ancestor of the current
+          // selection — was selected, fall back to selecting its parent
+          // block (nested) or the section (top-level).
+          const sel = s.selection;
+          const selPath = sel.blockPath ?? (sel.blockId ? [sel.blockId] : []);
+          const removedSelectedOrAncestor =
+            sel.sectionId === sectionId &&
+            selPath.length >= path.length &&
+            path.every((id, i) => selPath[i] === id);
+          if (removedSelectedOrAncestor) {
+            const parentPath = path.slice(0, -1);
+            if (parentPath.length > 0) {
+              s.selection = {
+                type: "block",
+                sectionId,
+                blockId: parentPath[parentPath.length - 1],
+                blockPath: parentPath,
+                groupId: groupId ?? null,
+              };
+              s.activePanel = "block-editor";
+            } else {
+              s.selection = {
+                type: "section",
+                sectionId,
+                blockId: null,
+                blockPath: null,
+                groupId: groupId ?? null,
+              };
+              s.activePanel = "section-editor";
+            }
           }
         });
         markDirty();
       },
 
       moveBlock: (sectionId, blockId, direction, groupId) => {
-        pushHistory(`move-block:${blockId}`, `Move block ${direction}`);
+        const path = asBlockPath(blockId);
+        const leaf = path[path.length - 1];
+        pushHistory(`move-block:${path.join(".")}`, `Move block ${direction}`);
         set((s) => {
           if (!s.draft) return;
-          let section: SectionInstance | undefined;
-          if (groupId) {
-            section = s.draft.section_groups[groupId]?.sections[sectionId];
-          } else {
-            section = s.draft.templates[s.activePage]?.sections[sectionId];
-          }
-          if (!section?.block_order) return;
-          const order = section.block_order;
-          const idx = order.indexOf(blockId);
+          const section = resolveSectionRef(
+            s.draft,
+            s.activePage,
+            sectionId,
+            groupId,
+          );
+          const parent = resolveContainer(section, path.slice(0, -1));
+          if (!parent?.block_order) return;
+          const order = parent.block_order;
+          const idx = order.indexOf(leaf);
           const target = direction === "up" ? idx - 1 : idx + 1;
-          if (target < 0 || target >= order.length) return;
+          if (idx === -1 || target < 0 || target >= order.length) return;
           [order[idx], order[target]] = [order[target], order[idx]];
         });
         markDirty();
       },
 
-      reorderBlocks: (sectionId, newOrder, groupId) => {
+      reorderBlocks: (sectionId, newOrder, groupId, parentPath = []) => {
         pushHistory(`reorder-blocks:${sectionId}`, "Reorder blocks");
         set((s) => {
           if (!s.draft) return;
-          let section: SectionInstance | undefined;
-          if (groupId) {
-            section = s.draft.section_groups[groupId]?.sections[sectionId];
-          } else {
-            section = s.draft.templates[s.activePage]?.sections[sectionId];
-          }
-          if (section) section.block_order = newOrder;
+          const section = resolveSectionRef(
+            s.draft,
+            s.activePage,
+            sectionId,
+            groupId,
+          );
+          const container = resolveContainer(section, parentPath);
+          if (container) container.block_order = newOrder;
         });
         markDirty();
       },
 
       toggleBlock: (sectionId, blockId, groupId) => {
-        pushHistory(`toggle-block:${blockId}`, "Toggle block");
+        const path = asBlockPath(blockId);
+        pushHistory(`toggle-block:${path.join(".")}`, "Toggle block");
         set((s) => {
           if (!s.draft) return;
-          let section: SectionInstance | undefined;
-          if (groupId) {
-            section = s.draft.section_groups[groupId]?.sections[sectionId];
-          } else {
-            section = s.draft.templates[s.activePage]?.sections[sectionId];
-          }
-          if (section?.blocks?.[blockId]) {
-            section.blocks[blockId].disabled =
-              !section.blocks[blockId].disabled;
-          }
+          const section = resolveSectionRef(
+            s.draft,
+            s.activePage,
+            sectionId,
+            groupId,
+          );
+          const block = resolveBlockAt(section, path);
+          if (block) block.disabled = !block.disabled;
         });
         markDirty();
       },
@@ -1325,6 +1534,17 @@ export const useCustomizerStore = create<CustomizerStore>()(
           // Ensure the latest draft is on the server first (will dedup if
           // an autosave is already in flight).
           await performSave();
+          // performSave surfaces an optimistic-concurrency conflict via
+          // `editConflict` (it does NOT throw). If the flush conflicted, stop
+          // here and let the conflict banner drive resolution — publishing now
+          // would clobber a newer draft (or just 409 again). Without this the
+          // publish proceeded blindly and the error escaped uncaught.
+          if (get().editConflict) {
+            set((s) => {
+              s.isPublishing = false;
+            });
+            return;
+          }
           // Forward the merchant-supplied label so the published version
           // row carries it (named-versions UX). Backend that hasn't
           // rolled out the label support yet drops it harmlessly.
@@ -1352,10 +1572,20 @@ export const useCustomizerStore = create<CustomizerStore>()(
             s.future = [];
           });
         } catch (err) {
+          // A stale-etag 409 from publishV3 (or the flush) becomes the same
+          // recoverable conflict banner instead of an uncaught error — the
+          // merchant chooses reload vs keep-my-changes, then re-publishes.
+          const conflict = readEtagConflict(err);
           set((s) => {
             s.isPublishing = false;
             if (isSessionExpiredError(err)) s.sessionExpired = true;
+            if (conflict) {
+              s.editConflict = true;
+              s._remoteEtag = conflict.currentEtag;
+              s._remoteDraft = conflict.currentDraft;
+            }
           });
+          if (conflict) return; // handled via the conflict banner
           throw err;
         }
       },

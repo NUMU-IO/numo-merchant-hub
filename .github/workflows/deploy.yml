@@ -52,14 +52,20 @@ jobs:
             dev)
               echo "remote_path=/opt/numu/merchant-hub-test/" >> "$GITHUB_OUTPUT"
               echo "sentry_env=test" >> "$GITHUB_OUTPUT"
+              # V3 BYOT storefront (parallel host) — only deployed on test.
+              echo "v3_storefront_url=https://{subdomain}.v3.test.numueg.app" >> "$GITHUB_OUTPUT"
               ;;
             stage)
               echo "remote_path=/opt/numu/merchant-hub-stage/" >> "$GITHUB_OUTPUT"
               echo "sentry_env=staging" >> "$GITHUB_OUTPUT"
+              # V3 storefront not deployed on stage yet → empty (falls back).
+              echo "v3_storefront_url=" >> "$GITHUB_OUTPUT"
               ;;
             prod)
               echo "remote_path=/opt/numu/merchant-hub/" >> "$GITHUB_OUTPUT"
               echo "sentry_env=production" >> "$GITHUB_OUTPUT"
+              # V3 storefront not deployed on prod yet → empty (falls back).
+              echo "v3_storefront_url=" >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "::error::Unsupported branch ${{ github.event.workflow_run.head_branch }}"
@@ -72,6 +78,9 @@ jobs:
         env:
           VITE_API_URL: /api/v1
           VITE_STOREFRONT_URL: https://{subdomain}.numueg.app
+          # Used only for previewing V3 (BYOT) marketplace themes; empty on
+          # envs without a V3 storefront (preview falls back to the default).
+          VITE_V3_STOREFRONT_URL: ${{ steps.target.outputs.v3_storefront_url }}
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           VITE_SENTRY_ENVIRONMENT: ${{ steps.target.outputs.sentry_env }}

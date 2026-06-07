@@ -256,6 +256,34 @@ export function activateTheme(
 }
 
 /**
+ * Default theme for freshly-created stores. A brand-new store has no V3
+ * theme installed, so both its live storefront AND the onboarding "your
+ * store is ready" preview iframe fall back to the legacy in-tree default
+ * (the old green/modern look). We install + activate `luxury-minimal-v3`
+ * so every new merchant starts on a polished, neutral V3 storefront they
+ * can then re-template from the marketplace ("choose a template, then
+ * customize").
+ *
+ * Best-effort by design: resolve the marketplace id from the catalog by
+ * slug, install (a 409 "already installed" is harmless), then activate.
+ * ANY failure is swallowed — defaulting the theme is a convenience and
+ * must never block store creation or onboarding.
+ */
+export const DEFAULT_NEW_STORE_THEME_SLUG = "luxury-minimal-v3";
+
+export async function activateDefaultTheme(storeId: string): Promise<void> {
+  try {
+    const detail = await getThemeDetail(DEFAULT_NEW_STORE_THEME_SLUG);
+    const marketplaceThemeId = detail?.theme?.id;
+    if (!marketplaceThemeId) return;
+    await installTheme(storeId, marketplaceThemeId).catch(() => {});
+    await activateTheme(storeId, marketplaceThemeId);
+  } catch {
+    // Convenience only — never surface to the merchant.
+  }
+}
+
+/**
  * Soft-uninstall a theme. The underlying customization rows are kept
  * so a later reinstall restores the merchant's prior settings without
  * forcing them to redo the work.

@@ -18,8 +18,12 @@ export interface UndoEntry {
   created_at: string;
 }
 
+// NOTE: paths are relative to API_BASE (VITE_API_URL), which already ends in
+// `/api/v1`. Do NOT prefix `/api/v1` here or the URL doubles to
+// `/api/v1/api/v1/...` (regression fixed 2026-06-02). Matches every other
+// service, e.g. themeEditorV3Api's `/stores/${storeId}/themes/v3/editor`.
 const base = (storeId: string) =>
-  `/api/v1/stores/${storeId}/themes/v3/undo`;
+  `/stores/${storeId}/themes/v3/undo`;
 
 export async function listUndoEntries(
   storeId: string,

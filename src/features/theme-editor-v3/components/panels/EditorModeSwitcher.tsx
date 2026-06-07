@@ -11,6 +11,7 @@ import { useCustomizerStore } from "../../store/customizerStore";
 import type { EditorMode } from "../../types";
 import { Layers, Settings, Puzzle, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFeatureFlag } from "@/hooks/useFeatureFlag";
 
 const TABS: Array<{
   mode: EditorMode;
@@ -45,15 +46,26 @@ export function EditorModeSwitcher() {
   const locale = useCustomizerStore((s) => s.locale);
   const isAr = locale === "ar";
 
+  // Phase 5.2 — the "App embeds" tab is hidden unless a super-admin turns
+  // it on platform-wide (numu-admin → Platform config). Default OFF so the
+  // editor never advertises a dead "Coming soon" feature. The flag flows
+  // through /auth/me feature_flags as `theme_app_embeds`.
+  const appEmbedsEnabled = useFeatureFlag("theme_app_embeds");
+  const tabs = TABS.filter((t) => t.mode !== "app-embeds" || appEmbedsEnabled);
+
   return (
     <div
       role="tablist"
       aria-label={isAr ? "وضع المحرر" : "Editor mode"}
-      // Tight tab strip — three columns split evenly, each tab compact
-      // enough that even the longer AR label "إعدادات الثيم" fits.
-      className="grid grid-cols-4 gap-1 border-b bg-muted/30 p-2"
+      // Tight tab strip — columns split evenly (3 by default, 4 when the
+      // App-embeds tab is enabled), each compact enough for the longer AR
+      // labels.
+      className={cn(
+        "grid gap-1 border-b bg-muted/30 p-2",
+        tabs.length === 4 ? "grid-cols-4" : "grid-cols-3",
+      )}
     >
-      {TABS.map(({ mode, icon: Icon, label }) => {
+      {tabs.map(({ mode, icon: Icon, label }) => {
         const isActive = activeMode === mode;
         return (
           <button

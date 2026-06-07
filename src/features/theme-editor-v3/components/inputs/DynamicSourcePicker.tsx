@@ -59,6 +59,12 @@ interface SourceDef {
 // catalog, so the labels here are merchant-facing.
 const TEXT_TYPES = ["text", "textarea", "richtext", "inline_richtext"] as const;
 const IMAGE_TYPES = ["image_picker"] as const;
+// Phase 3.4 — bind beyond text/image. Numeric sources (price, count) bind to
+// number/range/text settings; slug/handle sources bind to url/text. The
+// setting still stores the resolved scalar; the SDK's resolveSourcePath
+// already resolves these paths, so no theme rebuild is needed.
+const NUMBER_TYPES = ["number", "range", "text"] as const;
+const URL_TYPES = ["url", "text"] as const;
 
 const SOURCES: ReadonlyArray<SourceDef> = [
   // ── Product ────────────────────────────────────────────────────────
@@ -99,6 +105,26 @@ const SOURCES: ReadonlyArray<SourceDef> = [
     compatible: ["text"],
   },
   {
+    path: "product.price",
+    group: "product",
+    label: { en: "Product → Price", ar: "المنتج ← السعر" },
+    description: {
+      en: "The active product's price (number).",
+      ar: "سعر المنتج الحالي (رقم).",
+    },
+    compatible: NUMBER_TYPES,
+  },
+  {
+    path: "product.slug",
+    group: "product",
+    label: { en: "Product → Handle", ar: "المنتج ← المُعرّف" },
+    description: {
+      en: "URL handle — bind to a link/URL field.",
+      ar: "مُعرّف الرابط — اربطه بحقل رابط.",
+    },
+    compatible: URL_TYPES,
+  },
+  {
     path: "product.image",
     group: "product",
     label: { en: "Product → Image", ar: "المنتج ← الصورة" },
@@ -133,6 +159,26 @@ const SOURCES: ReadonlyArray<SourceDef> = [
     group: "collection",
     label: { en: "Collection → Image", ar: "المجموعة ← الصورة" },
     compatible: IMAGE_TYPES,
+  },
+  {
+    path: "collection.slug",
+    group: "collection",
+    label: { en: "Collection → Handle", ar: "المجموعة ← المُعرّف" },
+    description: {
+      en: "URL handle — bind to a link/URL field.",
+      ar: "مُعرّف الرابط — اربطه بحقل رابط.",
+    },
+    compatible: URL_TYPES,
+  },
+  {
+    path: "collection.product_count",
+    group: "collection",
+    label: { en: "Collection → Product count", ar: "المجموعة ← عدد المنتجات" },
+    description: {
+      en: "Number of products in the collection.",
+      ar: "عدد المنتجات في المجموعة.",
+    },
+    compatible: NUMBER_TYPES,
   },
 
   // ── Store ──────────────────────────────────────────────────────────
