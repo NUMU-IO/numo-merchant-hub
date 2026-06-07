@@ -493,7 +493,7 @@ const PaymentSetup = () => {
                   <Label className="text-xs font-medium mb-2 block">
                     {isAr ? "الإجراء" : "Action"}
                   </Label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
                       onClick={() => handleUpdateCodTrust({ action: "warn" })}
@@ -516,12 +516,57 @@ const PaymentSetup = () => {
                     >
                       {isAr ? "حظر الطلب" : "Block order"}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateCodTrust({ action: "recover" })}
+                      className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                        codTrust.action === "recover"
+                          ? "border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+                          : "border-border bg-background text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {isAr ? "استرداد" : "Recover"}
+                    </button>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-2">
                     {codTrust.action === "warn"
                       ? (isAr ? "السماح بالطلب وتسجيل تحذير في السجلات." : "Allow the order and log a warning.")
+                      : codTrust.action === "recover"
+                      ? (isAr
+                          ? "السماح بالطلب وإرسال عرض عبر واتساب للدفع أونلاين (تحويل الدفع عند الاستلام إلى مدفوع مسبقاً)."
+                          : "Allow the order and send a WhatsApp offer to pay online (converts COD → prepaid).")
                       : (isAr ? "رفض الطلب واقتراح الدفع الإلكتروني." : "Reject the order and suggest online payment.")}
                   </p>
+
+                  {codTrust.action === "recover" && (
+                    <div className="mt-3">
+                      <Label className="text-xs font-medium mb-1.5 block">
+                        {isAr ? "نص العرض الترويجي (اختياري)" : "Promo line (optional)"}
+                      </Label>
+                      <Input
+                        className="h-9 text-xs"
+                        maxLength={120}
+                        dir={isAr ? "rtl" : "ltr"}
+                        placeholder={
+                          isAr
+                            ? "مثال: خصم ١٠٪ عند الدفع أونلاين"
+                            : "e.g. 10% off when you pay online"
+                        }
+                        value={codTrust.recovery_promo ?? ""}
+                        onChange={(e) =>
+                          setCodTrust({ ...codTrust, recovery_promo: e.target.value })
+                        }
+                        onBlur={(e) =>
+                          handleUpdateCodTrust({ recovery_promo: e.target.value.trim() })
+                        }
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1.5">
+                        {isAr
+                          ? "يظهر في رسالة واتساب. إذا تُرك فارغاً، نستخدم رسالة افتراضية."
+                          : "Shown in the WhatsApp offer. Left blank, a default line is used."}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Auto-RTO sweep — flags stale SHIPPED orders so manual-ship

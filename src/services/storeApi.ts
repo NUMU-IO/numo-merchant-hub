@@ -347,7 +347,12 @@ export interface CodTrustSettings {
   enabled: boolean;
   threshold: number;
   min_confidence: "low" | "medium" | "high";
-  action: "block" | "warn";
+  action: "block" | "warn" | "recover";
+  /**
+   * "recover" only: promo line shown in the cod_recovery_offer_v1 WhatsApp
+   * message that invites the buyer to pay online. Blank → backend default.
+   */
+  recovery_promo?: string | null;
   /** Days a COD order can sit in SHIPPED before the auto-RTO sweep flags it. 7-60. */
   auto_rto_days: number;
   /** Skip the auto-RTO sweep entirely for this store. */
