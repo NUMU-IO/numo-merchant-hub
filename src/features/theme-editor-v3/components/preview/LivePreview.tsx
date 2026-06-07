@@ -574,25 +574,19 @@ export function LivePreview() {
           // list tight: every additional permission widens the surface
           // for a hostile theme bundle to misbehave inside the iframe.
           allow="clipboard-write; clipboard-read; fullscreen"
-          // Sandbox notes:
-          //   Production: NO `allow-same-origin` — combining it with
-          //   `allow-scripts` is the HTML-spec sandbox-escape combo, and
-          //   the storefront is on a separate origin so postMessage is
-          //   the only interface needed.
-          //
-          //   Dev (import.meta.env.DEV): we DO add `allow-same-origin`
-          //   so Next.js's dev cross-origin block lets the iframe load
-          //   its own /_next/static/* assets. Without it, the sandbox
-          //   forces Origin: null on every request and Next 16 rejects
-          //   them — the storefront renders unstyled and PreviewBridge
-          //   never boots, so the parent stays stuck on "Loading
-          //   preview". Both apps run on localhost so the escape risk
-          //   is moot.
-          sandbox={
-            import.meta.env.DEV
-              ? "allow-scripts allow-forms allow-popups allow-same-origin"
-              : "allow-scripts allow-forms allow-popups"
-          }
+          // Sandbox: include `allow-same-origin`. The V3 storefront needs its
+          // OWN origin's localStorage + cookies (cart/session/locale/theme
+          // draft); without this flag the framed document gets an opaque
+          // origin and throws SecurityError on localStorage/cookie access →
+          // the storefront crashes and the parent stays stuck on "Loading
+          // preview". The `allow-scripts` + `allow-same-origin` "escape combo"
+          // only applies when the framed content is SAME-origin as the parent
+          // (it could then strip its own sandbox via the parent DOM). Here the
+          // storefront is always a DIFFERENT origin than the hub
+          // (<store>.v3.test.numueg.app vs merchant-test.numueg.app), so it
+          // can't reach the parent DOM — granting same-origin is safe and the
+          // frame only ever gets the storefront's own privileges.
+          sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
         />
       </div>
 
