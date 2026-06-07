@@ -375,6 +375,26 @@ export async function updateCodTrustSettings(
   });
 }
 
+/** Per-store COD trust impact over a rolling window. Merchant sees only
+ *  their own numbers — never the network-wide (internal) moat metrics. */
+export interface TrustStats {
+  period_days: number;
+  screened: number;
+  high_risk: number;
+  blocked: number;
+  warned: number;
+  recovered: number;
+}
+
+export async function fetchTrustStats(
+  storeId: string,
+  periodDays = 30
+): Promise<TrustStats> {
+  return apiClient<TrustStats>(
+    `/stores/${storeId}/cod-trust/stats?period_days=${periodDays}`
+  );
+}
+
 // ─── Paymob Credentials ──────────────────────────────────────────────────────
 
 export interface PaymobCredentialsResponse {

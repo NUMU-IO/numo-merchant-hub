@@ -7,10 +7,10 @@
  * confidence / action incl. Recover + promo / auto-RTO) plus the live
  * decisions feed.
  *
- * Store-level impact metrics (coverage, cross-store catch rate, recovery
- * conversion) are intentionally NOT shown yet — they need a merchant-facing
- * aggregate endpoint (the moat-metrics endpoint is internal-key only). The
- * decisions feed below is the honest, available signal. Tracked as a follow-up.
+ * Impact row is per-store only (screened / high-risk / blocked / recovered),
+ * served by GET /stores/{id}/cod-trust/stats — never the network-wide
+ * moat-metrics (internal-key, data-room artifact). The decisions feed below
+ * is the per-order detail behind those numbers.
  */
 
 import { useEffect, useState } from "react";
@@ -22,7 +22,9 @@ import { showError } from "@/lib/show-error";
 import {
   fetchCodTrustSettings,
   updateCodTrustSettings,
+  fetchTrustStats,
   type CodTrustSettings,
+  type TrustStats,
 } from "@/services/storeApi";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +49,31 @@ function SettingCard({
   );
 }
 
+function StatTile({
+  label,
+  value,
+  tone = "violet",
+}: {
+  label: string;
+  value: number;
+  tone?: "violet" | "amber" | "red" | "green";
+}) {
+  const toneClass = {
+    violet: "text-violet-600",
+    amber: "text-amber-600",
+    red: "text-red-600",
+    green: "text-emerald-600",
+  }[tone];
+  return (
+    <div className="rounded-xl border bg-background p-4">
+      <div className={`text-2xl font-extrabold tabular-nums ${toneClass}`}>
+        {value}
+      </div>
+      <div className="text-[11px] text-muted-foreground mt-0.5">{label}</div>
+    </div>
+  );
+}
+
 export default function TrustNetwork() {
   const { language } = useLanguage();
   const isAr = language === "ar";
@@ -61,6 +88,7 @@ export default function TrustNetwork() {
     auto_rto_days: 14,
     auto_rto_disabled: false,
   });
+  const [stats, setStats] = useState<TrustStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -72,6 +100,8 @@ export default function TrustNetwork() {
       })
       .catch(() => null)
       .finally(() => setLoading(false));
+    // Impact stats — non-blocking; the page renders fine without them.
+    fetchTrustStats(storeId).then(setStats).catch(() => null);
   }, [storeId]);
 
   const handleUpdate = async (patch: Partial<CodTrustSettings>) => {
@@ -157,6 +187,38 @@ export default function TrustNetwork() {
 
           {codTrust.enabled && (
             <>
+              {/* Impact row — per-store, last N days */}
+              {stats && (
+                <div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <StatTile
+                      label={isAr ? "طلبات تم فحصها" : "Orders screened"}
+                      value={stats.screened}
+                    />
+                    <StatTile
+                      label={isAr ? "عالية المخاطرة" : "High-risk caught"}
+                      value={stats.high_risk}
+                      tone="amber"
+                    />
+                    <StatTile
+                      label={isAr ? "تم حظرها" : "Blocked"}
+                      value={stats.blocked}
+                      tone="red"
+                    />
+                    <StatTile
+                      label={isAr ? "تحوّلت لمدفوع" : "Recovered to prepaid"}
+                      value={stats.recovered}
+                      tone="green"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    {isAr
+                      ? `آخر ${stats.period_days} يوماً`
+                      : `Last ${stats.period_days} days`}
+                  </p>
+                </div>
+              )}
+
               <div className="grid gap-4 md:grid-cols-2">
                 {/* Risk threshold */}
                 <SettingCard
