@@ -382,7 +382,12 @@ export interface CodTrustSettings {
   enabled: boolean;
   threshold: number;
   min_confidence: "low" | "medium" | "high";
-  action: "block" | "warn";
+  action: "block" | "warn" | "recover";
+  /**
+   * "recover" only: promo line shown in the cod_recovery_offer_v1 WhatsApp
+   * message that invites the buyer to pay online. Blank → backend default.
+   */
+  recovery_promo?: string | null;
   /** Days a COD order can sit in SHIPPED before the auto-RTO sweep flags it. 7-60. */
   auto_rto_days: number;
   /** Skip the auto-RTO sweep entirely for this store. */
@@ -403,6 +408,26 @@ export async function updateCodTrustSettings(
     method: "PATCH",
     body: JSON.stringify(data),
   });
+}
+
+/** Per-store COD trust impact over a rolling window. Merchant sees only
+ *  their own numbers — never the network-wide (internal) moat metrics. */
+export interface TrustStats {
+  period_days: number;
+  screened: number;
+  high_risk: number;
+  blocked: number;
+  warned: number;
+  recovered: number;
+}
+
+export async function fetchTrustStats(
+  storeId: string,
+  periodDays = 30
+): Promise<TrustStats> {
+  return apiClient<TrustStats>(
+    `/stores/${storeId}/cod-trust/stats?period_days=${periodDays}`
+  );
 }
 
 // ─── Paymob Credentials ──────────────────────────────────────────────────────

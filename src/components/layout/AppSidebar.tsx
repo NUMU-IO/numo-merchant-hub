@@ -22,7 +22,7 @@ import {
   ClipboardText as ClipboardList, ArrowsLeftRight as Navigation2,
   SlidersHorizontal, Palette, User, UserGear as UserCog, UserCheck,
   WarningCircle as AlertTriangle, ChartBar as BarChart3,
-  CreditCard,
+  CreditCard, ShieldCheck,
 } from "@phosphor-icons/react";
 import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -136,6 +136,7 @@ const AppSidebar = () => {
     { title: isRTL ? "رصيد المتجر" : "Store balance", url: "/store-balance", icon: Money, navKey: "payments.store-balance" },
     { title: isRTL ? "الفواتير" : "Invoices", url: "/invoices", icon: Receipt, navKey: "payments.invoices" },
     { title: isRTL ? "إعداد الدفع" : "Payment setup", url: "/payment-setup", icon: CreditCard, navKey: "payments.payment-setup" },
+    { title: isRTL ? "شبكة الثقة" : "Trust Network", url: "/trust-network", icon: ShieldCheck, navKey: "payments.trust-network" },
     { title: isRTL ? "الاشتراك" : "Billing", url: "/billing", icon: Sparkles, navKey: "payments.billing" },
   ];
   const onlineStoreSub: NavSubItem[] = [
