@@ -61,6 +61,7 @@ import {
   RemoveFormatting,
   Plus,
   Trash2,
+  Crop,
 } from "lucide-react";
 import {
   ResourceSearchPicker,
@@ -71,8 +72,11 @@ import {
   MediaLibraryDialog,
   getImageUrl,
   getImageAlt,
+  getImageTransform,
   type ImageValue,
 } from "./MediaLibraryDialog";
+import { FocalPointEditor } from "./FocalPointEditor";
+import type { ImageTransform } from "./imageTransform";
 import {
   DynamicSourceToggle,
   isDynamicSourceValue,
@@ -507,6 +511,10 @@ function SettingInputV3Input({ setting, value, locale, onChange, storeId }: Sett
           locale={locale}
           onChange={onChange}
           storeId={storeId}
+          // Optional per-setting aspect (e.g. "4/5", "16/9") so the focal-point
+          // editor's viewport matches the real storefront container. Falls back
+          // to 1/1 when the theme schema doesn't declare one.
+          aspectRatio={(setting as unknown as { aspect_ratio?: string }).aspect_ratio}
         />,
       );
 
@@ -1083,21 +1091,33 @@ function ImagePickerButton({
   locale,
   onChange,
   storeId,
+  aspectRatio,
 }: {
   value: ImageValue | undefined;
   locale: EditorLocale;
   onChange: (v: unknown) => void;
   storeId?: string;
+  aspectRatio?: string;
 }) {
   // P1.3 — Thin wrapper around <MediaLibraryDialog>. The button shows
   // a preview tile (or empty drop-zone) plus a row of actions
-  // (Choose / Replace / Remove). All of the upload/drag-drop/URL-
+  // (Choose / Replace / Adjust / Remove). All of the upload/drag-drop/URL-
   // paste logic lives in the dialog now so the inline UI stays
   // compact even on dense forms.
   const isAr = locale === "ar";
   const [open, setOpen] = useState(false);
+  const [focalOpen, setFocalOpen] = useState(false);
   const url = getImageUrl(value);
   const alt = getImageAlt(value);
+  const transform = getImageTransform(value);
+
+  // Commit a focal/zoom/rotation edit. Identity (undefined) drops the transform
+  // and reverts to the backwards-compatible string / { url, alt } shape — the
+  // original asset URL is never changed, only the metadata around it.
+  const handleApplyTransform = (next: ImageTransform | undefined) => {
+    if (next) onChange({ url, ...(alt ? { alt } : {}), transform: next });
+    else onChange(alt ? { url, alt } : url);
+  };
 
   return (
     <div className="space-y-2">
@@ -1158,6 +1178,17 @@ function ImagePickerButton({
             {isAr ? "تغيير" : "Change"}
           </Button>
           <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn("gap-1.5", transform && "border-primary text-primary")}
+            onClick={() => setFocalOpen(true)}
+            title={isAr ? "ضبط الإطار / نقطة التركيز" : "Adjust framing / focal point"}
+          >
+            <Crop className="h-3.5 w-3.5" />
+            {isAr ? "ضبط" : "Adjust"}
+          </Button>
+          <Button
             variant="ghost"
             size="sm"
             className="text-destructive"
@@ -1184,6 +1215,19 @@ function ImagePickerButton({
         locale={locale}
         storeId={storeId}
       />
+
+      {url && (
+        <FocalPointEditor
+          open={focalOpen}
+          onOpenChange={setFocalOpen}
+          url={url}
+          alt={alt}
+          aspectRatio={aspectRatio || "1/1"}
+          value={transform}
+          onApply={handleApplyTransform}
+          locale={locale}
+        />
+      )}
     </div>
   );
 }

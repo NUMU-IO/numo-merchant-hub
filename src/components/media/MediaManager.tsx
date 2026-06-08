@@ -32,6 +32,7 @@ import {
   FileText,
   ArrowDownUp,
   Search,
+  Crop,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -70,6 +71,8 @@ import {
   uploadStoreAsset,
   type StoreAsset,
 } from "@/services/storeApi";
+import { FocalPointEditor } from "@/features/theme-editor-v3/components/inputs/FocalPointEditor";
+import type { ImageTransform } from "@/features/theme-editor-v3/components/inputs/imageTransform";
 
 type SortKey = "recent" | "name" | "size";
 
@@ -344,7 +347,7 @@ export function MediaManager({
           setAssets((prev) =>
             prev.map((a) =>
               a.key === updated.key
-                ? { ...a, alt: updated.alt, name: updated.name }
+                ? { ...a, alt: updated.alt, name: updated.name, transform: updated.transform }
                 : a,
             ),
           );
@@ -497,16 +500,24 @@ function EditDetailsDialog({
   isRTL: boolean;
   target: StoreAsset | null;
   onClose: () => void;
-  onSaved: (updated: { key: string; alt: string; name: string }) => void;
+  onSaved: (updated: {
+    key: string;
+    alt: string;
+    name: string;
+    transform?: ImageTransform;
+  }) => void;
 }) {
   const [alt, setAlt] = useState("");
   const [name, setName] = useState("");
+  const [transform, setTransform] = useState<ImageTransform | undefined>(undefined);
+  const [focalOpen, setFocalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (target) {
       setAlt(target.alt ?? "");
       setName(target.name ?? "");
+      setTransform(target.transform ?? undefined);
     }
   }, [target]);
 
@@ -514,9 +525,15 @@ function EditDetailsDialog({
     if (!target) return;
     setSaving(true);
     try {
-      await updateStoreAsset(storeId, target.key, { alt, name });
+      // Send transform explicitly (null when the merchant reset it) so the
+      // backend can CLEAR a previously-set default rather than leave it stale.
+      await updateStoreAsset(storeId, target.key, {
+        alt,
+        name,
+        transform: transform ?? null,
+      });
       toast.success(isRTL ? "تم الحفظ" : "Saved");
-      onSaved({ key: target.key, alt, name });
+      onSaved({ key: target.key, alt, name, transform });
     } catch (err) {
       showError(err);
     } finally {
@@ -576,6 +593,40 @@ function EditDetailsDialog({
                 }
               />
             </div>
+            {IMAGE_RE.test(target.key) && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">
+                  {isRTL ? "نقطة التركيز الافتراضية" : "Default focal point"}
+                </Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn("w-full justify-start gap-2", transform && "border-primary text-primary")}
+                  onClick={() => setFocalOpen(true)}
+                >
+                  <Crop className="h-3.5 w-3.5" />
+                  {isRTL
+                    ? transform ? "تم ضبط الإطار الافتراضي" : "ضبط الإطار الافتراضي"
+                    : transform ? "Default framing set" : "Set default framing"}
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  {isRTL
+                    ? "الإطار الافتراضي لهذا الملف — يُستخدم كبداية عند وضعه في أي قسم."
+                    : "The default framing for this asset — used as the starting point when you first place it in a section."}
+                </p>
+                <FocalPointEditor
+                  open={focalOpen}
+                  onOpenChange={setFocalOpen}
+                  url={target.url}
+                  alt={alt}
+                  aspectRatio="1/1"
+                  value={transform}
+                  onApply={(next) => setTransform(next)}
+                  locale={isRTL ? "ar" : "en"}
+                />
+              </div>
+            )}
             <div className="flex items-center gap-2 rounded-md bg-muted/40 px-2.5 py-1.5">
               <code className="flex-1 truncate text-[11px] text-muted-foreground" dir="ltr">
                 {target.url}

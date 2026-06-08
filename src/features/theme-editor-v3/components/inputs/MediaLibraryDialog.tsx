@@ -50,14 +50,20 @@ import { uploadStoreAsset, type StoreAsset } from "@/services/storeApi";
 import { MediaManager } from "@/components/media/MediaManager";
 
 import type { EditorLocale } from "../../types";
+import type { ImageTransform } from "./imageTransform";
 
 /**
  * Stored image value. Either a plain URL string (legacy + simple case)
- * or an object carrying URL + alt text. Themes that consume the
- * setting should be ready for both — `getImageUrl` and `getImageAlt`
- * below are the canonical accessors.
+ * or an object carrying URL + alt text + an optional non-destructive
+ * `transform` (focal/zoom/rotation — see imageTransform.ts). Themes that
+ * consume the setting should be ready for both — `getImageUrl`,
+ * `getImageAlt` and `getImageTransform` below are the canonical accessors.
+ * `transform` is purely additive: existing string / { url, alt } values
+ * keep working unchanged, and the original asset is never modified.
  */
-export type ImageValue = string | { url: string; alt?: string };
+export type ImageValue =
+  | string
+  | { url: string; alt?: string; transform?: ImageTransform };
 
 export function getImageUrl(value: unknown): string {
   if (typeof value === "string") return value;
@@ -74,6 +80,16 @@ export function getImageAlt(value: unknown): string {
     return typeof v === "string" ? v : "";
   }
   return "";
+}
+
+/** Non-destructive transform metadata (focal/zoom/rotation), or undefined when
+ *  the image has none (legacy string / plain { url, alt }). */
+export function getImageTransform(value: unknown): ImageTransform | undefined {
+  if (value && typeof value === "object" && "transform" in value) {
+    const t = (value as { transform?: unknown }).transform;
+    if (t && typeof t === "object") return t as ImageTransform;
+  }
+  return undefined;
 }
 
 interface Props {
@@ -179,13 +195,26 @@ export function MediaLibraryDialog({
    * when the merchant has authored an alt. New themes can call the
    * SDK's `useImage()` helper which normalises both shapes.
    */
-  function pack(url: string, alt: string): ImageValue {
+  function pack(url: string, alt: string, transform?: ImageTransform): ImageValue {
     const trimmed = alt.trim();
+    // A non-identity transform forces the object shape (so the metadata
+    // survives even when alt is empty). New picks (library/upload/url) pass no
+    // transform → a fresh image resets to no-transform; only commitAltOnly
+    // preserves an existing transform.
+    if (transform) {
+      return { url, ...(trimmed ? { alt: trimmed } : {}), transform };
+    }
     return trimmed ? { url, alt: trimmed } : url;
   }
 
   function commitLibraryPick(asset: StoreAsset) {
-    onChange(pack(asset.url, altDraft));
+    // Seed the placement's framing from the asset's DEFAULT transform (if the
+    // merchant set one in the Files manager). But re-picking the SAME asset
+    // must NOT stomp a per-placement "Adjust" the merchant already made — only a
+    // NEW asset seeds from its default.
+    const sameAsset = getImageUrl(value) === asset.url;
+    const seed = sameAsset ? getImageTransform(value) : asset.transform;
+    onChange(pack(asset.url, altDraft, seed));
     onOpenChange(false);
   }
 
@@ -204,7 +233,8 @@ export function MediaLibraryDialog({
       onOpenChange(false);
       return;
     }
-    onChange(pack(currentUrl, altDraft));
+    // Preserve any existing focal/zoom transform when only the alt changes.
+    onChange(pack(currentUrl, altDraft, getImageTransform(value)));
     onOpenChange(false);
   }
 
