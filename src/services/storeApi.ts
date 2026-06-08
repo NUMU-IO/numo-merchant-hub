@@ -388,7 +388,12 @@ export interface CodTrustSettings {
   enabled: boolean;
   threshold: number;
   min_confidence: "low" | "medium" | "high";
-  action: "block" | "warn";
+  action: "block" | "warn" | "recover";
+  /**
+   * "recover" only: promo line shown in the cod_recovery_offer_v1 WhatsApp
+   * message that invites the buyer to pay online. Blank → backend default.
+   */
+  recovery_promo?: string | null;
   /** Days a COD order can sit in SHIPPED before the auto-RTO sweep flags it. 7-60. */
   auto_rto_days: number;
   /** Skip the auto-RTO sweep entirely for this store. */
@@ -409,6 +414,50 @@ export async function updateCodTrustSettings(
     method: "PATCH",
     body: JSON.stringify(data),
   });
+}
+
+/** Per-store COD trust impact over a rolling window. Merchant sees only
+ *  their own numbers — never the network-wide (internal) moat metrics. */
+export interface TrustStatsWindow {
+  screened: number;
+  high_risk: number;
+  blocked: number;
+  warned: number;
+  recovered: number;
+  recovered_value: number; // cents
+}
+
+export interface TrustStats {
+  period_days: number;
+  current: TrustStatsWindow;
+  previous: TrustStatsWindow;
+}
+
+export async function fetchTrustStats(
+  storeId: string,
+  periodDays = 30
+): Promise<TrustStats> {
+  return apiClient<TrustStats>(
+    `/stores/${storeId}/cod-trust/stats?period_days=${periodDays}`
+  );
+}
+
+/** Cross-merchant network reputation for one phone (the lookup tool). */
+export interface TrustLookup {
+  phone_last4: string | null;
+  known: boolean;
+  score: number; // 0 (trusted) … 100 (abuser)
+  confidence: "low" | "medium" | "high";
+  label: string; // new_to_network / trusted_buyer / risky / serial_abuser
+}
+
+export async function lookupTrustPhone(
+  storeId: string,
+  phone: string
+): Promise<TrustLookup> {
+  return apiClient<TrustLookup>(
+    `/stores/${storeId}/cod-trust/lookup?phone=${encodeURIComponent(phone)}`
+  );
 }
 
 // ─── Paymob Credentials ──────────────────────────────────────────────────────
