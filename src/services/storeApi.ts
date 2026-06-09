@@ -4,6 +4,7 @@
 
 import { apiClient } from "./api";
 import { compressImage } from "@/lib/image-compression";
+import type { ImageTransform } from "@/features/theme-editor-v3/components/inputs/imageTransform";
 
 export interface StoreData {
   id: string;
@@ -193,6 +194,9 @@ export interface StoreAsset {
   alt?: string;
   /** Friendly display label — metadata only, the object key never changes. */
   name?: string;
+  /** Per-asset DEFAULT focal/zoom/rotation. Seeds a fresh placement's
+   *  transform when this asset is first picked from the library. */
+  transform?: ImageTransform;
 }
 
 /**
@@ -214,8 +218,10 @@ export async function listStoreAssets(storeId: string): Promise<StoreAsset[]> {
 export async function updateStoreAsset(
   storeId: string,
   key: string,
-  meta: { alt?: string; name?: string },
-): Promise<{ key: string; alt?: string; name?: string }> {
+  // `transform: null` explicitly CLEARS the asset's default; omitting it leaves
+  // the stored default unchanged.
+  meta: { alt?: string; name?: string; transform?: ImageTransform | null },
+): Promise<{ key: string; alt?: string; name?: string; transform?: ImageTransform }> {
   return apiClient(`/stores/${storeId}/settings/customization/assets`, {
     method: "PATCH",
     body: JSON.stringify({ key, ...meta }),

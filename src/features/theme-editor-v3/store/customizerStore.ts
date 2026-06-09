@@ -1696,7 +1696,21 @@ export const useCustomizerStore = create<CustomizerStore>()(
         }),
       setActivePage: (page) =>
         set((s) => {
+          if (s.activePage === page) return;
           s.activePage = page;
+          // Switching template: the prior selection's section id belongs to the
+          // OLD template and doesn't exist here, so clear it and return to the
+          // Sections LIST. Without this the editor stayed on the section-editor
+          // panel showing "No section selected" until the merchant hover-clicked
+          // a section in the live preview — the list (with the new template's
+          // own sections) was never surfaced on a page switch.
+          s.selection = {
+            type: null,
+            sectionId: null,
+            blockId: null,
+            groupId: null,
+          };
+          s.activePanel = "sections";
         }),
       setSelection: (selection) =>
         set((s) => {
