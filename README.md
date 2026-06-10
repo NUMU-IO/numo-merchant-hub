@@ -46,14 +46,19 @@ npm run test
 
 ## Features
 
-- Dashboard with analytics
-- Product management
-- Order management
-- Customer management
-- Omnichannel inbox (Facebook, Instagram, WhatsApp)
-- Channel management
-- WhatsApp template management
-- Multi-language support (English, Arabic)
+~111 pages across these areas (see `src/App.tsx` for the full route map):
+
+- Dashboard, onboarding wizard, health score, growth guide
+- Products (editor, variants, images), categories, inventory locations, gift cards
+- Orders (drafts, shipping labels, abandoned checkouts, create, import, detail), invoices
+- Customers, COD reconciliation, trust network
+- **Online Store**: themes + marketplace, **V2 theme editor** and **V3 customizer** (`/online-store/themes/editor-v3`, `src/features/theme-editor-v3/` — sections/blocks/wording/media panels, live preview, version history, server-side undo), pages, files/media, navigation, preferences, checkout fields, theme submissions
+- Analytics suite (12 sub-pages: overview, sales, funnel, live, forecast, journey, …)
+- Marketing: coupons, promotions (offers v2), campaigns + compare, Meta attribution & audiences, email templates
+- WhatsApp: inbox, campaigns, BYO connect, opt-ins, dead letters; omnichannel inbox + channels (Facebook, Instagram, WhatsApp)
+- Payments, wallet, store balance, payment setup; logistics + shipping zones
+- Settings (preferences, tracking/Meta Pixel, presentment currencies), staff + roles (RBAC), apps, billing, referrals
+- Multi-language (English + Egyptian Arabic, full RTL), dark mode
 
 ## Project Structure
 
@@ -62,14 +67,18 @@ src/
 ├── components/       # React components
 │   ├── layout/       # Layout components (Sidebar, Header)
 │   └── ui/           # shadcn/ui components
-├── contexts/         # React contexts (Auth, Store, Language)
+├── contexts/         # React contexts (Auth, Store, Language, TrialPaywall)
+├── features/
+│   └── theme-editor-v3/  # V3 customizer (Zustand store, panels, inputs, preview)
 ├── hooks/            # Custom React hooks
 ├── i18n/             # Translations (en.ts, ar.ts)
 ├── lib/              # Utilities
-├── pages/            # Route pages
-├── services/         # API services
+├── pages/            # Route pages (~111)
+├── services/         # API services (~48 modules via central api.ts)
 └── types/            # TypeScript types
 ```
+
+See `MERCHANT-HUB-DEEP-DIVE.md` for the full 20-chapter technical deep dive and `NHUB/` for the design system.
 
 ## Available Scripts
 
