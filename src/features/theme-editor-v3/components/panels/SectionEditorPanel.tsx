@@ -62,10 +62,23 @@ export function SectionEditorPanel() {
     return draft.templates[activePage]?.sections[sectionId] ?? null;
   }, [draft, sectionId, groupId, activePage]);
 
-  // Find the section schema
+  // Find the section schema. Chrome sections (tag:"header"/"footer") are
+  // filtered OUT of the template `sections` pool into `section_groups` by
+  // normalizeSchemas, so a lookup against `sections` alone misses them —
+  // leaving the panel with the raw type label and no settings form. Search
+  // all three pools by type so header/footer sections resolve their schema.
   const sectionSchema: SectionSchema | undefined = useMemo(() => {
     if (!section || !schemas) return undefined;
-    return schemas.sections.find((s) => s.type === section.type);
+    const pools = [
+      schemas.sections,
+      schemas.section_groups?.header?.sections,
+      schemas.section_groups?.footer?.sections,
+    ];
+    for (const pool of pools) {
+      const match = pool?.find((s) => s.type === section.type);
+      if (match) return match;
+    }
+    return undefined;
   }, [section, schemas]);
 
   // Destructive-change summary for the pending preset switch.

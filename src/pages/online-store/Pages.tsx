@@ -44,7 +44,9 @@ interface PageDraft {
   bodyEn: string;
   bodyAr: string;
   seoTitleEn: string;
+  seoTitleAr: string;
   seoDescEn: string;
+  seoDescAr: string;
   isPublished: boolean;
   /** Original handle when editing (so we PUT to the right key). */
   originalHandle?: string;
@@ -62,7 +64,9 @@ function toDraft(p?: StorePage): PageDraft {
     bodyEn: p?.body?.en ?? "",
     bodyAr: p?.body?.ar ?? "",
     seoTitleEn: seo?.title?.en ?? "",
+    seoTitleAr: seo?.title?.ar ?? "",
     seoDescEn: seo?.description?.en ?? "",
+    seoDescAr: seo?.description?.ar ?? "",
     isPublished: p?.is_published ?? false,
   };
 }
@@ -92,8 +96,8 @@ export default function OnlineStorePages() {
         title: { en: d.titleEn, ar: d.titleAr },
         body: { en: d.bodyEn, ar: d.bodyAr },
         seo: {
-          title: { en: d.seoTitleEn },
-          description: { en: d.seoDescEn },
+          title: { en: d.seoTitleEn, ar: d.seoTitleAr },
+          description: { en: d.seoDescEn, ar: d.seoDescAr },
         },
         is_published: d.isPublished,
       };
@@ -277,22 +281,45 @@ export default function OnlineStorePages() {
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {isRTL ? "تحسين محركات البحث (SEO)" : "Search engine listing"}
                 </p>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">{isRTL ? "عنوان الميتا" : "Meta title"}</Label>
-                  <Input
-                    value={editing.seoTitleEn}
-                    onChange={(e) => setEditing({ ...editing, seoTitleEn: e.target.value })}
-                    placeholder={editing.titleEn || "About Us — My Store"}
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{isRTL ? "عنوان الميتا (إنجليزي)" : "Meta title (English)"}</Label>
+                    <Input
+                      value={editing.seoTitleEn}
+                      onChange={(e) => setEditing({ ...editing, seoTitleEn: e.target.value })}
+                      placeholder={editing.titleEn || "About Us — My Store"}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{isRTL ? "عنوان الميتا (عربي)" : "Meta title (Arabic)"}</Label>
+                    <Input
+                      dir="rtl"
+                      value={editing.seoTitleAr}
+                      onChange={(e) => setEditing({ ...editing, seoTitleAr: e.target.value })}
+                      placeholder={editing.titleAr || "عن المتجر — متجري"}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">{isRTL ? "وصف الميتا" : "Meta description"}</Label>
-                  <Textarea
-                    value={editing.seoDescEn}
-                    onChange={(e) => setEditing({ ...editing, seoDescEn: e.target.value })}
-                    rows={2}
-                    className="text-sm"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{isRTL ? "وصف الميتا (إنجليزي)" : "Meta description (English)"}</Label>
+                    <Textarea
+                      value={editing.seoDescEn}
+                      onChange={(e) => setEditing({ ...editing, seoDescEn: e.target.value })}
+                      rows={2}
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">{isRTL ? "وصف الميتا (عربي)" : "Meta description (Arabic)"}</Label>
+                    <Textarea
+                      dir="rtl"
+                      value={editing.seoDescAr}
+                      onChange={(e) => setEditing({ ...editing, seoDescAr: e.target.value })}
+                      rows={2}
+                      className="text-sm"
+                    />
+                  </div>
                 </div>
               </div>
 
