@@ -23,6 +23,7 @@ interface PrefsState {
   seo_title: string;
   seo_description: string;
   social_image_url: string;
+  favicon_url: string;
   password_enabled: boolean;
   password: string;
   ga_tracking_id: string;
@@ -64,7 +65,7 @@ export default function OnlineStorePreferences() {
   const initializedRef = useRef(false);
 
   const [form, setForm] = useState<PrefsState>({
-    seo_title: "", seo_description: "", social_image_url: "",
+    seo_title: "", seo_description: "", social_image_url: "", favicon_url: "",
     password_enabled: false, password: "",
     ga_tracking_id: "", meta_pixel_id: "",
   });
@@ -87,6 +88,7 @@ export default function OnlineStorePreferences() {
       seo_title:        (s.seo_title          as string)  ?? storeData.name        ?? "",
       seo_description:  (s.seo_description    as string)  ?? storeData.description ?? "",
       social_image_url: (s.social_image_url   as string)  ?? "",
+      favicon_url:      (s.favicon_url        as string)  ?? "",
       password_enabled: Boolean(s.password_enabled),
       password:         (s.storefront_password as string) ?? "",
       ga_tracking_id:   (s.ga_tracking_id     as string)  ?? "",
@@ -106,6 +108,7 @@ export default function OnlineStorePreferences() {
           seo_title:           form.seo_title,
           seo_description:     form.seo_description,
           social_image_url:    form.social_image_url,
+          favicon_url:         form.favicon_url,
           password_enabled:    form.password_enabled,
           // When password protection is disabled, clear the stored password
           // so the storefront gate unblocks even if it checks for a non-empty
@@ -270,6 +273,15 @@ export default function OnlineStorePreferences() {
           isRTL={isRTL}
         />
 
+      </Section>
+
+      {/* ── Favicon ──────────────────────────────────────────────────────────── */}
+      <Section icon={<ImageIcon className="h-4 w-4" />} title={isRTL ? "أيقونة المتجر (Favicon)" : "Favicon"}>
+        <FaviconField
+          value={form.favicon_url}
+          onChange={(url) => set("favicon_url", url)}
+          isRTL={isRTL}
+        />
       </Section>
 
       {/* ── Tracking pixels ──────────────────────────────────────────────────── */}
@@ -640,6 +652,132 @@ function SocialImageField({
           cropShape="rect"
           aspect={OG_ASPECT}
           title={isRTL ? "تعديل صورة المشاركة (1200×630)" : "Edit share image (1200×630)"}
+          loading={uploading}
+          onCropComplete={onCropDone}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Favicon uploader ─────────────────────────────────────────────────────────
+// The little square icon shown in browser tabs / bookmarks. Square (1:1),
+// small file. Writes `settings.favicon_url`; the storefront layout reads it as
+// a fallback after the theme customizer's `identity.favicon_url`.
+const MAX_FAVICON_BYTES = 1024 * 1024; // 1 MB
+
+function FaviconField({
+  value,
+  onChange,
+  isRTL,
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  isRTL: boolean;
+}) {
+  const { currentStore } = useDashboardStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const onPickFile = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error(isRTL ? "يجب أن يكون الملف صورة" : "File must be an image");
+      return;
+    }
+    if (file.size > MAX_FAVICON_BYTES) {
+      toast.error(isRTL ? "الحد الأقصى لحجم الأيقونة 1 ميجا" : "Favicon must be under 1 MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const onCropDone = async (blob: Blob) => {
+    if (!currentStore?.id) return;
+    setUploading(true);
+    try {
+      const file = new File([blob], "favicon.png", { type: "image/png" });
+      const result = await uploadStoreAsset(currentStore.id, file, "favicon");
+      onChange(result.url);
+      setCropSrc(null);
+      toast.success(isRTL ? "تم رفع الأيقونة" : "Favicon uploaded");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        {isRTL
+          ? "الأيقونة الصغيرة التي تظهر في تبويب المتصفح والإشارات المرجعية. يُفضّل صورة مربعة 512×512 بكسل."
+          : "The small icon shown in the browser tab and bookmarks. A square 512×512 px image works best."}
+      </p>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/x-icon,image/svg+xml"
+        className="hidden"
+        data-testid="favicon-file-input"
+        aria-label={isRTL ? "رفع أيقونة المتجر" : "Upload favicon"}
+        title={isRTL ? "اختر أيقونة" : "Choose a favicon"}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onPickFile(f);
+          e.target.value = "";
+        }}
+      />
+
+      <div className="flex items-center gap-4">
+        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border bg-muted/20 flex items-center justify-center">
+          {value ? (
+            <img src={value} alt="Favicon" className="h-full w-full object-contain" />
+          ) : (
+            <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || !currentStore?.id}
+            data-testid="favicon-upload-btn"
+          >
+            {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+            {value ? (isRTL ? "استبدال" : "Replace") : (isRTL ? "رفع أيقونة" : "Upload favicon")}
+          </Button>
+          {value && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-muted-foreground hover:text-destructive"
+              onClick={() => onChange("")}
+              data-testid="favicon-remove-btn"
+            >
+              <X className="h-3.5 w-3.5 me-1" />
+              {isRTL ? "إزالة" : "Remove"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {cropSrc && (
+        <ImageCropDialog
+          open={!!cropSrc}
+          onClose={() => setCropSrc(null)}
+          imageSrc={cropSrc}
+          cropShape="rect"
+          aspect={1}
+          title={isRTL ? "تعديل الأيقونة (مربعة)" : "Edit favicon (square)"}
           loading={uploading}
           onCropComplete={onCropDone}
         />
