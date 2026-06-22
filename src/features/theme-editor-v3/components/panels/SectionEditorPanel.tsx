@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useCustomizerStore } from "../../store/customizerStore";
+import { findSectionSchema } from "../../store/blockPaths";
 import { SchemaFormV3 } from "../inputs/SchemaFormV3";
 import { BlockListEditor } from "./BlockListEditor";
 import type { SectionSchema } from "../../types";
@@ -65,21 +66,13 @@ export function SectionEditorPanel() {
   // Find the section schema. Chrome sections (tag:"header"/"footer") are
   // filtered OUT of the template `sections` pool into `section_groups` by
   // normalizeSchemas, so a lookup against `sections` alone misses them —
-  // leaving the panel with the raw type label and no settings form. Search
-  // all three pools by type so header/footer sections resolve their schema.
-  const sectionSchema: SectionSchema | undefined = useMemo(() => {
-    if (!section || !schemas) return undefined;
-    const pools = [
-      schemas.sections,
-      schemas.section_groups?.header?.sections,
-      schemas.section_groups?.footer?.sections,
-    ];
-    for (const pool of pools) {
-      const match = pool?.find((s) => s.type === section.type);
-      if (match) return match;
-    }
-    return undefined;
-  }, [section, schemas]);
+  // leaving the panel with the raw type label and no settings form.
+  // `findSectionSchema` searches all three pools (shared with the store's
+  // addBlock/applyPreset so block + preset actions resolve chrome too).
+  const sectionSchema: SectionSchema | undefined = useMemo(
+    () => (section ? findSectionSchema(schemas, section.type) : undefined),
+    [section, schemas],
+  );
 
   // Destructive-change summary for the pending preset switch.
   const presetConfirm = useMemo(() => {

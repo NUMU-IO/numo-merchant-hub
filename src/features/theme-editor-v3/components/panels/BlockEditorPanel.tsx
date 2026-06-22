@@ -13,6 +13,7 @@ import { useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useCustomizerStore } from "../../store/customizerStore";
 import {
+  findSectionSchema,
   resolveSectionRef,
   resolveBlockAt,
   blockSchemaAt,
@@ -43,10 +44,10 @@ export function BlockEditorPanel() {
     }
     const sec = resolveSectionRef(draft, activePage, sectionId, groupId);
     const blk = resolveBlockAt(sec, blockPath) ?? null;
-    const ss =
-      sec && schemas
-        ? schemas.sections.find((s) => s.type === sec.type)
-        : undefined;
+    // 3-pool lookup so header/footer block editors resolve their section
+    // schema — a single-pool `schemas.sections.find` missed chrome sections,
+    // leaving every chrome block showing "No configurable settings".
+    const ss = sec ? findSectionSchema(schemas, sec.type) : undefined;
     return { section: sec ?? null, block: blk, sectionSchema: ss };
   }, [draft, sectionId, blockPath, groupId, activePage, schemas]);
 

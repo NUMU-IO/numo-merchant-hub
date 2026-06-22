@@ -47,6 +47,7 @@ import { ApiError } from "@/lib/api-error";
 import {
   MAX_BLOCK_DEPTH,
   asBlockPath,
+  findSectionSchema,
   resolveSectionRef,
   resolveContainer,
   resolveBlockAt,
@@ -144,6 +145,20 @@ interface CustomizerState {
   // Dirty tracking
   isDirty: boolean;
   lastSavedAt: string | null;
+
+  /** Freshness outcome of the most recent publish, so the toolbar can show an
+   *  honest "Live" vs "Saved — storefront refresh delayed" state instead of a
+   *  blanket success. `null` until the first publish this session. */
+  lastPublish: {
+    verified: boolean;
+    /** true = storefront revalidation confirmed; false = it failed;
+     *  null = not attempted (e.g. no subdomain / secret unset). */
+    revalidated: boolean | null;
+    revalidationError: string | null;
+    /** Published-revision hash — used as a `?v=` cache-buster on "View store". */
+    contentHash: string | null;
+    at: string;
+  } | null;
 
   // Undo/redo
   past: HistoryEntry[];
@@ -589,6 +604,7 @@ const initialState: CustomizerState = {
   sessionExpired: false,
   isDirty: false,
   lastSavedAt: null,
+  lastPublish: null,
   past: [],
   future: [],
   locale: "en",
@@ -788,8 +804,18 @@ export const useCustomizerStore = create<CustomizerStore>()(
       // ── Initialization ───────────────────────────────────────────────
 
       initialize: async (storeId: string) => {
-        // Guard re-init against the same store
-        if (get().storeId === storeId && get().draft) return;
+        // Guard re-init against the same store — this is what keeps a page
+        // switch / re-render from re-running the whole boot (and resetting
+        // global isLoading), so the editor shell + preview stay mounted.
+        if (get().storeId === storeId && get().draft) {
+          if (import.meta.env.DEV)
+            console.debug("[v3-editor] initialize skipped (already loaded)");
+          return;
+        }
+
+        const bootStart = import.meta.env.DEV ? performance.now() : 0;
+        if (import.meta.env.DEV)
+          console.debug("[v3-editor] boot start", storeId);
 
         set((s) => {
           s.isLoading = true;
@@ -801,12 +827,21 @@ export const useCustomizerStore = create<CustomizerStore>()(
         });
         try {
           let loadedEtag: string | null = null;
+          // draft + schemas are fetched in PARALLEL (not serially) so boot is
+          // bounded by the slower of the two, not their sum.
+          const fetchStart = import.meta.env.DEV ? performance.now() : 0;
           const [draftRaw, schemasRaw] = await Promise.all([
             fetchDraftV3(storeId, (etag) => {
               loadedEtag = etag;
             }),
             fetchSchemasV3(storeId),
           ]);
+          if (import.meta.env.DEV)
+            console.debug(
+              `[v3-editor] draft+schemas fetched in ${Math.round(
+                performance.now() - fetchStart,
+              )}ms`,
+            );
           // Backend returns `{}` (empty dict) when the store has no V3 draft
           // *and* no legacy data to normalize. Treat as "needs a theme" by
           // surfacing an error the page can route on.
@@ -856,6 +891,12 @@ export const useCustomizerStore = create<CustomizerStore>()(
             s._remoteEtag = null;
             s._remoteDraft = null;
           });
+          if (import.meta.env.DEV)
+            console.debug(
+              `[v3-editor] boot end (usable) in ${Math.round(
+                performance.now() - bootStart,
+              )}ms`,
+            );
         } catch (err) {
           if (isSessionExpiredError(err)) {
             set((s) => {
@@ -1200,7 +1241,8 @@ export const useCustomizerStore = create<CustomizerStore>()(
           : draft.templates[activePage]?.sections[sectionId];
         if (!section) return;
 
-        const schema = schemas.sections.find((s) => s.type === section.type);
+        // 3-pool lookup (see addBlock) so header/footer "Switch preset" works.
+        const schema = findSectionSchema(schemas, section.type);
         const preset = schema?.presets?.[presetIndex];
         if (!schema || !preset) return;
 
@@ -1260,9 +1302,11 @@ export const useCustomizerStore = create<CustomizerStore>()(
           // the cap (a block at MAX_BLOCK_DEPTH can't take children).
           if (parentPath.length >= MAX_BLOCK_DEPTH) return;
 
-          const sectionSchema = schemas.sections.find(
-            (sc) => sc.type === section.type,
-          );
+          // 3-pool lookup: chrome (header/footer) section schemas live in
+          // schemas.section_groups, NOT schemas.sections — a single-pool
+          // lookup returned undefined for them, so this action silently
+          // no-op'd ("Add block" did nothing on header/footer).
+          const sectionSchema = findSectionSchema(schemas, section.type);
           // Which child types + limit does THIS container allow?
           const { blocks: allowed, maxBlocks } = containerSchemaAt(
             sectionSchema,
@@ -1548,11 +1592,22 @@ export const useCustomizerStore = create<CustomizerStore>()(
           // Forward the merchant-supplied label so the published version
           // row carries it (named-versions UX). Backend that hasn't
           // rolled out the label support yet drops it harmlessly.
-          await publishV3(storeId, label?.trim() || undefined);
+          const res = await publishV3(storeId, label?.trim() || undefined);
+          // Capture the backend's freshness outcome so the toolbar can show an
+          // honest state. `revalidation == null` means the backend never
+          // attempted it (no subdomain) — treat as "not attempted", not failed.
+          const reval = res?.revalidation ?? null;
           set((s) => {
             s.isPublishing = false;
             s.isDirty = false;
             s.lastSavedAt = new Date().toISOString();
+            s.lastPublish = {
+              verified: Boolean(res?.verified),
+              revalidated: reval ? Boolean(reval.succeeded) : null,
+              revalidationError: reval?.error ?? null,
+              contentHash: res?.content_hash ?? null,
+              at: new Date().toISOString(),
+            };
           });
           // Phase 6 — published state is the new baseline; older
           // undo entries are no longer reversible in any useful way
@@ -1697,6 +1752,10 @@ export const useCustomizerStore = create<CustomizerStore>()(
       setActivePage: (page) =>
         set((s) => {
           if (s.activePage === page) return;
+          if (import.meta.env.DEV)
+            console.debug(
+              `[v3-editor] page switch: ${s.activePage} → ${page} (store/schemas reused, no reload)`,
+            );
           s.activePage = page;
           // Switching template: the prior selection's section id belongs to the
           // OLD template and doesn't exist here, so clear it and return to the

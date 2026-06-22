@@ -54,11 +54,25 @@ const DEVICE_SIZES: Record<DeviceMode, { width: string; maxWidth: string }> = {
   mobile: { width: "375px", maxWidth: "375px" },
 };
 
+// Dev-only timing instrumentation. Guarded by import.meta.env.DEV so it's
+// dropped from production builds (Vite tree-shakes the `false` branch).
+const PERF = import.meta.env.DEV;
+function perf(msg: string, ...args: unknown[]) {
+  if (PERF) console.debug(`[v3-preview] ${msg}`, ...args);
+}
+// Module-scoped so it survives across component instances — a climbing count
+// on page switches would reveal an unwanted full remount of the preview (the
+// fix keeps this at 1 for an editing session on one store).
+let LIVE_PREVIEW_MOUNTS = 0;
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function LivePreview() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const pendingUpdateRef = useRef<object | null>(null);
+  // Timestamp of the last iframe (re)load start — used to log how long the
+  // storefront took to announce readiness (dev-only perf instrumentation).
+  const loadStartRef = useRef<number | null>(null);
   const [ready, setReady] = useState(false);
   // Bundle-error from the iframe (theme threw during render). Surfaced
   // as a toast-style banner over the preview so the merchant sees what
@@ -132,7 +146,14 @@ export function LivePreview() {
    * first available resource is the merchant-facing fix (done in
    * the TopBar via a `useEffect` once the first list lands).
    */
-  const previewUrl = useMemo(() => {
+  // The iframe `src` — deliberately STABLE across page switches. It depends
+  // ONLY on the store/host, so switching the active page never reloads the
+  // iframe. Page changes are driven by `numu:theme:navigate` postMessage →
+  // client-side routing in the storefront's PreviewNavigationBridge, which
+  // keeps the Next runtime, the [domain] layout (+ PreviewBridge), and the
+  // already-downloaded theme bundle warm. This is the core of the
+  // "page switch shouldn't show a long loading screen" fix.
+  const previewBaseUrl = useMemo(() => {
     if (!storeId) return "about:blank";
 
     // The V3 editor previews V3 (BYOT) themes, which only render on the V3
@@ -170,88 +191,67 @@ export function LivePreview() {
       return "about:blank";
     }
 
-    // Map activePage → URL path. The base may already have a path
-    // (path-segment subdomain form: `http://host:port/<sub>/`); we
-    // append onto it rather than replacing.
-    const pathFor = (): string | null => {
-      switch (activePage) {
-        case "home":
-          return ""; // base already ends with /
-        case "products":
-          // Phase 2 — products listing page. The storefront route is
-          // /products (no slug) and emits `page.type = "products"`.
-          return "products";
-        case "product": {
-          // Storefront route is /products/[slug] (plural). Earlier
-          // mapping emitted /product/<id> which 404s. The picker
-          // stores the slug under `previewResources.productId`
-          // (see PreviewResourcePicker — `slug ?? id` fallback).
-          const id = previewResources.productId;
-          return id ? `products/${id}` : "products";
-        }
-        case "collection": {
-          const slug = previewResources.collectionSlug;
-          return slug ? `collections/${slug}` : "collections";
-        }
-        case "cart":
-          return "cart";
-        case "search":
-          // Phase 2 — search results page. The storefront route is
-          // /search and emits `page.type = "search"`. Default to an
-          // empty query so the bundle can render its "empty state /
-          // popular searches" affordance; merchants can navigate the
-          // iframe to a real query themselves if they want to preview
-          // populated results.
-          return "search";
-        case "checkout":
-          return "checkout";
-        case "order-confirmation":
-          return "order-confirmation";
-        case "profile":
-          return "profile";
-        case "page":
-          // Until a Page resource context selector lands, default to
-          // /pages/about so the merchant sees a reasonable example.
-          return "pages/about";
-        case "404":
-          // Force a 404 by hitting a path that doesn't exist.
-          return "__numu_404";
-        default:
-          return null;
-      }
-    };
-    const subpath = pathFor();
-    if (subpath !== null && subpath.length > 0) {
-      // Trim trailing slash on the base, then join with `/`.
-      const baseStr = url.pathname.endsWith("/")
-        ? url.pathname
-        : `${url.pathname}/`;
-      url.pathname = `${baseStr}${subpath}`;
-    }
-
+    // Always load the store ROOT; page navigation happens via postMessage so
+    // the path is NOT baked into the src.
+    if (!url.pathname.endsWith("/")) url.pathname = `${url.pathname}/`;
     url.searchParams.set("store_id", storeId);
     url.searchParams.set("preview", "true");
     url.searchParams.set("editor", "v3");
     return url.toString();
-  }, [
-    storeId,
-    currentStore?.subdomain,
-    activePage,
-    previewResources.productId,
-    previewResources.collectionSlug,
-  ]);
+  }, [storeId, currentStore?.subdomain]);
 
-  // The expected origin of postMessage events from the iframe. Computed
-  // once per previewUrl; comparing against this is the entire trust gate
-  // for inbound editor messages.
+  // The active page's storefront subpath, RELATIVE to the store root. This is
+  // sent to the iframe via `numu:theme:navigate` (not put in the iframe src),
+  // so changing it client-routes inside the preview rather than reloading.
+  //   home → ""   products → "products"   product → "products/<id>"
+  //   collection → "collections/<slug>"   cart → "cart"   page → "pages/about"
+  //   404 → "__numu_404"   …
+  const previewPath = useMemo(() => {
+    switch (activePage) {
+      case "home":
+        return "";
+      case "products":
+        return "products";
+      case "product": {
+        // Storefront route is /products/[slug] (plural). The picker stores the
+        // slug (or id fallback) under previewResources.productId.
+        const id = previewResources.productId;
+        return id ? `products/${id}` : "products";
+      }
+      case "collection": {
+        const slug = previewResources.collectionSlug;
+        return slug ? `collections/${slug}` : "collections";
+      }
+      case "cart":
+        return "cart";
+      case "search":
+        return "search";
+      case "checkout":
+        return "checkout";
+      case "order-confirmation":
+        return "order-confirmation";
+      case "profile":
+        return "profile";
+      case "page":
+        return "pages/about";
+      case "404":
+        return "__numu_404";
+      default:
+        return "";
+    }
+  }, [activePage, previewResources.productId, previewResources.collectionSlug]);
+
+  // The expected origin of postMessage events from the iframe. Derived from the
+  // STABLE base URL (origin never changes on page switch); comparing against
+  // this is the entire trust gate for inbound editor messages.
   const previewOrigin = useMemo(() => {
-    if (previewUrl === "about:blank") return null;
+    if (previewBaseUrl === "about:blank") return null;
     try {
-      return new URL(previewUrl).origin;
+      return new URL(previewBaseUrl).origin;
     } catch {
       return null;
     }
-  }, [previewUrl]);
+  }, [previewBaseUrl]);
 
   const deviceSize = DEVICE_SIZES[deviceMode];
 
@@ -268,6 +268,13 @@ export function LivePreview() {
     },
     [previewOrigin],
   );
+
+  // ── Mount/remount instrumentation (dev only) ──
+  useEffect(() => {
+    LIVE_PREVIEW_MOUNTS += 1;
+    perf(`LivePreview mounted (#${LIVE_PREVIEW_MOUNTS})`);
+    return () => perf("LivePreview unmounted");
+  }, []);
 
   // ── Send draft updates to iframe ──
   useEffect(() => {
@@ -295,9 +302,17 @@ export function LivePreview() {
   }, [locale, ready, sendMessage]);
 
   // ── Send page navigation ──
+  // Page switches are postMessage-only now — the iframe src is stable, so this
+  // client-routes inside the preview instead of reloading it.
   useEffect(() => {
-    if (ready) sendMessage("numu:theme:navigate", { page: activePage });
-  }, [activePage, ready, sendMessage]);
+    if (ready) {
+      perf(`page switch → ${activePage} (/${previewPath})`);
+      sendMessage("numu:theme:navigate", {
+        page: activePage,
+        path: previewPath,
+      });
+    }
+  }, [activePage, previewPath, ready, sendMessage]);
 
   // ── Listen for messages from iframe ──
   useEffect(() => {
@@ -320,13 +335,26 @@ export function LivePreview() {
 
       switch (type) {
         case "numu:editor:ready":
+          if (loadStartRef.current != null) {
+            perf(
+              `iframe ready in ${Math.round(
+                performance.now() - loadStartRef.current,
+              )}ms`,
+            );
+            loadStartRef.current = null;
+          }
           setReady(true);
           if (pendingUpdateRef.current) {
             sendMessage("numu:theme:update", pendingUpdateRef.current);
             pendingUpdateRef.current = null;
           }
           sendMessage("numu:theme:locale", { locale });
-          sendMessage("numu:theme:navigate", { page: activePage });
+          // Re-push navigation so the freshly-(re)announced page lands on the
+          // active template; `path` lets the storefront client-route precisely.
+          sendMessage("numu:theme:navigate", {
+            page: activePage,
+            path: previewPath,
+          });
           break;
 
         case "numu:editor:select": {
@@ -496,6 +524,7 @@ export function LivePreview() {
     sendMessage,
     locale,
     activePage,
+    previewPath,
     setSelection,
     setActivePanel,
     setActivePage,
@@ -503,11 +532,18 @@ export function LivePreview() {
     updateBlockSetting,
   ]);
 
-  // ── Reset ready state + clear any prior bundle error on URL change ──
+  // ── Reset ready state + clear any prior bundle error on BASE-URL change ──
+  // Keyed on previewBaseUrl (store/host), NOT the page — so a page switch does
+  // NOT flip `ready` to false and therefore does NOT blank the preview with the
+  // full "Loading preview…" overlay. The previous page stays visible while the
+  // storefront client-routes to the next one.
   useEffect(() => {
+    if (previewBaseUrl === "about:blank") return;
+    perf("iframe (re)load start", previewBaseUrl);
+    loadStartRef.current = performance.now();
     setReady(false);
     setBundleError(null);
-  }, [previewUrl]);
+  }, [previewBaseUrl]);
 
   return (
     <div className="flex h-full w-full items-center justify-center bg-muted/30 p-4">
@@ -562,7 +598,7 @@ export function LivePreview() {
 
         <iframe
           ref={iframeRef}
-          src={previewUrl}
+          src={previewBaseUrl}
           className="h-full w-full border-0"
           title="Theme Preview"
           // Permissions-Policy delegation. V3 themes frequently surface

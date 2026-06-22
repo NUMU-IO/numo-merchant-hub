@@ -301,8 +301,26 @@ export interface AutosaveDraftResponse {
   draft: ThemeSettingsV3;
 }
 
+export interface RevalidationSummary {
+  requested: boolean;
+  succeeded: boolean;
+  tags_requested: string[];
+  tags_revalidated: string[];
+  duration_ms: number;
+  status_code: number | null;
+  error: string | null;
+}
+
 export interface PublishDraftResponse {
   published: ThemeSettingsV3;
+  /** Published-revision fingerprint (new published version row id). */
+  revision_id?: string | null;
+  /** Stable hash of the published payload — usable as a `?v=` cache-buster. */
+  content_hash?: string | null;
+  /** A separate DB session confirmed the new payload is committed + visible. */
+  verified?: boolean;
+  /** Structured outcome of the Next.js storefront revalidation, if attempted. */
+  revalidation?: RevalidationSummary | null;
 }
 
 export interface DiscardDraftResponse {

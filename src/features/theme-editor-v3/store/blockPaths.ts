@@ -9,6 +9,7 @@
 
 import type {
   ThemeSettingsV3,
+  NormalizedSchemas,
   SectionSchemaDefinition,
   BlockSchemaDefinition,
   SectionInstance,
@@ -41,6 +42,33 @@ export function resolveSectionRef(
   return groupId
     ? draft.section_groups[groupId]?.sections[sectionId]
     : draft.templates[activePage]?.sections[sectionId];
+}
+
+/**
+ * Resolve a section SCHEMA by `type` across ALL three pools the editor
+ * splits schemas into. `normalizeSchemas` relocates chrome sections
+ * (tag:"header"/"footer") OUT of `schemas.sections` and INTO
+ * `schemas.section_groups.{header,footer}.sections`. A lookup against
+ * `schemas.sections` alone therefore silently misses header/footer — which
+ * is what made `addBlock` / `applyPreset` no-op on those sections (schema
+ * came back undefined → no allowed blocks → early return, no error). Mirror
+ * the same 3-pool search the SectionEditorPanel already uses to find them.
+ */
+export function findSectionSchema(
+  schemas: NormalizedSchemas | null | undefined,
+  type: string,
+): SectionSchemaDefinition | undefined {
+  if (!schemas) return undefined;
+  const pools = [
+    schemas.sections,
+    schemas.section_groups?.header?.sections,
+    schemas.section_groups?.footer?.sections,
+  ];
+  for (const pool of pools) {
+    const match = pool?.find((s) => s.type === type);
+    if (match) return match;
+  }
+  return undefined;
 }
 
 /** Walk `parentPath` from `root`, returning the container that holds the
