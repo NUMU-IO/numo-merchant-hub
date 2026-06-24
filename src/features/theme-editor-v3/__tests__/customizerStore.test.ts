@@ -437,6 +437,110 @@ describe("publish", () => {
   });
 });
 
+describe("page switch (no reload, no global reset)", () => {
+  it("setActivePage reuses the loaded draft + schemas (same object identity)", async () => {
+    await bootStore();
+    const before = useCustomizerStore.getState();
+    const draftRef = before.draft;
+    const schemasRef = before.schemas;
+
+    useCustomizerStore.getState().setActivePage("product");
+    const after = useCustomizerStore.getState();
+
+    expect(after.activePage).toBe("product");
+    // Same object identities prove no re-fetch / store reset happened on switch.
+    expect(after.draft).toBe(draftRef);
+    expect(after.schemas).toBe(schemasRef);
+    expect(after.storeId).toBe("store-1");
+    // Page switch must NOT flip the global boot loader.
+    expect(after.isLoading).toBe(false);
+    // No additional network calls were made for the switch.
+    expect(mockFetchDraft).toHaveBeenCalledTimes(1);
+    expect(mockFetchSchemas).toHaveBeenCalledTimes(1);
+  });
+
+  it("setActivePage clears the stale selection and returns to the sections list", async () => {
+    await bootStore();
+    useCustomizerStore.getState().setSelection({
+      type: "section",
+      sectionId: "hero_1",
+      blockId: null,
+      groupId: null,
+    });
+    useCustomizerStore.getState().setActivePage("collection");
+    const s = useCustomizerStore.getState();
+    expect(s.selection.sectionId).toBeNull();
+    expect(s.activePanel).toBe("sections");
+  });
+
+  it("re-initialize for the same store is a no-op (editor shell stays mounted)", async () => {
+    await bootStore();
+    expect(mockFetchDraft).toHaveBeenCalledTimes(1);
+    await useCustomizerStore.getState().initialize("store-1");
+    expect(mockFetchDraft).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("publish freshness reporting", () => {
+  it("records a 'live' lastPublish when revalidation succeeded", async () => {
+    await bootStore();
+    mockSave.mockResolvedValue(undefined);
+    mockPublish.mockResolvedValue({
+      published: sampleDraft,
+      revision_id: "v-1",
+      content_hash: "deadbeef",
+      verified: true,
+      revalidation: {
+        requested: true,
+        succeeded: true,
+        tags_requested: ["theme-store-1"],
+        tags_revalidated: ["theme-store-1"],
+        duration_ms: 12,
+        status_code: 200,
+        error: null,
+      },
+    });
+    await useCustomizerStore.getState().publish();
+    const lp = useCustomizerStore.getState().lastPublish;
+    expect(lp?.verified).toBe(true);
+    expect(lp?.revalidated).toBe(true);
+    expect(lp?.contentHash).toBe("deadbeef");
+  });
+
+  it("records 'refresh delayed' when revalidation failed", async () => {
+    await bootStore();
+    mockSave.mockResolvedValue(undefined);
+    mockPublish.mockResolvedValue({
+      published: sampleDraft,
+      revision_id: "v-2",
+      content_hash: "cafe",
+      verified: true,
+      revalidation: {
+        requested: true,
+        succeeded: false,
+        tags_requested: ["theme-store-1"],
+        tags_revalidated: [],
+        duration_ms: 5000,
+        status_code: null,
+        error: "http_error: timeout",
+      },
+    });
+    await useCustomizerStore.getState().publish();
+    const lp = useCustomizerStore.getState().lastPublish;
+    expect(lp?.revalidated).toBe(false);
+    expect(lp?.revalidationError).toContain("timeout");
+  });
+
+  it("treats a missing revalidation block as 'not attempted', not failed", async () => {
+    await bootStore();
+    mockSave.mockResolvedValue(undefined);
+    mockPublish.mockResolvedValue({ published: sampleDraft, verified: true });
+    await useCustomizerStore.getState().publish();
+    const lp = useCustomizerStore.getState().lastPublish;
+    expect(lp?.revalidated).toBeNull();
+  });
+});
+
 describe("applyPreset", () => {
   // A hero schema that ships a preset with a nested starter-block tree
   // (button → link), so applyPreset must rebuild settings AND materialize

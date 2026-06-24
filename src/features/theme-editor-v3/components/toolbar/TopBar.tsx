@@ -53,6 +53,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   useCustomizerStore,
@@ -137,6 +138,7 @@ export function TopBar({
   const redo = useCustomizerStore((s) => s.redo);
   const publish = useCustomizerStore((s) => s.publish);
   const discardDraft = useCustomizerStore((s) => s.discardDraft);
+  const lastPublish = useCustomizerStore((s) => s.lastPublish);
 
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [showPublishDialog, setShowPublishDialog] = useState(false);
@@ -182,10 +184,49 @@ export function TopBar({
   }, [canUndo, canRedo, undo, redo]);
 
   const handlePublish = useCallback(async () => {
-    await publish(publishLabel || undefined);
-    setShowPublishDialog(false);
-    setPublishLabel("");
-  }, [publish, publishLabel]);
+    const isAr = locale === "ar";
+    try {
+      await publish(publishLabel || undefined);
+    } catch {
+      toast.error(
+        isAr ? "فشل النشر" : "Publish failed",
+        {
+          description: isAr
+            ? "تعذّر نشر تغييراتك. حاول مرة أخرى."
+            : "We couldn't publish your changes. Please try again.",
+        },
+      );
+      return;
+    } finally {
+      setShowPublishDialog(false);
+      setPublishLabel("");
+    }
+    // A conflict / expired session aborts publish via its own banner/overlay —
+    // don't toast a misleading "Live" over it.
+    const state = useCustomizerStore.getState();
+    if (state.editConflict || state.sessionExpired) return;
+    const result = state.lastPublish;
+    if (!result) return;
+    if (result.revalidated === false) {
+      // Committed, but the storefront refresh wasn't confirmed — be honest.
+      toast.warning(
+        isAr
+          ? "تم الحفظ — قد يتأخر تحديث المتجر"
+          : "Saved — storefront refresh delayed",
+        {
+          description: isAr
+            ? "نُشرت تغييراتك لكن لم يتأكد تحديث المتجر بعد. قد يستغرق حتى دقيقة."
+            : "Your changes are published, but the storefront refresh wasn't confirmed. It may take up to a minute to appear.",
+        },
+      );
+    } else {
+      toast.success(isAr ? "تم النشر ✓ مباشر الآن" : "Published ✓ Live now", {
+        description: isAr
+          ? "متجرك يعرض أحدث التغييرات."
+          : "Your storefront is now serving the latest changes.",
+      });
+    }
+  }, [publish, publishLabel, locale]);
 
   const handleDiscard = useCallback(async () => {
     await discardDraft();
@@ -439,7 +480,15 @@ export function TopBar({
                 className="h-8 w-8"
                 disabled={!viewStoreUrl}
                 onClick={() => {
-                  if (viewStoreUrl) window.open(viewStoreUrl, "_blank", "noopener,noreferrer");
+                  if (!viewStoreUrl) return;
+                  // Append a cache-buster keyed on the last published revision
+                  // so the merchant's browser doesn't show a stale cached page
+                  // right after publishing.
+                  const v = lastPublish?.contentHash;
+                  const target = v
+                    ? `${viewStoreUrl}${viewStoreUrl.includes("?") ? "&" : "?"}v=${encodeURIComponent(v)}`
+                    : viewStoreUrl;
+                  window.open(target, "_blank", "noopener,noreferrer");
                 }}
                 aria-label={locale === "ar" ? "عرض المتجر" : "View store"}
               >

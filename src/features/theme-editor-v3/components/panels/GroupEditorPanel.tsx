@@ -13,6 +13,7 @@ import { ArrowLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCustomizerStore } from "../../store/customizerStore";
+import { findSectionSchema } from "../../store/blockPaths";
 
 export function GroupEditorPanel() {
   const draft = useCustomizerStore((s) => s.draft);
@@ -72,7 +73,7 @@ export function GroupEditorPanel() {
           const section = group.sections[sectionId];
           if (!section) return null;
 
-          const sectionSchema = schemas?.sections.find((s) => s.type === section.type);
+          const sectionSchema = findSectionSchema(schemas, section.type);
           const label = sectionSchema
             ? locale === "ar"
               ? sectionSchema.locales?.ar?.name || sectionSchema.name

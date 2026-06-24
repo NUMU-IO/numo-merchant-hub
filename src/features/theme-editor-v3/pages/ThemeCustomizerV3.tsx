@@ -152,19 +152,13 @@ export function ThemeCustomizerV3() {
     );
   }
 
-  // ── Loading state ──
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">
-            {locale === "ar" ? "جاري تحميل المحرر..." : "Loading editor..."}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // NOTE: the editor BOOT loading (draft + schemas) deliberately does NOT
+  // full-screen-block anymore. The shell (top bar) and the live-preview iframe
+  // render immediately so the iframe's network/bundle load overlaps the
+  // draft/schema fetch instead of waiting for it — and only the LEFT PANEL
+  // shows a local spinner until its data lands (see `isLoading ? … : …` below).
+  // Full-screen loading stays reserved for "no store/editor metadata yet"
+  // (the `storeLoading` / `!storeId` gates above).
 
   // ── Error state ──
   if (error) {
@@ -221,7 +215,18 @@ export function ThemeCustomizerV3() {
         >
           <EditorModeSwitcher />
           <div className="flex-1 overflow-hidden">
-            <LeftPanelRouter />
+            {isLoading ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
+                <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <p className="text-xs text-muted-foreground">
+                  {locale === "ar"
+                    ? "جاري تحميل المحرر..."
+                    : "Loading editor..."}
+                </p>
+              </div>
+            ) : (
+              <LeftPanelRouter />
+            )}
           </div>
         </div>
 

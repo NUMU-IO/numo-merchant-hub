@@ -266,6 +266,11 @@ export interface ShippingSettings {
   manual: ShippingCarrierStatus;
   zones: ShippingZone[];
   free_shipping_threshold: number;
+  /** When true, only ship to governorates that have a configured zone —
+   *  uncovered destinations show "no options" at checkout. When false
+   *  (default), uncovered destinations fall back to a free default rate so
+   *  every place is shippable. */
+  restrict_to_zones: boolean;
 }
 
 export async function fetchShippingSettings(
@@ -355,7 +360,11 @@ export async function updatePaymentSettings(
 
 export async function updateShippingSettings(
   storeId: string,
-  data: { free_shipping_threshold?: number; manual_enabled?: boolean }
+  data: {
+    free_shipping_threshold?: number;
+    manual_enabled?: boolean;
+    restrict_to_zones?: boolean;
+  }
 ): Promise<ShippingSettings> {
   return apiClient<ShippingSettings>(`/stores/${storeId}/settings/shipping`, {
     method: "PATCH",
