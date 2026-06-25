@@ -404,6 +404,8 @@ export default {
     loading: "Loading...",
     error: "Something went wrong",
     noData: "No data available",
+    save: "Save",
+    cancel: "Cancel",
   },
   emailTemplates: {
     title: "Email Templates",

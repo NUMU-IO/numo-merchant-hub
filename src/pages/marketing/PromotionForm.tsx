@@ -13,7 +13,7 @@
  *   with the row's current `version` for optimistic locking.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Loader2, Save } from "lucide-react";
@@ -226,11 +226,23 @@ export default function PromotionForm() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [visual, setVisual] = useState<VisualContentState>(EMPTY_VISUAL_CONTENT);
   const [submitting, setSubmitting] = useState(false);
+  // Tracks which promotion id the edit form has already hydrated, so a
+  // background refetch can't clobber in-progress edits (see the hydrate
+  // effect below).
+  const hydratedIdRef = useRef<string | null>(null);
 
   // Hydrate form when editing an existing promotion.
   useEffect(() => {
     if (!isEdit || !promotionQuery.data) return;
     const promo = promotionQuery.data;
+    // Hydrate the form ONCE per promotion id. React Query refetches the
+    // promotion on window-focus/reconnect/staleness; without this guard a
+    // refetch mid-edit re-runs setForm() and silently reverts the user's
+    // in-progress changes to the saved values (e.g. typing 21% then a
+    // refetch snaps it back to the stored 17%). Re-hydrate only if the id
+    // actually changes (navigating to a different discount).
+    if (hydratedIdRef.current === promo.id) return;
+    hydratedIdRef.current = promo.id;
     const audience = promo.targets.find((t) => t.target_kind === "audience");
     const enLabel = promo.translations?.en?.label?.en ?? "";
     const arLabel = promo.translations?.ar?.label?.ar ?? "";

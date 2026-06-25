@@ -404,6 +404,8 @@
     loading: "بيحمل...",
     error: "حصلت مشكلة أو في حاجة غلط",
     noData: "مفيش بيانات",
+    save: "حفظ",
+    cancel: "إلغاء",
   },
   emailTemplates: {
     title: "قوالب البريد",
