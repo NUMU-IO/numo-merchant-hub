@@ -75,7 +75,6 @@ const AnalyticsReports = lazy(() => import("@/pages/analytics/ReportsPage"));
 const HealthScore = lazy(() => import("@/pages/HealthScore"));
 const GrowthGuide = lazy(() => import("@/pages/GrowthGuide"));
 const MarketingLanding = lazy(() => import("@/pages/MarketingLanding"));
-const Marketing = lazy(() => import("@/pages/Marketing"));
 const PromotionsList = lazy(() => import("@/pages/marketing/PromotionsList"));
 const PromotionForm = lazy(() => import("@/pages/marketing/PromotionForm"));
 const PromotionDetail = lazy(() => import("@/pages/marketing/PromotionDetail"));
@@ -341,7 +340,10 @@ const App = () => (
                     <Route path="/health-score" element={<HealthScore />} />
                     <Route path="/grow" element={<GrowthGuide />} />
                     <Route path="/marketing" element={<MarketingLanding />} />
-                    <Route path="/marketing/coupons" element={<Marketing />} />
+                    {/* Unified under "Discounts" — the standalone coupons page
+                        is retired; its codes are managed as discount-code
+                        discounts. Redirect any old links/bookmarks. */}
+                    <Route path="/marketing/coupons" element={<Navigate to="/marketing/promotions" replace />} />
                     <Route path="/marketing/promotions" element={<PromotionsList />} />
                     <Route path="/marketing/promotions/new" element={<PromotionForm />} />
                     <Route path="/marketing/promotions/:id" element={<PromotionDetail />} />

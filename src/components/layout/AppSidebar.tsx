@@ -106,8 +106,7 @@ const AppSidebar = () => {
   // templates, all rolled into one parent the spec calls "Marketing".
   const marketingSub: NavSubItem[] = [
     { title: isRTL ? "نظرة عامة" : "Overview", url: "/marketing", icon: Megaphone, navKey: "marketing.overview" },
-    { title: isRTL ? "الكوبونات" : "Coupons", url: "/marketing/coupons", icon: Tag, navKey: "marketing.coupons" },
-    { title: isRTL ? "العروض" : "Promotions", url: "/marketing/promotions", icon: BadgePercent, navKey: "marketing.promotions" },
+    { title: isRTL ? "الخصومات" : "Discounts", url: "/marketing/promotions", icon: BadgePercent, navKey: "marketing.promotions" },
     { title: isRTL ? "بطاقات الهدايا" : "Gift cards", url: "/gift-cards", icon: Gift, navKey: "marketing.gift-cards" },
     { title: isRTL ? "الحملات" : "Campaigns", url: "/campaigns", icon: Send, navKey: "marketing.campaigns" },
     { title: isRTL ? "واتساب" : "WhatsApp", url: "/whatsapp", icon: WhatsAppNavIcon, navKey: "marketing.whatsapp" },

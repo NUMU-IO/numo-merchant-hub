@@ -15,7 +15,7 @@ import { listCampaigns } from "@/services/campaignApi";
    • 4 KPI tiles (Active discounts / Campaigns / Reach / Redeemed)
    • Segmented control: Overview / Discounts / Campaigns / WhatsApp
      - Overview (this view): mini-cards previewing each section
-     - Discounts → /marketing/coupons (existing coupons UI)
+     - Discounts → /marketing/promotions (unified discounts list)
      - Campaigns → /campaigns
      - WhatsApp → /whatsapp
    Replaces the bare "/marketing redirects to coupons" path with a real
@@ -49,7 +49,7 @@ const MarketingLanding = () => {
       setParams(params);
       return;
     }
-    if (t === "discounts") return navigate("/marketing/coupons");
+    if (t === "discounts") return navigate("/marketing/promotions");
     if (t === "campaigns") return navigate("/campaigns");
     if (t === "whatsapp") return navigate("/whatsapp");
   };
@@ -171,7 +171,7 @@ const MarketingLanding = () => {
               variant="ghost"
               size="sm"
               className="text-xs h-7 rounded-lg gap-1"
-              onClick={() => navigate("/marketing/coupons")}
+              onClick={() => navigate("/marketing/promotions")}
             >
               {isRTL ? "شوف الكل" : "View all"}
               <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" strokeWidth={2.2} />
@@ -208,7 +208,7 @@ const MarketingLanding = () => {
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => navigate("/marketing/coupons")}
+                    onClick={() => navigate("/marketing/promotions")}
                     className="w-full flex items-center gap-3 px-2 py-3 rounded-lg souq-hoverrow text-start"
                   >
                     <span className="font-mono text-[13px] font-extrabold text-navy">{c.code}</span>
