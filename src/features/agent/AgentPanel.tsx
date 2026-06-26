@@ -5,14 +5,15 @@
  * RTL-aware, and renders in the merchant's language (English / Egyptian Arabic).
  * Mount once inside the dashboard layout; a floating launcher toggles it open.
  */
-import { Loader2, Send, Sparkles } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Loader2, Send } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+import { MascotSprite, type MascotState } from "./MascotSprite";
 import { ProposalCard } from "./ProposalCard";
 import { useAgentStore } from "./store";
 
@@ -29,6 +30,17 @@ export function AgentPanel() {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Drive the mascot from conversation state: think before the first token,
+  // talk while streaming, get excited on a proposed change, smile when a reply
+  // just landed, and idle at rest.
+  const mascotState: MascotState = useMemo(() => {
+    const lastAgent = [...messages].reverse().find((m) => m.role === "agent");
+    if (isStreaming) return lastAgent?.text ? "talking" : "thinking";
+    if (lastAgent?.proposal?.status === "pending") return "excited";
+    if (lastAgent?.status === "done") return "happy";
+    return "idle";
+  }, [messages, isStreaming]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
@@ -42,14 +54,16 @@ export function AgentPanel() {
 
   return (
     <>
-      {/* Floating launcher */}
+      {/* Floating launcher — the idle mascot peeks out and waves you over. */}
       {!isOpen && (
         <Button
           onClick={open}
-          className={`fixed bottom-6 z-40 gap-2 shadow-lg ${isRTL ? "left-6" : "right-6"}`}
+          className={`fixed bottom-6 z-40 h-12 gap-1.5 rounded-full pl-1.5 pr-4 shadow-lg ${
+            isRTL ? "left-6" : "right-6"
+          }`}
           aria-label={t("agent.open")}
         >
-          <Sparkles className="h-4 w-4" />
+          <MascotSprite state="idle" size={36} />
           {t("agent.open")}
         </Button>
       )}
@@ -59,18 +73,18 @@ export function AgentPanel() {
           side={isRTL ? "left" : "right"}
           className="flex w-full max-w-md flex-col p-0"
         >
-          <SheetHeader className="border-b px-4 py-3">
-            <SheetTitle className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              {t("agent.title")}
-            </SheetTitle>
-            <p className="text-xs text-muted-foreground">{t("agent.subtitle")}</p>
+          <SheetHeader className="flex-row items-center gap-2 border-b px-4 py-3 space-y-0">
+            <MascotSprite state={mascotState} size={40} />
+            <div className="min-w-0">
+              <SheetTitle>{t("agent.title")}</SheetTitle>
+              <p className="text-xs text-muted-foreground">{t("agent.subtitle")}</p>
+            </div>
           </SheetHeader>
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center text-sm text-muted-foreground">
-                <Sparkles className="mb-2 h-6 w-6 opacity-50" />
+                <MascotSprite state="wave" size={96} className="mb-3" />
                 <p className="font-medium">{t("agent.emptyTitle")}</p>
                 <p className="mt-1 text-xs">{t("agent.emptyHint")}</p>
               </div>
