@@ -70,6 +70,7 @@ import {
   CreditCard,
   Clock,
   Search,
+  Image as ImageIcon,
 } from "lucide-react";
 import { ThemePreview } from "@/components/ThemePreview";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
@@ -564,6 +565,12 @@ const StoreSettings = () => {
   const [logoCropSrc, setLogoCropSrc] = useState<string | null>(null);
   const [showLogoCrop, setShowLogoCrop] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [faviconCropSrc, setFaviconCropSrc] = useState<string | null>(null);
+  const [showFaviconCrop, setShowFaviconCrop] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const faviconUrl =
+    ((currentStore?.settings as { favicon_url?: string } | null)
+      ?.favicon_url ?? "") || "";
   const [policyTab, setPolicyTab] = useState("return");
   const [policyTexts, setPolicyTexts] = useState<Record<string, string>>({
     return: "",
@@ -1557,6 +1564,107 @@ const StoreSettings = () => {
                     {language === "ar"
                       ? "PNG أو JPG أو WebP، ٥ ميجا كحد أقصى"
                       : "PNG, JPG, or WebP, max 5MB"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Store Favicon — the small icon shown in the browser tab.
+                Stored in `settings.favicon_url`; the storefront layout reads it
+                (after the theme customizer's favicon) when rendering <head>. */}
+            <div className="settings-field-group">
+              <div className="settings-field-group-label">
+                {language === "ar" ? "أيقونة المتصفح" : "Favicon"}
+              </div>
+              <div className="flex items-center gap-5 rounded-xl border border-dashed border-border/50 bg-muted/5 p-4 transition-colors hover:border-border/80 hover:bg-muted/10">
+                {faviconUrl ? (
+                  <img
+                    src={faviconUrl}
+                    alt="Favicon"
+                    className="h-16 w-16 rounded-xl object-contain bg-muted/20 ring-2 ring-border/20"
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-muted/30 text-muted-foreground">
+                    <ImageIcon className="h-6 w-6" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/x-icon,image/svg+xml"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            setFaviconCropSrc(reader.result as string);
+                            setShowFaviconCrop(true);
+                          };
+                          reader.readAsDataURL(file);
+                          e.target.value = "";
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 cursor-pointer"
+                        asChild
+                      >
+                        <span>
+                          <Upload className="h-3.5 w-3.5" />
+                          {faviconUrl
+                            ? language === "ar"
+                              ? "تغيير"
+                              : "Change"
+                            : language === "ar"
+                              ? "رفع أيقونة"
+                              : "Upload favicon"}
+                        </span>
+                      </Button>
+                    </label>
+                    {faviconUrl && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        disabled={uploadingFavicon}
+                        onClick={async () => {
+                          if (!currentStore?.id) return;
+                          setUploadingFavicon(true);
+                          try {
+                            await updateStore(currentStore.id, {
+                              settings: { favicon_url: "" },
+                            });
+                            await refetchStores();
+                            toast.success(
+                              language === "ar"
+                                ? "تم إزالة الأيقونة"
+                                : "Favicon removed",
+                            );
+                          } catch {
+                            toast.error(
+                              language === "ar"
+                                ? "فشل إزالة الأيقونة"
+                                : "Failed to remove favicon",
+                            );
+                          } finally {
+                            setUploadingFavicon(false);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {language === "ar" ? "إزالة" : "Remove"}
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    {language === "ar"
+                      ? "أيقونة مربعة تظهر في تبويب المتصفح — يُفضّل ٥١٢×٥١٢ بكسل"
+                      : "Square icon shown in the browser tab — 512×512px works best"}
                   </p>
                 </div>
               </div>
@@ -3855,6 +3963,53 @@ const StoreSettings = () => {
               );
             } finally {
               setUploadingLogo(false);
+            }
+          }}
+        />
+      )}
+
+      {/* Favicon Crop Dialog — square, written to settings.favicon_url */}
+      {faviconCropSrc && (
+        <ImageCropDialog
+          open={showFaviconCrop}
+          onClose={() => {
+            setShowFaviconCrop(false);
+            setFaviconCropSrc(null);
+          }}
+          imageSrc={faviconCropSrc}
+          cropShape="rect"
+          aspect={1}
+          title={language === "ar" ? "تعديل الأيقونة" : "Edit Favicon"}
+          loading={uploadingFavicon}
+          onCropComplete={async (blob) => {
+            if (!currentStore?.id) return;
+            setUploadingFavicon(true);
+            try {
+              const file = new File([blob], "favicon.png", {
+                type: "image/png",
+              });
+              const result = await uploadStoreAsset(
+                currentStore.id,
+                file,
+                "favicon",
+              );
+              await updateStore(currentStore.id, {
+                settings: { favicon_url: result.url },
+              });
+              await refetchStores();
+              toast.success(
+                language === "ar" ? "تم رفع الأيقونة" : "Favicon uploaded",
+              );
+              setShowFaviconCrop(false);
+              setFaviconCropSrc(null);
+            } catch {
+              toast.error(
+                language === "ar"
+                  ? "فشل رفع الأيقونة"
+                  : "Failed to upload favicon",
+              );
+            } finally {
+              setUploadingFavicon(false);
             }
           }}
         />
