@@ -111,6 +111,7 @@ const AppSidebar = () => {
     { title: isRTL ? "الحملات" : "Campaigns", url: "/campaigns", icon: Send, navKey: "marketing.campaigns" },
     { title: isRTL ? "واتساب" : "WhatsApp", url: "/whatsapp", icon: WhatsAppNavIcon, navKey: "marketing.whatsapp" },
     { title: isRTL ? "قوالب البريد" : "Email templates", url: "/email-templates", icon: Mail, navKey: "marketing.email-templates" },
+    { title: isRTL ? "الملاحظات والأسئلة" : "Notes & FAQ", url: "/agent-notes", icon: FileText, navKey: "marketing.agent-notes" },
     { title: isRTL ? "الإسناد" : "Attribution", url: "/marketing/attribution", icon: TrendingUp, navKey: "marketing.attribution" },
     { title: isRTL ? "الجماهير" : "Audiences", url: "/marketing/audiences", icon: Users, navKey: "marketing.audiences" },
     { title: isRTL ? "الإحالات" : "Referrals", url: "/referrals", icon: UserPlus, navKey: "marketing.referrals" },

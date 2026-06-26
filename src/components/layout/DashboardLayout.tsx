@@ -14,6 +14,7 @@ import MobileBottomNav from "./MobileBottomNav";
 import DemoBanner from "@/components/demo/DemoBanner";
 import { ImpersonationBanner } from "./ImpersonationBanner";
 import { NewOrderNotifier } from "@/components/NewOrderNotifier";
+import { AgentPanel } from "@/features/agent";
 
 function PageFallback() {
   return (
@@ -108,6 +109,9 @@ const DashboardLayout = () => {
       {/* Polls /orders and toasts whenever a new one arrives. Mounted at the
           layout level so it runs on every dashboard page. */}
       <NewOrderNotifier />
+      {/* NUMU Agent (merchant copilot) — floating launcher + slide-over panel,
+          available on every dashboard route (US1 read-only assistant). */}
+      <AgentPanel />
     </SidebarProvider>
   );
 };

@@ -122,6 +122,7 @@ const NewWhatsAppTemplate = lazy(() => import("@/pages/NewWhatsAppTemplate"));
 const MetaOAuthCallback = lazy(() => import("@/pages/MetaOAuthCallback"));
 const EmailTemplates = lazy(() => import("@/pages/EmailTemplates"));
 const EmailTemplateEditor = lazy(() => import("@/pages/EmailTemplateEditor"));
+const AgentNotes = lazy(() => import("@/features/agent-knowledge"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -348,6 +349,7 @@ const App = () => (
                     <Route path="/marketing/promotions/new" element={<PromotionForm />} />
                     <Route path="/marketing/promotions/:id" element={<PromotionDetail />} />
                     <Route path="/marketing/promotions/:id/edit" element={<PromotionForm />} />
+                    <Route path="/agent-notes" element={<AgentNotes />} />
                     <Route path="/email-templates" element={<EmailTemplates />} />
                     <Route path="/email-templates/new" element={<EmailTemplateEditor />} />
                     <Route path="/email-templates/:id" element={<EmailTemplateEditor />} />
