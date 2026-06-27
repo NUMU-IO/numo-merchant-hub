@@ -26,7 +26,9 @@ interface StoreContextType {
   isLoading: boolean;
   hasStores: boolean;
   switchStore: (storeId: string) => void;
-  refetchStores: () => Promise<void>;
+  /** Refetch the store list. Pass `preferId` to select a specific store
+   *  (e.g. one just created) instead of the saved/first store. */
+  refetchStores: (preferId?: string) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType>({
@@ -49,7 +51,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
   // Track which auth state we last fetched for, so we know when to re-fetch
   const fetchedForAuthRef = useRef<boolean | null>(null);
 
-  const fetchStores = useCallback(async () => {
+  const fetchStores = useCallback(async (preferId?: string) => {
     if (!isAuthenticated) {
       setStores([]);
       setCurrentStore(null);
@@ -68,9 +70,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
       setStores(items);
 
       if (items.length > 0) {
+        // Selection priority: explicit preferId (e.g. a just-created store)
+        // → saved id → first store. Persist so the choice survives reloads.
         const savedId = localStorage.getItem(STORE_KEY);
-        const saved = items.find((s) => s.id === savedId);
-        const selected = saved || items[0];
+        const selected =
+          (preferId && items.find((s) => s.id === preferId)) ||
+          items.find((s) => s.id === savedId) ||
+          items[0];
         setCurrentStore(selected);
         localStorage.setItem(STORE_KEY, selected.id);
       } else {

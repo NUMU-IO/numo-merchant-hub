@@ -109,7 +109,9 @@ export default function CreateStore() {
       if (created?.id) {
         void activateDefaultTheme(created.id).catch(() => {});
       }
-      await refetchStores();
+      // Select the just-created store so onboarding (preview, URL, currency)
+      // reflects IT, not the previously-active store.
+      await refetchStores(created?.id);
       navigate("/onboarding-wizard", { replace: true });
     } catch (err: unknown) {
       if (err instanceof ApiError) {
