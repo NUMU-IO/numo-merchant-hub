@@ -221,7 +221,26 @@ export default function PromotionsList() {
         </Link>
       </TableCell>
       <TableCell className="font-mono text-[13px] font-bold text-navy">
-        {p.code ?? "—"}
+        {p.code ? (
+          <span className="inline-flex items-center gap-1.5">
+            {p.code}
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(p.code!).then(() =>
+                  toast.success(language === "ar" ? "تم نسخ الكود" : "Code copied"),
+                );
+              }}
+              className="text-muted-foreground/50 hover:text-navy transition-colors"
+              aria-label={language === "ar" ? "نسخ الكود" : "Copy code"}
+              title={language === "ar" ? "نسخ الكود" : "Copy code"}
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
+          </span>
+        ) : (
+          "—"
+        )}
       </TableCell>
       <TableCell className="text-sm font-medium">
         {discountLabel(p.discount_rule)}
