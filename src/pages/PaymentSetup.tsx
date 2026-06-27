@@ -486,6 +486,11 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
   const creds = isPaymob ? paymobCreds : isFawry ? fawryCreds : isFawaterak ? fawaterakCreds : kashierCreds;
   const color = isPaymob ? "#1A8CFF" : isFawry ? "#F7941D" : isFawaterak ? "#6C63FF" : "#2EC4B6";
 
+  // Gate connect actions behind the trial paywall (handleSave calls
+  // requireTrial). Without this hook the call threw "requireTrial is not
+  // defined" on /payment-setup (Sentry).
+  const { requireTrial } = useTrialPaywall();
+
   const [editing, setEditing] = useState(!creds?.is_configured);
   const [paymobForm, setPaymobForm] = useState({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" });
   const [kashierForm, setKashierForm] = useState({ merchant_id: "", api_key: "", secret_key: "" });
