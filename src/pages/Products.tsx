@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
+import { getStoreUrl } from "@/lib/storefront";
 
 const PAGE_SIZE = 20;
 
@@ -588,7 +589,7 @@ const Products = () => {
                       {/* Actions: View on storefront + Edit + Delete + three-dot menu */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
-                          {currentStore?.store_url && (
+                          {currentStore?.subdomain && (
                             <Button
                               asChild
                               variant="ghost"
@@ -597,7 +598,7 @@ const Products = () => {
                               title={isAr ? "عرض في المتجر" : "View in storefront"}
                             >
                               <a
-                                href={`${currentStore.store_url.replace(/\/$/, "")}/product/${p.id}`}
+                                href={`${getStoreUrl(currentStore.subdomain).replace(/\/$/, "")}/product/${p.id}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 aria-label={isAr ? "عرض في المتجر" : "View in storefront"}

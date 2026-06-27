@@ -104,9 +104,12 @@ const AppHeader = () => {
 
   const openStore = useCallback(() => {
     if (!currentStore) return;
+    // Prefer the env-aware storefront URL (v3 when configured) over the
+    // backend's canonical store_url so "Visit store" matches the preview.
     const url =
+      (currentStore.subdomain ? getStoreUrl(currentStore.subdomain) : null) ||
       currentStore.store_url ||
-      (currentStore.subdomain ? getStoreUrl(currentStore.subdomain) : null);
+      null;
     if (url) window.open(url, "_blank");
   }, [currentStore]);
 
