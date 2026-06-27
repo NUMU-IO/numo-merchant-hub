@@ -151,6 +151,7 @@
     fulfillment: "التنفيذ",
     all: "الكل",
     pending: "في الانتظار",
+    confirmed: "مؤكد",
     processing: "بيتجهز",
     shipped: "اتشحن",
     delivered: "تم التوصيل",

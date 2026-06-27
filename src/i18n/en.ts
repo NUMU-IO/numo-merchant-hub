@@ -151,6 +151,7 @@ export default {
     fulfillment: "Fulfillment",
     all: "All",
     pending: "Pending",
+    confirmed: "Confirmed",
     processing: "Processing",
     shipped: "Shipped",
     delivered: "Delivered",
