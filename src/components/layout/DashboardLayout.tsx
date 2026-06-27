@@ -29,7 +29,11 @@ function PageFallback() {
 
 const DashboardLayout = () => {
   const { currentStore } = useDashboardStore();
-  const { user } = useAuth();
+  const { user, tenant } = useAuth();
+  // Admin-controlled (platform settings → /auth/me feature_flags). Show the
+  // Assistant unless it's been explicitly disabled, so older sessions /
+  // missing flag still behave as before.
+  const assistantEnabled = tenant?.feature_flags?.assistant_enabled !== false;
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
@@ -111,7 +115,7 @@ const DashboardLayout = () => {
       <NewOrderNotifier />
       {/* NUMU Agent (merchant copilot) — floating launcher + slide-over panel,
           available on every dashboard route (US1 read-only assistant). */}
-      <AgentPanel />
+      {assistantEnabled && <AgentPanel />}
     </SidebarProvider>
   );
 };
