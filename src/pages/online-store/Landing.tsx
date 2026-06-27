@@ -11,6 +11,9 @@ import { browseMarketplace, type CatalogTheme } from "@/services/marketplaceApi"
 import {
   getStorefrontPassword, updateStorefrontPassword,
 } from "@/services/storeAccessApi";
+import {
+  listThemeInstallations, renameThemeInstallation,
+} from "@/services/themeCodeApi";
 import { showError } from "@/lib/show-error";
 import { getStoreUrl } from "@/lib/storefront";
 import { Card, CardContent } from "@/components/ui/card";
@@ -272,6 +275,29 @@ const OnlineStoreLanding = () => {
     passwordMutation.mutate({ enabled: pwEnabled, ...(pw ? { password: pw } : {}) });
   };
 
+  // Active theme installation — its `name` is the merchant-editable label
+  // (distinct from the catalog theme name), and the target of Rename.
+  const installsQuery = useQuery({
+    queryKey: ["theme-installations", storeId],
+    queryFn: () => listThemeInstallations(storeId!),
+    enabled: !!storeId,
+    staleTime: 60 * 1000,
+  });
+  const activeInstall = installsQuery.data?.installations.find((i) => i.is_active) ?? null;
+
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const renameMutation = useMutation({
+    mutationFn: (name: string) =>
+      renameThemeInstallation(storeId!, activeInstall!.id, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["theme-installations", storeId] });
+      toast.success(isRTL ? "تمت إعادة تسمية الثيم" : "Theme renamed");
+      setRenameOpen(false);
+    },
+    onError: (e) => showError(e),
+  });
+
   const themesQuery = useQuery({
     queryKey: ["themes-available"],
     queryFn: fetchThemes,
@@ -335,6 +361,10 @@ const OnlineStoreLanding = () => {
           description: "",
         } as AvailableTheme)
       : ({ id: "souq", name: "Souq", description: "" } as AvailableTheme));
+
+  // Card title prefers the merchant's installation label (set via Rename),
+  // falling back to the catalog theme name.
+  const themeLabel = activeInstall?.name?.trim() || liveTheme.name;
 
   // Palette swatches from the live customization, for the hero meta row.
   const swatches = customization?.theme
@@ -529,7 +559,7 @@ const OnlineStoreLanding = () => {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-[17px] font-extrabold truncate">{liveTheme.name}</span>
+                  <span className="text-[17px] font-extrabold truncate">{themeLabel}</span>
                   <span className="souq-pill bg-navy text-white shrink-0">{isRTL ? "الحالي" : "Live"}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
@@ -545,13 +575,21 @@ const OnlineStoreLanding = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuLabel className="text-xs">{liveTheme.name}</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs">{themeLabel}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {storeUrl && (
                     <DropdownMenuItem onClick={() => window.open(storeUrl, "_blank")}>
                       <Eye className="h-3.5 w-3.5 me-2" />
                       {isRTL ? "معاينة مباشرة" : "Live preview"}
                       <ExternalLink className="h-3 w-3 ms-auto opacity-40" />
+                    </DropdownMenuItem>
+                  )}
+                  {activeInstall && (
+                    <DropdownMenuItem
+                      onClick={() => { setRenameValue(themeLabel); setRenameOpen(true); }}
+                    >
+                      <FileEdit className="h-3.5 w-3.5 me-2" />
+                      {isRTL ? "إعادة تسمية" : "Rename"}
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem onClick={goEditorV3}>
@@ -983,6 +1021,45 @@ const OnlineStoreLanding = () => {
               className="gap-1.5"
             >
               {passwordMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {isRTL ? "حفظ" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename theme dialog — sets the merchant label on the active install */}
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{isRTL ? "إعادة تسمية الثيم" : "Rename theme"}</DialogTitle>
+            <DialogDescription>
+              {isRTL
+                ? "اسم خاص بك لهذا الثيم — لا يؤثر على المتجر المباشر."
+                : "Your own label for this theme — doesn't affect the live store."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="theme-rename">{isRTL ? "اسم الثيم" : "Theme name"}</Label>
+            <Input
+              id="theme-rename"
+              value={renameValue}
+              maxLength={120}
+              autoFocus
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && renameValue.trim()) renameMutation.mutate(renameValue.trim());
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameOpen(false)}>
+              {isRTL ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button
+              onClick={() => renameMutation.mutate(renameValue.trim())}
+              disabled={!renameValue.trim() || renameMutation.isPending}
+            >
+              {renameMutation.isPending && <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />}
               {isRTL ? "حفظ" : "Save"}
             </Button>
           </DialogFooter>
