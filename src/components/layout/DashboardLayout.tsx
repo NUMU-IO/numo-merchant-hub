@@ -15,6 +15,7 @@ import DemoBanner from "@/components/demo/DemoBanner";
 import { ImpersonationBanner } from "./ImpersonationBanner";
 import { NewOrderNotifier } from "@/components/NewOrderNotifier";
 import { AgentPanel } from "@/features/agent";
+import { useNavConfig } from "@/hooks/useNavConfig";
 
 function PageFallback() {
   return (
@@ -29,11 +30,13 @@ function PageFallback() {
 
 const DashboardLayout = () => {
   const { currentStore } = useDashboardStore();
-  const { user, tenant } = useAuth();
-  // Admin-controlled (platform settings → /auth/me feature_flags). Show the
-  // Assistant unless it's been explicitly disabled, so older sessions /
-  // missing flag still behave as before.
-  const assistantEnabled = tenant?.feature_flags?.assistant_enabled !== false;
+  const { user } = useAuth();
+  // Admin-controlled via the same nav-config the sidebar tabs use
+  // (Merchant Hub Nav → key "assistant"). Read from the public
+  // /merchant-hub-nav endpoint, so visibility never depends on tenant
+  // ownership or the /auth/me session. Fails open (visible) like every tab.
+  const { isVisible } = useNavConfig();
+  const assistantEnabled = isVisible("assistant");
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
