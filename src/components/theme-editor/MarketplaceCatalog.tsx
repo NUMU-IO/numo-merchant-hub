@@ -185,7 +185,7 @@ function CatalogCard({
           </div>
           {theme.price_cents > 0 && (
             <Badge variant="secondary" className="shrink-0">
-              {(theme.price_cents / 100).toFixed(0)} EGP
+              {(theme.price_cents / 100).toFixed(0)} {theme.currency}
             </Badge>
           )}
         </div>
@@ -207,7 +207,7 @@ function CatalogCard({
               <span className="font-medium text-foreground/80">
                 {isFree
                   ? t("marketplace.card.free")
-                  : `${(theme.price_cents / 100).toFixed(0)} EGP`}
+                  : `${(theme.price_cents / 100).toFixed(0)} ${theme.currency}`}
               </span>
               <span aria-hidden="true">·</span>
               {satisfaction !== null ? (

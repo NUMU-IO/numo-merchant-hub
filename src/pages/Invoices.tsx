@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
+import TaxSettingsCard from "@/components/invoices/TaxSettingsCard";
 
 const PAGE_SIZE = 20;
 
@@ -304,6 +305,14 @@ export default function Invoices() {
           </p>
         </div>
       </div>
+
+      {storeId && (
+        <TaxSettingsCard
+          storeId={storeId}
+          isAr={isAr}
+          country={currentStore?.country || "EG"}
+        />
+      )}
 
       <Card>
         <CardHeader className="pb-3">

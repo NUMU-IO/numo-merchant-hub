@@ -87,6 +87,7 @@ const COUNTRIES: CountryOption[] = [
   { code: "KW", label: "الكويت", flag: "🇰🇼" },
 ];
 
+// Egyptian-market options (default).
 const SHIPPING_OPTIONS: ShippingOption[] = [
   { id: "bosta", label: "بوسطة", desc: "شحن آلي مع تتبع — الأفضل لمصر" },
   { id: "manual", label: "مناطق يدوية", desc: "حدد مناطق الشحن والأسعار بنفسك" },
@@ -99,6 +100,18 @@ const PAYMENT_OPTIONS: PaymentOption[] = [
   { id: "paymob_wallet", label: "محفظة إلكترونية (Paymob)", desc: "فودافون كاش وغيرها" },
   { id: "fawry", label: "فوري", desc: "الدفع عبر منافذ فوري" },
   { id: "kashier", label: "كاشير", desc: "بوابة دفع متعددة" },
+];
+
+// Saudi-market options. Bosta is Egypt-only and no Saudi carrier is
+// integrated yet, so SA gets manual zones (+ COD). Payment is COD +
+// Moyasar (mada / Visa / Mastercard / Apple Pay).
+const SHIPPING_OPTIONS_SA: ShippingOption[] = [
+  { id: "manual", label: "مناطق يدوية", desc: "حدد مناطق الشحن والأسعار بنفسك" },
+];
+
+const PAYMENT_OPTIONS_SA: PaymentOption[] = [
+  { id: "cod", label: "الدفع عند الاستلام", desc: "كاش عند التوصيل", alwaysOn: true },
+  { id: "moyasar", label: "مدى / بطاقة / Apple Pay (ميسر)", desc: "مدى، فيزا، ماستركارد، Apple Pay" },
 ];
 
 // Steps: 0 = welcome, 1-4 = config, 5 = first product, 6 = preview
@@ -124,12 +137,20 @@ export default function OnboardingWizard() {
   const { currentStore } = useDashboardStore();
   const isAr = language === "ar";
 
-  // Wizard state
+  // Wizard state. Country seeds from the store's market (chosen at store
+  // creation) so a Saudi store lands on the SA options without re-picking.
   const [step, setStep] = useState(0); // 0 = welcome
   const [businessType, setBusinessType] = useState<string>("");
-  const [country, setCountry] = useState<string>("EG");
+  const [country, setCountry] = useState<string>(
+    (currentStore?.country || "EG").toUpperCase(),
+  );
   const [shippingPref, setShippingPref] = useState<string>("");
   const [paymentMethods, setPaymentMethods] = useState<string[]>(["cod"]);
+
+  // Market-aware option lists: a Saudi store sees Moyasar + manual shipping;
+  // an Egyptian store sees Paymob/Fawry/Kashier + Bosta.
+  const paymentOptions = country === "SA" ? PAYMENT_OPTIONS_SA : PAYMENT_OPTIONS;
+  const shippingOptions = country === "SA" ? SHIPPING_OPTIONS_SA : SHIPPING_OPTIONS;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -413,7 +434,7 @@ export default function OnboardingWizard() {
         </p>
       </div>
       <div className="grid grid-cols-1 gap-3 max-w-md mx-auto">
-        {SHIPPING_OPTIONS.map((opt) => (
+        {shippingOptions.map((opt) => (
           <button
             key={opt.id}
             type="button"
@@ -453,7 +474,7 @@ export default function OnboardingWizard() {
         </p>
       </div>
       <div className="grid grid-cols-1 gap-3 max-w-md mx-auto">
-        {PAYMENT_OPTIONS.map((opt) => {
+        {paymentOptions.map((opt) => {
           const isActive = paymentMethods.includes(opt.id);
           return (
             <button

@@ -83,7 +83,7 @@ export default defineConfig(({ mode }) => ({
       "/api": {
         // Local FastAPI on :8021. Point at https://numueg.app to hit
         // staging/prod instead.
-        target: "http://127.0.0.1:8001",
+        target: "http://127.0.0.1:8021",
         changeOrigin: true,
         cookieDomainRewrite: "",
         secure: false,

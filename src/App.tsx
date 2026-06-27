@@ -35,6 +35,7 @@ const OnlineStoreNavigation = lazy(() => import("@/pages/online-store/Navigation
 const OnlineStorePreferences = lazy(() => import("@/pages/online-store/Preferences"));
 const OnlineStoreCheckoutFields = lazy(() => import("@/pages/online-store/CheckoutFields"));
 const ThemeEditor = lazy(() => import("@/pages/online-store/ThemeEditor"));
+const ThemeCodeEditor = lazy(() => import("@/pages/online-store/ThemeCodeEditor"));
 const MyThemeSubmissions = lazy(
   () => import("@/pages/online-store/MyThemeSubmissions"),
 );
@@ -232,6 +233,16 @@ const App = () => (
                     element={
                       <RouteResolver>
                         <ThemeEditor />
+                      </RouteResolver>
+                    }
+                  />
+
+                  {/* Theme code editor — full-screen, outside DashboardLayout */}
+                  <Route
+                    path="/online-store/themes/code-editor"
+                    element={
+                      <RouteResolver>
+                        <ThemeCodeEditor />
                       </RouteResolver>
                     }
                   />
