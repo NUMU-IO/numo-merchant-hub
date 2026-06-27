@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -8,10 +8,20 @@ import {
 } from "@/services/themeApi";
 import { listPages, type StorePage } from "@/services/pagesApi";
 import { browseMarketplace, type CatalogTheme } from "@/services/marketplaceApi";
+import {
+  getStorefrontPassword, updateStorefrontPassword,
+} from "@/services/storeAccessApi";
+import { showError } from "@/lib/show-error";
 import { getStoreUrl } from "@/lib/storefront";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +36,7 @@ import {
   Loader2, Globe, Pencil, Monitor, Smartphone, Copy, Check,
   MoreHorizontal, Eye, Sparkles, Code2, ChevronDown,
   CheckCircle2, Clock, Layers, FileEdit, Rocket,
-  Store, Star, Download, Tag,
+  Store, Star, Download, Tag, Lock, Unlock,
 } from "lucide-react";
 
 /* Souq Online Store landing — single command-center overview that
@@ -223,6 +233,44 @@ const OnlineStoreLanding = () => {
 
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
   const [copied, setCopied] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Storefront password gate (pre-launch lock). Reads/writes
+  // settings.password_protected via the backend; the Next.js storefront
+  // enforces it. Local dialog state mirrors the saved status.
+  const [pwDialogOpen, setPwDialogOpen] = useState(false);
+  const [pwEnabled, setPwEnabled] = useState(false);
+  const [pwValue, setPwValue] = useState("");
+  const passwordQuery = useQuery({
+    queryKey: ["storefront-password", storeId],
+    queryFn: () => getStorefrontPassword(storeId!),
+    enabled: !!storeId,
+    staleTime: 60 * 1000,
+  });
+  const passwordStatus = passwordQuery.data;
+  const openPasswordDialog = () => {
+    setPwEnabled(passwordStatus?.enabled ?? false);
+    setPwValue("");
+    setPwDialogOpen(true);
+  };
+  const passwordMutation = useMutation({
+    mutationFn: (body: { enabled: boolean; password?: string }) =>
+      updateStorefrontPassword(storeId!, body),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["storefront-password", storeId], data);
+      toast.success(
+        data.enabled
+          ? (isRTL ? "تم تفعيل حماية المتجر بكلمة مرور" : "Store is password-protected")
+          : (isRTL ? "تم إيقاف حماية كلمة المرور" : "Password protection turned off"),
+      );
+      setPwDialogOpen(false);
+    },
+    onError: (e) => showError(e),
+  });
+  const savePassword = () => {
+    const pw = pwValue.trim();
+    passwordMutation.mutate({ enabled: pwEnabled, ...(pw ? { password: pw } : {}) });
+  };
 
   const themesQuery = useQuery({
     queryKey: ["themes-available"],
@@ -515,10 +563,6 @@ const OnlineStoreLanding = () => {
                     {isRTL ? "المحرر الكلاسيكي" : "Classic editor"}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={goThemes}>
-                    <Copy className="h-3.5 w-3.5 me-2" />
-                    {isRTL ? "نسخ الثيم" : "Duplicate"}
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={goCodeEditor}>
                     <Code2 className="h-3.5 w-3.5 me-2" />
                     {isRTL ? "تعديل الكود" : "Edit code"}
@@ -570,6 +614,21 @@ const OnlineStoreLanding = () => {
                 <span className="text-muted-foreground">{isRTL ? "الصفحات" : "Pages"}</span>
                 <span className="font-semibold">{pages.length}</span>
               </div>
+              {/* Storefront password gate */}
+              <button
+                type="button"
+                onClick={openPasswordDialog}
+                className="w-full flex items-center justify-between px-3 py-2 text-[12.5px] souq-hoverrow text-start"
+              >
+                <span className="text-muted-foreground inline-flex items-center gap-1.5">
+                  {passwordStatus?.enabled ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+                  {isRTL ? "حماية بكلمة مرور" : "Password"}
+                </span>
+                <span className={`font-semibold inline-flex items-center gap-1 ${passwordStatus?.enabled ? "text-emerald-600" : "text-muted-foreground"}`}>
+                  {passwordStatus?.enabled ? (isRTL ? "مُفعّلة" : "On") : (isRTL ? "متوقفة" : "Off")}
+                  <ChevronRight className="h-3.5 w-3.5 rtl:rotate-180 opacity-50" />
+                </span>
+              </button>
             </div>
 
             {/* Palette */}
@@ -855,6 +914,80 @@ const OnlineStoreLanding = () => {
           })()}
         </CardContent>
       </Card>
+
+      {/* ─── Storefront password dialog ────────────────────────── */}
+      <Dialog open={pwDialogOpen} onOpenChange={setPwDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-4 w-4" />
+              {isRTL ? "حماية المتجر بكلمة مرور" : "Password protect your store"}
+            </DialogTitle>
+            <DialogDescription>
+              {isRTL
+                ? "اطلب كلمة مرور من الزوار لعرض متجرك — مفيد قبل الإطلاق. لا يؤثر على لوحة التحكم."
+                : "Require visitors to enter a password to view your storefront — useful before launch. Doesn't affect your dashboard."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+              <div>
+                <p className="text-sm font-semibold">
+                  {isRTL ? "تفعيل الحماية" : "Restrict access"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {isRTL ? "إظهار صفحة كلمة المرور للزوار" : "Show a password page to visitors"}
+                </p>
+              </div>
+              <Switch checked={pwEnabled} onCheckedChange={setPwEnabled} />
+            </div>
+
+            {pwEnabled && (
+              <div className="space-y-1.5">
+                <Label htmlFor="store-password" className="text-xs">
+                  {isRTL ? "كلمة المرور" : "Password"}
+                </Label>
+                <Input
+                  id="store-password"
+                  type="text"
+                  value={pwValue}
+                  onChange={(e) => setPwValue(e.target.value)}
+                  placeholder={
+                    passwordStatus?.has_password
+                      ? (isRTL ? "•••••••• (بدون تغيير)" : "•••••••• (unchanged)")
+                      : (isRTL ? "اكتب كلمة مرور" : "Enter a password")
+                  }
+                  dir="ltr"
+                  autoComplete="off"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {passwordStatus?.has_password
+                    ? (isRTL ? "اتركها فارغة للإبقاء على كلمة المرور الحالية." : "Leave blank to keep the current password.")
+                    : (isRTL ? "سيحتاجها الزوار للدخول إلى متجرك." : "Shoppers will need this to enter your store.")}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPwDialogOpen(false)}>
+              {isRTL ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button
+              onClick={savePassword}
+              disabled={
+                passwordMutation.isPending ||
+                (pwEnabled && !passwordStatus?.has_password && !pwValue.trim())
+              }
+              className="gap-1.5"
+            >
+              {passwordMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {isRTL ? "حفظ" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

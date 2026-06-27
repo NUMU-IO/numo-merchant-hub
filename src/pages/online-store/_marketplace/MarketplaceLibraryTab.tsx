@@ -39,6 +39,11 @@ import {
   RefreshCw,
   Sparkles,
   Trash2,
+  Calendar,
+  Globe,
+  Star,
+  Download,
+  Tag,
 } from "lucide-react";
 import {
   activateTheme,
@@ -47,6 +52,7 @@ import {
   type InstalledTheme,
 } from "@/services/marketplaceApi";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { getStoreUrl } from "@/lib/storefront";
 import { ActivateModal } from "./ActivateModal";
 import { UninstallModal } from "./UninstallModal";
@@ -296,6 +302,7 @@ function InstalledThemeRow({
   onPreview,
 }: InstalledThemeRowProps) {
   const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const themeMeta = theme.theme;
   const versionMeta = theme.version;
   const installedDate = useMemo(() => {
@@ -310,103 +317,170 @@ function InstalledThemeRow({
   const name = themeMeta?.name ?? slug;
   const versionString = versionMeta?.version_string ?? "?";
   const thumbnail = themeMeta?.thumbnail_url ?? null;
+  const desc = themeMeta?.short_description || themeMeta?.description || null;
+  const category = themeMeta?.category || null;
+  const langs = (themeMeta?.supported_languages ?? []).map((l) => l.toUpperCase());
+  const author = themeMeta?.author_name || null;
+  const rating = themeMeta?.average_rating ?? 0;
+  const installs = themeMeta?.install_count ?? 0;
+  const free = (themeMeta?.price_cents ?? 0) <= 0;
+  const featureTags = (themeMeta?.feature_tags ?? []).slice(0, 4);
 
   return (
     <Card
       className={
-        "transition-all" +
+        "overflow-hidden transition-all hover:shadow-md" +
         (isActive ? " ring-2 ring-primary/30 shadow-sm" : "")
       }
     >
       <CardContent className="p-4">
-        <div className="flex items-start gap-4 flex-wrap">
-          {/* Thumbnail — falls back to slug initials when no thumbnail
-              URL is set. */}
-          <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center shrink-0 text-muted-foreground font-semibold uppercase overflow-hidden">
+        <div className="flex gap-5 flex-col sm:flex-row">
+          {/* Wide theme preview image */}
+          <div className="relative w-full sm:w-56 lg:w-64 shrink-0 aspect-[16/10] rounded-xl overflow-hidden border bg-muted">
             {thumbnail ? (
               <img
                 src={thumbnail}
-                alt=""
-                className="w-full h-full object-cover"
+                alt={`${name} preview`}
+                className="w-full h-full object-cover object-top"
+                loading="lazy"
                 onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                  const el = e.currentTarget as HTMLImageElement;
+                  el.style.display = "none";
+                  el.parentElement?.classList.add("from-primary/10", "to-primary/5", "bg-gradient-to-br");
                 }}
               />
             ) : (
-              <span>{slug.slice(0, 2)}</span>
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5 text-2xl font-bold uppercase text-primary/40">
+                {slug.slice(0, 2)}
+              </div>
+            )}
+            {isActive && (
+              <Badge className="absolute top-2 start-2 bg-primary text-primary-foreground gap-1 shadow">
+                <CheckCircle2 className="h-3 w-3" />
+                {t("marketplace.library.live")}
+              </Badge>
             )}
           </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-semibold text-base truncate">{name}</h3>
-              {isActive ? (
-                <Badge className="bg-primary/15 text-primary border-primary/30 gap-1">
-                  <CheckCircle2 className="h-3 w-3" />
-                  {t("marketplace.library.live")}
-                </Badge>
-              ) : (
+          {/* Details */}
+          <div className="flex-1 min-w-0 flex flex-col gap-2">
+            <div className="flex items-start gap-2 flex-wrap">
+              <h3 className="font-bold text-lg leading-tight truncate">{name}</h3>
+              {!isActive && (
                 <Badge variant="outline" className="gap-1 text-muted-foreground">
                   <Circle className="h-3 w-3" />
                   {t("marketplace.library.notActive")}
                 </Badge>
               )}
+              {category && (
+                <Badge variant="secondary" className="gap-1 text-[11px]">
+                  <Tag className="h-3 w-3" />
+                  {category}
+                </Badge>
+              )}
+              <Badge
+                variant="outline"
+                className={`text-[11px] ${free ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5" : ""}`}
+              >
+                {free ? (isRTL ? "مجاني" : "Free") : `${((themeMeta?.price_cents ?? 0) / 100).toLocaleString()} ${themeMeta?.currency ?? "EGP"}`}
+              </Badge>
             </div>
-            <p className="text-xs text-muted-foreground font-mono mt-1">
-              {slug} · v{versionString}
-              {installedDate ? (
-                <> · {t("marketplace.library.installedOn", { date: installedDate })}</>
-              ) : null}
-            </p>
-          </div>
 
-          <div className="flex items-center gap-2 ms-auto shrink-0 flex-wrap">
-            {isActive ? (
-              <>
-                <Button size="sm" onClick={onCustomize}>
-                  <Pencil className="h-3.5 w-3.5 me-1.5" />
-                  {t("marketplace.library.customize")}
-                </Button>
-                {storeUrl ? (
+            {desc && (
+              <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                {desc}
+              </p>
+            )}
+
+            {/* Meta row */}
+            <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs text-muted-foreground">
+              <span className="font-mono">v{versionString}</span>
+              {installedDate && (
+                <span className="inline-flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {t("marketplace.library.installedOn", { date: installedDate })}
+                </span>
+              )}
+              {langs.length > 0 && (
+                <span className="inline-flex items-center gap-1">
+                  <Globe className="h-3 w-3" />
+                  {langs.join(" · ")}
+                </span>
+              )}
+              {rating > 0 && (
+                <span className="inline-flex items-center gap-1">
+                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                  {rating.toFixed(1)}
+                </span>
+              )}
+              {installs > 0 && (
+                <span className="inline-flex items-center gap-1">
+                  <Download className="h-3 w-3" />
+                  {installs.toLocaleString()}
+                </span>
+              )}
+              {author && <span>{isRTL ? "بواسطة" : "by"} {author}</span>}
+            </div>
+
+            {/* Feature tags */}
+            {featureTags.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {featureTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 flex-wrap pt-1 mt-auto">
+              {isActive ? (
+                <>
+                  <Button size="sm" onClick={onCustomize}>
+                    <Pencil className="h-3.5 w-3.5 me-1.5" />
+                    {t("marketplace.library.customize")}
+                  </Button>
+                  {storeUrl ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.open(storeUrl, "_blank")}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 me-1.5" />
+                      {t("marketplace.library.viewStore")}
+                    </Button>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <Button size="sm" onClick={onActivate}>
+                    {t("marketplace.library.activate")}
+                  </Button>
                   <Button
                     size="sm"
-                    variant="outline"
-                    onClick={() => window.open(storeUrl, "_blank")}
+                    variant="ghost"
+                    onClick={onPreview}
+                    title={t("marketplace.library.previewTooltip")}
                   >
-                    <ExternalLink className="h-3.5 w-3.5 me-1.5" />
-                    {t("marketplace.library.viewStore")}
+                    <Eye className="h-3.5 w-3.5 me-1.5" />
+                    {t("marketplace.library.preview")}
                   </Button>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <Button size="sm" onClick={onActivate}>
-                  {t("marketplace.library.activate")}
-                </Button>
-                {/* Session E — Preview wires to the full-screen iframe
-                    at /online-store/themes/preview/<slug>. The iframe
-                    runs the marketplace bundle against the merchant's
-                    own storefront read-only (no store_themes write). */}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onPreview}
-                  title={t("marketplace.library.previewTooltip")}
-                >
-                  <Eye className="h-3.5 w-3.5 me-1.5" />
-                  {t("marketplace.library.preview")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onUninstall}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5 me-1.5" />
-                  {t("marketplace.library.uninstall")}
-                </Button>
-              </>
-            )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={onUninstall}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 me-1.5" />
+                    {t("marketplace.library.uninstall")}
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </CardContent>
