@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+// Bundle Monaco locally (no jsdelivr CDN) so the editor loads behind the
+// hub's CSP / offline. Side-effect import — must precede <Editor> use.
+import "@/lib/monaco-setup";
 import Editor from "@monaco-editor/react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
