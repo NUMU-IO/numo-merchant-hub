@@ -157,7 +157,7 @@ const DevicePreview = ({
             <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
           </span>
-          <span className="flex-1 mx-2 h-5 rounded-md bg-card border border-border flex items-center px-2.5 gap-1.5 text-[11px] text-muted-foreground font-mono ltr-nums truncate">
+          <span dir="ltr" className="flex-1 mx-2 h-6 rounded-md bg-card border border-border flex items-center px-2.5 gap-1.5 text-[11px] leading-none text-muted-foreground font-mono ltr-nums overflow-hidden">
             <Globe className="h-3 w-3 shrink-0" strokeWidth={2.2} />
             <span className="truncate">{host ?? "—"}</span>
           </span>
