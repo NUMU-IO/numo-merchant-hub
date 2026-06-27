@@ -1,19 +1,24 @@
 /**
  * Storefront URL helpers.
  *
- * Uses VITE_STOREFRONT_URL — a URL template with a {subdomain} placeholder.
- *   Dev:  "http://{subdomain}.localhost:3000"
- *   Prod: "https://{subdomain}.numueg.app"
+ * URL template with a {subdomain} placeholder. Resolution order:
+ *   1. VITE_V3_STOREFRONT_URL — the V3 storefront (numu-storefront), when the
+ *      env has one (test → "https://{subdomain}.v3.test.numueg.app"). This is
+ *      the same var the theme preview uses, so "Visit store" and the preview
+ *      always point at the SAME storefront.
+ *   2. VITE_STOREFRONT_URL — legacy bazaar storefront fallback
+ *      (prod → "https://{subdomain}.numueg.app").
+ *   3. Local dev default.
  *
- * The default points at port 3000 because numu-egyptian-bazaar has been
- * migrated to Next.js (`next dev --turbopack`). The legacy Vite build on
- * port 8081 is still available via `bun run dev:vite` but isn't the
- * primary dev surface anymore — devs running it can override the port
- * via VITE_STOREFRONT_URL in .env.local.
+ * Keeping V3 first makes the V3 storefront the single main store everywhere
+ * it's configured; envs without a V3 storefront (V3 var unset) fall back to
+ * the bazaar URL with no behavior change.
  */
 
 const STOREFRONT_URL_TEMPLATE =
-  import.meta.env.VITE_STOREFRONT_URL || "http://{subdomain}.localhost:3000";
+  import.meta.env.VITE_V3_STOREFRONT_URL ||
+  import.meta.env.VITE_STOREFRONT_URL ||
+  "http://{subdomain}.localhost:3000";
 
 /** Build the full storefront URL for a given subdomain. */
 export function getStoreUrl(subdomain: string): string {
