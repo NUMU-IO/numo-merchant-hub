@@ -91,3 +91,39 @@ export function publishThemeCode(storeId: string): Promise<ThemeBuildResponse> {
     method: "POST",
   });
 }
+
+// ── Theme installation (rename) ───────────────────────────────────────────
+// The store's installed themes (V2). The editor uses the active one's name so
+// merchants can rename the theme they're editing.
+
+export interface ThemeInstallation {
+  id: string;
+  name: string | null;
+  display_name?: string | null;
+  theme_name?: string | null;
+  is_active: boolean;
+}
+
+export interface InstalledThemesResponse {
+  installations: ThemeInstallation[];
+  active_installation_id: string | null;
+}
+
+/** List the store's installed themes (active + inactive). */
+export function listThemeInstallations(
+  storeId: string,
+): Promise<InstalledThemesResponse> {
+  return apiClient<InstalledThemesResponse>(`/stores/${storeId}/themes/v2/installed`);
+}
+
+/** Rename a theme installation (sets store_themes.name). */
+export function renameThemeInstallation(
+  storeId: string,
+  installationId: string,
+  name: string,
+): Promise<ThemeInstallation> {
+  return apiClient<ThemeInstallation>(
+    `/stores/${storeId}/themes/v2/${installationId}`,
+    { method: "PATCH", body: JSON.stringify({ name }) },
+  );
+}

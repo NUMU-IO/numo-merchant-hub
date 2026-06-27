@@ -14,11 +14,12 @@ import { fetchBuildStatus, type ThemeBuildStatus } from "@/services/themeApi";
 import {
   listThemeFiles, readThemeFile, writeThemeFile, deleteThemeFile,
   scaffoldTheme, publishThemeCode,
+  listThemeInstallations, renameThemeInstallation,
 } from "@/services/themeCodeApi";
 import {
   ChevronLeft, ChevronRight, File as FileIcon, FileJson, FileCode2, FileText,
   FolderOpen, Folder, Save, Rocket, Loader2, Plus, Trash2, Sparkles,
-  CheckCircle2, AlertTriangle, Code2, RefreshCw, X, Hash,
+  CheckCircle2, AlertTriangle, Code2, RefreshCw, X, Hash, Pencil,
 } from "lucide-react";
 
 /* Online Store → Edit code. A VS Code / Shopify-style theme code editor:
@@ -157,6 +158,8 @@ const ThemeCodeEditor = () => {
   const [newFileOpen, setNewFileOpen] = useState(false);
   const [newFilePath, setNewFilePath] = useState("");
   const [buildStatus, setBuildStatus] = useState<ThemeBuildStatus | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSeedRef = useRef(false);
 
@@ -166,6 +169,27 @@ const ThemeCodeEditor = () => {
     enabled: !!storeId,
     retry: 1,
   });
+
+  // Active theme installation — drives the editable theme name in the header.
+  const instQuery = useQuery({
+    queryKey: ["theme-installations", storeId],
+    queryFn: () => listThemeInstallations(storeId!),
+    enabled: !!storeId,
+  });
+  const activeInst = instQuery.data?.installations.find((i) => i.is_active) ?? null;
+  const themeName =
+    activeInst?.name || activeInst?.display_name || activeInst?.theme_name || (currentStore?.name ?? "");
+
+  const saveRename = useCallback(async () => {
+    setRenaming(false);
+    const next = nameDraft.trim();
+    if (!storeId || !activeInst || !next || next === themeName) return;
+    try {
+      await renameThemeInstallation(storeId, activeInst.id, next);
+      await instQuery.refetch();
+      toast.success(isRTL ? "تمت إعادة تسمية الثيم" : "Theme renamed");
+    } catch (e) { showError(e); }
+  }, [storeId, activeInst, nameDraft, themeName, instQuery, isRTL]);
   const files = filesQuery.data?.files ?? [];
   const hasWorkspace = filesQuery.data?.has_workspace ?? false;
   const tree = useMemo(() => buildTree(files.map((f) => f.path)), [files]);
@@ -313,7 +337,31 @@ const ThemeCodeEditor = () => {
           <Code2 className="h-4 w-4 text-sky-400" />
           <span>{isRTL ? "محرّر الكود" : "Edit code"}</span>
         </div>
-        <span className="text-xs text-[#cccccc]/50 truncate hidden sm:inline">{currentStore?.name}</span>
+        {activeInst ? (
+          renaming ? (
+            <input
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={saveRename}
+              onKeyDown={(e) => { if (e.key === "Enter") saveRename(); if (e.key === "Escape") setRenaming(false); }}
+              className="h-7 w-44 px-2 text-xs rounded bg-[#3c3c3c] border border-sky-500 text-white outline-none"
+              aria-label={isRTL ? "اسم الثيم" : "Theme name"}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setNameDraft(themeName); setRenaming(true); }}
+              className="group/name hidden sm:flex items-center gap-1 text-xs text-[#cccccc]/60 hover:text-white max-w-[220px]"
+              title={isRTL ? "إعادة تسمية الثيم" : "Rename theme"}
+            >
+              <span className="truncate">{themeName || "—"}</span>
+              <Pencil className="h-3 w-3 shrink-0 opacity-0 group-hover/name:opacity-100" />
+            </button>
+          )
+        ) : (
+          <span className="text-xs text-[#cccccc]/50 truncate hidden sm:inline">{currentStore?.name}</span>
+        )}
         <div className="ms-auto flex items-center gap-2">
           {buildStatus && (
             <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
