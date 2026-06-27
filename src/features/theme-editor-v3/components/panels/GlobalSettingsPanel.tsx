@@ -34,7 +34,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { uploadStoreAsset } from "@/services/storeApi";
+import { uploadStoreAsset, updateStore } from "@/services/storeApi";
+import { useDashboardStore } from "@/contexts/StoreContext";
 import { Button } from "@/components/ui/button";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
 import { useCustomizerStore } from "../../store/customizerStore";
@@ -54,12 +55,6 @@ export function GlobalSettingsPanel() {
   const settings = schemas?.global_settings ?? [];
   const values = (draft?.global_settings ?? {}) as Record<string, unknown>;
   const isAr = locale === "ar";
-
-  // Only show the built-in favicon control when the active theme doesn't
-  // already expose its own `favicon` setting (some V3 themes declare an
-  // image_picker with id "favicon" in their settings_schema.json). Both
-  // write the same `global_settings.favicon` key, so we avoid a duplicate.
-  const themeHasFavicon = settings.some((s) => s.id === "favicon");
 
   return (
     <div className="flex h-full flex-col">
@@ -98,22 +93,18 @@ export function GlobalSettingsPanel() {
           />
         )}
 
-        {/* Favicon — always available (unless the theme ships its own picker).
-            Writes `global_settings.favicon`, which the storefront <head> reads
-            when rendering the browser-tab icon. */}
-        {!themeHasFavicon && (
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {isAr ? "أيقونة المتصفح" : "Favicon"}
-            </h3>
-            <FaviconField
-              storeId={storeId ?? undefined}
-              value={(values.favicon as string) ?? ""}
-              onChange={(url) => updateGlobalSetting("favicon", url)}
-              isAr={isAr}
-            />
-          </div>
-        )}
+        {/* Favicon — STORE-level (settings.favicon_url), not a theme setting.
+            It lives here as a convenient entry point, but it writes the
+            store-wide favicon so it persists across theme switches and always
+            wins in the storefront's favicon resolution. (Setting it as a
+            per-theme `global_settings.favicon` meant it silently vanished when
+            the merchant switched themes — store-level fixes that.) */}
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {isAr ? "أيقونة المتصفح" : "Favicon"}
+          </h3>
+          <FaviconField isAr={isAr} />
+        </div>
 
         {/* Store-level social links — always available, even when the theme
             exposes no global settings. Drives the storefront footer icons. */}
@@ -124,39 +115,56 @@ export function GlobalSettingsPanel() {
 }
 
 /**
- * FaviconField — built-in browser-tab icon uploader for the V3 customizer.
- * Uploads via the shared customization asset endpoint (asset_type "favicon")
- * and stores a plain URL string in `global_settings.favicon`. The storefront
- * layout reads that key when assembling per-store <head> metadata.
+ * FaviconField — browser-tab icon uploader for the V3 customizer.
+ *
+ * Writes the STORE-level favicon (`store.settings.favicon_url`) via the store
+ * update API — NOT a per-theme `global_settings.favicon`. Favicon is a property
+ * of the store, not the theme: storing it per-theme meant it disappeared the
+ * moment a merchant switched themes (the active theme had no favicon, so the
+ * storefront fell back to the platform default). Going through `updateStore`
+ * keeps a single store-wide value that survives theme switches and out-ranks
+ * everything in the storefront's favicon resolution.
  */
-function FaviconField({
-  storeId,
-  value,
-  onChange,
-  isAr,
-}: {
-  storeId: string | undefined;
-  value: string;
-  onChange: (url: string) => void;
-  isAr: boolean;
-}) {
+function FaviconField({ isAr }: { isAr: boolean }) {
+  const { currentStore, refetchStores } = useDashboardStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const value =
+    ((currentStore?.settings as { favicon_url?: string } | null)?.favicon_url ??
+      "") || "";
 
   const onCropDone = async (blob: Blob) => {
-    if (!storeId) return;
-    setUploading(true);
+    if (!currentStore?.id) return;
+    setSaving(true);
     try {
       const file = new File([blob], "favicon.png", { type: "image/png" });
-      const result = await uploadStoreAsset(storeId, file, "favicon");
-      onChange(result.url);
+      const result = await uploadStoreAsset(currentStore.id, file, "favicon");
+      await updateStore(currentStore.id, {
+        settings: { favicon_url: result.url },
+      });
+      await refetchStores();
       setCropSrc(null);
       toast.success(isAr ? "تم رفع الأيقونة" : "Favicon uploaded");
     } catch {
       toast.error(isAr ? "فشل رفع الأيقونة" : "Failed to upload favicon");
     } finally {
-      setUploading(false);
+      setSaving(false);
+    }
+  };
+
+  const onRemove = async () => {
+    if (!currentStore?.id) return;
+    setSaving(true);
+    try {
+      await updateStore(currentStore.id, { settings: { favicon_url: "" } });
+      await refetchStores();
+      toast.success(isAr ? "تم إزالة الأيقونة" : "Favicon removed");
+    } catch {
+      toast.error(isAr ? "فشل إزالة الأيقونة" : "Failed to remove favicon");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -164,8 +172,8 @@ function FaviconField({
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
         {isAr
-          ? "أيقونة مربعة تظهر في تبويب المتصفح — يُفضّل ٥١٢×٥١٢ بكسل."
-          : "The square icon shown in the browser tab. 512×512px works best."}
+          ? "أيقونة مربعة تظهر في تبويب المتصفح — تنطبق على متجرك بالكامل وتبقى عند تغيير الثيم. يُفضّل صورة بسيطة عالية التباين ٥١٢×٥١٢ بكسل."
+          : "The square icon shown in the browser tab — applies to your whole store and survives theme switches. A simple, high-contrast 512×512px image works best."}
       </p>
 
       <input
@@ -203,9 +211,9 @@ function FaviconField({
             size="sm"
             className="h-8 gap-1.5"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading || !storeId}
+            disabled={saving || !currentStore?.id}
           >
-            {uploading ? (
+            {saving ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Upload className="h-3.5 w-3.5" />
@@ -224,7 +232,8 @@ function FaviconField({
               variant="ghost"
               size="sm"
               className="h-8 gap-1.5 text-muted-foreground hover:text-destructive"
-              onClick={() => onChange("")}
+              disabled={saving}
+              onClick={onRemove}
             >
               <Trash2 className="h-3.5 w-3.5" />
               {isAr ? "إزالة" : "Remove"}
@@ -241,7 +250,7 @@ function FaviconField({
           cropShape="rect"
           aspect={1}
           title={isAr ? "تعديل الأيقونة (مربعة)" : "Edit favicon (square)"}
-          loading={uploading}
+          loading={saving}
           onCropComplete={onCropDone}
         />
       )}
