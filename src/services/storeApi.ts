@@ -121,6 +121,10 @@ export interface UpdateStoreData {
   settings?: Record<string, unknown>;
   theme_settings?: Record<string, unknown>;
   business_hours?: Record<string, unknown> | null;
+  /** Market country code (e.g. EG, SA) — re-resolves the market. */
+  country?: string;
+  /** ISO 4217 currency (e.g. EGP, SAR). Per-store; affects only this store. */
+  default_currency?: string;
 }
 
 export async function updateStore(

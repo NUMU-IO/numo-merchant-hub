@@ -561,6 +561,7 @@ const StoreSettings = () => {
   // UI state
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [savingMarket, setSavingMarket] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [logoCropSrc, setLogoCropSrc] = useState<string | null>(null);
   const [showLogoCrop, setShowLogoCrop] = useState(false);
@@ -3863,6 +3864,65 @@ const StoreSettings = () => {
                       ? "Starter"
                       : "Free"}
                   </Badge>
+                </div>
+              </div>
+
+              {/* Market & currency — per-store; changing it updates ONLY this
+                  store's market/currency (not other stores). */}
+              <div className="settings-field-group-label mt-6">
+                {language === "ar" ? "السوق والعملة" : "Market & Currency"}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-[13px] font-medium">
+                    {language === "ar" ? "السوق" : "Market"}
+                  </Label>
+                  <select
+                    aria-label={language === "ar" ? "السوق" : "Market"}
+                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm disabled:opacity-50"
+                    value={currentStore?.country || "EG"}
+                    disabled={savingMarket || !currentStore?.id}
+                    onChange={async (e) => {
+                      const country = e.target.value;
+                      if (!currentStore?.id) return;
+                      try {
+                        setSavingMarket(true);
+                        await updateStore(currentStore.id, { country });
+                        await refetchStores(currentStore.id);
+                        toast.success(
+                          language === "ar"
+                            ? "تم تحديث السوق والعملة لهذا المتجر"
+                            : "Market & currency updated for this store",
+                        );
+                      } catch (err) {
+                        showError(err, language);
+                      } finally {
+                        setSavingMarket(false);
+                      }
+                    }}
+                  >
+                    <option value="EG">
+                      {language === "ar" ? "🇪🇬 مصر (EGP)" : "🇪🇬 Egypt (EGP)"}
+                    </option>
+                    <option value="SA">
+                      {language === "ar"
+                        ? "🇸🇦 السعودية (SAR)"
+                        : "🇸🇦 Saudi Arabia (SAR)"}
+                    </option>
+                  </select>
+                  <p className="text-[11px] text-muted-foreground">
+                    {language === "ar"
+                      ? "يحدد عملة هذا المتجر فقط — لا يؤثر على متاجرك الأخرى."
+                      : "Sets the currency for this store only — other stores are unaffected."}
+                  </p>
+                </div>
+                <div className="rounded-xl border bg-muted/5 p-4">
+                  <p className="text-[0.6875rem] font-medium text-muted-foreground/60 uppercase tracking-wider mb-1.5">
+                    {t("common.currency")}
+                  </p>
+                  <p className="text-sm font-semibold ltr-nums">
+                    {currentStore?.default_currency || "EGP"}
+                  </p>
                 </div>
               </div>
             </div>
