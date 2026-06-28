@@ -724,9 +724,13 @@ export const useCustomizerStore = create<CustomizerStore>()(
           set((s) => {
             s.isSaving = true;
           });
-          await saveDraftV3(storeId, draft, {
+          const saved = await saveDraftV3(storeId, draft, {
             expectedEtag: draftEtag,
-            // The echoed ETag becomes the baseline for the next autosave.
+            // Fallback only: the response BODY etag (read below) is the
+            // authoritative new baseline. The `ETag` header can be rewritten
+            // (weak-validator) or dropped by a proxy/CDN, so we don't rely on
+            // it to advance the token — otherwise the token goes stale and
+            // every save after the first 409s.
             onEtag: (etag) => {
               if (etag) {
                 set((s) => {
@@ -736,6 +740,8 @@ export const useCustomizerStore = create<CustomizerStore>()(
             },
           });
           set((s) => {
+            // Body-delivered etag wins — it survives proxy header rewriting.
+            if (saved?.etag) s.draftEtag = saved.etag;
             s.isSaving = false;
             s.isDirty = false;
             s.lastSavedAt = new Date().toISOString();

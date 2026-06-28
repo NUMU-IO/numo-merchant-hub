@@ -299,6 +299,10 @@ export interface CustomizationVersion {
 
 export interface AutosaveDraftResponse {
   draft: ThemeSettingsV3;
+  /** New optimistic-concurrency token to echo on the next autosave. Delivered
+   *  in the body because a proxy/CDN can rewrite or drop the `ETag` header in
+   *  transit; the header remains a fallback. */
+  etag?: string | null;
 }
 
 export interface RevalidationSummary {
