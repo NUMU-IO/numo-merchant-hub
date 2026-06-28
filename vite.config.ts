@@ -39,12 +39,27 @@ function vitePluginCSP(): Plugin {
               content:
                 [
                   "default-src 'self'",
-                  "script-src 'self' https://accounts.google.com https://apis.google.com",
+                  // connect.facebook.net hosts the JS SDK loaded by the
+                  // Meta Embedded Signup flow on /whatsapp (BYO connect).
+                  // The SDK injects inline scripts as part of its boot.
+                  //
+                  // `script-src-elem` controls dynamically-injected
+                  // <script src> elements; `script-src-attr` controls
+                  // inline event handlers. Some Chromium builds don't
+                  // cleanly fall back from script-src to script-src-elem
+                  // for runtime-injected scripts, so we set both.
+                  "script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://connect.facebook.net",
+                  "script-src-elem 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://connect.facebook.net",
+                  "script-src-attr 'self' 'unsafe-inline'",
                   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
                   "font-src 'self' https://fonts.gstatic.com",
                   "img-src 'self' data: blob: https:",
-                  "connect-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.de.sentry.io",
-                  "frame-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com",
+                  // graph.facebook.com is hit by the SDK when exchanging
+                  // the embedded-signup token; backend mirrors live on
+                  // numueg.app so we keep that too.
+                  "connect-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.de.sentry.io https://graph.facebook.com https://*.facebook.com",
+                  // www.facebook.com is the Embedded Signup dialog iframe.
+                  "frame-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com https://www.facebook.com https://*.facebook.com",
                   "worker-src 'self' blob:",
                 ].join("; ") + ";",
             },
@@ -68,18 +83,14 @@ export default defineConfig(({ mode }) => ({
       "/api": {
         // Local FastAPI on :8021. Point at https://numueg.app to hit
         // staging/prod instead.
-        target: "http://localhost:8021",
+        target: "http://127.0.0.1:8021",
         changeOrigin: true,
         cookieDomainRewrite: "",
         secure: false,
       },
     },
   },
-  plugins: [
-    react(),
-    vitePluginCSP(),
-    viteStripHeavyPreloads(),
-  ],
+  plugins: [react(), vitePluginCSP(), viteStripHeavyPreloads()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

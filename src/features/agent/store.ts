@@ -1,0 +1,165 @@
+/**
+ * Zustand store for the Agent panel — conversation messages + streaming state.
+ * Mirrors the feature-store pattern used by features/theme-editor-v3.
+ */
+import { create } from "zustand";
+
+import { confirmProposal, streamAgentChat, undoLast, type AgentEvent } from "./api";
+
+export interface AgentProposal {
+  proposal_id: string;
+  summary?: string;
+  diff?: Record<string, unknown>;
+  status: "pending" | "applying" | "applied" | "declined" | "error";
+}
+
+export interface AgentMessage {
+  id: string;
+  role: "user" | "agent";
+  text: string;
+  status?: "streaming" | "working" | "done" | "error";
+  proposal?: AgentProposal;
+}
+
+interface AgentState {
+  isOpen: boolean;
+  isStreaming: boolean;
+  conversationId: string | null;
+  messages: AgentMessage[];
+  open: () => void;
+  close: () => void;
+  toggle: () => void;
+  reset: () => void;
+  sendMessage: (storeId: string, text: string, locale: "ar" | "en") => Promise<void>;
+  confirmProposal: (storeId: string, messageId: string) => Promise<void>;
+  declineProposal: (storeId: string, messageId: string) => Promise<void>;
+  undo: (storeId: string) => Promise<void>;
+}
+
+let _seq = 0;
+const nextId = () => `m${Date.now()}_${_seq++}`;
+
+export const useAgentStore = create<AgentState>((set, get) => ({
+  isOpen: false,
+  isStreaming: false,
+  conversationId: null,
+  messages: [],
+
+  open: () => set({ isOpen: true }),
+  close: () => set({ isOpen: false }),
+  toggle: () => set((s) => ({ isOpen: !s.isOpen })),
+  reset: () => set({ messages: [], conversationId: null, isStreaming: false }),
+
+  sendMessage: async (storeId, text, locale) => {
+    const trimmed = text.trim();
+    if (!trimmed || get().isStreaming) return;
+
+    const userMsg: AgentMessage = { id: nextId(), role: "user", text: trimmed };
+    const agentMsg: AgentMessage = { id: nextId(), role: "agent", text: "", status: "working" };
+    set((s) => ({ messages: [...s.messages, userMsg, agentMsg], isStreaming: true }));
+
+    const patchAgent = (patch: Partial<AgentMessage>) =>
+      set((s) => ({
+        messages: s.messages.map((m) => (m.id === agentMsg.id ? { ...m, ...patch } : m)),
+      }));
+
+    const onEvent = (ev: AgentEvent) => {
+      switch (ev.type) {
+        case "meta":
+          if (typeof ev.data.conversation_id === "string")
+            set({ conversationId: ev.data.conversation_id });
+          break;
+        case "tool_call":
+          patchAgent({ status: "working" });
+          break;
+        case "message":
+          if (typeof ev.data.text === "string")
+            patchAgent({ text: ev.data.text, status: "streaming" });
+          break;
+        case "proposal":
+          patchAgent({
+            proposal: {
+              proposal_id: ev.data.proposal_id as string,
+              summary: ev.data.summary as string | undefined,
+              diff: ev.data.diff as Record<string, unknown> | undefined,
+              status: "pending",
+            },
+          });
+          break;
+        case "done":
+          patchAgent({ status: "done" });
+          break;
+        case "error":
+          patchAgent({
+            text:
+              (ev.data.message as string) ||
+              "The assistant is unavailable right now.",
+            status: "error",
+          });
+          break;
+      }
+    };
+
+    try {
+      await streamAgentChat(
+        storeId,
+        { message: trimmed, conversation_id: get().conversationId, locale },
+        onEvent,
+      );
+    } catch {
+      patchAgent({
+        text: "Something went wrong. Please try again.",
+        status: "error",
+      });
+    } finally {
+      set({ isStreaming: false });
+    }
+  },
+
+  confirmProposal: async (storeId, messageId) => {
+    const msg = get().messages.find((m) => m.id === messageId);
+    const proposal = msg?.proposal;
+    if (!proposal || proposal.status !== "pending") return;
+
+    const patchProposal = (status: AgentProposal["status"]) =>
+      set((s) => ({
+        messages: s.messages.map((m) =>
+          m.id === messageId && m.proposal
+            ? { ...m, proposal: { ...m.proposal, status } }
+            : m,
+        ),
+      }));
+
+    patchProposal("applying");
+    try {
+      await confirmProposal(storeId, proposal.proposal_id, "confirm");
+      patchProposal("applied");
+    } catch {
+      patchProposal("error");
+    }
+  },
+
+  declineProposal: async (storeId, messageId) => {
+    const msg = get().messages.find((m) => m.id === messageId);
+    const proposal = msg?.proposal;
+    if (!proposal || proposal.status !== "pending") return;
+    try {
+      await confirmProposal(storeId, proposal.proposal_id, "decline");
+    } catch {
+      /* declining is best-effort */
+    }
+    set((s) => ({
+      messages: s.messages.map((m) =>
+        m.id === messageId && m.proposal
+          ? { ...m, proposal: { ...m.proposal, status: "declined" } }
+          : m,
+      ),
+    }));
+  },
+
+  undo: async (storeId) => {
+    const conversationId = get().conversationId;
+    if (!conversationId) return;
+    await undoLast(storeId, conversationId).catch(() => undefined);
+  },
+}));

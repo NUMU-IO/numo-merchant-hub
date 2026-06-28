@@ -2,8 +2,8 @@ import { MarketingTab } from "@/components/analytics/MarketingTab";
 import { AnalyticsLayout, useAnalyticsContext } from "@/components/analytics/AnalyticsLayout";
 
 function MarketingContent() {
-  const { period, formatCurrency } = useAnalyticsContext();
-  return <MarketingTab period={period} formatCurrency={formatCurrency} />;
+  const { range, formatCurrency } = useAnalyticsContext();
+  return <MarketingTab range={range} formatCurrency={formatCurrency} />;
 }
 
 export default function MarketingPage() {

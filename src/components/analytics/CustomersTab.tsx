@@ -5,9 +5,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Users, Crown, Heart, AlertTriangle, UserX, UserPlus, Sparkles, DollarSign } from "lucide-react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { getCustomerSegments } from "@/services/analyticsApi";
+import { dateRangeKey } from "@/services/dateRangeParams";
+import type { DateRange } from "@/components/filters/DateRangePicker";
 
 interface CustomersTabProps {
-  period: number;
+  range: DateRange;
   formatCurrency: (cents: number) => string;
 }
 
@@ -29,15 +31,15 @@ const SEGMENT_LABELS_AR: Record<string, string> = {
   Lost: "مفقودون",
 };
 
-export function CustomersTab({ period, formatCurrency }: CustomersTabProps) {
+export function CustomersTab({ range, formatCurrency }: CustomersTabProps) {
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const isAr = language === "ar";
 
   const segmentsQuery = useQuery({
-    queryKey: ["analytics", "customer-segments", storeId, period],
-    queryFn: () => getCustomerSegments(storeId!, period),
+    queryKey: ["analytics", "customer-segments", storeId, ...dateRangeKey(range)],
+    queryFn: () => getCustomerSegments(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
     // RFM + cohort + CLV is expensive (multi-CTE SQL). Cohort

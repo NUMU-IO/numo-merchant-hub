@@ -31,6 +31,13 @@ import type {
 
 const BASE = (storeId: string) => `/stores/${storeId}/themes/v3/editor`;
 
+// Every editor request opts out of the default 401 → window.location
+// redirect. The customizer holds a draft + undo stack in memory; a
+// hard navigation throws all of that away mid-session. By opting out,
+// 401s surface as ApiError(401, ...) and the store renders an inline
+// "re-login" banner instead — the in-flight customization survives.
+const EDITOR_OPTS = { noAutoRedirect401: true } as const;
+
 // ─── Draft ───────────────────────────────────────────────────────────────────
 
 /**
@@ -40,9 +47,15 @@ const BASE = (storeId: string) => `/stores/${storeId}/themes/v3/editor`;
  */
 export function fetchDraftV3(
   storeId: string,
+  onEtag?: (etag: string | null) => void,
 ): Promise<ThemeSettingsV3 | Record<string, never>> {
   return apiClient<ThemeSettingsV3 | Record<string, never>>(
     `${BASE(storeId)}/draft`,
+    undefined,
+    {
+      ...EDITOR_OPTS,
+      onResponse: onEtag ? (res) => onEtag(res.headers.get("ETag")) : undefined,
+    },
   );
 }
 
@@ -50,16 +63,43 @@ export function fetchDraftV3(
  * Autosave V3 draft with Dual-Write to legacy columns.
  * Body shape matches AutosaveDraftRequest on the backend.
  */
+export interface SaveDraftOptions {
+  changeSummary?: string;
+  /** Current draft ETag for optimistic concurrency. Sent as `If-Match` and
+   *  `expected_etag`; on mismatch the backend returns 409 (`stale_etag`)
+   *  with the server's current etag + draft so we never silently clobber. */
+  expectedEtag?: string | null;
+  /** Receives the new ETag echoed by a successful save. */
+  onEtag?: (etag: string | null) => void;
+}
+
 export function saveDraftV3(
   storeId: string,
   payload: ThemeSettingsV3,
-  changeSummary?: string,
+  opts?: SaveDraftOptions,
 ): Promise<AutosaveDraftResponse> {
-  return apiClient<AutosaveDraftResponse>(`${BASE(storeId)}/autosave`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ payload, change_summary: changeSummary }),
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (opts?.expectedEtag) headers["If-Match"] = opts.expectedEtag;
+  return apiClient<AutosaveDraftResponse>(
+    `${BASE(storeId)}/autosave`,
+    {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        payload,
+        change_summary: opts?.changeSummary,
+        expected_etag: opts?.expectedEtag ?? undefined,
+      }),
+    },
+    {
+      ...EDITOR_OPTS,
+      onResponse: opts?.onEtag
+        ? (res) => opts.onEtag!(res.headers.get("ETag"))
+        : undefined,
+    },
+  );
 }
 
 // ─── Publish ─────────────────────────────────────────────────────────────────
@@ -77,22 +117,28 @@ export function publishV3(
   storeId: string,
   versionLabel?: string,
 ): Promise<PublishDraftResponse> {
-  return apiClient<PublishDraftResponse>(`${BASE(storeId)}/publish`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: versionLabel
-      ? JSON.stringify({ version_label: versionLabel })
-      : undefined,
-  });
+  return apiClient<PublishDraftResponse>(
+    `${BASE(storeId)}/publish`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: versionLabel
+        ? JSON.stringify({ version_label: versionLabel })
+        : undefined,
+    },
+    EDITOR_OPTS,
+  );
 }
 
 /** Discard the V3 draft and revert to the published state. */
 export function discardDraftV3(
   storeId: string,
 ): Promise<DiscardDraftResponse> {
-  return apiClient<DiscardDraftResponse>(`${BASE(storeId)}/discard`, {
-    method: "POST",
-  });
+  return apiClient<DiscardDraftResponse>(
+    `${BASE(storeId)}/discard`,
+    { method: "POST" },
+    EDITOR_OPTS,
+  );
 }
 
 // ─── Version History ─────────────────────────────────────────────────────────
@@ -111,6 +157,8 @@ export function fetchVersionsV3(
   });
   return apiClient<VersionListResponse>(
     `${BASE(storeId)}/versions?${qs.toString()}`,
+    undefined,
+    EDITOR_OPTS,
   );
 }
 
@@ -125,6 +173,7 @@ export function restoreVersionV3(
   return apiClient<RestoreVersionResponse>(
     `${BASE(storeId)}/versions/${versionId}/restore`,
     { method: "POST" },
+    EDITOR_OPTS,
   );
 }
 
@@ -146,6 +195,8 @@ export function fetchVersionPayloadV3(
 ): Promise<VersionPayloadResponse> {
   return apiClient<VersionPayloadResponse>(
     `${BASE(storeId)}/versions/${versionId}`,
+    undefined,
+    EDITOR_OPTS,
   );
 }
 
@@ -157,5 +208,9 @@ export function fetchVersionPayloadV3(
  * For BYOT themes: from the marketplace_theme_versions row.
  */
 export function fetchSchemasV3(storeId: string): Promise<ThemeSchemaBundle> {
-  return apiClient<ThemeSchemaBundle>(`${BASE(storeId)}/schemas`);
+  return apiClient<ThemeSchemaBundle>(
+    `${BASE(storeId)}/schemas`,
+    undefined,
+    EDITOR_OPTS,
+  );
 }

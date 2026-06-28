@@ -248,10 +248,10 @@ export default function CheckoutFields() {
             <ArrowLeft className="h-3.5 w-3.5" />
             {isAr ? "الإعدادات" : "Settings"}
           </Link>
-          <h1 className="text-xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
             {isAr ? "بيانات الدفع" : "Checkout fields"}
           </h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             {isAr
               ? "اختار المطلوبة من العميل وهو بيشتري وضيف حقول زيادة."
               : "Choose which fields are required at checkout and add your own custom fields."}

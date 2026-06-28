@@ -14,6 +14,8 @@ import MobileBottomNav from "./MobileBottomNav";
 import DemoBanner from "@/components/demo/DemoBanner";
 import { ImpersonationBanner } from "./ImpersonationBanner";
 import { NewOrderNotifier } from "@/components/NewOrderNotifier";
+import { AgentPanel } from "@/features/agent";
+import { useNavConfig } from "@/hooks/useNavConfig";
 
 function PageFallback() {
   return (
@@ -29,6 +31,12 @@ function PageFallback() {
 const DashboardLayout = () => {
   const { currentStore } = useDashboardStore();
   const { user } = useAuth();
+  // Admin-controlled via the same nav-config the sidebar tabs use
+  // (Merchant Hub Nav → key "assistant"). Read from the public
+  // /merchant-hub-nav endpoint, so visibility never depends on tenant
+  // ownership or the /auth/me session. Fails open (visible) like every tab.
+  const { isVisible } = useNavConfig();
+  const assistantEnabled = isVisible("assistant");
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
@@ -89,13 +97,17 @@ const DashboardLayout = () => {
                 <span>{isAr ? `© NUMU ${new Date().getFullYear()} جميع الحقوق محفوظة` : `© NUMU ${new Date().getFullYear()} All rights reserved`}</span>
                 <span className="flex items-center gap-1.5">
                   {isAr ? "صنع في مصر بواسطة" : "Made in Egypt by"}
-                  <img src="/numu-logo-320.webp" alt="NUMU" className="h-4 w-4 rounded" />
-                  <span className="font-semibold text-muted-foreground/80">NUMU</span>
+                  <img
+                    src="/brand/numu-navy.png"
+                    alt="NUMU"
+                    className="h-4 w-auto object-contain"
+                  />
+                  <span className="souq-wordmark text-[12px] text-muted-foreground/80">numu</span>
                 </span>
               </div>
 
-              {/* Spacer for mobile bottom nav */}
-              <div className="h-16 md:hidden" />
+              {/* Spacer for mobile bottom nav (76px Souq bar) */}
+              <div className="h-20 md:hidden" />
             </div>
           </main>
         </div>
@@ -104,6 +116,9 @@ const DashboardLayout = () => {
       {/* Polls /orders and toasts whenever a new one arrives. Mounted at the
           layout level so it runs on every dashboard page. */}
       <NewOrderNotifier />
+      {/* NUMU Agent (merchant copilot) — floating launcher + slide-over panel,
+          available on every dashboard route (US1 read-only assistant). */}
+      {assistantEnabled && <AgentPanel />}
     </SidebarProvider>
   );
 };

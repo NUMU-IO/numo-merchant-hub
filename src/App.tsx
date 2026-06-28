@@ -27,20 +27,30 @@ const AbandonedCheckouts = lazy(() => import("@/pages/AbandonedCheckouts"));
 const OrderImport = lazy(() => import("@/pages/OrderImport"));
 const CreateOrder = lazy(() => import("@/pages/CreateOrder"));
 const StoreSettings = lazy(() => import("@/pages/StoreSettings"));
+const OnlineStoreLanding = lazy(() => import("@/pages/online-store/Landing"));
 const OnlineStoreThemes = lazy(() => import("@/pages/online-store/Themes"));
 const OnlineStorePages = lazy(() => import("@/pages/online-store/Pages"));
+const OnlineStoreFiles = lazy(() => import("@/pages/online-store/Files"));
 const OnlineStoreNavigation = lazy(() => import("@/pages/online-store/Navigation"));
 const OnlineStorePreferences = lazy(() => import("@/pages/online-store/Preferences"));
 const OnlineStoreCheckoutFields = lazy(() => import("@/pages/online-store/CheckoutFields"));
-const ThemeEditor = lazy(() => import("@/pages/online-store/ThemeEditor"));
+const ThemeCodeEditor = lazy(() => import("@/pages/online-store/ThemeCodeEditor"));
 const MyThemeSubmissions = lazy(
   () => import("@/pages/online-store/MyThemeSubmissions"),
 );
 const ThemeCustomizerV3 = lazy(() => import("@/features/theme-editor-v3/pages/ThemeCustomizerV3"));
+// Session E (2026-05-28) — marketplace detail + full-screen preview iframe.
+const MarketplaceThemeDetail = lazy(
+  () => import("@/pages/online-store/_marketplace/ThemeDetailPage"),
+);
+const MarketplaceThemePreview = lazy(
+  () => import("@/pages/online-store/_marketplace/ThemePreviewPage"),
+);
 const Payments = lazy(() => import("@/pages/Payments"));
 const WalletPage = lazy(() => import("@/pages/Wallet"));
 const StoreBalancePage = lazy(() => import("@/pages/StoreBalance"));
 const PaymentSetup = lazy(() => import("@/pages/PaymentSetup"));
+const TrustNetwork = lazy(() => import("@/pages/TrustNetwork"));
 const Logistics = lazy(() => import("@/pages/Logistics"));
 const ShippingZones = lazy(() => import("@/pages/shipping/ZonesPage"));
 const ShippingZoneEditor = lazy(() => import("@/pages/shipping/ZoneEditorPage"));
@@ -54,13 +64,17 @@ const AnalyticsCustomers = lazy(() => import("@/pages/analytics/CustomersPage"))
 const AnalyticsProducts = lazy(() => import("@/pages/analytics/ProductsPage"));
 const AnalyticsFunnel = lazy(() => import("@/pages/analytics/FunnelPage"));
 const AnalyticsMarketing = lazy(() => import("@/pages/analytics/MarketingPage"));
+// AnalyticsLtv + AnalyticsMultiTouch removed in feature 002 US2 —
+// their content moved to MarketingAttribution as tabs. Legacy URLs
+// `/analytics/ltv` and `/analytics/multi-touch` redirect there.
 const AnalyticsLive = lazy(() => import("@/pages/analytics/LivePage"));
 const AnalyticsInsights = lazy(() => import("@/pages/analytics/InsightsPage"));
 const AnalyticsForecast = lazy(() => import("@/pages/analytics/ForecastPage"));
 const AnalyticsJourney = lazy(() => import("@/pages/analytics/JourneyPage"));
 const AnalyticsReports = lazy(() => import("@/pages/analytics/ReportsPage"));
 const HealthScore = lazy(() => import("@/pages/HealthScore"));
-const Marketing = lazy(() => import("@/pages/Marketing"));
+const GrowthGuide = lazy(() => import("@/pages/GrowthGuide"));
+const MarketingLanding = lazy(() => import("@/pages/MarketingLanding"));
 const PromotionsList = lazy(() => import("@/pages/marketing/PromotionsList"));
 const PromotionForm = lazy(() => import("@/pages/marketing/PromotionForm"));
 const PromotionDetail = lazy(() => import("@/pages/marketing/PromotionDetail"));
@@ -69,6 +83,7 @@ const Invoices = lazy(() => import("@/pages/Invoices"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const SettingsPreferences = lazy(() => import("@/pages/SettingsPreferences"));
+const SettingsTracking = lazy(() => import("@/pages/SettingsTracking"));
 const Apps = lazy(() => import("@/pages/Apps"));
 const GiftCards = lazy(() => import("@/pages/GiftCards"));
 const Locations = lazy(() => import("@/pages/Locations"));
@@ -87,6 +102,14 @@ const Referrals = lazy(() => import("@/pages/Referrals"));
 const WhatsApp = lazy(() => import("@/pages/WhatsApp"));
 const WhatsAppInbox = lazy(() => import("@/pages/WhatsAppInbox"));
 const WhatsAppCampaigns = lazy(() => import("@/pages/WhatsAppCampaigns"));
+const WhatsAppBYOConnect = lazy(() => import("@/pages/WhatsAppBYOConnect"));
+const WhatsAppOptIns = lazy(() => import("@/pages/WhatsAppOptIns"));
+const WhatsAppDeadLetters = lazy(() => import("@/pages/WhatsAppDeadLetters"));
+const MarketingCampaigns = lazy(() => import("@/pages/MarketingCampaigns"));
+const MarketingCampaignDetail = lazy(() => import("@/pages/MarketingCampaignDetail"));
+const MarketingAttribution = lazy(() => import("@/pages/MarketingAttribution"));
+const MarketingCampaignsCompare = lazy(() => import("@/pages/MarketingCampaignsCompare"));
+const MarketingAudiences = lazy(() => import("@/pages/MarketingAudiences"));
 const AcceptInvitation = lazy(() => import("@/pages/AcceptInvitation"));
 const AcceptBetaInvite = lazy(() => import("@/pages/AcceptBetaInvite"));
 const Staff = lazy(() => import("@/pages/Staff"));
@@ -99,6 +122,7 @@ const NewWhatsAppTemplate = lazy(() => import("@/pages/NewWhatsAppTemplate"));
 const MetaOAuthCallback = lazy(() => import("@/pages/MetaOAuthCallback"));
 const EmailTemplates = lazy(() => import("@/pages/EmailTemplates"));
 const EmailTemplateEditor = lazy(() => import("@/pages/EmailTemplateEditor"));
+const AgentNotes = lazy(() => import("@/features/agent-knowledge"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -202,12 +226,18 @@ const App = () => (
                     }
                   />
 
-                  {/* Full-screen theme editor — outside DashboardLayout */}
+                  {/* v2 (classic) theme editor removed — redirect legacy links to v3 */}
                   <Route
                     path="/online-store/themes/editor"
+                    element={<Navigate to="/online-store/themes/editor-v3" replace />}
+                  />
+
+                  {/* Theme code editor — full-screen, outside DashboardLayout */}
+                  <Route
+                    path="/online-store/themes/code-editor"
                     element={
                       <RouteResolver>
-                        <ThemeEditor />
+                        <ThemeCodeEditor />
                       </RouteResolver>
                     }
                   />
@@ -218,6 +248,20 @@ const App = () => (
                     element={
                       <RouteResolver>
                         <ThemeCustomizerV3 />
+                      </RouteResolver>
+                    }
+                  />
+
+                  {/* Marketplace "Try theme" preview — full-screen iframe.
+                      Routes the storefront with ?preview_theme_slug=… so
+                      the merchant sees the theme rendered against their
+                      own products WITHOUT touching store_themes (file 06
+                      §5). */}
+                  <Route
+                    path="/online-store/themes/preview/:slug"
+                    element={
+                      <RouteResolver>
+                        <MarketplaceThemePreview />
                       </RouteResolver>
                     }
                   />
@@ -245,14 +289,23 @@ const App = () => (
                     <Route path="/wallet" element={<WalletPage />} />
                     <Route path="/store-balance" element={<StoreBalancePage />} />
                     <Route path="/payment-setup" element={<PaymentSetup />} />
+                    <Route path="/trust-network" element={<TrustNetwork />} />
                     <Route path="/logistics" element={<Logistics />} />
                     <Route path="/shipping/zones" element={<ShippingZones />} />
                     <Route path="/shipping/zones/new" element={<ShippingZoneEditor />} />
                     <Route path="/shipping/zones/:zoneId" element={<ShippingZoneEditor />} />
                     <Route path="/store" element={<StoreSettings />} />
-                    <Route path="/online-store" element={<Navigate to="/online-store/themes" replace />} />
+                    <Route path="/online-store" element={<OnlineStoreLanding />} />
                     <Route path="/online-store/themes" element={<OnlineStoreThemes />} />
+                    {/* Session E (2026-05-28) — public theme detail page.
+                        Inside DashboardLayout so the sidebar + tenant
+                        chrome stays around the detail content (file 06 §4.3). */}
+                    <Route
+                      path="/online-store/themes/marketplace/:slug"
+                      element={<MarketplaceThemeDetail />}
+                    />
                     <Route path="/online-store/pages" element={<OnlineStorePages />} />
+                    <Route path="/online-store/files" element={<OnlineStoreFiles />} />
                     <Route path="/online-store/navigation" element={<OnlineStoreNavigation />} />
                     <Route path="/online-store/preferences" element={<OnlineStorePreferences />} />
                     <Route path="/online-store/checkout-fields" element={<OnlineStoreCheckoutFields />} />
@@ -268,17 +321,41 @@ const App = () => (
                     <Route path="/analytics/products" element={<AnalyticsProducts />} />
                     <Route path="/analytics/funnel" element={<AnalyticsFunnel />} />
                     <Route path="/analytics/marketing" element={<AnalyticsMarketing />} />
+                    <Route
+                      path="/analytics/ltv"
+                      element={
+                        <Navigate
+                          to="/marketing/attribution?from=ltv"
+                          replace
+                        />
+                      }
+                    />
+                    <Route
+                      path="/analytics/multi-touch"
+                      element={
+                        <Navigate
+                          to="/marketing/attribution?from=multi-touch"
+                          replace
+                        />
+                      }
+                    />
                     <Route path="/analytics/live" element={<AnalyticsLive />} />
                     <Route path="/analytics/insights" element={<AnalyticsInsights />} />
                     <Route path="/analytics/forecast" element={<AnalyticsForecast />} />
                     <Route path="/analytics/journey" element={<AnalyticsJourney />} />
                     <Route path="/analytics/reports" element={<AnalyticsReports />} />
                     <Route path="/health-score" element={<HealthScore />} />
-                    <Route path="/marketing" element={<Marketing />} />
+                    <Route path="/grow" element={<GrowthGuide />} />
+                    <Route path="/marketing" element={<MarketingLanding />} />
+                    {/* Unified under "Discounts" — the standalone coupons page
+                        is retired; its codes are managed as discount-code
+                        discounts. Redirect any old links/bookmarks. */}
+                    <Route path="/marketing/coupons" element={<Navigate to="/marketing/promotions" replace />} />
                     <Route path="/marketing/promotions" element={<PromotionsList />} />
                     <Route path="/marketing/promotions/new" element={<PromotionForm />} />
                     <Route path="/marketing/promotions/:id" element={<PromotionDetail />} />
                     <Route path="/marketing/promotions/:id/edit" element={<PromotionForm />} />
+                    <Route path="/agent-notes" element={<AgentNotes />} />
                     <Route path="/email-templates" element={<EmailTemplates />} />
                     <Route path="/email-templates/new" element={<EmailTemplateEditor />} />
                     <Route path="/email-templates/:id" element={<EmailTemplateEditor />} />
@@ -294,10 +371,19 @@ const App = () => (
                       element={<PresentmentCurrencies />}
                     />
                     <Route path="/settings/preferences" element={<SettingsPreferences />} />
+                    <Route path="/settings/tracking" element={<SettingsTracking />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/whatsapp" element={<WhatsApp />} />
                     <Route path="/whatsapp/inbox" element={<WhatsAppInbox />} />
                     <Route path="/whatsapp/campaigns" element={<WhatsAppCampaigns />} />
+                    <Route path="/whatsapp/byo" element={<WhatsAppBYOConnect />} />
+                    <Route path="/whatsapp/opt-ins" element={<WhatsAppOptIns />} />
+                    <Route path="/whatsapp/dead-letters" element={<WhatsAppDeadLetters />} />
+                    <Route path="/campaigns" element={<MarketingCampaigns />} />
+                    <Route path="/campaigns/compare" element={<MarketingCampaignsCompare />} />
+                    <Route path="/campaigns/:id" element={<MarketingCampaignDetail />} />
+                    <Route path="/marketing/attribution" element={<MarketingAttribution />} />
+                    <Route path="/marketing/audiences" element={<MarketingAudiences />} />
                     <Route path="/billing" element={<BillingPage />} />
                     <Route path="/referrals" element={<Referrals />} />
                     <Route path="/cod" element={<CODReconciliation />} />

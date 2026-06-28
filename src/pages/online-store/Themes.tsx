@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,6 +10,7 @@ import { canUnlockTheme, type Tier } from "@/lib/themePlan";
 import { LockedThemeBadge } from "./LockedThemeBadge";
 import { UpgradeCTAButton } from "./UpgradeCTAButton";
 import { ThemePreviewModal } from "./ThemePreviewModal";
+import { ThemeUpdatesAlert } from "./ThemeUpdatesAlert";
 import {
   fetchThemes,
   fetchCustomization,
@@ -55,6 +57,22 @@ import {
   CheckCircle2, Clock, Loader2, ArrowUpRight, Layers, Github, Trash2, RefreshCw, ShieldCheck,
   Search, Palette, Lock, ChevronDown,
 } from "lucide-react";
+import { MarketplaceCatalog } from "@/components/theme-editor";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MarketplaceLibraryTab } from "./_marketplace/MarketplaceLibraryTab";
+import {
+  MarketplaceFilterRail,
+  EMPTY_FILTERS,
+  collectAvailableFeatures,
+  type MarketplaceFilters,
+} from "./_marketplace/MarketplaceFilterRail";
+import {
+  MarketplaceSortDropdown,
+  type MarketplaceSort,
+} from "./_marketplace/MarketplaceSortDropdown";
+import { browseMarketplace } from "@/services/marketplaceApi";
+import { useSearchParams } from "react-router-dom";
+import { SnapshotsTab } from "./_marketplace/SnapshotsTab";
 
 // ─── Theme visual palettes ───────────────────────────────────────────────────
 const THEME_PALETTES: Record<string, { bg: string; accent: string; text: string; card: string }> = {
@@ -131,6 +149,7 @@ function ThemePreviewImage({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function OnlineStoreThemes() {
+  const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const { tenant } = useAuth();
   const { currentStore } = useDashboardStore();
@@ -156,7 +175,11 @@ export default function OnlineStoreThemes() {
 
   // ─── Dev server connection state ─────────────────────────────────────
   const [devOpen, setDevOpen] = useState(false);
-  const [devUrl, setDevUrl] = useState("http://localhost:4321");
+  // Default points at @numueg/theme-cli's dev port (5173). The old
+  // value (4321) was the Astro starter default and no longer matches
+  // the canonical CLI workflow — merchants pasting in their actual
+  // `numu-theme dev` URL would have to overwrite the placeholder.
+  const [devUrl, setDevUrl] = useState("http://localhost:5173");
   const [devError, setDevError] = useState<string | null>(null);
 
   const storeId = currentStore?.id ?? "";
@@ -334,7 +357,23 @@ export default function OnlineStoreThemes() {
   ];
 
   const activeThemeId = customization?.theme?.base_theme ?? themes[0]?.id;
-  const activeTheme = themes.find((t) => t.id === activeThemeId) ?? themes[0];
+  // Resolve in three steps so a configured base_theme that isn't in the
+  // built-in catalog (e.g. legacy "souq", a deprecated slug, or any value
+  // the editor accepts but the storefront/themes endpoint doesn't list)
+  // still surfaces as the active theme — synthesize a minimal entry from
+  // the id rather than dropping to the "No active theme" empty state.
+  const catalogMatch = themes.find((t) => t.id === activeThemeId);
+  const activeTheme: AvailableTheme | undefined =
+    catalogMatch
+    ?? (activeThemeId
+      ? ({
+          id: activeThemeId,
+          name: LAYOUT_LABELS[activeThemeId]?.en
+            ?? activeThemeId.charAt(0).toUpperCase() + activeThemeId.slice(1),
+          nameAr: LAYOUT_LABELS[activeThemeId]?.ar ?? activeThemeId,
+          description: "",
+        } as AvailableTheme)
+      : themes[0]);
   const libraryThemes = themes
     .filter((t) => t.id !== activeThemeId)
     .sort((a, b) => (a.display_order ?? 100) - (b.display_order ?? 100));
@@ -362,8 +401,21 @@ export default function OnlineStoreThemes() {
     { value: "enterprise", labelEn: "Enterprise", labelAr: "إنتربرايز" },
   ];
 
+  // Session D — tabbed view (Library | Marketplace | Snapshots).
+  // Active tab is mirrored to ?tab=… so reloads + deep links land
+  // on the same view the merchant left.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") ?? "library";
+  const setActiveTab = (tab: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", tab);
+      return next;
+    });
+  };
+
   return (
-    <div className="space-y-10 max-w-6xl mx-auto pb-12">
+    <div className="space-y-6 max-w-6xl mx-auto pb-12">
       {/* ─── Page header ─────────────────────────────────────────────── */}
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
@@ -394,557 +446,35 @@ export default function OnlineStoreThemes() {
         )}
       </div>
 
-      {/* ─── Active theme hero ───────────────────────────────────────── */}
-      <section>
-        {isLoading ? (
-          <Skeleton className="h-72 sm:h-80 w-full rounded-3xl" />
-        ) : activeTheme ? (
-          <ActiveThemeHero
-            theme={activeTheme}
-            customization={customization}
-            isRTL={isRTL}
-            onCustomize={(version) =>
-              navigate(
-                version === "v3"
-                  ? "/online-store/themes/editor-v3"
-                  : "/online-store/themes/editor",
-              )
-            }
-            onPreview={() => setPreviewTheme(activeTheme)}
+      {/* Theme update channel — surfaces a newer published version of the
+          installed theme; Apply is snapshot-first on the backend (Phase 5.1). */}
+      {storeId && <ThemeUpdatesAlert storeId={storeId} />}
+
+      {/* Library | Marketplace | Snapshots tabs (Snapshots shipped Session F). */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="library">{t("marketplace.tabs.library")}</TabsTrigger>
+          <TabsTrigger value="marketplace">{t("marketplace.tabs.marketplace")}</TabsTrigger>
+          <TabsTrigger value="snapshots">{t("marketplace.tabs.snapshots")}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="library" className="space-y-10">
+          <MarketplaceLibraryTab onBrowseMarketplace={() => setActiveTab("marketplace")} />
+        </TabsContent>
+
+        <TabsContent value="snapshots">
+          <SnapshotsTab />
+        </TabsContent>
+
+        <TabsContent value="marketplace" className="space-y-10">
+          {/* Marketplace tab = the marketplace catalog only. The active-theme
+              hero now lives on the Online Store landing, your installed themes
+              are under the Library tab, and custom code lives in Edit code. */}
+          <V3MarketplaceSection
+            onActivated={() => navigate("/online-store/themes/editor-v3")}
           />
-        ) : (
-          <div className="rounded-3xl border-2 border-dashed p-16 text-center">
-            <Layers className="mx-auto h-10 w-10 text-muted-foreground/25 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              {isRTL ? "لا يوجد ثيم نشط" : "No active theme"}
-            </p>
-          </div>
-        )}
-      </section>
-
-      {/* ─── Library: heading + toolbar + grid ───────────────────────── */}
-      {(isLoading || libraryThemes.length > 0) && (
-        <section className="space-y-5">
-          <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div>
-              <h2 className="text-xl font-semibold tracking-tight">
-                {isRTL ? "تصفّح الثيمات" : "Browse themes"}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isRTL
-                  ? `${libraryThemes.length} ثيم متاح`
-                  : `${libraryThemes.length} themes available`}
-              </p>
-            </div>
-            {filteredLibrary.length !== libraryThemes.length ? (
-              <p className="text-xs text-muted-foreground">
-                {isRTL
-                  ? `يعرض ${filteredLibrary.length} من ${libraryThemes.length}`
-                  : `Showing ${filteredLibrary.length} of ${libraryThemes.length}`}
-              </p>
-            ) : null}
-          </div>
-
-          {/* Toolbar — search + tier chips */}
-          <div className="rounded-2xl border bg-muted/30 p-3 flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="relative flex-1 min-w-0">
-              <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none ${isRTL ? "right-3" : "left-3"}`} />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={isRTL ? "ابحث عن ثيم…" : "Search themes…"}
-                className={`bg-background h-9 ${isRTL ? "pr-9" : "pl-9"}`}
-              />
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {tierFilters.map((f) => {
-                const isActive = tierFilter === f.value;
-                return (
-                  <button
-                    key={f.value}
-                    type="button"
-                    onClick={() => setTierFilter(f.value)}
-                    className={`h-8 px-3 rounded-full text-xs font-medium transition-colors ${
-                      isActive
-                        ? "bg-foreground text-background"
-                        : "bg-background border border-border/60 text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {isRTL ? f.labelAr : f.labelEn}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Grid */}
-          {isLoading ? (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="aspect-[4/3] rounded-2xl" />
-              ))}
-            </div>
-          ) : filteredLibrary.length === 0 ? (
-            <div className="rounded-2xl border-2 border-dashed p-12 text-center">
-              <Search className="mx-auto h-8 w-8 text-muted-foreground/25 mb-3" />
-              <p className="text-sm font-medium">
-                {isRTL ? "لا توجد ثيمات مطابقة" : "No themes match your filters"}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isRTL
-                  ? "جرّب تعديل البحث أو إزالة المرشحات"
-                  : "Try a different search term or clear the filters"}
-              </p>
-              {(searchQuery || tierFilter !== "all") ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-4"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setTierFilter("all");
-                  }}
-                >
-                  {isRTL ? "مسح المرشحات" : "Clear filters"}
-                </Button>
-              ) : null}
-            </div>
-          ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredLibrary.map((theme) => {
-                const requiredPlan = theme.required_plan as Tier | undefined;
-                const locked = !canUnlockTheme(merchantPlan, requiredPlan);
-                return (
-                  <LibraryThemeCard
-                    key={theme.id}
-                    theme={theme}
-                    isRTL={isRTL}
-                    isSwitching={switchMutation.isPending && switchTarget?.id === theme.id}
-                    locked={locked}
-                    requiredPlan={requiredPlan}
-                    onActivate={() => setSwitchTarget(theme)}
-                    onCustomize={() => navigate(`/online-store/themes/editor?theme=${theme.id}`)}
-                    onPreview={() => setPreviewTheme(theme)}
-                  />
-                );
-              })}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* External theme (BYOT) section — quieter footer treatment, separated
-          by a divider from the main library so it reads as "advanced" and
-          doesn't compete with the curated themes above. Auto-expanded when
-          an external theme is installed (so the merchant can manage it),
-          collapsed by default otherwise (most merchants never need this). */}
-      <details
-        className="group/byot pt-2 border-t border-border/60"
-        open={!!externalThemeFromStore}
-      >
-        <summary className="cursor-pointer list-none py-4 flex items-center justify-between gap-4 group-open/byot:mb-2">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-transform group-open/byot:rotate-180">
-              <ArrowUpRight className="h-4 w-4 -rotate-45" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">
-                {isRTL ? "الثيمات المخصصة (BYOT)" : "Custom themes (BYOT)"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {isRTL
-                  ? "اربط مستودع GitHub أو خادم تطوير محلي لتشغيل ثيم خاص بك"
-                  : "Connect a GitHub repo or local dev server to run a custom theme"}
-              </p>
-            </div>
-          </div>
-          {externalThemeFromStore && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-destructive hover:text-destructive"
-              onClick={(e) => {
-                e.preventDefault();
-                removeExternalMutation.mutate();
-              }}
-              disabled={removeExternalMutation.isPending}
-            >
-              {removeExternalMutation.isPending ? (
-                <Loader2 className="h-3 w-3 me-1.5 animate-spin" />
-              ) : (
-                <Trash2 className="h-3 w-3 me-1.5" />
-              )}
-              {isRTL ? "إزالة" : "Remove"}
-            </Button>
-          )}
-        </summary>
-        <div className="space-y-3 pb-2">
-
-        {externalThemeFromStore ? (
-          <div className="relative overflow-hidden rounded-2xl border bg-card p-5">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
-                <Sparkles className="h-6 w-6 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-base font-semibold">
-                    {isRTL ? externalThemeFromStore.nameAr : externalThemeFromStore.name}
-                  </h3>
-                  <Badge variant="secondary" className="text-[10px]">
-                    {isRTL ? "خارجي" : "External"}
-                  </Badge>
-                  {externalThemeFromStore.mode === "dev" && (
-                    <Badge className="text-[10px] bg-amber-500/10 text-amber-700 border-amber-500/20">
-                      {isRTL ? "وضع التطوير" : "Dev mode"}
-                    </Badge>
-                  )}
-                  {isExternalActive && (
-                    <Badge className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/20">
-                      {isRTL ? "نشط" : "Active"}
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground line-clamp-2">
-                  {externalThemeFromStore.description}
-                </p>
-                <div className="flex items-center gap-3 mt-3">
-                  {externalThemeFromStore.version && (
-                    <span className="text-[10px] text-muted-foreground">
-                      v{externalThemeFromStore.version}
-                    </span>
-                  )}
-                  {externalThemeFromStore.source_repo && (
-                    <a
-                      href={externalThemeFromStore.source_repo}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] text-primary hover:underline inline-flex items-center gap-1"
-                    >
-                      <Github className="h-3 w-3" />
-                      {isRTL ? "المصدر" : "Source"}
-                    </a>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                {!isExternalActive && (
-                  <Button
-                    size="sm"
-                    onClick={() => { if (requireTrial("publish_store")) switchMutation.mutate(externalThemeFromStore.id); }}
-                    disabled={switchMutation.isPending}
-                  >
-                    {switchMutation.isPending && (
-                      <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />
-                    )}
-                    {isRTL ? "تفعيل" : "Activate"}
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => navigate("/online-store/themes/editor-v3")}
-                >
-                  <Pencil className="h-3.5 w-3.5 me-1.5" />
-                  {isRTL ? "تخصيص" : "Customize"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {/* Production: GitHub repo → build pipeline → CDN */}
-            <div className="relative overflow-hidden rounded-2xl border-2 border-dashed bg-gradient-to-br from-primary/5 via-background to-primary/3 p-5">
-              <div className="flex flex-col gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
-                  <Github className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">
-                    {isRTL ? "إنتاج (من GitHub)" : "Production (from GitHub)"}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {isRTL
-                      ? "اربط مستودع GitHub — سنبنيه ونرفعه على CDN تلقائيًا"
-                      : "Connect a GitHub repo — we'll build & deploy it to the CDN"}
-                  </p>
-                </div>
-                <Button size="sm" className="w-full" onClick={() => setSubmitOpen(true)}>
-                  <Github className="h-3.5 w-3.5 me-1.5" />
-                  {isRTL ? "إضافة من GitHub" : "Add from GitHub"}
-                </Button>
-              </div>
-            </div>
-
-            {/* Dev: Local dev server (numu-theme dev) */}
-            <div className="relative overflow-hidden rounded-2xl border-2 border-dashed bg-gradient-to-br from-amber-500/5 via-background to-amber-500/3 p-5">
-              <div className="flex flex-col gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 ring-1 ring-amber-500/20">
-                  <Sparkles className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">
-                    {isRTL ? "تطوير (محلي)" : "Dev (local server)"}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {isRTL
-                      ? "شغّل numu-theme dev في مجلد ثيمك واربط الـURL هنا"
-                      : "Run `numu-theme dev` in your theme repo and paste the URL here"}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full border-amber-500/30 hover:bg-amber-500/10"
-                  onClick={() => setDevOpen(true)}
-                >
-                  <Sparkles className="h-3.5 w-3.5 me-1.5" />
-                  {isRTL ? "اربط خادم التطوير" : "Connect dev server"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-        </div>
-      </details>
-
-      {/* Switch confirmation */}
-      <Dialog open={!!switchTarget} onOpenChange={() => setSwitchTarget(null)}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{isRTL ? "تفعيل الثيم" : "Activate theme"}</DialogTitle>
-            <DialogDescription>
-              {isRTL
-                ? `سيصبح ثيم "${switchTarget?.nameAr ?? switchTarget?.name}" هو الثيم النشط في متجرك.`
-                : `"${switchTarget?.name}" will become the active theme for your store.`}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSwitchTarget(null)}>{isRTL ? "إلغاء" : "Cancel"}</Button>
-            <Button
-              onClick={() => { if (switchTarget && requireTrial("publish_store")) switchMutation.mutate(switchTarget.id); }}
-              disabled={switchMutation.isPending}
-            >
-              {switchMutation.isPending && <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />}
-              {isRTL ? "تفعيل" : "Activate"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* External theme submission modal */}
-      <Dialog
-        open={submitOpen}
-        onOpenChange={(open) => {
-          if (!submitMutation.isPending && !activeBuildId) {
-            setSubmitOpen(open);
-            if (!open) {
-              setGithubUrl("");
-              setBuildError(null);
-            }
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Github className="h-4 w-4" />
-              {isRTL ? "إضافة ثيم خارجي" : "Add external theme"}
-            </DialogTitle>
-            <DialogDescription>
-              {isRTL
-                ? "أدخل رابط مستودع GitHub العام يحتوي على ثيم Prism."
-                : "Enter the public GitHub URL of a Prism-compatible theme."}
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Form */}
-          {!activeBuildId && (
-            <div className="space-y-3 py-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="github-url" className="text-xs">
-                  {isRTL ? "رابط GitHub" : "GitHub URL"}
-                </Label>
-                <Input
-                  id="github-url"
-                  placeholder="https://github.com/user/my-numu-theme"
-                  value={githubUrl}
-                  onChange={(e) => setGithubUrl(e.target.value)}
-                  disabled={submitMutation.isPending}
-                  dir="ltr"
-                />
-              </div>
-              {buildError && (
-                <p className="text-xs text-destructive">{buildError}</p>
-              )}
-              <p className="text-[11px] text-muted-foreground">
-                {isRTL
-                  ? "يجب أن يحتوي المستودع على theme.json و settings_schema.json و styles.css و index.ts."
-                  : "The repo must contain theme.json, settings_schema.json, styles.css, and index.ts."}
-              </p>
-            </div>
-          )}
-
-          {/* Build progress */}
-          {activeBuildId && (
-            <div className="py-4 space-y-3">
-              <div className="flex items-center gap-3">
-                {buildStatus === "complete" ? (
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                ) : buildStatus === "failed" ? (
-                  <Trash2 className="h-5 w-5 text-destructive" />
-                ) : (
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                )}
-                <div className="flex-1">
-                  <p className="text-sm font-medium">
-                    {buildStatus === "queued" && (isRTL ? "في الانتظار..." : "Queued...")}
-                    {buildStatus === "cloning" && (isRTL ? "جاري الاستنساخ..." : "Cloning repository...")}
-                    {buildStatus === "validating" && (isRTL ? "جاري التحقق..." : "Validating contract...")}
-                    {buildStatus === "building" && (isRTL ? "جاري البناء..." : "Building theme...")}
-                    {buildStatus === "uploading" && (isRTL ? "جاري الرفع..." : "Uploading to CDN...")}
-                    {buildStatus === "complete" && (isRTL ? "تم بنجاح! 🎉" : "Complete! 🎉")}
-                    {buildStatus === "failed" && (isRTL ? "فشل البناء" : "Build failed")}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Build ID: {activeBuildId.slice(0, 8)}</p>
-                </div>
-              </div>
-              {buildError && (
-                <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-3">
-                  <p className="text-xs text-destructive break-words">{buildError}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter>
-            {!activeBuildId ? (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => setSubmitOpen(false)}
-                  disabled={submitMutation.isPending}
-                >
-                  {isRTL ? "إلغاء" : "Cancel"}
-                </Button>
-                <Button
-                  onClick={() => submitMutation.mutate()}
-                  disabled={submitMutation.isPending || !githubUrl.trim()}
-                >
-                  {submitMutation.isPending && (
-                    <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />
-                  )}
-                  {isRTL ? "بناء الثيم" : "Build theme"}
-                </Button>
-              </>
-            ) : buildStatus === "failed" ? (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setActiveBuildId(null);
-                  setBuildStatus(null);
-                  setBuildError(null);
-                }}
-              >
-                {isRTL ? "حاول مرة أخرى" : "Try again"}
-              </Button>
-            ) : null}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Connect Dev Server modal */}
-      <Dialog
-        open={devOpen}
-        onOpenChange={(open) => {
-          if (!connectDevMutation.isPending) {
-            setDevOpen(open);
-            if (!open) setDevError(null);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-amber-600" />
-              {isRTL ? "اربط خادم التطوير" : "Connect Dev Server"}
-            </DialogTitle>
-            <DialogDescription>
-              {isRTL
-                ? "شغّل numu-theme dev في مجلد ثيمك ثم الصق الـURL الذي يظهر هنا."
-                : "Run `numu-theme dev` in your theme folder and paste the URL it prints here."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="dev-url" className="text-xs">
-                {isRTL ? "رابط خادم التطوير" : "Dev server URL"}
-              </Label>
-              <Input
-                id="dev-url"
-                placeholder="http://localhost:4321"
-                value={devUrl}
-                onChange={(e) => setDevUrl(e.target.value)}
-                disabled={connectDevMutation.isPending}
-                dir="ltr"
-              />
-            </div>
-
-            {devError && (
-              <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-3">
-                <p className="text-xs text-destructive break-words">{devError}</p>
-              </div>
-            )}
-
-            {/* Quick instructions */}
-            <div className="rounded-lg bg-muted/40 border border-border/50 p-3 space-y-1.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {isRTL ? "كيف تشغل الخادم؟" : "How to start the server"}
-              </p>
-              <pre className="text-[11px] font-mono text-muted-foreground bg-background/50 px-2 py-1.5 rounded overflow-x-auto" dir="ltr">
-{`cd my-theme
-npx numu-theme dev`}
-              </pre>
-              <p className="text-[10px] text-muted-foreground/80">
-                {isRTL
-                  ? "في وضع التطوير لا يتم تخزين الثيم مؤقتًا — التغييرات تظهر فور التحديث."
-                  : "Dev mode disables caching — changes appear on refresh."}
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDevOpen(false)}
-              disabled={connectDevMutation.isPending}
-            >
-              {isRTL ? "إلغاء" : "Cancel"}
-            </Button>
-            <Button
-              onClick={() => connectDevMutation.mutate()}
-              disabled={connectDevMutation.isPending || !devUrl.trim()}
-            >
-              {connectDevMutation.isPending && (
-                <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />
-              )}
-              {isRTL ? "اتصل" : "Connect"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Live theme preview — full-screen iframe with desktop/mobile toggle.
-          Falls back to a "coming soon" panel when the theme has no demo
-          deployed (theme.demo_url is null). Shared by ActiveThemeHero's
-          dropdown Preview action and LibraryThemeCard's eye button. */}
-      <ThemePreviewModal
-        theme={previewTheme}
-        isOpen={!!previewTheme}
-        onClose={() => setPreviewTheme(null)}
-        isRTL={isRTL}
-      />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -970,7 +500,7 @@ interface ActiveThemeHeroProps {
  */
 function ActiveThemeHero({ theme, customization, isRTL, onCustomize, onPreview }: ActiveThemeHeroProps) {
   const palette = THEME_PALETTES[theme.id] ?? THEME_PALETTES.default;
-  const layoutLabel = LAYOUT_LABELS[theme.layout]?.[isRTL ? "ar" : "en"] ?? theme.layout;
+  const layoutLabel = LAYOUT_LABELS[theme.layout ?? ""]?.[isRTL ? "ar" : "en"] ?? theme.layout ?? "";
   const isPublished = customization?.is_published ?? false;
   const lastPublished = customization?.last_published_at;
   const swatches = customization?.theme
@@ -1166,7 +696,7 @@ function LibraryThemeCard({
   onPreview,
 }: LibraryThemeCardProps) {
   const palette = THEME_PALETTES[theme.id] ?? THEME_PALETTES.default;
-  const layoutLabel = LAYOUT_LABELS[theme.layout]?.[isRTL ? "ar" : "en"] ?? theme.layout;
+  const layoutLabel = LAYOUT_LABELS[theme.layout ?? ""]?.[isRTL ? "ar" : "en"] ?? theme.layout ?? "";
   const tier = (theme.required_plan ?? "free") as Tier;
   const showTierChip = tier !== "free";
   // Tier-tinted accent on the chip — keeps the visual hierarchy at a glance.
@@ -1296,6 +826,86 @@ function LibraryThemeCard({
           >
             <Eye className="h-3.5 w-3.5" />
           </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── V3 Marketplace section (filter rail + grid) ─────────────────────────────
+//
+// Session E (2026-05-28). Wraps `<MarketplaceCatalog />` with the
+// Shopify-style filter rail per file 06 §4.1 and a sort dropdown above
+// the grid. The catalog still owns the data fetch + pagination — the
+// rail is purely client-side over the loaded page (~50 themes per page,
+// the catalog grows past that we'll route filters server-side).
+//
+// We do a small parallel query for `availableFeatures` so the rail can
+// surface filter chips even before the catalog renders. It re-uses the
+// same React Query cache key, so this is effectively free.
+interface V3MarketplaceSectionProps {
+  onActivated: () => void;
+}
+
+function V3MarketplaceSection({ onActivated }: V3MarketplaceSectionProps) {
+  const { t } = useTranslation();
+  const [filters, setFilters] = useState<MarketplaceFilters>(EMPTY_FILTERS);
+  const [sort, setSort] = useState<MarketplaceSort>("relevance");
+  const [resultCount, setResultCount] = useState<{ filtered: number; total: number } | null>(null);
+
+  // Surface the catalog's loaded themes here too so the rail's Features
+  // chip list is populated. Same query key as MarketplaceCatalog so the
+  // network call is shared.
+  const catalogQuery = useQuery({
+    queryKey: ["marketplace-catalog", 1],
+    queryFn: () => browseMarketplace({ page: 1, per_page: 50 }),
+    staleTime: 60 * 1000,
+  });
+  const availableFeatures = useMemo(
+    () => collectAvailableFeatures(catalogQuery.data?.themes ?? []),
+    [catalogQuery.data],
+  );
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight">
+          {t("marketplace.section.title")}
+        </h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          {t("marketplace.section.subtitle")}
+        </p>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+        <MarketplaceFilterRail
+          filters={filters}
+          onFiltersChange={setFilters}
+          availableFeatures={availableFeatures}
+        />
+
+        <div className="min-w-0 space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            {resultCount && (
+              <p className="text-xs text-muted-foreground">
+                {t("marketplace.section.showing", {
+                  filtered: resultCount.filtered,
+                  total: resultCount.total,
+                })}
+              </p>
+            )}
+            <MarketplaceSortDropdown value={sort} onValueChange={setSort} />
+          </div>
+
+          <MarketplaceCatalog
+            hideChrome
+            filters={filters}
+            sort={sort}
+            onResultCountChange={(filtered, total) =>
+              setResultCount({ filtered, total })
+            }
+            onActivated={onActivated}
+          />
         </div>
       </div>
     </div>

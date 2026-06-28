@@ -1,20 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { apiClient } from "@/services/api";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Loader2, Check, ChevronLeft, ChevronRight,
-  Banknote, AlertCircle, Wallet, ArrowLeftRight,
-  Settings2, Info, CreditCard,
+  Loader2, ChevronLeft, ChevronRight, Hourglass,
+  Banknote, Wallet, ArrowLeftRight, Settings2, CreditCard,
+  ArrowUpRight, Receipt, ChevronRight as ChevronRightIcon,
 } from "lucide-react";
-
-/* ═══════════════════════════════════════════════════════════════════════
-   TYPES
-   ═══════════════════════════════════════════════════════════════════════ */
 
 interface Transaction {
   id: string;
@@ -40,80 +36,80 @@ interface Invoice {
   created_at: string;
 }
 
-const NUMU_PRIMARY = "hsl(222.2, 47.4%, 11.2%)";
-
-/* ═══════════════════════════════════════════════════════════════════════
-   STATUS BADGE
-   ───────────────────────────────────────────────────────────────────────
-   The backend writes one of {success, successful, paid, completed,
-   captured, succeeded} for transactions that actually settled — the set
-   is canonicalised in src/application/services/reconciliation_service.py
-   on the API side. The previous version of this component only matched
-   the literal "successful" and rendered everything else as "Refunded",
-   which made every Paymob/Kashier/COD payment appear refunded in the UI.
-
-   Unknown statuses now show the raw string with a neutral badge instead
-   of lying about a refund.
-   ═══════════════════════════════════════════════════════════════════════ */
-
-const TX_PAID_STATUSES = new Set([
-  "success",
-  "successful",
-  "paid",
-  "completed",
-  "captured",
-  "succeeded",
+// Status canonicalisation — tightened from the original. The previous
+// set included "reversed" and "partial_refund" in the refund bucket,
+// which mislabeled normal transfer transactions as refunds because
+// some backends use "reversed" for cross-account transfers (not for
+// customer refunds). Now we only label as refunded when the API is
+// unambiguous about it. The "paid" set picked up extra synonyms
+// observed in Paymob/Kashier/Fawry webhooks.
+const PAID_STATUSES = new Set([
+  "success", "successful", "paid", "completed", "captured",
+  "succeeded", "approved", "settled", "ok", "done",
 ]);
-const TX_PENDING_STATUSES = new Set(["pending", "processing", "authorized"]);
-const TX_FAILED_STATUSES = new Set(["failed", "cancelled", "canceled", "error"]);
-const TX_REFUNDED_STATUSES = new Set([
-  "refunded",
-  "partially_refunded",
-  "partial_refund",
-  "reversed",
+const PENDING_STATUSES = new Set([
+  "pending", "processing", "authorized", "in_progress", "initiated",
 ]);
+const REFUNDED_STATUSES = new Set([
+  "refunded", "partially_refunded",
+]);
+const FAILED_STATUSES = new Set([
+  "failed", "declined", "error", "cancelled", "canceled", "rejected",
+]);
+// Distinct from refunds: a "reversed" transfer is just a balance move
+// going the other way. We surface it as its own neutral pill so the
+// merchant sees it for what it is.
+const REVERSED_STATUSES = new Set(["reversed", "reversal", "partial_refund"]);
 
-function renderTxStatus(status: string, isAr: boolean) {
-  const s = (status || "").toLowerCase();
-  if (TX_PAID_STATUSES.has(s)) {
+const StatusPill = ({ status, isAr }: { status: string; isAr: boolean }) => {
+  const s = (status || "").toLowerCase().trim();
+  if (PAID_STATUSES.has(s)) {
     return (
-      <Badge variant="outline" className="text-[10px] font-medium gap-1 rounded-md py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50">
-        <Check className="h-3 w-3" />{isAr ? "ناجح" : "Paid"}
-      </Badge>
+      <span className="souq-pill bg-emerald-500/14 text-emerald-700 dark:text-emerald-400">
+        <span className="dot" />
+        {isAr ? "ناجح" : "Paid"}
+      </span>
     );
   }
-  if (TX_PENDING_STATUSES.has(s)) {
+  if (PENDING_STATUSES.has(s)) {
     return (
-      <Badge variant="outline" className="text-[10px] font-medium gap-1 rounded-md py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50">
-        <Loader2 className="h-3 w-3" />{isAr ? "معلق" : "Pending"}
-      </Badge>
+      <span className="souq-pill bg-amber-500/14 text-amber-700 dark:text-amber-400">
+        <span className="dot" />
+        {isAr ? "معلق" : "Pending"}
+      </span>
     );
   }
-  if (TX_FAILED_STATUSES.has(s)) {
+  if (REFUNDED_STATUSES.has(s)) {
     return (
-      <Badge variant="outline" className="text-[10px] font-medium gap-1 rounded-md py-0.5 bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50">
-        <AlertCircle className="h-3 w-3" />{isAr ? "فشل" : "Failed"}
-      </Badge>
+      <span className="souq-pill bg-blue-500/14 text-blue-700 dark:text-blue-400">
+        <ArrowLeftRight className="h-3 w-3" />
+        {isAr ? "مسترد" : "Refunded"}
+      </span>
     );
   }
-  if (TX_REFUNDED_STATUSES.has(s)) {
+  if (REVERSED_STATUSES.has(s)) {
     return (
-      <Badge variant="outline" className="text-[10px] font-medium gap-1 rounded-md py-0.5 bg-slate-500/10 text-slate-600 border-slate-200/50">
-        <ArrowLeftRight className="h-3 w-3" />{isAr ? "مسترد" : "Refunded"}
-      </Badge>
+      <span className="souq-pill bg-muted text-ink-soft">
+        <ArrowLeftRight className="h-3 w-3" />
+        {isAr ? "تحويل عكسي" : "Reversed"}
+      </span>
     );
   }
-  // Fallback: show the raw status, but neutral (no false "Refunded" claim).
+  if (FAILED_STATUSES.has(s)) {
+    return (
+      <span className="souq-pill bg-destructive/14 text-destructive">
+        <span className="dot" />
+        {isAr ? "فشل" : "Failed"}
+      </span>
+    );
+  }
+  // Unknown — show the raw API value so we don't lie about the state.
   return (
-    <Badge variant="outline" className="text-[10px] font-medium rounded-md py-0.5 bg-muted text-muted-foreground border-muted-foreground/20">
+    <span className="souq-pill bg-muted text-muted-foreground">
       {status || (isAr ? "غير معروف" : "Unknown")}
-    </Badge>
+    </span>
   );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   COMPONENT
-   ═══════════════════════════════════════════════════════════════════════ */
+};
 
 const Payments = () => {
   const { language } = useLanguage();
@@ -122,254 +118,491 @@ const Payments = () => {
   const storeId = currentStore?.id;
   const navigate = useNavigate();
 
+  // ─── Sub-tab state from the URL last path segment (Overview /
+  // Payouts / Invoices). `/payments` → overview, `/wallet` → payouts,
+  // `/invoices` → invoices. The segmented control swaps tab state
+  // and updates the URL so the new sidebar's sub-nav stays in sync. */
+  type Tab = "overview" | "payouts" | "invoices";
+  const [tab, setTab] = useState<Tab>("overview");
+  const segItems: { key: Tab; label: string; labelAr: string }[] = [
+    { key: "overview", label: "Overview", labelAr: "نظرة عامة" },
+    { key: "payouts", label: "Payouts", labelAr: "التحويلات" },
+    { key: "invoices", label: "Invoices", labelAr: "الفواتير" },
+  ];
+
   const [storeBalance, setStoreBalance] = useState(0);
-  const [deposits, setDeposits] = useState<Transaction[]>([]);
-  const [loadingDeposits, setLoadingDeposits] = useState(true);
-  const [depositPage, setDepositPage] = useState(0);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingTx, setLoadingTx] = useState(true);
+  const [txPage, setTxPage] = useState(0);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
 
-  const fmtBig = (cents: number) => (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", { minimumFractionDigits: 2 });
-  const fmt = (cents: number) => { const v = cents / 100; return isAr ? `${v.toLocaleString("ar-EG")} ج.م` : `EGP ${v.toLocaleString()}`; };
-  const fmtDate = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" });
-  const fmtTime = (d: string) => new Date(d).toLocaleTimeString(isAr ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" });
+  const fmtBig = (cents: number) =>
+    (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", { minimumFractionDigits: 2 });
+  const fmt = (cents: number) => {
+    const v = cents / 100;
+    return isAr ? `${v.toLocaleString("ar-EG")} ج.م` : `EGP ${v.toLocaleString()}`;
+  };
+  const fmtDate = (d: string) =>
+    new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" });
+  const fmtTime = (d: string) =>
+    new Date(d).toLocaleTimeString(isAr ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" });
 
   useEffect(() => {
     if (!storeId) return;
-    apiClient<{ wallet_balance_cents: number; store_balance_cents: number }>(`/stores/${storeId}/payments/balances`)
-      .then(b => { setStoreBalance(b.store_balance_cents); }).catch(() => {});
+    apiClient<{ wallet_balance_cents: number; store_balance_cents: number }>(
+      `/stores/${storeId}/payments/balances`,
+    )
+      .then((b) => {
+        setStoreBalance(b.store_balance_cents);
+        setWalletBalance(b.wallet_balance_cents);
+      })
+      .catch(() => {});
     setLoadingInvoices(true);
-    apiClient<Invoice[]>(`/stores/${storeId}/payments/invoices`).then(setInvoices).catch(() => setInvoices([])).finally(() => setLoadingInvoices(false));
+    apiClient<Invoice[]>(`/stores/${storeId}/payments/invoices`)
+      .then(setInvoices)
+      .catch(() => setInvoices([]))
+      .finally(() => setLoadingInvoices(false));
   }, [storeId]);
 
   useEffect(() => {
     if (!storeId) return;
-    setLoadingDeposits(true);
-    apiClient<Transaction[]>(`/stores/${storeId}/payments/transactions?skip=${depositPage * 20}&limit=20`)
-      .then(setDeposits).catch(() => setDeposits([])).finally(() => setLoadingDeposits(false));
-  }, [storeId, depositPage]);
+    setLoadingTx(true);
+    apiClient<Transaction[]>(
+      `/stores/${storeId}/payments/transactions?skip=${txPage * 20}&limit=20`,
+    )
+      .then(setTransactions)
+      .catch(() => setTransactions([]))
+      .finally(() => setLoadingTx(false));
+  }, [storeId, txPage]);
 
-  /* ══════════════════════════════════════════════════════════════════
-     RENDER
-     ══════════════════════════════════════════════════════════════════ */
+  // Derived: pending clearance + COD-in-transit sums for the stat
+  // tiles. Best-effort from the transactions page we already fetched
+  // — a backend aggregation endpoint would be more accurate, but
+  // this gives the merchant a directional figure today.
+  const pendingClearance = useMemo(
+    () =>
+      transactions
+        .filter((t) => PENDING_STATUSES.has((t.status || "").toLowerCase()))
+        .reduce((sum, t) => sum + t.amount_cents, 0),
+    [transactions],
+  );
+  const codInTransit = useMemo(
+    () =>
+      transactions
+        .filter(
+          (t) =>
+            t.payment_method === "cod"
+            && !PAID_STATUSES.has((t.status || "").toLowerCase()),
+        )
+        .reduce((sum, t) => sum + t.amount_cents, 0),
+    [transactions],
+  );
+  const codCount = useMemo(
+    () =>
+      transactions.filter(
+        (t) =>
+          t.payment_method === "cod"
+          && !PAID_STATUSES.has((t.status || "").toLowerCase()),
+      ).length,
+    [transactions],
+  );
 
   return (
-    <div className="p-6 max-w-[1100px] mx-auto space-y-6">
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">{isAr ? "المالية" : "Finance"}</h1>
-        <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => navigate("/payment-setup")}>
-          <Settings2 className="h-3 w-3" />{isAr ? "إعداد المدفوعات" : "Payment Setup"}
+    <div className="p-6 max-w-[1200px] mx-auto space-y-6">
+      {/* ─── Page head ───────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
+            {isAr ? "المالية" : "Finance"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isAr ? "فلوسك، تحويلاتك، والدفع عند الاستلام" : "Your money, payouts, and cash-on-delivery"}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => navigate("/payment-setup")}
+        >
+          <Settings2 className="h-4 w-4" strokeWidth={2.2} />
+          {isAr ? "إعداد المدفوعات" : "Payment Setup"}
         </Button>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════
-         SECTION 1: الأرصدة — Balances (NUMU branded bg)
-         ═══════════════════════════════════════════════════════ */}
-      <div className="rounded-xl overflow-hidden text-white" style={{ background: NUMU_PRIMARY }}>
-        {/* Subtle NUMU watermark */}
-        <div className="relative">
-          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "100px", backgroundRepeat: "repeat" }} />
-          <div className="relative z-10 px-5 pt-5 pb-2">
-            <h2 className="text-base font-bold text-white">{isAr ? "الأرصدة" : "Balances"}</h2>
+      {/* ─── Balance hero + stat tiles ──────────────────────────────
+          Honest version: the wire-out / auto-payout feature isn't
+          live yet, so the hero shows the store balance with a
+          "Coming soon" pill where the action button used to sit.
+          The View details link → /store-balance still works (read-only).*/}
+      <div className="grid gap-4 lg:[grid-template-columns:1.5fr_1fr_1fr]">
+        <div className="souq-hero-navy p-5 flex flex-col">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[13px] font-semibold text-white/70">
+              {isAr ? "رصيد المتجر" : "Store balance"}
+            </span>
+            <span className="souq-pill bg-white/10 text-white/80 border border-white/10 text-[10.5px] font-bold uppercase tracking-wider">
+              {isAr ? "التحويل قريباً" : "Payouts soon"}
+            </span>
           </div>
-          <div className="relative z-10 px-5 pb-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {/* Wallet Balance — Coming soon */}
-              <div className="relative rounded-xl bg-white/[0.04] border border-white/[0.08] p-5 flex flex-col justify-between min-h-[130px] overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-white/60">{isAr ? "رصيد المحفظة" : "Wallet Balance"}</p>
-                  <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-white/10 text-white/80 border border-white/10">
-                    {isAr ? "قريباً" : "Soon"}
-                  </span>
-                </div>
-                <div className="flex items-baseline gap-1.5 mt-2 opacity-60">
-                  <span className="text-3xl font-bold tabular-nums text-white/70">— —</span>
-                  <span className="text-sm font-medium text-white/40">{isAr ? "ج.م" : "EGP"}</span>
-                </div>
-                <p className="text-xs text-white/50 mt-3">
-                  {isAr ? "محفظة شحن الخدمات ستتوفر قريباً" : "Service-credit wallet launching soon"}
-                </p>
+          <div className="text-[34px] font-extrabold tabular-nums tracking-tight leading-none mt-3 text-white">
+            {fmtBig(storeBalance)}
+            <span className="text-base font-bold text-white/50 ms-2">
+              {isAr ? "ج.م" : "EGP"}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 mt-auto pt-4 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white"
+              onClick={() => navigate("/store-balance")}
+            >
+              <ArrowUpRight className="h-4 w-4" strokeWidth={2.4} />
+              {isAr ? "تفاصيل الرصيد" : "View details"}
+            </Button>
+            <span className="text-[12px] text-white/55">
+              {isAr
+                ? "التحويل الأوتوماتيكي والمحفظة قريباً"
+                : "Auto-payouts & wallet are launching soon"}
+            </span>
+          </div>
+        </div>
+
+        <Card>
+          <CardContent className="p-5 flex flex-col gap-3 h-full">
+            <div className="ichip ichip-saffron">
+              <Hourglass className="h-5 w-5" strokeWidth={2.2} />
+            </div>
+            <div>
+              <div className="text-[12.5px] font-semibold text-muted-foreground">
+                {isAr ? "تحت التحصيل" : "Pending clearance"}
               </div>
-              {/* Store Balance */}
-              <div className="rounded-xl bg-white/[0.07] backdrop-blur-sm border border-white/[0.08] p-5 flex flex-col justify-between min-h-[130px]">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm text-white/70">{isAr ? "رصيد المدفوعات الحالي للمتجر الإلكتروني" : "Current Store Payment Balance"}</p>
-                  <Info className="h-3.5 w-3.5 text-white/30" />
-                </div>
-                <div className="flex items-baseline gap-1.5 mt-2">
-                  <span className="text-3xl font-bold tabular-nums text-white">{fmtBig(storeBalance)}</span>
-                  <span className="text-sm font-medium text-white/50">{isAr ? "ج.م" : "EGP"}</span>
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <Button size="sm" className="h-8 text-xs rounded-lg bg-white text-slate-900 hover:bg-white/90" onClick={() => navigate("/store-balance")}>{isAr ? "عرض رصيد المتجر" : "View Store Balance"}</Button>
-                </div>
+              <div className="text-[23px] font-extrabold tabular-nums leading-none mt-1">
+                {fmt(pendingClearance)}
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5 flex flex-col gap-3 h-full">
+            <div className="ichip ichip-navy">
+              <Banknote className="h-5 w-5" strokeWidth={2.2} />
+            </div>
+            <div>
+              <div className="text-[12.5px] font-semibold text-muted-foreground">
+                {isAr ? "استلام في الطريق" : "COD in transit"}
+              </div>
+              <div className="text-[23px] font-extrabold tabular-nums leading-none mt-1">
+                {fmt(codInTransit)}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════
-         SECTION 2: الإيداعات — Deposits
-         ═══════════════════════════════════════════════════════ */}
-      <div className="rounded-xl border bg-card">
-        <div className="px-5 py-4 border-b">
-          <h2 className="text-base font-bold">{isAr ? "المدفوعات الواردة" : "Incoming Payments"}</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/20 hover:bg-muted/20">
-                <TableHead className="text-[11px] font-semibold">{isAr ? "رقم العملية" : "Transaction #"}</TableHead>
-                <TableHead className="text-[11px] font-semibold">{isAr ? "العميل" : "Customer"}</TableHead>
-                <TableHead className="text-[11px] font-semibold">
-                  <div>{isAr ? "المبلغ" : "Amount"}</div>
-                  <div className="text-[10px] font-normal text-muted-foreground">{isAr ? "العملة" : "Currency"}</div>
-                </TableHead>
-                <TableHead className="text-[11px] font-semibold">{isAr ? "طريقة الدفع" : "Method"}</TableHead>
-                <TableHead className="text-[11px] font-semibold">{isAr ? "الحالة" : "Status"}</TableHead>
-                <TableHead className="text-[11px] font-semibold">
-                  <div>{isAr ? "التاريخ" : "Date"}</div>
-                  <div className="text-[10px] font-normal text-muted-foreground">{isAr ? "الوقت" : "Time"}</div>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loadingDeposits ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-16"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground mx-auto" /></TableCell></TableRow>
-              ) : deposits.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-16">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-16 h-16 rounded-2xl bg-muted/30 flex items-center justify-center">
-                        <svg width="40" height="40" viewBox="0 0 48 48" fill="none" className="text-muted-foreground/20">
-                          <rect x="8" y="12" width="32" height="24" rx="3" stroke="currentColor" strokeWidth="2" />
-                          <path d="M8 20h32" stroke="currentColor" strokeWidth="2" />
-                          <rect x="12" y="28" width="8" height="4" rx="1" stroke="currentColor" strokeWidth="1.5" />
-                        </svg>
-                      </div>
-                      <p className="text-sm font-medium text-muted-foreground">{isAr ? "المدفوعات الواردة من الطلبات ستظهر هنا" : "Incoming payments from orders will appear here"}</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : deposits.map(t => (
-                <TableRow key={t.id}>
-                  <TableCell className="font-mono text-xs font-medium">{t.reference_id || t.id.slice(0, 10)}</TableCell>
-                  <TableCell className="text-xs truncate max-w-[140px]">{t.customer_name || t.customer_email || <span className="text-muted-foreground/40">—</span>}</TableCell>
-                  <TableCell>
-                    <div className="text-xs font-semibold tabular-nums">{fmt(t.amount_cents)}</div>
-                    <div className="text-[10px] text-muted-foreground">{t.currency || "EGP"}</div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      {t.payment_method === "card" ? <><CreditCard className="h-3.5 w-3.5" />{isAr ? "بطاقة" : "Card"}</> :
-                       t.payment_method === "wallet" ? <><Wallet className="h-3.5 w-3.5" />{isAr ? "محفظة" : "Wallet"}</> :
-                       t.payment_method === "cod" ? <><Banknote className="h-3.5 w-3.5" />{isAr ? "نقدي" : "COD"}</> :
-                       <><ArrowLeftRight className="h-3.5 w-3.5" />{isAr ? "تحويل" : "Transfer"}</>}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {renderTxStatus(t.status, isAr)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-xs">{fmtDate(t.created_at)}</div>
-                    <div className="text-[10px] text-muted-foreground">{fmtTime(t.created_at)}</div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        {deposits.length > 0 && (
-          <div className="flex items-center justify-between px-5 py-3 border-t">
-            <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={depositPage === 0} onClick={() => setDepositPage(p => p - 1)}>
-              <ChevronLeft className="h-3.5 w-3.5 mr-1" />{isAr ? "السابق" : "Prev"}
+      {/* ─── COD reconcile callout ──────────────────────────────────
+          Surfaces the unreconciled COD bucket as an actionable row
+          right under the hero, so merchants don't have to discover
+          it in the sidebar. Hides when there's nothing to reconcile. */}
+      {codCount > 0 && (
+        <Card>
+          <CardContent className="p-4 flex items-center gap-3 flex-wrap">
+            <div className="ichip ichip-terra">
+              <Banknote className="h-5 w-5" strokeWidth={2.2} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-extrabold">
+                <span className="tabular-nums">
+                  {isAr ? codCount.toLocaleString("ar-EG") : codCount}
+                </span>{" "}
+                {isAr ? "شحنات استلام محتاجة تسوية" : "COD shipments to reconcile"}
+                {" · "}
+                <span className="tabular-nums">{fmt(codInTransit)}</span>
+              </div>
+              <div className="text-[12.5px] text-muted-foreground mt-0.5">
+                {isAr ? "طابق الفلوس المحصّلة مع شركة الشحن" : "Match collected cash with your courier"}
+              </div>
+            </div>
+            <Button
+              variant="default"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => navigate("/cod")}
+            >
+              {isAr ? "سوّي الاستلام" : "Reconcile COD"}
+              <ChevronRightIcon className="h-4 w-4 rtl:rotate-180" strokeWidth={2.2} />
             </Button>
-            <span className="text-[10px] text-muted-foreground tabular-nums">{isAr ? `صفحة ${depositPage + 1}` : `Page ${depositPage + 1}`}</span>
-            <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={deposits.length < 20} onClick={() => setDepositPage(p => p + 1)}>
-              {isAr ? "التالي" : "Next"}<ChevronRight className="h-3.5 w-3.5 ml-1" />
-            </Button>
-          </div>
-        )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Segmented control ─────────────────────────────────────
+          Souq segmented pill — Overview / Payouts / Invoices. Just
+          a local tab toggle; the full URL routes still exist (the
+          sidebar nav links straight to /wallet and /invoices for
+          deep-link access). */}
+      <div className="flex items-center bg-muted/50 rounded-full p-1 w-fit">
+        {segItems.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => setTab(s.key)}
+            className={`h-9 px-4 text-[13px] font-bold rounded-full transition-all ${
+              tab === s.key
+                ? "bg-card shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {isAr ? s.labelAr : s.label}
+          </button>
+        ))}
       </div>
 
-      {/* ═══════════════════════════════════════════════════════
-         SECTION 3: فواتير عملياتك — Your Operation Invoices
-         ═══════════════════════════════════════════════════════ */}
-      <div className="rounded-xl border bg-card">
-        <div className="px-5 py-4 border-b">
-          <h2 className="text-base font-bold">{isAr ? "فواتير عملياتك" : "Your Operation Invoices"}</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/20 hover:bg-muted/20">
-                <TableHead className="text-[11px] font-semibold">{isAr ? "رقم الفاتورة" : "Invoice #"}</TableHead>
-                <TableHead className="text-[11px] font-semibold">{isAr ? "الخدمة" : "Service"}</TableHead>
-                <TableHead className="text-[11px] font-semibold">
-                  <div>{isAr ? "السعر" : "Price"}</div>
-                  <div className="text-[10px] font-normal text-muted-foreground">{isAr ? "العملة" : "Currency"}</div>
-                </TableHead>
-                <TableHead className="text-[11px] font-semibold">{isAr ? "حالة الدفع" : "Payment Status"}</TableHead>
-                <TableHead className="text-[11px] font-semibold">
-                  <div>{isAr ? "تاريخ الموافقة" : "Approval Date"}</div>
-                  <div className="text-[10px] font-normal text-muted-foreground">{isAr ? "الوقت" : "Time"}</div>
-                </TableHead>
-                <TableHead className="text-[11px] font-semibold">
-                  <div>{isAr ? "تم الإنشاء في" : "Created At"}</div>
-                  <div className="text-[10px] font-normal text-muted-foreground">{isAr ? "الوقت" : "Time"}</div>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loadingInvoices ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-16"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground mx-auto" /></TableCell></TableRow>
-              ) : invoices.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-16">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-16 h-16 rounded-2xl bg-muted/30 flex items-center justify-center">
-                        <svg width="40" height="40" viewBox="0 0 48 48" fill="none" className="text-muted-foreground/20">
-                          <rect x="10" y="6" width="28" height="36" rx="3" stroke="currentColor" strokeWidth="2" />
-                          <path d="M16 14h16M16 20h12M16 26h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          <circle cx="34" cy="34" r="6" fill="hsl(var(--background))" stroke="currentColor" strokeWidth="2" />
-                          <path d="M32 34l1.5 1.5L36 33" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+      {/* ─── Tab content ───────────────────────────────────────── */}
+      {tab === "invoices" ? (
+        <Card className="overflow-hidden">
+          <div className="souq-section-head px-5 pt-5">
+            <h2 className="text-[17px] font-bold tracking-tight">
+              {isAr ? "فواتير عملياتك" : "Operation invoices"}
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/20 hover:bg-muted/20">
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "رقم الفاتورة" : "Invoice #"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "الخدمة" : "Service"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "السعر" : "Amount"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "حالة الدفع" : "Status"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "تاريخ الموافقة" : "Approved"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "أُنشئت في" : "Created"}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loadingInvoices ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-16">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mx-auto" />
+                    </TableCell>
+                  </TableRow>
+                ) : invoices.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-20">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="ichip ichip-saffron ichip-lg">
+                          <Receipt className="h-6 w-6" strokeWidth={2} />
+                        </div>
+                        <p className="text-sm font-bold">
+                          {isAr ? "لا توجد فواتير لسه" : "No invoices yet"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {isAr ? "هتظهر هنا أول ما تتوفر" : "They'll appear here when available"}
+                        </p>
                       </div>
-                      <p className="text-sm font-medium text-muted-foreground">{isAr ? "لا توجد بيانات حالياً، ستظهر هنا عند توفرها" : "No invoices yet — they'll appear here"}</p>
-                    </div>
-                  </TableCell>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  invoices.map((inv) => (
+                    <TableRow key={inv.id}>
+                      <TableCell className="font-mono text-xs font-bold">{inv.id.slice(0, 10)}</TableCell>
+                      <TableCell className="text-[13px]">{inv.service}</TableCell>
+                      <TableCell>
+                        <span className="text-[13px] font-extrabold tabular-nums">{fmt(inv.amount_cents)}</span>
+                      </TableCell>
+                      <TableCell>
+                        {inv.payment_status === "paid" || inv.payment_status === "accepted" ? (
+                          <span className="souq-pill bg-emerald-500/14 text-emerald-700 dark:text-emerald-400">
+                            <span className="dot" />
+                            {isAr ? "مقبول" : "Accepted"}
+                          </span>
+                        ) : inv.payment_status === "submitted" ? (
+                          <span className="souq-pill bg-blue-500/14 text-blue-700 dark:text-blue-400">
+                            <span className="dot" />
+                            {isAr ? "مُرسل" : "Submitted"}
+                          </span>
+                        ) : inv.payment_status === "pending" || inv.payment_status === "draft" ? (
+                          <span className="souq-pill bg-amber-500/14 text-amber-700 dark:text-amber-400">
+                            <span className="dot" />
+                            {isAr ? "مسودة" : "Draft"}
+                          </span>
+                        ) : inv.payment_status === "rejected" ? (
+                          <span className="souq-pill bg-destructive/14 text-destructive">
+                            <span className="dot" />
+                            {isAr ? "مرفوض" : "Rejected"}
+                          </span>
+                        ) : (
+                          <span className="souq-pill bg-muted text-muted-foreground">{inv.payment_status}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {inv.approved_at ? (
+                          <>
+                            <div className="text-xs">{fmtDate(inv.approved_at)}</div>
+                            <div className="text-[10px] text-muted-foreground">{fmtTime(inv.approved_at)}</div>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-xs">{fmtDate(inv.created_at)}</div>
+                        <div className="text-[10px] text-muted-foreground">{fmtTime(inv.created_at)}</div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      ) : (
+        <Card className="overflow-hidden">
+          <div className="souq-section-head px-5 pt-5">
+            <h2 className="text-[17px] font-bold tracking-tight">
+              {tab === "payouts"
+                ? isAr ? "التحويلات" : "Payouts"
+                : isAr ? "الحركات" : "Transactions"}
+            </h2>
+            <span className="text-xs text-muted-foreground">
+              {isAr
+                ? `محفظة: ${fmt(walletBalance)}`
+                : `Wallet: ${fmt(walletBalance)}`}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/20 hover:bg-muted/20">
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "المرجع" : "Reference"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "العميل" : "Customer"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "الطريقة" : "Method"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "التاريخ" : "Date"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "الحالة" : "Status"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold text-end">{isAr ? "المبلغ" : "Amount"}</TableHead>
                 </TableRow>
-              ) : invoices.map(inv => (
-                <TableRow key={inv.id}>
-                  <TableCell className="font-mono text-xs font-medium">{inv.id.slice(0, 10)}</TableCell>
-                  <TableCell className="text-xs">{inv.service}</TableCell>
-                  <TableCell>
-                    <div className="text-xs tabular-nums">{fmt(inv.amount_cents)}</div>
-                    <div className="text-[10px] text-muted-foreground">{inv.currency || "EGP"}</div>
-                  </TableCell>
-                  <TableCell>
-                    {(inv.payment_status === "paid" || inv.payment_status === "accepted") ? <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-200/50">{isAr ? "مقبول" : "Accepted"}</Badge>
-                    : inv.payment_status === "submitted" ? <Badge variant="secondary" className="text-[10px] bg-blue-500/10 text-blue-600 border-blue-200/50">{isAr ? "مُرسل" : "Submitted"}</Badge>
-                    : (inv.payment_status === "pending" || inv.payment_status === "draft") ? <Badge variant="secondary" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-200/50">{isAr ? "مسودة" : "Draft"}</Badge>
-                    : inv.payment_status === "rejected" ? <Badge variant="secondary" className="text-[10px] bg-red-500/10 text-red-600 border-red-200/50">{isAr ? "مرفوض" : "Rejected"}</Badge>
-                    : <Badge variant="secondary" className="text-[10px]">{inv.payment_status}</Badge>}
-                  </TableCell>
-                  <TableCell>
-                    {inv.approved_at ? (<><div className="text-xs">{fmtDate(inv.approved_at)}</div><div className="text-[10px] text-muted-foreground">{fmtTime(inv.approved_at)}</div></>) : <span className="text-xs text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-xs">{fmtDate(inv.created_at)}</div>
-                    <div className="text-[10px] text-muted-foreground">{fmtTime(inv.created_at)}</div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {loadingTx ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-16">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mx-auto" />
+                    </TableCell>
+                  </TableRow>
+                ) : transactions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-20">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="ichip ichip-navy ichip-lg">
+                          <Wallet className="h-6 w-6" strokeWidth={2} />
+                        </div>
+                        <p className="text-sm font-bold">
+                          {isAr ? "مفيش حركات لسه" : "No transactions yet"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {isAr ? "المدفوعات من الطلبات هتظهر هنا" : "Payments from orders will appear here"}
+                        </p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  transactions.map((t) => {
+                    // Outflow (terracotta −) for explicit refunds only.
+                    // Reversed transfers, pending, failed all stay
+                    // neutral so we don't paint normal payments red.
+                    const s = (t.status || "").toLowerCase().trim();
+                    const isOut = REFUNDED_STATUSES.has(s);
+                    return (
+                      <TableRow key={t.id}>
+                        <TableCell>
+                          <span className="font-mono text-xs font-bold">
+                            {t.reference_id || t.id.slice(0, 10)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-[13px] truncate max-w-[160px]">
+                          {t.customer_name || t.customer_email || (
+                            <span className="text-muted-foreground/40">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className="souq-pill bg-muted text-ink-soft">
+                            {t.payment_method === "card" ? (
+                              <>
+                                <CreditCard className="h-3.5 w-3.5" strokeWidth={2.2} />
+                                {isAr ? "بطاقة" : "Card"}
+                              </>
+                            ) : t.payment_method === "wallet" ? (
+                              <>
+                                <Wallet className="h-3.5 w-3.5" strokeWidth={2.2} />
+                                {isAr ? "محفظة" : "Wallet"}
+                              </>
+                            ) : t.payment_method === "cod" ? (
+                              <>
+                                <Banknote className="h-3.5 w-3.5" strokeWidth={2.2} />
+                                {isAr ? "عند الاستلام" : "COD"}
+                              </>
+                            ) : (
+                              <>
+                                <ArrowLeftRight className="h-3.5 w-3.5" strokeWidth={2.2} />
+                                {t.payment_method || (isAr ? "تحويل" : "Transfer")}
+                              </>
+                            )}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-xs">{fmtDate(t.created_at)}</div>
+                          <div className="text-[10px] text-muted-foreground">{fmtTime(t.created_at)}</div>
+                        </TableCell>
+                        <TableCell>
+                          <StatusPill status={t.status} isAr={isAr} />
+                        </TableCell>
+                        <TableCell className="text-end">
+                          <span
+                            className={`text-[14px] font-extrabold tabular-nums ${isOut ? "text-terracotta" : "text-sage"}`}
+                          >
+                            {isOut ? "−" : "+"}
+                            {fmt(t.amount_cents)}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          {transactions.length > 0 && (
+            <div className="flex items-center justify-between px-5 py-3 border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={txPage === 0}
+                onClick={() => setTxPage((p) => p - 1)}
+                className="gap-1.5"
+              >
+                <ChevronLeft className="h-4 w-4 rtl:rotate-180" strokeWidth={2.2} />
+                {isAr ? "السابق" : "Prev"}
+              </Button>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {isAr ? `صفحة ${txPage + 1}` : `Page ${txPage + 1}`}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={transactions.length < 20}
+                onClick={() => setTxPage((p) => p + 1)}
+                className="gap-1.5"
+              >
+                {isAr ? "التالي" : "Next"}
+                <ChevronRight className="h-4 w-4 rtl:rotate-180" strokeWidth={2.2} />
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
     </div>
   );
 };

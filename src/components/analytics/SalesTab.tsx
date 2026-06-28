@@ -15,12 +15,14 @@ import {
   getSalesChart, getRevenueBreakdown, getOrdersBreakdown,
 } from "@/services/analyticsApi";
 import type { SalesDataPoint } from "@/services/analyticsApi";
+import { dateRangeKey } from "@/services/dateRangeParams";
+import type { DateRange } from "@/components/filters/DateRangePicker";
 import { useState } from "react";
 
 type Granularity = "day" | "week" | "month";
 
 interface SalesTabProps {
-  period: number;
+  range: DateRange;
   formatCurrency: (cents: number) => string;
 }
 
@@ -39,30 +41,31 @@ function aggregateByGranularity(data: SalesDataPoint[], granularity: Granularity
   return result;
 }
 
-export function SalesTab({ period, formatCurrency }: SalesTabProps) {
+export function SalesTab({ range, formatCurrency }: SalesTabProps) {
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const isAr = language === "ar";
   const [granularity, setGranularity] = useState<Granularity>("day");
+  const rangeKey = dateRangeKey(range);
 
   const chartQuery = useQuery({
-    queryKey: ["analytics", "chart", storeId, period],
-    queryFn: () => getSalesChart(storeId!, period),
+    queryKey: ["analytics", "chart", storeId, ...rangeKey],
+    queryFn: () => getSalesChart(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
 
   const revenueQuery = useQuery({
-    queryKey: ["analytics", "revenue-breakdown", storeId, period],
-    queryFn: () => getRevenueBreakdown(storeId!, period),
+    queryKey: ["analytics", "revenue-breakdown", storeId, ...rangeKey],
+    queryFn: () => getRevenueBreakdown(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
 
   const ordersBreakdownQuery = useQuery({
-    queryKey: ["analytics", "orders-breakdown", storeId, period],
-    queryFn: () => getOrdersBreakdown(storeId!, period),
+    queryKey: ["analytics", "orders-breakdown", storeId, ...rangeKey],
+    queryFn: () => getOrdersBreakdown(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });

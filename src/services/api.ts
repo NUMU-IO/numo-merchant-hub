@@ -135,9 +135,28 @@ function redirectToLogin(): never {
   throw new ApiError(401, null);
 }
 
+/**
+ * Per-call options layered ON TOP of the standard RequestInit. Use this
+ * for behavior toggles that don't belong on the fetch options.
+ *
+ * `noAutoRedirect401`: caller will handle session expiry itself instead
+ * of letting the client window.location-redirect to /login. The V3 theme
+ * editor uses this so a mid-customization session loss surfaces as an
+ * inline "re-login" banner — bouncing wipes the unsaved draft and
+ * undo history that's only in memory until the next autosave tick.
+ */
+export interface ApiClientOptions {
+  noAutoRedirect401?: boolean;
+  /** Invoked with the raw successful Response before its body is parsed.
+   *  Lets callers read response headers (e.g. `ETag` for optimistic
+   *  concurrency) that the unwrapped `{data}` return value can't carry. */
+  onResponse?: (res: Response) => void;
+}
+
 export async function apiClient<T>(
   endpoint: string,
   options?: RequestInit,
+  apiOpts?: ApiClientOptions,
 ): Promise<T> {
   let res: Response;
   try {
@@ -166,6 +185,9 @@ export async function apiClient<T>(
       rawFetch(endpoint, options),
     );
     if (retried === null) {
+      if (apiOpts?.noAutoRedirect401) {
+        throw new ApiError(401, "Session expired");
+      }
       redirectToLogin();
     }
     res = retried;
@@ -174,6 +196,11 @@ export async function apiClient<T>(
   if (!res.ok) {
     throw await apiErrorFromResponse(res);
   }
+
+  // Expose the successful response (headers/status) to callers that opted
+  // in, before we consume the body. Used by the theme editor to capture the
+  // draft `ETag` for optimistic-concurrency autosave.
+  apiOpts?.onResponse?.(res);
 
   if (res.status === 204) {
     return undefined as T;

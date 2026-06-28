@@ -4,6 +4,7 @@
 
 import { apiClient } from "./api";
 import { compressImage } from "@/lib/image-compression";
+import type { ImageTransform } from "@/features/theme-editor-v3/components/inputs/imageTransform";
 
 export interface StoreData {
   id: string;
@@ -18,6 +19,8 @@ export interface StoreData {
   banner_url: string | null;
   status: string;
   default_currency: string;
+  /** ISO 3166-1 alpha-2 market code (e.g. "EG", "SA"). */
+  country?: string;
   default_language: string;
   contact_email: string | null;
   contact_phone: string | null;
@@ -44,6 +47,8 @@ export interface CreateStoreData {
   slug?: string;
   description?: string;
   default_currency?: string;
+  /** ISO 3166-1 alpha-2 market code; defaults to "EG" server-side. */
+  country?: string;
   default_language?: string;
   contact_email?: string;
   contact_phone?: string;
@@ -116,6 +121,10 @@ export interface UpdateStoreData {
   settings?: Record<string, unknown>;
   theme_settings?: Record<string, unknown>;
   business_hours?: Record<string, unknown> | null;
+  /** Market country code (e.g. EG, SA) — re-resolves the market. */
+  country?: string;
+  /** ISO 4217 currency (e.g. EGP, SAR). Per-store; affects only this store. */
+  default_currency?: string;
 }
 
 export async function updateStore(
@@ -169,6 +178,75 @@ export async function uploadStoreAsset(
   });
 }
 
+// ─── Asset Library ────────────────────────────────────────────────────────────
+
+/**
+ * One entry from `GET /stores/:id/settings/customization/assets`. The
+ * backend returns whatever the storage service surfaces — keys vary
+ * by backend (local-disk → `customization/<store_id>/<filename>`, R2
+ * → the same prefix translated to an R2 key). Consumers only care
+ * about `url` (for `<img>`) and `key` (for stable identity).
+ */
+export interface StoreAsset {
+  key: string;
+  url: string;
+  /** Bytes. */
+  size?: number;
+  /** ISO timestamp string or empty when the storage backend doesn't track it. */
+  last_modified?: string;
+  /** Merchant-authored alt text (library default; seeds image-picker alt). */
+  alt?: string;
+  /** Friendly display label — metadata only, the object key never changes. */
+  name?: string;
+  /** Per-asset DEFAULT focal/zoom/rotation. Seeds a fresh placement's
+   *  transform when this asset is first picked from the library. */
+  transform?: ImageTransform;
+}
+
+/**
+ * List all uploaded customization assets for a store. Used by the
+ * Media Library tab in the V3 image picker so merchants can reuse
+ * previously-uploaded imagery instead of re-uploading every time.
+ */
+export async function listStoreAssets(storeId: string): Promise<StoreAsset[]> {
+  return apiClient<StoreAsset[]>(
+    `/stores/${storeId}/settings/customization/assets`,
+  );
+}
+
+/**
+ * Update an asset's library metadata (alt text + friendly display
+ * name). The object key / URL is immutable — only metadata changes —
+ * so any section already referencing the URL keeps working.
+ */
+export async function updateStoreAsset(
+  storeId: string,
+  key: string,
+  // `transform: null` explicitly CLEARS the asset's default; omitting it leaves
+  // the stored default unchanged.
+  meta: { alt?: string; name?: string; transform?: ImageTransform | null },
+): Promise<{ key: string; alt?: string; name?: string; transform?: ImageTransform }> {
+  return apiClient(`/stores/${storeId}/settings/customization/assets`, {
+    method: "PATCH",
+    body: JSON.stringify({ key, ...meta }),
+  });
+}
+
+/**
+ * Delete an uploaded asset from storage. The caller is responsible for
+ * ensuring it isn't still referenced by a published section (Shopify
+ * behaves the same — it warns but allows the delete).
+ */
+export async function deleteStoreAsset(
+  storeId: string,
+  key: string,
+): Promise<{ key: string }> {
+  return apiClient(`/stores/${storeId}/settings/customization/assets`, {
+    method: "DELETE",
+    body: JSON.stringify({ key }),
+  });
+}
+
 // ─── Shipping Settings ────────────────────────────────────────────────────────
 
 export interface ShippingZone {
@@ -192,6 +270,11 @@ export interface ShippingSettings {
   manual: ShippingCarrierStatus;
   zones: ShippingZone[];
   free_shipping_threshold: number;
+  /** When true, only ship to governorates that have a configured zone —
+   *  uncovered destinations show "no options" at checkout. When false
+   *  (default), uncovered destinations fall back to a free default rate so
+   *  every place is shippable. */
+  restrict_to_zones: boolean;
 }
 
 export async function fetchShippingSettings(
@@ -281,7 +364,11 @@ export async function updatePaymentSettings(
 
 export async function updateShippingSettings(
   storeId: string,
-  data: { free_shipping_threshold?: number; manual_enabled?: boolean }
+  data: {
+    free_shipping_threshold?: number;
+    manual_enabled?: boolean;
+    restrict_to_zones?: boolean;
+  }
 ): Promise<ShippingSettings> {
   return apiClient<ShippingSettings>(`/stores/${storeId}/settings/shipping`, {
     method: "PATCH",
@@ -314,7 +401,12 @@ export interface CodTrustSettings {
   enabled: boolean;
   threshold: number;
   min_confidence: "low" | "medium" | "high";
-  action: "block" | "warn";
+  action: "block" | "warn" | "recover";
+  /**
+   * "recover" only: promo line shown in the cod_recovery_offer_v1 WhatsApp
+   * message that invites the buyer to pay online. Blank → backend default.
+   */
+  recovery_promo?: string | null;
   /** Days a COD order can sit in SHIPPED before the auto-RTO sweep flags it. 7-60. */
   auto_rto_days: number;
   /** Skip the auto-RTO sweep entirely for this store. */
@@ -337,6 +429,50 @@ export async function updateCodTrustSettings(
   });
 }
 
+/** Per-store COD trust impact over a rolling window. Merchant sees only
+ *  their own numbers — never the network-wide (internal) moat metrics. */
+export interface TrustStatsWindow {
+  screened: number;
+  high_risk: number;
+  blocked: number;
+  warned: number;
+  recovered: number;
+  recovered_value: number; // cents
+}
+
+export interface TrustStats {
+  period_days: number;
+  current: TrustStatsWindow;
+  previous: TrustStatsWindow;
+}
+
+export async function fetchTrustStats(
+  storeId: string,
+  periodDays = 30
+): Promise<TrustStats> {
+  return apiClient<TrustStats>(
+    `/stores/${storeId}/cod-trust/stats?period_days=${periodDays}`
+  );
+}
+
+/** Cross-merchant network reputation for one phone (the lookup tool). */
+export interface TrustLookup {
+  phone_last4: string | null;
+  known: boolean;
+  score: number; // 0 (trusted) … 100 (abuser)
+  confidence: "low" | "medium" | "high";
+  label: string; // new_to_network / trusted_buyer / risky / serial_abuser
+}
+
+export async function lookupTrustPhone(
+  storeId: string,
+  phone: string
+): Promise<TrustLookup> {
+  return apiClient<TrustLookup>(
+    `/stores/${storeId}/cod-trust/lookup?phone=${encodeURIComponent(phone)}`
+  );
+}
+
 // ─── Paymob Credentials ──────────────────────────────────────────────────────
 
 export interface PaymobCredentialsResponse {
@@ -347,6 +483,9 @@ export interface PaymobCredentialsResponse {
   card_integration_id: string | null;
   wallet_integration_id: string | null;
   last_configured: string | null;
+  /** Non-fatal warning from the save-time validation probe (e.g. Paymob
+   *  Integration ID / currency mismatch). null when validation passed. */
+  validation_warning?: string | null;
 }
 
 export async function fetchPaymobCredentials(
@@ -743,6 +882,46 @@ export async function deleteFawaterakCredentials(
   storeId: string
 ): Promise<void> {
   await apiClient(`/stores/${storeId}/settings/payment/fawaterak/credentials`, {
+    method: "DELETE",
+  });
+}
+
+// ─── Moyasar Credentials (KSA) ─────────────────────────────────────────────
+
+export interface MoyasarCredentialsResponse {
+  is_configured: boolean;
+  secret_key_masked: string | null;
+  publishable_key_masked: string | null;
+  webhook_secret_masked: string | null;
+  last_configured: string | null;
+}
+
+export async function fetchMoyasarCredentials(
+  storeId: string
+): Promise<MoyasarCredentialsResponse> {
+  return apiClient<MoyasarCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/moyasar/credentials`
+  );
+}
+
+export async function saveMoyasarCredentials(
+  storeId: string,
+  data: {
+    secret_key: string;
+    publishable_key?: string;
+    webhook_secret?: string;
+  }
+): Promise<MoyasarCredentialsResponse> {
+  return apiClient<MoyasarCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/moyasar/credentials`,
+    { method: "PUT", body: JSON.stringify(data) }
+  );
+}
+
+export async function deleteMoyasarCredentials(
+  storeId: string
+): Promise<void> {
+  await apiClient(`/stores/${storeId}/settings/payment/moyasar/credentials`, {
     method: "DELETE",
   });
 }

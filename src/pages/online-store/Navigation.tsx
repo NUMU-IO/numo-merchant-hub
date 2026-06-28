@@ -1,388 +1,466 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { fetchCustomization, updateCustomization } from "@/services/themeApi";
+import {
+  listMenus,
+  upsertMenu,
+  createMenu,
+  deleteMenu,
+  type MenuItem,
+} from "@/services/menusApi";
+import { LinkPickerButton } from "@/features/theme-editor-v3/components/inputs/LinkPicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import {
-  Plus, GripVertical, Trash2, Pencil, Navigation2, Link2,
-  LayoutGrid, Loader2, Save, ArrowUp, ArrowDown, ExternalLink,
+  Plus,
+  Trash2,
+  Pencil,
+  Navigation2,
+  Link2,
+  Loader2,
+  Save,
+  ArrowUp,
+  ArrowDown,
+  CornerDownRight,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
 
-interface NavLink { label: string; labelAr?: string; to: string }
-interface EditState extends NavLink { index?: number }
+const MAX_DEPTH = 3;
+
+function genId(): string {
+  try {
+    return crypto.randomUUID().replace(/-/g, "");
+  } catch {
+    return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+}
+
+function blankItem(): MenuItem {
+  return { id: genId(), label: { en: "", ar: "" }, url: "", type: "link", children: [] };
+}
 
 function isExternal(url: string) {
-  return /^https?:\/\//.test(url.trim());
+  return /^https?:\/\//.test((url || "").trim());
+}
+
+// ── Immutable nested-item helpers (path = array of sibling indices) ──────────
+function updateSiblings(
+  items: MenuItem[],
+  parentPath: number[],
+  fn: (sibs: MenuItem[]) => MenuItem[],
+): MenuItem[] {
+  if (parentPath.length === 0) return fn(items);
+  const [head, ...rest] = parentPath;
+  return items.map((it, i) =>
+    i === head ? { ...it, children: updateSiblings(it.children ?? [], rest, fn) } : it,
+  );
+}
+
+function updateAtPath(
+  items: MenuItem[],
+  path: number[],
+  updater: (it: MenuItem) => MenuItem,
+): MenuItem[] {
+  const parent = path.slice(0, -1);
+  const idx = path[path.length - 1];
+  return updateSiblings(items, parent, (sibs) =>
+    sibs.map((it, i) => (i === idx ? updater(it) : it)),
+  );
+}
+
+function removeAtPath(items: MenuItem[], path: number[]): MenuItem[] {
+  const parent = path.slice(0, -1);
+  const idx = path[path.length - 1];
+  return updateSiblings(items, parent, (sibs) => sibs.filter((_, i) => i !== idx));
+}
+
+function moveAtPath(items: MenuItem[], path: number[], dir: -1 | 1): MenuItem[] {
+  const parent = path.slice(0, -1);
+  const idx = path[path.length - 1];
+  return updateSiblings(items, parent, (sibs) => {
+    const target = idx + dir;
+    if (target < 0 || target >= sibs.length) return sibs;
+    const next = [...sibs];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    return next;
+  });
+}
+
+// Sensible defaults so an unseeded store is instantly usable (mirrors the
+// backend's build_default_menus on store-create).
+function defaultMenuSeed(handle: string): { title: Record<string, string>; items: MenuItem[] } {
+  if (handle === "footer") {
+    return {
+      title: { en: "Footer", ar: "تذييل الصفحة" },
+      items: [
+        { id: genId(), label: { en: "Shipping", ar: "الشحن" }, url: "/shipping", type: "page", children: [] },
+        { id: genId(), label: { en: "Returns", ar: "الإرجاع" }, url: "/returns", type: "page", children: [] },
+        { id: genId(), label: { en: "FAQ", ar: "الأسئلة الشائعة" }, url: "/faq", type: "page", children: [] },
+        { id: genId(), label: { en: "Track order", ar: "تتبّع الطلب" }, url: "/track", type: "page", children: [] },
+      ],
+    };
+  }
+  return {
+    title: { en: "Main menu", ar: "القائمة الرئيسية" },
+    items: [
+      { id: genId(), label: { en: "Home", ar: "الرئيسية" }, url: "/", type: "home", children: [] },
+      { id: genId(), label: { en: "Products", ar: "المنتجات" }, url: "/products", type: "catalog", children: [] },
+      { id: genId(), label: { en: "About", ar: "من نحن" }, url: "/about", type: "page", children: [] },
+      { id: genId(), label: { en: "Contact", ar: "اتصل بنا" }, url: "/contact", type: "page", children: [] },
+    ],
+  };
+}
+
+interface EditState {
+  path: number[];
+  labelEn: string;
+  labelAr: string;
+  url: string;
 }
 
 export default function OnlineStoreNavigation() {
   const { isRTL } = useLanguage();
+  const locale: "en" | "ar" = isRTL ? "ar" : "en";
   const { currentStore } = useDashboardStore();
   const queryClient = useQueryClient();
   const storeId = currentStore?.id ?? "";
 
-  const [editingLink, setEditingLink] = useState<EditState | null>(null);
-  const [links, setLinks] = useState<NavLink[]>([]);
-  const [showCategories, setShowCategories] = useState(true);
-  const [collectionsDropdown, setCollectionsDropdown] = useState(true);
-  const [collectionsLabel, setCollectionsLabel] = useState("Collections");
-  const [collectionsLabelAr, setCollectionsLabelAr] = useState("المجموعات");
-  const [collectionsMaxItems, setCollectionsMaxItems] = useState(12);
-  const [showAllCollectionsLink, setShowAllCollectionsLink] = useState(true);
+  const [selectedHandle, setSelectedHandle] = useState<string | null>(null);
+  const [title, setTitle] = useState<{ en: string; ar: string }>({ en: "", ar: "" });
+  const [items, setItems] = useState<MenuItem[]>([]);
   const [isDirty, setIsDirty] = useState(false);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const initializedRef = useRef(false);
+  const [editing, setEditing] = useState<EditState | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newHandle, setNewHandle] = useState("");
+  const [newTitleEn, setNewTitleEn] = useState("");
+  const seededRef = useRef<string | null>(null);
 
-  const { data: customization, isLoading } = useQuery({
-    queryKey: ["customization", storeId],
-    queryFn: () => fetchCustomization(storeId),
+  const { data: menus, isLoading } = useQuery({
+    queryKey: ["menus", storeId],
+    queryFn: () => listMenus(storeId),
     enabled: !!storeId,
   });
 
-  // Seed local state ONCE — never overwrite user edits on refetch
+  // Pick a default selected menu once menus load.
   useEffect(() => {
-    if (!customization || initializedRef.current) return;
-    initializedRef.current = true;
-    setLinks(customization.navigation?.links ?? []);
-    setShowCategories(customization.navigation?.show_categories_in_nav ?? true);
-    setCollectionsDropdown(customization.navigation?.collections_dropdown ?? true);
-    setCollectionsLabel(customization.navigation?.collections_label ?? "Collections");
-    setCollectionsLabelAr(customization.navigation?.collections_label_ar ?? "المجموعات");
-    setCollectionsMaxItems(customization.navigation?.collections_max_items ?? 12);
-    setShowAllCollectionsLink(customization.navigation?.show_all_collections_link ?? true);
-  }, [customization]);
+    if (!menus || selectedHandle !== null) return;
+    if (menus.length > 0) {
+      const pick = menus.find((m) => m.handle === "main-menu") ?? menus[0];
+      setSelectedHandle(pick.handle);
+    }
+  }, [menus, selectedHandle]);
+
+  // Seed the editable draft from the selected menu. Reseeds on menu switch
+  // and on fresh data (post-save refetch); local edits are only discarded by
+  // an explicit menu switch.
+  useEffect(() => {
+    if (!menus || selectedHandle === null) return;
+    const m = menus.find((x) => x.handle === selectedHandle);
+    if (!m) return;
+    if (seededRef.current === selectedHandle && isDirty) return;
+    seededRef.current = selectedHandle;
+    setTitle({ en: m.title?.en ?? "", ar: m.title?.ar ?? "" });
+    setItems(structuredClone(m.items ?? []));
+    setIsDirty(false);
+  }, [menus, selectedHandle, isDirty]);
 
   const saveMutation = useMutation({
     mutationFn: () =>
-      updateCustomization(storeId, {
-        navigation: { 
-          links, 
-          show_categories_in_nav: showCategories,
-          collections_dropdown: collectionsDropdown,
-          collections_label: collectionsLabel,
-          collections_label_ar: collectionsLabelAr,
-          collections_max_items: collectionsMaxItems,
-          show_all_collections_link: showAllCollectionsLink,
-        },
+      upsertMenu(storeId, selectedHandle as string, {
+        title: { en: title.en, ar: title.ar },
+        items,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customization", storeId] });
-      toast.success(isRTL ? "تم حفظ التنقل" : "Navigation saved");
+      queryClient.invalidateQueries({ queryKey: ["menus", storeId] });
+      toast.success(isRTL ? "تم حفظ القائمة" : "Menu saved");
       setIsDirty(false);
     },
     onError: (err) => showError(err),
   });
 
-  function markDirty() { setIsDirty(true); }
+  const createMutation = useMutation({
+    mutationFn: (handle: string) => {
+      const seed = defaultMenuSeed(handle);
+      return createMenu(storeId, {
+        handle,
+        title: handle === "main-menu" || handle === "footer" ? seed.title : { en: newTitleEn || handle },
+        items: handle === "main-menu" || handle === "footer" ? seed.items : [],
+      });
+    },
+    onSuccess: (menu) => {
+      queryClient.invalidateQueries({ queryKey: ["menus", storeId] });
+      setSelectedHandle(menu.handle);
+      seededRef.current = null;
+      setCreating(false);
+      setNewHandle("");
+      setNewTitleEn("");
+      toast.success(isRTL ? "تم إنشاء القائمة" : "Menu created");
+    },
+    onError: (err) => showError(err),
+  });
 
-  function handleSaveLink() {
-    if (!editingLink?.label?.trim() || !editingLink?.to?.trim()) return;
-    const { index, ...link } = editingLink;
-    setLinks((prev) =>
-      index !== undefined
-        ? prev.map((l, i) => (i === index ? link : l))
-        : [...prev, link]
+  const deleteMutation = useMutation({
+    mutationFn: (handle: string) => deleteMenu(storeId, handle),
+    onSuccess: (_d, handle) => {
+      queryClient.invalidateQueries({ queryKey: ["menus", storeId] });
+      if (selectedHandle === handle) {
+        setSelectedHandle(null);
+        seededRef.current = null;
+      }
+      toast.success(isRTL ? "تم حذف القائمة" : "Menu deleted");
+    },
+    onError: (err) => showError(err),
+  });
+
+  const markDirty = () => setIsDirty(true);
+
+  // ── Item mutations ──
+  function addRootItem() {
+    setItems((prev) => [...prev, blankItem()]);
+    markDirty();
+  }
+  function addChild(path: number[]) {
+    setItems((prev) =>
+      updateAtPath(prev, path, (it) => ({
+        ...it,
+        children: [...(it.children ?? []), blankItem()],
+      })),
     );
-    setEditingLink(null);
     markDirty();
   }
-
-  function handleDelete(index: number) {
-    setLinks((prev) => prev.filter((_, i) => i !== index));
+  function removeItem(path: number[]) {
+    setItems((prev) => removeAtPath(prev, path));
     markDirty();
   }
-
-  function move(index: number, dir: -1 | 1) {
-    const next = [...links];
-    const target = index + dir;
-    if (target < 0 || target >= next.length) return;
-    [next[index], next[target]] = [next[target], next[index]];
-    setLinks(next);
+  function moveItem(path: number[], dir: -1 | 1) {
+    setItems((prev) => moveAtPath(prev, path, dir));
     markDirty();
   }
-
-  // Drag-and-drop
-  function handleDragStart(i: number) { setDragIndex(i); }
-  function handleDragOver(e: React.DragEvent, i: number) {
-    e.preventDefault();
-    setDragOverIndex(i);
-    if (dragIndex === null || dragIndex === i) return;
-    setLinks((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(dragIndex, 1);
-      next.splice(i, 0, moved);
-      return next;
+  function openEdit(path: number[], it: MenuItem) {
+    setEditing({
+      path,
+      labelEn: it.label?.en ?? "",
+      labelAr: it.label?.ar ?? "",
+      url: it.url ?? "",
     });
-    setDragIndex(i);
+  }
+  function saveEdit() {
+    if (!editing) return;
+    const { path, labelEn, labelAr, url } = editing;
+    setItems((prev) =>
+      updateAtPath(prev, path, (it) => ({
+        ...it,
+        label: { en: labelEn, ar: labelAr },
+        url,
+      })),
+    );
+    setEditing(null);
     markDirty();
   }
-  function handleDragEnd() { setDragIndex(null); setDragOverIndex(null); }
+
+  const selectedMenu = menus?.find((m) => m.handle === selectedHandle) ?? null;
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">{isRTL ? "التنقل" : "Navigation"}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
+            {isRTL ? "التنقل" : "Navigation"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isRTL
-              ? "بناء القوائم والروابط في رأس وتذييل متجرك"
-              : "Build the menus shown in your store's header and footer"}
+              ? "أنشئ قوائم يمكن لثيمك عرضها في الرأس والتذييل"
+              : "Build menus your theme shows in the header and footer"}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isDirty && (
-            <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 dark:border-amber-700 dark:text-amber-400">
+            <Badge
+              variant="outline"
+              className="text-[10px] text-amber-600 border-amber-300 dark:border-amber-700 dark:text-amber-400"
+            >
               {isRTL ? "تغييرات غير محفوظة" : "Unsaved changes"}
             </Badge>
           )}
           <Button
             size="sm"
             onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending || isLoading || !isDirty}
+            disabled={saveMutation.isPending || isLoading || !isDirty || !selectedHandle}
           >
-            {saveMutation.isPending
-              ? <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />
-              : <Save className="h-3.5 w-3.5 me-1.5" />}
+            {saveMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 me-1.5 animate-spin" />
+            ) : (
+              <Save className="h-3.5 w-3.5 me-1.5" />
+            )}
             {isRTL ? "حفظ" : "Save"}
           </Button>
         </div>
       </div>
 
-      {/* Help tip */}
-      <HelpTip title={isRTL ? "كيف تبني قائمة التنقل؟" : "How to build your navigation"}>
+      <HelpTip title={isRTL ? "كيف تبني قوائمك؟" : "How menus work"}>
         <ul className="list-disc list-inside space-y-1">
-          <li>{isRTL ? "أضف روابط لصفحات متجرك مثل «الأقسام» و«تواصل معنا» — يمكنك استخدام مسارات نسبية مثل /products أو روابط كاملة." : "Add links to your store pages like Collections and Contact — use relative paths like /products or full URLs."}</li>
-          <li>{isRTL ? "اسحب وأفلت الروابط لإعادة ترتيبها أو استخدم أسهم الترتيب." : "Drag and drop links to reorder them, or use the arrow buttons."}</li>
-          <li>{isRTL ? "فعّل «عرض الأقسام في القائمة» لإضافة أقسام المنتجات تلقائيًا بجانب الروابط المخصصة." : "Enable 'Show categories in menu' to auto-append product category links alongside your custom links."}</li>
-          <li>{isRTL ? "كل رابط يدعم عنوان إنجليزي وعربي — يظهر العنوان المناسب حسب لغة الزائر." : "Each link supports English and Arabic labels — the correct one displays based on visitor language."}</li>
+          <li>{isRTL ? "‏«main-menu» تظهر في رأس المتجر و«footer» في التذييل — ويمكنك إنشاء قوائم مخصّصة." : "main-menu shows in your header, footer in the footer — and you can add custom menus."}</li>
+          <li>{isRTL ? "أضف عناصر فرعية لإنشاء قوائم منسدلة (حتى ٣ مستويات)." : "Add sub-items to build dropdowns (up to 3 levels deep)."}</li>
+          <li>{isRTL ? "كل عنصر له عنوان إنجليزي وعربي ووجهة تختارها من منتقي الروابط." : "Each item has an English + Arabic label and a destination you pick from the link picker."}</li>
           <li>{isRTL ? "اضغط «حفظ» لتطبيق التغييرات على واجهة متجرك." : "Click Save to apply changes to your storefront."}</li>
         </ul>
       </HelpTip>
 
-      {/* Collections dropdown card */}
-      <div className="rounded-2xl border bg-card overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/20">
-          <div className="flex items-center gap-2">
-            <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-semibold">{isRTL ? "قائمة المجموعات" : "Collections dropdown"}</span>
-          </div>
-          <Switch checked={collectionsDropdown} onCheckedChange={(c) => { setCollectionsDropdown(c); markDirty(); }} />
-        </div>
-        {collectionsDropdown && (
-          <div className="p-4 space-y-4">
-            <p className="text-xs text-muted-foreground">
-              {isRTL ? "المجموعات تُعرض تلقائياً من أقسام المنتجات — لإدارتها انتقل إلى المنتجات → الأقسام" : "Collections are synced from your product categories — manage them in Products → Categories"}
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-xs">{isRTL ? "العنوان (الإنجليزية)" : "Label (English)"}</Label>
-                <Input
-                  value={collectionsLabel}
-                  onChange={(e) => { setCollectionsLabel(e.target.value); markDirty(); }}
-                  placeholder="Collections"
-                  className="h-8 mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs">{isRTL ? "العنوان (العربية)" : "Label (Arabic)"}</Label>
-                <Input
-                  value={collectionsLabelAr}
-                  onChange={(e) => { setCollectionsLabelAr(e.target.value); markDirty(); }}
-                  placeholder="المجموعات"
-                  className="h-8 mt-1"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-xs">{isRTL ? "الحد الأقصى للعناصر" : "Max items shown"}</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={24}
-                  value={collectionsMaxItems}
-                  onChange={(e) => { setCollectionsMaxItems(Number(e.target.value)); markDirty(); }}
-                  className="h-8 mt-1"
-                />
-              </div>
-              <div className="flex items-center gap-2 h-full pb-3">
-                <Switch checked={showAllCollectionsLink} onCheckedChange={(c) => { setShowAllCollectionsLink(c); markDirty(); }} />
-                <Label className="text-xs">{isRTL ? "إظهار رابط «كل المنتجات»" : "Show 'All Products' link"}</Label>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Menu selector tabs */}
+      <div className="flex flex-wrap items-center gap-2">
+        {(menus ?? []).map((m) => (
+          <button
+            key={m.handle}
+            onClick={() => setSelectedHandle(m.handle)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-sm transition-colors",
+              selectedHandle === m.handle
+                ? "border-primary bg-primary/10 font-medium text-foreground"
+                : "border-input text-muted-foreground hover:border-primary/40",
+            )}
+          >
+            {m.title?.[locale] || m.title?.en || m.handle}
+            <span className="ms-1.5 font-mono text-[10px] text-muted-foreground/60">
+              {m.handle}
+            </span>
+          </button>
+        ))}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 text-xs text-primary"
+          onClick={() => setCreating(true)}
+        >
+          <Plus className="h-3.5 w-3.5 me-1" />
+          {isRTL ? "قائمة جديدة" : "Create menu"}
+        </Button>
       </div>
 
-      {/* Main menu card */}
-      <div className="rounded-2xl border bg-card overflow-hidden">
-        {/* Card header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/20">
-          <div className="flex items-center gap-2">
-            <Navigation2 className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-semibold">{isRTL ? "القائمة الرئيسية" : "Main menu"}</span>
-            {links.length > 0 && (
-              <span className="text-[11px] text-muted-foreground/60">({links.length})</span>
-            )}
+      {/* Empty state — no menus yet (e.g. existing store before seeding) */}
+      {!isLoading && (menus ?? []).length === 0 && (
+        <div className="rounded-2xl border bg-card flex flex-col items-center py-10 px-4 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted mb-3">
+            <Navigation2 className="h-5 w-5 text-muted-foreground/50" />
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs font-medium text-primary hover:text-primary hover:bg-primary/8"
-            onClick={() => setEditingLink({ label: "", to: "" })}
-          >
-            <Plus className="h-3.5 w-3.5 me-1" />
-            {isRTL ? "إضافة رابط" : "Add link"}
-          </Button>
-        </div>
-
-        {/* Empty state */}
-        {isLoading ? (
-          <div className="p-6 space-y-3">
-            {[1, 2].map((i) => (
-              <div key={i} className="flex items-center gap-3 animate-pulse">
-                <div className="h-4 w-4 rounded bg-muted" />
-                <div className="flex-1 h-4 rounded bg-muted" />
-                <div className="h-4 w-12 rounded bg-muted" />
-              </div>
-            ))}
-          </div>
-        ) : links.length === 0 ? (
-          <div className="flex flex-col items-center py-10 px-4 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted mb-3">
-              <Link2 className="h-5 w-5 text-muted-foreground/50" />
-            </div>
-            <p className="text-sm font-medium mb-0.5">{isRTL ? "لا توجد روابط بعد" : "No links yet"}</p>
-            <p className="text-xs text-muted-foreground mb-4">
-              {isRTL ? "أضف روابط لتظهر في قائمة التنقل" : "Add links to appear in your store navigation"}
-            </p>
-            <Button variant="outline" size="sm" onClick={() => setEditingLink({ label: "", to: "" })}>
-              <Plus className="h-3.5 w-3.5 me-1.5" />
-              {isRTL ? "إضافة أول رابط" : "Add your first link"}
+          <p className="text-sm font-medium mb-0.5">{isRTL ? "لا توجد قوائم بعد" : "No menus yet"}</p>
+          <p className="text-xs text-muted-foreground mb-4">
+            {isRTL ? "ابدأ بقائمة الرأس والتذييل الافتراضية" : "Start with a default header + footer menu"}
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => createMutation.mutate("main-menu")} disabled={createMutation.isPending}>
+              {isRTL ? "إنشاء القائمة الرئيسية" : "Create main menu"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => createMutation.mutate("footer")} disabled={createMutation.isPending}>
+              {isRTL ? "إنشاء التذييل" : "Create footer"}
             </Button>
           </div>
-        ) : (
-          <ul>
-            {links.map((link, i) => (
-              <li
-                key={i}
-                draggable
-                onDragStart={() => handleDragStart(i)}
-                onDragOver={(e) => handleDragOver(e, i)}
-                onDragEnd={handleDragEnd}
-                className={cn(
-                  "group flex items-center gap-3 px-4 py-2.5 border-b last:border-b-0 transition-colors",
-                  dragOverIndex === i && dragIndex !== i
-                    ? "bg-primary/5 border-primary/30"
-                    : "hover:bg-muted/20",
-                )}
-              >
-                {/* Drag handle */}
-                <GripVertical className="h-4 w-4 text-muted-foreground/30 cursor-grab active:cursor-grabbing shrink-0 group-hover:text-muted-foreground/60 transition-colors" />
+        </div>
+      )}
 
-                {/* Link type icon */}
-                <div className="shrink-0">
-                  {isExternal(link.to)
-                    ? <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/40" />
-                    : <Link2 className="h-3.5 w-3.5 text-muted-foreground/40" />}
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium leading-tight truncate">
-                    {isRTL && link.labelAr ? link.labelAr : link.label}
-                    {isRTL && link.labelAr && link.label && (
-                      <span className="ms-1.5 text-muted-foreground/50 font-normal text-xs">{link.label}</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground/60 truncate mt-0.5">{link.to}</p>
-                </div>
-
-                {/* Actions — visible on hover */}
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                  <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={() => move(i, -1)} disabled={i === 0} title="Move up">
-                    <ArrowUp className="h-3 w-3" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={() => move(i, 1)} disabled={i === links.length - 1} title="Move down">
-                    <ArrowDown className="h-3 w-3" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={() => setEditingLink({ ...link, index: i })}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 px-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDelete(i)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* Display options */}
-      <div className="rounded-2xl border bg-card p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">
-          {isRTL ? "خيارات العرض" : "Display options"}
-        </p>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted shrink-0 mt-0.5">
-              <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground" />
+      {/* Selected menu editor */}
+      {selectedHandle && (
+        <div className="rounded-2xl border bg-card overflow-hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-muted/20">
+            <div className="flex items-center gap-2 min-w-0">
+              <Navigation2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <Input
+                value={title[locale]}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setTitle((t) => ({ ...t, [locale]: v }));
+                  markDirty();
+                }}
+                dir={isRTL ? "rtl" : "ltr"}
+                placeholder={isRTL ? "اسم القائمة" : "Menu title"}
+                className="h-8 max-w-[220px]"
+              />
+              <span className="font-mono text-[10px] text-muted-foreground/60 shrink-0">
+                {selectedHandle}
+              </span>
             </div>
-            <div>
-              <p className="text-sm font-medium">{isRTL ? "عرض الأقسام في القائمة" : "Show categories in menu"}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {isRTL
-                  ? "يضيف روابط أقسام المنتجات تلقائيًا إلى القائمة الرئيسية"
-                  : "Automatically appends product category links to the main menu"}
-              </p>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-primary" onClick={addRootItem}>
+                <Plus className="h-3.5 w-3.5 me-1" />
+                {isRTL ? "إضافة عنصر" : "Add item"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 px-0 text-muted-foreground hover:text-destructive"
+                title={isRTL ? "حذف القائمة" : "Delete menu"}
+                onClick={() => {
+                  if (selectedMenu && confirm(isRTL ? `حذف القائمة «${selectedHandle}»؟` : `Delete the "${selectedHandle}" menu?`)) {
+                    deleteMutation.mutate(selectedHandle);
+                  }
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
             </div>
           </div>
-          <Switch
-            checked={showCategories}
-            onCheckedChange={(v) => { setShowCategories(v); markDirty(); }}
-          />
-        </div>
-      </div>
 
-      {/* Edit/Add dialog */}
-      <Dialog open={editingLink !== null} onOpenChange={() => setEditingLink(null)}>
+          {items.length === 0 ? (
+            <div className="flex flex-col items-center py-10 px-4 text-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted mb-3">
+                <Link2 className="h-4 w-4 text-muted-foreground/50" />
+              </div>
+              <p className="text-xs text-muted-foreground mb-3">
+                {isRTL ? "لا توجد عناصر — أضف أول رابط" : "No items — add your first link"}
+              </p>
+              <Button variant="outline" size="sm" onClick={addRootItem}>
+                <Plus className="h-3.5 w-3.5 me-1.5" />
+                {isRTL ? "إضافة عنصر" : "Add item"}
+              </Button>
+            </div>
+          ) : (
+            <ul className="py-1">
+              {items.map((it, i) => (
+                <MenuItemRow
+                  key={it.id ?? i}
+                  item={it}
+                  path={[i]}
+                  depth={1}
+                  locale={locale}
+                  isRTL={isRTL}
+                  onEdit={openEdit}
+                  onAddChild={addChild}
+                  onRemove={removeItem}
+                  onMove={moveItem}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Item edit dialog */}
+      <Dialog open={editing !== null} onOpenChange={() => setEditing(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {editingLink?.index !== undefined
-                ? isRTL ? "تعديل الرابط" : "Edit link"
-                : isRTL ? "إضافة رابط" : "Add link"}
-            </DialogTitle>
+            <DialogTitle>{isRTL ? "تعديل العنصر" : "Edit item"}</DialogTitle>
           </DialogHeader>
-
           <div className="space-y-4 py-1">
-            {/* Labels row */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium">{isRTL ? "النص (إنجليزي)" : "Label (English)"}</Label>
                 <Input
-                  value={editingLink?.label ?? ""}
-                  onChange={(e) => setEditingLink((l) => l ? { ...l, label: e.target.value } : l)}
+                  value={editing?.labelEn ?? ""}
+                  onChange={(e) => setEditing((s) => (s ? { ...s, labelEn: e.target.value } : s))}
                   placeholder="Shop"
                   autoFocus
                 />
@@ -391,49 +469,166 @@ export default function OnlineStoreNavigation() {
                 <Label className="text-xs font-medium">{isRTL ? "النص (عربي)" : "Label (Arabic)"}</Label>
                 <Input
                   dir="rtl"
-                  value={editingLink?.labelAr ?? ""}
-                  onChange={(e) => setEditingLink((l) => l ? { ...l, labelAr: e.target.value } : l)}
+                  value={editing?.labelAr ?? ""}
+                  onChange={(e) => setEditing((s) => (s ? { ...s, labelAr: e.target.value } : s))}
                   placeholder="تسوق"
                 />
               </div>
             </div>
-
-            {/* URL */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">{isRTL ? "الرابط" : "Link URL"}</Label>
-              <div className="relative">
-                <div className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
-                  {editingLink?.to && isExternal(editingLink.to)
-                    ? <ExternalLink className="h-3.5 w-3.5" />
-                    : <Link2 className="h-3.5 w-3.5" />}
-                </div>
-                <Input
-                  value={editingLink?.to ?? ""}
-                  onChange={(e) => setEditingLink((l) => l ? { ...l, to: e.target.value } : l)}
-                  placeholder="/collections/all"
-                  dir="ltr"
-                  className="ps-9"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {isRTL
-                  ? "مسار نسبي مثل /products أو رابط كامل مثل https://..."
-                  : "A relative path like /products or a full URL like https://..."}
-              </p>
+              <Label className="text-xs font-medium">{isRTL ? "الوجهة" : "Destination"}</Label>
+              <LinkPickerButton
+                value={editing?.url ?? ""}
+                locale={locale}
+                storeId={storeId}
+                onChange={(next) => setEditing((s) => (s ? { ...s, url: next } : s))}
+              />
             </div>
           </div>
-
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingLink(null)}>{isRTL ? "إلغاء" : "Cancel"}</Button>
+            <Button variant="outline" onClick={() => setEditing(null)}>
+              {isRTL ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button onClick={saveEdit} disabled={!editing?.labelEn?.trim()}>
+              {isRTL ? "حفظ" : "Save item"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create menu dialog */}
+      <Dialog open={creating} onOpenChange={() => setCreating(false)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{isRTL ? "قائمة جديدة" : "Create menu"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">{isRTL ? "المعرّف (handle)" : "Handle"}</Label>
+              <Input
+                value={newHandle}
+                onChange={(e) => setNewHandle(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
+                placeholder="main-menu"
+                dir="ltr"
+              />
+              <p className="text-xs text-muted-foreground">
+                {isRTL
+                  ? "‏«main-menu» للرأس و«footer» للتذييل، أو أي معرّف مخصّص."
+                  : "Use main-menu for the header, footer for the footer, or any custom handle."}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">{isRTL ? "العنوان" : "Title"}</Label>
+              <Input
+                value={newTitleEn}
+                onChange={(e) => setNewTitleEn(e.target.value)}
+                placeholder={isRTL ? "قائمتي" : "My menu"}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreating(false)}>
+              {isRTL ? "إلغاء" : "Cancel"}
+            </Button>
             <Button
-              onClick={handleSaveLink}
-              disabled={!editingLink?.label?.trim() || !editingLink?.to?.trim()}
+              onClick={() => createMutation.mutate(newHandle.trim())}
+              disabled={!newHandle.trim() || createMutation.isPending}
             >
-              {isRTL ? "حفظ" : "Save link"}
+              {isRTL ? "إنشاء" : "Create"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ── Recursive item row ───────────────────────────────────────────────────────
+function MenuItemRow({
+  item,
+  path,
+  depth,
+  locale,
+  isRTL,
+  onEdit,
+  onAddChild,
+  onRemove,
+  onMove,
+}: {
+  item: MenuItem;
+  path: number[];
+  depth: number;
+  locale: "en" | "ar";
+  isRTL: boolean;
+  onEdit: (path: number[], it: MenuItem) => void;
+  onAddChild: (path: number[]) => void;
+  onRemove: (path: number[]) => void;
+  onMove: (path: number[], dir: -1 | 1) => void;
+}) {
+  const label = item.label?.[locale] || item.label?.en || (isRTL ? "(بدون عنوان)" : "(untitled)");
+  const children = item.children ?? [];
+  return (
+    <>
+      <li
+        className="group flex items-center gap-2 px-4 py-2 border-b last:border-b-0 hover:bg-muted/20"
+        style={{ paddingInlineStart: `${1 + (depth - 1) * 1.5}rem` }}
+      >
+        <div className="shrink-0 text-muted-foreground/40">
+          {isExternal(item.url) ? (
+            <ExternalLink className="h-3.5 w-3.5" />
+          ) : (
+            <Link2 className="h-3.5 w-3.5" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium leading-tight truncate">{label}</p>
+          <p className="text-xs text-muted-foreground/60 truncate mt-0.5">{item.url || "—"}</p>
+        </div>
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" title="Move up" onClick={() => onMove(path, -1)}>
+            <ArrowUp className="h-3 w-3" />
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" title="Move down" onClick={() => onMove(path, 1)}>
+            <ArrowDown className="h-3 w-3" />
+          </Button>
+          {depth < MAX_DEPTH && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 px-0"
+              title={isRTL ? "إضافة عنصر فرعي" : "Add sub-item"}
+              onClick={() => onAddChild(path)}
+            >
+              <CornerDownRight className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" className="h-7 w-7 px-0" onClick={() => onEdit(path, item)}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 px-0 text-muted-foreground hover:text-destructive"
+            onClick={() => onRemove(path)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </li>
+      {children.map((child, i) => (
+        <MenuItemRow
+          key={child.id ?? i}
+          item={child}
+          path={[...path, i]}
+          depth={depth + 1}
+          locale={locale}
+          isRTL={isRTL}
+          onEdit={onEdit}
+          onAddChild={onAddChild}
+          onRemove={onRemove}
+          onMove={onMove}
+        />
+      ))}
+    </>
   );
 }

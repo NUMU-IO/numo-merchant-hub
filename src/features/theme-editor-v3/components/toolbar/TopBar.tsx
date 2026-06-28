@@ -27,6 +27,7 @@ import {
   Cloud,
   CloudOff,
   X,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,13 +53,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   useCustomizerStore,
   selectCanUndo,
   selectCanRedo,
 } from "../../store/customizerStore";
+import { PreviewResourcePicker } from "./PreviewResourcePicker";
 import type { DeviceMode, EditorLocale } from "../../types";
+import { PrePublishDiffDialog } from "../panels/PrePublishDiffDialog";
 
 // ─── Device buttons config ──────────────────────────────────────────────────
 
@@ -70,15 +74,37 @@ const DEVICES: { mode: DeviceMode; icon: typeof Monitor; label: Record<EditorLoc
 
 // ─── Page options ───────────────────────────────────────────────────────────
 
-// Template keys must match the backend's PageTemplate map keys produced by
-// `generate_initial_v3_customization` and `normalize_legacy_to_v3`.
+// Canonical V3 template list — these are the templates a merchant can
+// navigate to in the editor. Names match the backend's PageTemplate keys
+// produced by `generate_initial_v3_customization` and the storefront's
+// route-to-template mapping (`templateForPath` in ByotV3Outlet).
+//
+// Why canonical (not derived from `draft.templates`):
+//   - Empty templates ARE meaningful — a merchant flipping to "Product"
+//     should see a "no sections yet, add one" empty state, not have the
+//     option hidden until someone seeds it.
+//   - Themes evolve their preset library between versions; a draft
+//     seeded against v0.1 of a theme won't have the cart template that
+//     v0.2 introduced. Surfacing the full canonical list lets the
+//     merchant author any template on demand.
+//   - Matches Shopify's UX: all template kinds are always available.
+//
+// Each entry's `value` MUST match the storefront's path→template mapping
+// in `numu-egyptian-bazaar/src/components/store/ByotV3Outlet.tsx ::
+// templateForPath()` so a merchant viewing /product/<id> sees the
+// product template selected here.
 const PAGES: { value: string; label: Record<EditorLocale, string> }[] = [
   { value: "home", label: { en: "Home", ar: "الرئيسية" } },
+  { value: "products", label: { en: "Products", ar: "المنتجات" } },
   { value: "product", label: { en: "Product", ar: "المنتج" } },
   { value: "collection", label: { en: "Collection", ar: "المجموعة" } },
   { value: "cart", label: { en: "Cart", ar: "السلة" } },
-  { value: "blog", label: { en: "Blog", ar: "المدونة" } },
+  { value: "search", label: { en: "Search", ar: "البحث" } },
+  { value: "checkout", label: { en: "Checkout", ar: "الدفع" } },
+  { value: "order-confirmation", label: { en: "Order confirmation", ar: "تأكيد الطلب" } },
+  { value: "profile", label: { en: "Profile", ar: "الحساب" } },
   { value: "page", label: { en: "Page", ar: "صفحة" } },
+  { value: "404", label: { en: "404 — Not found", ar: "404 — غير موجود" } },
 ];
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -87,9 +113,16 @@ interface TopBarProps {
   onBack: () => void;
   onToggleVersionHistory: () => void;
   showVersionHistory: boolean;
+  /** Storefront URL for the active store. Null if subdomain isn't known yet. */
+  viewStoreUrl: string | null;
 }
 
-export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: TopBarProps) {
+export function TopBar({
+  onBack,
+  onToggleVersionHistory,
+  showVersionHistory,
+  viewStoreUrl,
+}: TopBarProps) {
   const locale = useCustomizerStore((s) => s.locale);
   const setLocale = useCustomizerStore((s) => s.setLocale);
   const deviceMode = useCustomizerStore((s) => s.deviceMode);
@@ -105,10 +138,14 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
   const redo = useCustomizerStore((s) => s.redo);
   const publish = useCustomizerStore((s) => s.publish);
   const discardDraft = useCustomizerStore((s) => s.discardDraft);
+  const lastPublish = useCustomizerStore((s) => s.lastPublish);
 
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [showPublishDialog, setShowPublishDialog] = useState(false);
+  const [showPrePublishDiff, setShowPrePublishDiff] = useState(false);
   const [publishLabel, setPublishLabel] = useState("");
+  const draft = useCustomizerStore((s) => s.draft);
+  const storeId = useCustomizerStore((s) => s.storeId);
 
   // Keyboard shortcuts for undo/redo (Phase 2.4 — also surfaced in the
   // toolbar tooltips so merchants can discover them).
@@ -147,10 +184,49 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
   }, [canUndo, canRedo, undo, redo]);
 
   const handlePublish = useCallback(async () => {
-    await publish(publishLabel || undefined);
-    setShowPublishDialog(false);
-    setPublishLabel("");
-  }, [publish, publishLabel]);
+    const isAr = locale === "ar";
+    try {
+      await publish(publishLabel || undefined);
+    } catch {
+      toast.error(
+        isAr ? "فشل النشر" : "Publish failed",
+        {
+          description: isAr
+            ? "تعذّر نشر تغييراتك. حاول مرة أخرى."
+            : "We couldn't publish your changes. Please try again.",
+        },
+      );
+      return;
+    } finally {
+      setShowPublishDialog(false);
+      setPublishLabel("");
+    }
+    // A conflict / expired session aborts publish via its own banner/overlay —
+    // don't toast a misleading "Live" over it.
+    const state = useCustomizerStore.getState();
+    if (state.editConflict || state.sessionExpired) return;
+    const result = state.lastPublish;
+    if (!result) return;
+    if (result.revalidated === false) {
+      // Committed, but the storefront refresh wasn't confirmed — be honest.
+      toast.warning(
+        isAr
+          ? "تم الحفظ — قد يتأخر تحديث المتجر"
+          : "Saved — storefront refresh delayed",
+        {
+          description: isAr
+            ? "نُشرت تغييراتك لكن لم يتأكد تحديث المتجر بعد. قد يستغرق حتى دقيقة."
+            : "Your changes are published, but the storefront refresh wasn't confirmed. It may take up to a minute to appear.",
+        },
+      );
+    } else {
+      toast.success(isAr ? "تم النشر ✓ مباشر الآن" : "Published ✓ Live now", {
+        description: isAr
+          ? "متجرك يعرض أحدث التغييرات."
+          : "Your storefront is now serving the latest changes.",
+      });
+    }
+  }, [publish, publishLabel, locale]);
 
   const handleDiscard = useCallback(async () => {
     await discardDraft();
@@ -184,19 +260,42 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
           {/* Separator */}
           <div className="h-6 w-px bg-border" />
 
-          {/* Page selector */}
+          {/* Page selector + (when on a resource template) the preview
+              resource picker. Sitting them side-by-side keeps the
+              merchant's mental model: "I'm editing the {Page} template
+              while previewing it against {Resource}." */}
           <Select value={activePage} onValueChange={setActivePage}>
-            <SelectTrigger className="h-8 w-32 text-xs">
+            <SelectTrigger className="h-8 w-44 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PAGES.map((p) => (
-                <SelectItem key={p.value} value={p.value}>
-                  {p.label[locale]}
-                </SelectItem>
-              ))}
+              {PAGES.map((p) => {
+                const exists = Boolean(draft?.templates?.[p.value]);
+                return (
+                  <SelectItem key={p.value} value={p.value}>
+                    <span className="flex items-center justify-between gap-2 w-full">
+                      <span>{p.label[locale]}</span>
+                      {!exists && (
+                        <span
+                          className="text-[10px] text-muted-foreground/80"
+                          title={
+                            locale === "ar"
+                              ? "لم يُنشأ بعد — أضف قسمًا للبدء"
+                              : "Not yet set up — add a section to start"
+                          }
+                        >
+                          {locale === "ar" ? "فارغ" : "empty"}
+                        </span>
+                      )}
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
+
+          {/* Preview resource picker — auto-hides for non-resource templates. */}
+          <PreviewResourcePicker />
         </div>
 
         {/* ── Center section ── */}
@@ -282,24 +381,47 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
 
         {/* ── Right section ── */}
         <div className="flex items-center gap-2">
-          {/* Auto-save indicator */}
+          {/*
+            Status indicator — Shopify-parity wording (per doc §34).
+
+            Old labels said "Saved" which a non-technical merchant easily
+            reads as "Saved live, customers can see it." That's wrong:
+            the V3 autosave only persists the DRAFT — the merchant
+            still has to click Publish for changes to reach shoppers.
+
+            New labels:
+              - "Publishing…"     while publish is in flight
+              - "Saving…"         while autosave is in flight
+              - "Unsaved draft"   when local changes haven't autosaved yet
+              - "Draft saved"     when the draft is persisted but unpublished
+                                  (the new default state — replaces "Saved")
+
+            The Publish button is unchanged; this is purely about
+            communicating that "Saved" means "Saved to your draft, not
+            live."
+          */}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            {isSaving ? (
+            {isPublishing ? (
               <>
                 <Loader2 className="h-3 w-3 animate-spin" />
-                <span>{locale === "ar" ? "حفظ..." : "Saving..."}</span>
+                <span>{locale === "ar" ? "جاري النشر..." : "Publishing…"}</span>
+              </>
+            ) : isSaving ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>{locale === "ar" ? "جاري الحفظ..." : "Saving…"}</span>
               </>
             ) : isDirty ? (
               <>
                 <CloudOff className="h-3 w-3 text-amber-500" />
                 <span className="text-amber-600">
-                  {locale === "ar" ? "غير محفوظ" : "Unsaved"}
+                  {locale === "ar" ? "مسودة غير محفوظة" : "Unsaved draft"}
                 </span>
               </>
             ) : (
               <>
                 <Cloud className="h-3 w-3 text-green-500" />
-                <span>{locale === "ar" ? "محفوظ" : "Saved"}</span>
+                <span>{locale === "ar" ? "تم حفظ المسودة" : "Draft saved"}</span>
               </>
             )}
           </div>
@@ -346,6 +468,38 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
             </button>
           </div>
 
+          {/* View store — opens the live storefront in a new tab so the
+              merchant can see the published version side-by-side with the
+              draft they're editing. Disabled until the store's subdomain
+              resolves (initial mount). */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                disabled={!viewStoreUrl}
+                onClick={() => {
+                  if (!viewStoreUrl) return;
+                  // Append a cache-buster keyed on the last published revision
+                  // so the merchant's browser doesn't show a stale cached page
+                  // right after publishing.
+                  const v = lastPublish?.contentHash;
+                  const target = v
+                    ? `${viewStoreUrl}${viewStoreUrl.includes("?") ? "&" : "?"}v=${encodeURIComponent(v)}`
+                    : viewStoreUrl;
+                  window.open(target, "_blank", "noopener,noreferrer");
+                }}
+                aria-label={locale === "ar" ? "عرض المتجر" : "View store"}
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {locale === "ar" ? "عرض المتجر" : "View store"}
+            </TooltipContent>
+          </Tooltip>
+
           {/* Version history toggle */}
           <Tooltip>
             <TooltipTrigger asChild>
@@ -380,12 +534,17 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
             {locale === "ar" ? "تجاهل" : "Discard"}
           </Button>
 
-          {/* Publish button */}
+          {/* Publish button — Wave 7 opens the pre-publish diff modal
+              first; merchant confirms inside that dialog, which then
+              opens the legacy "version label" prompt before committing.
+              Two-step flow is intentional: the diff is the "are you
+              sure" gate, the label is the "what should this be
+              called" gate. */}
           <Button
             size="sm"
             className="h-8 gap-1.5 text-xs"
             disabled={isPublishing}
-            onClick={() => setShowPublishDialog(true)}
+            onClick={() => setShowPrePublishDiff(true)}
           >
             {isPublishing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -420,6 +579,30 @@ export function TopBar({ onBack, onToggleVersionHistory, showVersionHistory }: T
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Pre-publish diff dialog (Wave 7) ──
+          Opens FIRST when the merchant clicks Publish. After they
+          confirm here, we open the version-label prompt to actually
+          commit the publish. */}
+      {draft && storeId && (
+        <PrePublishDiffDialog
+          open={showPrePublishDiff}
+          onOpenChange={setShowPrePublishDiff}
+          draft={draft}
+          storeId={storeId}
+          locale={locale}
+          publishing={isPublishing}
+          onConfirm={async () => {
+            setShowPrePublishDiff(false);
+            // Hand off to the legacy publish dialog so the merchant
+            // can label the version. Keeping the two dialogs separate
+            // means a merchant who only wants a quick publish without
+            // a label can also skip the label step by hitting Publish
+            // in the label dialog with an empty input.
+            setShowPublishDialog(true);
+          }}
+        />
+      )}
 
       {/* ── Publish dialog ── */}
       <AlertDialog open={showPublishDialog} onOpenChange={setShowPublishDialog}>

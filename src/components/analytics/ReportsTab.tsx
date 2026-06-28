@@ -23,10 +23,12 @@ import {
   getProductPerformance, getMarketingAttribution, getSalesByLocation,
   getCustomerAnalytics, getCustomerSegments, getTrafficSources,
 } from "@/services/analyticsApi";
+import { dateRangeKey } from "@/services/dateRangeParams";
+import { dateRangeSummary, type DateRange } from "@/components/filters/DateRangePicker";
 import type { LucideIcon } from "lucide-react";
 
 interface ReportsTabProps {
-  period: number;
+  range: DateRange;
   formatCurrency: (cents: number) => string;
 }
 
@@ -121,7 +123,7 @@ const DISCOUNTS_COL: ColumnDef = {
   key: "discounts", label: { en: "Discounts", ar: "الخصومات" }, align: "end", format: cur,
 };
 
-export function ReportsTab({ period, formatCurrency }: ReportsTabProps) {
+export function ReportsTab({ range, formatCurrency }: ReportsTabProps) {
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
@@ -130,6 +132,7 @@ export function ReportsTab({ period, formatCurrency }: ReportsTabProps) {
   const [category, setCategory] = useState<Category>("sales");
   const [reportId, setReportId] = useState<string>("periods");
   const [search, setSearch] = useState("");
+  const rangeKey = useMemo(() => dateRangeKey(range), [range]);
 
   const reports =
     category === "sales" ? SALES_REPORTS :
@@ -147,20 +150,15 @@ export function ReportsTab({ period, formatCurrency }: ReportsTabProps) {
   }, [category, reportId, reports]);
 
   // Date range label (for "التاريخ" pill in screenshot)
-  const dateRangeLabel = useMemo(() => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - period);
-    const fmt = (d: Date) => d.toLocaleDateString(isAr ? "ar-EG" : "en-US", {
-      year: "numeric", month: "short", day: "numeric",
-    });
-    return `${fmt(start)} — ${fmt(end)}`;
-  }, [period, isAr]);
+  const dateRangeLabel = useMemo(
+    () => dateRangeSummary(range, isAr ? "ar" : "en"),
+    [range, isAr],
+  );
 
   // Data fetches — only the one needed for the active sub-tab actually fires
   const salesChartQuery = useQuery({
-    queryKey: ["analytics", "chart", storeId, period],
-    queryFn: () => getSalesChart(storeId!, period),
+    queryKey: ["analytics", "chart", storeId, ...rangeKey],
+    queryFn: () => getSalesChart(storeId!, range),
     enabled: !!storeId && (
       (category === "sales" && reportId === "periods") ||
       (category === "finance" && reportId === "daily")
@@ -169,8 +167,8 @@ export function ReportsTab({ period, formatCurrency }: ReportsTabProps) {
   });
 
   const channelsQuery = useQuery({
-    queryKey: ["analytics", "marketing-attribution", storeId, period],
-    queryFn: () => getMarketingAttribution(storeId!, period),
+    queryKey: ["analytics", "marketing-attribution", storeId, ...rangeKey],
+    queryFn: () => getMarketingAttribution(storeId!, range),
     enabled: !!storeId && (
       (category === "sales" && reportId === "channels") ||
       (category === "marketing" && (reportId === "channels" || reportId === "campaigns"))
@@ -179,8 +177,8 @@ export function ReportsTab({ period, formatCurrency }: ReportsTabProps) {
   });
 
   const productsQuery = useQuery({
-    queryKey: ["analytics", "product-performance", storeId, period, "revenue"],
-    queryFn: () => getProductPerformance(storeId!, period, "revenue"),
+    queryKey: ["analytics", "product-performance", storeId, ...rangeKey, "revenue"],
+    queryFn: () => getProductPerformance(storeId!, range, "revenue"),
     enabled: !!storeId &&
       ((category === "sales" && (reportId === "products" || reportId === "categories")) ||
        category === "inventory"),
@@ -189,8 +187,8 @@ export function ReportsTab({ period, formatCurrency }: ReportsTabProps) {
   });
 
   const revenueBreakdownQuery = useQuery({
-    queryKey: ["analytics", "revenue-breakdown", storeId, period],
-    queryFn: () => getRevenueBreakdown(storeId!, period),
+    queryKey: ["analytics", "revenue-breakdown", storeId, ...rangeKey],
+    queryFn: () => getRevenueBreakdown(storeId!, range),
     enabled: !!storeId && (
       (category === "sales" && reportId === "coupons") ||
       (category === "finance" && (reportId === "overview" || reportId === "coupons"))
@@ -199,15 +197,15 @@ export function ReportsTab({ period, formatCurrency }: ReportsTabProps) {
   });
 
   const citiesQuery = useQuery({
-    queryKey: ["analytics", "sales-by-location", storeId, period],
-    queryFn: () => getSalesByLocation(storeId!, period),
+    queryKey: ["analytics", "sales-by-location", storeId, ...rangeKey],
+    queryFn: () => getSalesByLocation(storeId!, range),
     enabled: !!storeId && category === "sales" && reportId === "cities",
     placeholderData: keepPreviousData,
   });
 
   const ordersBreakdownQuery = useQuery({
-    queryKey: ["analytics", "orders-breakdown", storeId, period],
-    queryFn: () => getOrdersBreakdown(storeId!, period),
+    queryKey: ["analytics", "orders-breakdown", storeId, ...rangeKey],
+    queryFn: () => getOrdersBreakdown(storeId!, range),
     enabled: !!storeId && (
       (category === "sales" && reportId === "payment") ||
       (category === "finance" && reportId === "payment")
@@ -216,15 +214,15 @@ export function ReportsTab({ period, formatCurrency }: ReportsTabProps) {
   });
 
   const customerStatsQuery = useQuery({
-    queryKey: ["analytics", "customers", storeId, period],
-    queryFn: () => getCustomerAnalytics(storeId!, period),
+    queryKey: ["analytics", "customers", storeId, ...rangeKey],
+    queryFn: () => getCustomerAnalytics(storeId!, range),
     enabled: !!storeId && category === "customers" && reportId === "overview",
     placeholderData: keepPreviousData,
   });
 
   const customerSegmentsQuery = useQuery({
-    queryKey: ["analytics", "customer-segments", storeId, period],
-    queryFn: () => getCustomerSegments(storeId!, period),
+    queryKey: ["analytics", "customer-segments", storeId, ...rangeKey],
+    queryFn: () => getCustomerSegments(storeId!, range),
     enabled: !!storeId && category === "customers" && (
       reportId === "segments" || reportId === "clv" || reportId === "cohorts"
     ),
@@ -233,8 +231,8 @@ export function ReportsTab({ period, formatCurrency }: ReportsTabProps) {
   });
 
   const trafficSourcesQuery = useQuery({
-    queryKey: ["analytics", "traffic-sources", storeId, period],
-    queryFn: () => getTrafficSources(storeId!, period),
+    queryKey: ["analytics", "traffic-sources", storeId, ...rangeKey],
+    queryFn: () => getTrafficSources(storeId!, range),
     enabled: !!storeId && category === "marketing" && reportId === "traffic",
     placeholderData: keepPreviousData,
   });

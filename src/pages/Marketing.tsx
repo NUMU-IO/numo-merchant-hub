@@ -555,11 +555,11 @@ export default function Marketing() {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Megaphone className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight flex items-center gap-2.5">
+            <Megaphone className="h-6 w-6 text-saffron" />
             {t("nav.marketing")}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-1">
             {isAr ? "أدر كوبونات الخصم وعروض ما بعد الشراء" : "Manage coupons and post-purchase upsells"}
           </p>
         </div>

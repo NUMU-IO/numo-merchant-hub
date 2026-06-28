@@ -69,7 +69,7 @@ export const Channels = () => {
   if (!storeId) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold">{t("omnichannel.channels")}</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{t("omnichannel.channels")}</h1>
         <p className="text-muted-foreground mt-2">{t("common.loading")}</p>
       </div>
     );
@@ -98,7 +98,7 @@ export const Channels = () => {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t("omnichannel.channels")}</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{t("omnichannel.channels")}</h1>
       </div>
 
       {isLoading ? (

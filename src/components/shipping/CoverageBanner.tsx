@@ -18,11 +18,20 @@ import {
 
 interface Props {
   storeId: string | undefined;
+  /** Whether the store restricts shipping to its configured zones. Drives
+   *  whether uncovered governorates are a hard blocker (restricted → checkout
+   *  shows "no shipping options") or merely unpriced (default → they still
+   *  ship, at a free fallback rate). */
+  restrictToZones?: boolean;
   /** Optional: unresolved legacy tokens from the data migration. */
   reportUnresolved?: string[];
 }
 
-export function CoverageBanner({ storeId, reportUnresolved }: Props) {
+export function CoverageBanner({
+  storeId,
+  restrictToZones,
+  reportUnresolved,
+}: Props) {
   const { language } = useLanguage();
   const ar = language === "ar";
   const { data: coverage, isLoading } = useShippingCoverage(storeId);
@@ -37,37 +46,55 @@ export function CoverageBanner({ storeId, reportUnresolved }: Props) {
 
   if (!hasUncovered && !hasLegacy) return null;
 
+  const n = coverage.uncovered.length;
+  const uncoveredList =
+    coverage.uncovered
+      .map((c) => byCode.get(c) ?? c)
+      .slice(0, 8)
+      .join(ar ? "، " : ", ") +
+    (n > 8 ? (ar ? ` و${n - 8} أخرى` : ` +${n - 8} more`) : "");
+
   return (
     <div className="space-y-2">
-      {hasUncovered && (
-        <div className="flex gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-          <div className="text-xs">
-            <div className="mb-1 font-medium text-destructive">
-              {ar
-                ? `لا يمكنك الشحن إلى ${coverage.uncovered.length} محافظة`
-                : `${coverage.uncovered.length} governorate${
-                    coverage.uncovered.length === 1 ? "" : "s"
-                  } not deliverable`}
-            </div>
-            <div className="text-muted-foreground">
-              {ar
-                ? "العملاء في هذه المناطق لن يجدوها في قائمة المحافظات عند الدفع:"
-                : "Customers in these areas won't see them in the checkout dropdown:"}{" "}
-              <span className="font-medium text-foreground">
-                {coverage.uncovered
-                  .map((c) => byCode.get(c) ?? c)
-                  .slice(0, 8)
-                  .join(ar ? "، " : ", ")}
-                {coverage.uncovered.length > 8 &&
-                  (ar
-                    ? ` و${coverage.uncovered.length - 8} أخرى`
-                    : ` +${coverage.uncovered.length - 8} more`)}
-              </span>
+      {hasUncovered &&
+        (restrictToZones ? (
+          // Restrict-to-zones ON: these governorates genuinely can't check out.
+          <div className="flex gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+            <div className="text-xs">
+              <div className="mb-1 font-medium text-destructive">
+                {ar
+                  ? `لا يمكنك الشحن إلى ${n} محافظة`
+                  : `${n} governorate${n === 1 ? "" : "s"} not deliverable`}
+              </div>
+              <div className="text-muted-foreground">
+                {ar
+                  ? 'مع تفعيل "اقصر الشحن على مناطقي"، العملاء في هذه المناطق هيشوفوا "لا توجد خيارات شحن" عند الدفع:'
+                  : 'With "restrict to zones" on, customers in these areas see "no shipping options" at checkout:'}{" "}
+                <span className="font-medium text-foreground">{uncoveredList}</span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          // Default (not restricted): uncovered governorates still ship — at a
+          // free fallback rate — so this is informational, not a blocker.
+          <div className="flex gap-3 rounded-lg border border-amber-400/40 bg-amber-400/5 p-3">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div className="text-xs">
+              <div className="mb-1 font-medium text-amber-700 dark:text-amber-500">
+                {ar
+                  ? `${n} محافظة من غير منطقة شحن`
+                  : `${n} governorate${n === 1 ? "" : "s"} without a zone`}
+              </div>
+              <div className="text-muted-foreground">
+                {ar
+                  ? "الطلبات من هذه المناطق هتتشحن بسعر افتراضي مجاني. ضيف منطقة علشان تحدد سعرها:"
+                  : "Orders from these areas ship at a free default rate. Add a zone to set their price:"}{" "}
+                <span className="font-medium text-foreground">{uncoveredList}</span>
+              </div>
+            </div>
+          </div>
+        ))}
 
       {hasLegacy && (
         <div className="flex gap-3 rounded-lg border border-amber-400/40 bg-amber-400/5 p-3">

@@ -13,7 +13,11 @@ export interface BlockInstance {
   type: string;
   disabled?: boolean;
   settings: Record<string, unknown>;
+  /** Nested child blocks (blocks-in-blocks). Same container shape as a
+   *  section — `block_order` orders the entries in `blocks`. Absent on
+   *  leaf blocks so pre-nesting drafts load unchanged. */
   blocks?: Record<string, BlockInstance>;
+  block_order?: string[];
 }
 
 // ─── Section Instance ───────────────────────────────────────────────────────
@@ -180,6 +184,20 @@ export interface BlockSchemaDefinition {
   locales?: { ar?: { name?: string } };
   limit?: number;
   settings: SettingDefinition[];
+  /** Child block types this block accepts (recursive — blocks-in-blocks).
+   *  When present, the customizer renders a nested block list with its
+   *  own Add/remove/reorder, capped at `max_blocks` and the global
+   *  MAX_BLOCK_DEPTH. */
+  blocks?: BlockSchemaDefinition[];
+  max_blocks?: number;
+}
+
+/** A starter block inside a section preset (recursive — a preset can
+ *  ship pre-populated nested blocks, e.g. a footer column with links). */
+export interface PresetBlockDefinition {
+  type: string;
+  settings?: Record<string, unknown>;
+  blocks?: PresetBlockDefinition[];
 }
 
 export interface SectionSchemaDefinition {
@@ -198,7 +216,7 @@ export interface SectionSchemaDefinition {
     category?: string;
     category_locales?: { ar?: string };
     settings?: Record<string, unknown>;
-    blocks?: Array<{ type: string; settings?: Record<string, unknown> }>;
+    blocks?: PresetBlockDefinition[];
   }>;
 }
 
@@ -217,6 +235,21 @@ export interface ThemeSchemaBundle {
   section_schemas: Record<string, SectionSchemaDefinition>;
   /** Map of block.type → BlockSchemaDefinition (theme-wide, optional). */
   block_schemas?: Record<string, BlockSchemaDefinition>;
+  /**
+   * Wave 7 — variants from the theme's manifest. Older backends won't
+   * include this; the customizer handles `undefined` as "no variants".
+   */
+  variants?: Array<{
+    id: string;
+    name: string;
+    name_ar?: string;
+    description?: string;
+    settings_override?: {
+      global_settings?: Record<string, unknown>;
+      templates?: Record<string, unknown>;
+      section_groups?: Record<string, unknown>;
+    };
+  }>;
 }
 
 /**
@@ -229,6 +262,24 @@ export interface NormalizedSchemas {
   sections: SectionSchemaDefinition[];
   /** Map of group_id → list of section schemas allowed in that group. */
   section_groups: Record<string, { sections: SectionSchemaDefinition[] }>;
+  /**
+   * Wave 7 — theme-level variants declared in `theme.json` →
+   * `variants[]`. Empty when the manifest doesn't ship any (most
+   * themes today). The customizer's VariantPicker reads this off the
+   * store's schemas; switching variants writes overrides into the
+   * draft via `updateGlobalSetting`.
+   */
+  theme_variants?: Array<{
+    id: string;
+    name: string;
+    name_ar?: string;
+    description?: string;
+    settings_override?: {
+      global_settings?: Record<string, unknown>;
+      templates?: Record<string, unknown>;
+      section_groups?: Record<string, unknown>;
+    };
+  }>;
 }
 
 // ─── Version History ────────────────────────────────────────────────────────
@@ -250,8 +301,26 @@ export interface AutosaveDraftResponse {
   draft: ThemeSettingsV3;
 }
 
+export interface RevalidationSummary {
+  requested: boolean;
+  succeeded: boolean;
+  tags_requested: string[];
+  tags_revalidated: string[];
+  duration_ms: number;
+  status_code: number | null;
+  error: string | null;
+}
+
 export interface PublishDraftResponse {
   published: ThemeSettingsV3;
+  /** Published-revision fingerprint (new published version row id). */
+  revision_id?: string | null;
+  /** Stable hash of the published payload — usable as a `?v=` cache-buster. */
+  content_hash?: string | null;
+  /** A separate DB session confirmed the new payload is committed + visible. */
+  verified?: boolean;
+  /** Structured outcome of the Next.js storefront revalidation, if attempted. */
+  revalidation?: RevalidationSummary | null;
 }
 
 export interface DiscardDraftResponse {
@@ -272,6 +341,19 @@ export interface RestoreVersionResponse {
 
 export type EditorLocale = "en" | "ar";
 export type DeviceMode = "desktop" | "tablet" | "mobile";
+/**
+ * Top-level editor mode. Equivalent to Shopify's "Sections / Theme settings /
+ * App embeds" mode switch at the top of the sidebar.
+ *   - `sections`       — section list + section/block/group editors (default).
+ *   - `theme-settings` — global theme settings panel (Brand, Typography, Layout, etc.).
+ *   - `app-embeds`     — app-provided global embeds. Empty state until the
+ *                        app/theme-extension runtime lands.
+ */
+export type EditorMode =
+  | "sections"
+  | "theme-settings"
+  | "wording"
+  | "app-embeds";
 export type SidebarPanel =
   | "sections"
   | "section-editor"
@@ -285,4 +367,12 @@ export interface EditorSelection {
   sectionId: string | null;
   blockId: string | null;
   groupId: string | null;
+  /**
+   * Full path to a nested block, from the section's direct child down to
+   * the selected block (e.g. `["col1", "link2"]`). For a top-level block
+   * this is `[blockId]`. `blockId` always mirrors the LEAF for
+   * back-compat with code that reads it directly; resolvers prefer
+   * `blockPath`. Absent/null when no block is selected.
+   */
+  blockPath?: string[] | null;
 }

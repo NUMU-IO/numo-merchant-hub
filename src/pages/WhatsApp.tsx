@@ -1,440 +1,1004 @@
-import { useState, useEffect, useCallback } from "react";
-import { useLanguage } from "@/contexts/LanguageContext";
+import { useState, useEffect, useCallback, useMemo, useRef, type ComponentType } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import {
+  getByoStatus,
+  getWhatsAppAnalytics,
+  updateByoNotifications,
+  updateWhatsAppSettings,
+  listWhatsAppMessages,
+  type WhatsAppStatus,
+  type WhatsAppNotificationSettings,
+  type WhatsAppMessageLanguage,
+  type WhatsAppAnalytics,
+  type WhatsAppMessageLogItem,
+} from "@/services/whatsappApi";
+import { listTemplates, type WhatsAppTemplate } from "@/services/templatesApi";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { WhatsAppTemplatePreview } from "@/components/whatsapp/WhatsAppTemplatePreview";
+import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
 import { toast } from "sonner";
 import {
-  MessageSquare,
-  Phone,
-  Zap,
-  TrendingUp,
-  Send,
-  CheckCheck,
-  Eye,
-  AlertCircle,
-  Unplug,
-  RefreshCw,
-  ShoppingCart,
-  Truck,
-  Package,
-  CreditCard,
-  Clock,
-} from "lucide-react";
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  Tooltip as RechartsTooltip,
+  CartesianGrid,
+} from "recharts";
 import {
-  getWhatsAppStatus,
-  getSignupConfig,
-  completeSignup,
-  disconnectWhatsApp,
-  getNotificationSettings,
-  updateNotificationSettings,
-  getWhatsAppAnalytics,
-  type WhatsAppConnectionStatus,
-  type NotificationSettings,
-  type WhatsAppAnalytics as AnalyticsType,
-} from "@/services/whatsappApi";
+  CheckCircle2,
+  Send,
+  Eye,
+  Sparkles,
+  Phone,
+  Globe,
+  Languages,
+  ShoppingBag,
+  ShoppingCart,
+  CreditCard,
+  Truck,
+  PackageCheck,
+  ArrowRight,
+  Settings2,
+  ShieldCheck,
+  Clock,
+  Inbox,
+  ArrowDownLeft,
+  ArrowUpRight,
+} from "lucide-react";
 
-declare global {
-  interface Window {
-    FB?: {
-      init: (config: Record<string, unknown>) => void;
-      login: (
-        callback: (response: { authResponse?: { code?: string } }) => void,
-        config: Record<string, unknown>
-      ) => void;
-    };
-    fbAsyncInit?: () => void;
+// WhatsApp brand green — used sparingly for the channel identity (hero,
+// connected state, "delivered" series). Everything else uses the app's
+// neutral design tokens so the page reads as part of the NUMU dashboard.
+const WA_GREEN = "#25D366";
+
+const PERIODS: Array<{ key: string; en: string; ar: string }> = [
+  { key: "7d", en: "7 days", ar: "٧ أيام" },
+  { key: "30d", en: "30 days", ar: "٣٠ يوم" },
+  { key: "90d", en: "90 days", ar: "٩٠ يوم" },
+];
+
+// The four automated, order-lifecycle notifications a merchant can switch
+// on. Keys match WhatsAppNotificationSettings / the backend canonical path
+// `store.settings.whatsapp_notifications`.
+const NOTIFICATION_EVENTS: Array<{
+  key: keyof WhatsAppNotificationSettings;
+  en: string;
+  ar: string;
+  descEn: string;
+  descAr: string;
+  icon: typeof ShoppingBag;
+}> = [
+  {
+    key: "order_confirmation",
+    en: "Order confirmation",
+    ar: "تأكيد الطلب",
+    descEn: "Sent the moment a customer places an order.",
+    descAr: "تُرسل فور قيام العميل بإتمام الطلب.",
+    icon: ShoppingBag,
+  },
+  {
+    key: "require_order_confirmation",
+    en: "Confirm order in WhatsApp",
+    ar: "تأكيد الطلب على واتساب",
+    descEn:
+      "For COD orders: ask the customer to tap Confirm. The order is held until they do. Replaces the order-confirmation notice for COD.",
+    descAr:
+      "لطلبات الدفع عند الاستلام: اطلب من العميل الضغط على تأكيد، ويبقى الطلب معلقاً حتى يؤكده. يحل محل رسالة تأكيد الطلب لطلبات الدفع عند الاستلام.",
+    icon: ShieldCheck,
+  },
+  {
+    key: "payment_received",
+    en: "Payment received",
+    ar: "تأكيد الدفع",
+    descEn: "Sent when an order's payment is confirmed.",
+    descAr: "تُرسل عند تأكيد دفع الطلب.",
+    icon: CreditCard,
+  },
+  {
+    key: "shipping_update",
+    en: "Shipping update",
+    ar: "تحديث الشحن",
+    descEn: "Sent with the tracking number when the order ships.",
+    descAr: "تُرسل مع رقم التتبع عند شحن الطلب.",
+    icon: Truck,
+  },
+  {
+    key: "delivery_confirmation",
+    en: "Delivery confirmation",
+    ar: "تأكيد التسليم",
+    descEn: "Sent once the order is marked delivered.",
+    descAr: "تُرسل عند تسليم الطلب.",
+    icon: PackageCheck,
+  },
+  {
+    key: "abandoned_cart",
+    en: "Abandoned cart",
+    ar: "السلة المتروكة",
+    descEn: "Recover carts customers left without paying. Send instantly from the Abandoned checkouts page.",
+    descAr: "استرجع السلات التي تركها العملاء دون دفع. أرسل فوراً من صفحة السلات المتروكة.",
+    icon: ShoppingCart,
+  },
+];
+
+const LANGUAGE_OPTIONS: Array<{
+  key: WhatsAppMessageLanguage;
+  en: string;
+  ar: string;
+  subEn: string;
+  subAr: string;
+}> = [
+  { key: "auto", en: "Auto", ar: "تلقائي", subEn: "Follow store language", subAr: "حسب لغة المتجر" },
+  { key: "ar", en: "Arabic", ar: "العربية", subEn: "Always Arabic", subAr: "دائماً بالعربية" },
+  { key: "en", en: "English", ar: "الإنجليزية", subEn: "Always English", subAr: "دائماً بالإنجليزية" },
+];
+
+// Short body preview — the first BODY component's text.
+function templateBody(t: WhatsAppTemplate): string {
+  const body = t.components?.find((c) => c.type === "BODY");
+  return body?.text || "";
+}
+
+// Compact "time ago" label for the recent-messages list. Falls back to
+// a localized date once a message is older than a day.
+function timeAgo(iso: string | null, isAr: boolean): string {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const mins = Math.floor((Date.now() - then) / 60000);
+  if (mins < 1) return isAr ? "الآن" : "now";
+  if (mins < 60) return isAr ? `${mins} د` : `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return isAr ? `${hrs} س` : `${hrs}h`;
+  return new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+// "order_confirmation_v2" → "Order confirmation v2" — a readable label
+// for a sent template message when it carried no inline content.
+function humanizeTemplate(name: string): string {
+  const cleaned = name.replace(/_/g, " ").trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+// Delivery-status pill for a row in the recent-messages feed. Only the
+// states worth calling out get a badge; plain "sent"/"queued" stay
+// unbadged to keep the list calm.
+function messageStatusStyle(
+  status: string,
+  isAr: boolean
+): { label: string; cls: string } | null {
+  switch (status) {
+    case "read":
+      return {
+        label: isAr ? "قُرئت" : "Read",
+        cls: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+      };
+    case "delivered":
+      return {
+        label: isAr ? "وصلت" : "Delivered",
+        cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+      };
+    case "failed":
+      return {
+        label: isAr ? "فشلت" : "Failed",
+        cls: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+      };
+    default:
+      return null;
   }
 }
 
+// Status badge colour + label for a template across its Meta lifecycle.
+function templateStatusStyle(status: string, isAr: boolean): { label: string; cls: string } {
+  const s = status.toUpperCase();
+  if (s === "APPROVED")
+    return {
+      label: isAr ? "معتمد" : "Approved",
+      cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    };
+  if (s === "REJECTED")
+    return {
+      label: isAr ? "مرفوض" : "Rejected",
+      cls: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+    };
+  return {
+    label: isAr ? "قيد المراجعة" : "Pending",
+    cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  };
+}
+
 export default function WhatsApp() {
-  const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
+  const { language } = useLanguage();
   const isAr = language === "ar";
+  const dir = isAr ? "rtl" : "ltr";
+  const navigate = useNavigate();
   const storeId = currentStore?.id;
 
-  const [status, setStatus] = useState<WhatsAppConnectionStatus | null>(null);
-  const [notifications, setNotifications] = useState<NotificationSettings | null>(null);
-  const [analytics, setAnalytics] = useState<AnalyticsType | null>(null);
+  const [status, setStatus] = useState<WhatsAppStatus | null>(null);
+  const [analytics, setAnalytics] = useState<WhatsAppAnalytics | null>(null);
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [messages, setMessages] = useState<WhatsAppMessageLogItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [connecting, setConnecting] = useState(false);
-  const [tab, setTab] = useState("overview");
+  const [period, setPeriod] = useState("30d");
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  // Briefly marks a row as just-persisted so the merchant gets a visible
+  // "Saved ✓" confirmation that the change reached the backend (the toast
+  // is transient and easy to miss).
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+  // Session-scoped time of the last successful settings save — a durable
+  // "saved just now" reassurance. Not persisted server-side; resets on
+  // reload (the authoritative proof is that the toggles come back set).
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<WhatsAppTemplate | null>(null);
+  // Editable draft for the COD confirm-order delay. Stored server-side as a
+  // single minutes value; the UI lets the merchant pick minutes or hours.
+  const [delayValue, setDelayValue] = useState<number>(30);
+  const [delayUnitHours, setDelayUnitHours] = useState<boolean>(false);
+
+  const flashSaved = useCallback((key: string) => {
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    setSavedKey(key);
+    setLastSavedAt(new Date());
+    savedTimer.current = setTimeout(() => setSavedKey(null), 2500);
+  }, []);
+
+  useEffect(() => () => {
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!storeId) return;
     setLoading(true);
-    try {
-      const [statusRes, notifsRes, analyticsRes] = await Promise.all([
-        getWhatsAppStatus(storeId),
-        getNotificationSettings(storeId),
-        getWhatsAppAnalytics(storeId, "30d"),
-      ]);
-      setStatus(statusRes.data);
-      setNotifications(notifsRes.data);
-      setAnalytics(analyticsRes.data);
-    } catch {
+    const [statusRes, analyticsRes, templatesRes, messagesRes] = await Promise.allSettled([
+      getByoStatus(storeId),
+      getWhatsAppAnalytics(storeId, period),
+      listTemplates(storeId),
+      listWhatsAppMessages(storeId, { limit: 8 }),
+    ]);
+    if (statusRes.status === "fulfilled") setStatus(statusRes.value);
+    if (analyticsRes.status === "fulfilled") setAnalytics(analyticsRes.value);
+    if (templatesRes.status === "fulfilled") setTemplates(templatesRes.value.templates);
+    if (messagesRes.status === "fulfilled") setMessages(messagesRes.value.messages);
+    if (statusRes.status === "rejected" && analyticsRes.status === "rejected") {
       toast.error(isAr ? "فشل تحميل بيانات واتساب" : "Failed to load WhatsApp data");
-    } finally {
-      setLoading(false);
     }
-  }, [storeId, isAr]);
+    setLoading(false);
+  }, [storeId, period, isAr]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const handleConnect = async () => {
-    if (!storeId) return;
-    setConnecting(true);
+  const handleToggle = async (key: keyof WhatsAppNotificationSettings, value: boolean) => {
+    if (!storeId || !status) return;
+    setSavingKey(key);
+    setStatus({ ...status, notifications: { ...status.notifications, [key]: value } });
     try {
-      const config = await getSignupConfig(storeId);
-      if (!config.app_id) {
-        toast.error(isAr ? "ربط واتساب غير متاح حالياً" : "WhatsApp connection not available yet");
-        return;
+      // The PATCH returns the full, server-persisted notification set —
+      // reconcile against it instead of trusting the optimistic flip, so
+      // the switch reflects exactly what's now in the backend.
+      const saved = await updateByoNotifications(storeId, { [key]: value });
+      setStatus((s) => (s ? { ...s, notifications: { ...s.notifications, ...saved } } : s));
+      flashSaved(key);
+    } catch {
+      setStatus({ ...status, notifications: { ...status.notifications, [key]: !value } });
+      toast.error(isAr ? "فشل الحفظ" : "Failed to save");
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  // Mirror the persisted delay into the editable draft whenever it changes
+  // (initial load + after a save). Only re-derives when a delay is set so
+  // it doesn't clobber the merchant's in-progress edit before they apply.
+  const confirmDelayMinutes = status?.confirm_order_delay_minutes ?? 0;
+  useEffect(() => {
+    if (confirmDelayMinutes > 0) {
+      if (confirmDelayMinutes % 60 === 0) {
+        setDelayUnitHours(true);
+        setDelayValue(confirmDelayMinutes / 60);
+      } else {
+        setDelayUnitHours(false);
+        setDelayValue(confirmDelayMinutes);
       }
-
-      // Load Facebook SDK
-      if (!window.FB) {
-        await new Promise<void>((resolve) => {
-          window.fbAsyncInit = () => {
-            window.FB!.init({
-              appId: config.app_id,
-              cookie: true,
-              xfbml: false,
-              version: "v18.0",
-            });
-            resolve();
-          };
-          const script = document.createElement("script");
-          script.src = "https://connect.facebook.net/en_US/sdk.js";
-          script.async = true;
-          document.body.appendChild(script);
-        });
-      }
-
-      // Trigger embedded signup
-      window.FB!.login(
-        async (response) => {
-          const code = response.authResponse?.code;
-          if (!code) {
-            toast.error(isAr ? "تم إلغاء الربط" : "Connection cancelled");
-            setConnecting(false);
-            return;
-          }
-          try {
-            const result = await completeSignup(storeId, code);
-            if (result.data.connected) {
-              toast.success(
-                isAr
-                  ? `تم ربط واتساب بنجاح! ${result.data.phone_number || ""}`
-                  : `WhatsApp connected! ${result.data.phone_number || ""}`
-              );
-              loadData();
-            }
-          } catch {
-            toast.error(isAr ? "فشل ربط واتساب" : "Failed to connect WhatsApp");
-          } finally {
-            setConnecting(false);
-          }
-        },
-        {
-          config_id: config.data.config_id,
-          response_type: "code",
-          override_default_response_type: true,
-          extras: {
-            setup: {},
-            featureType: "",
-            sessionInfoVersion: 2,
-          },
-        }
-      );
-    } catch {
-      toast.error(isAr ? "خطأ في التحميل" : "Failed to load signup config");
-      setConnecting(false);
     }
-  };
+  }, [confirmDelayMinutes]);
 
-  const handleDisconnect = async () => {
-    if (!storeId || !confirm(isAr ? "هل أنت متأكد من فصل واتساب؟" : "Disconnect WhatsApp?"))
-      return;
+  const saveConfirmDelay = async (minutes: number) => {
+    if (!storeId || !status) return;
+    const prev = status.confirm_order_delay_minutes;
+    if (prev === minutes) return;
+    setSavingKey("confirm_delay");
+    setStatus({ ...status, confirm_order_delay_minutes: minutes });
     try {
-      await disconnectWhatsApp(storeId);
-      toast.success(isAr ? "تم فصل واتساب" : "WhatsApp disconnected");
-      loadData();
+      const res = await updateWhatsAppSettings(storeId, {
+        confirm_order_delay_minutes: minutes,
+      });
+      setStatus(res);
+      flashSaved("confirm_delay");
     } catch {
-      toast.error(isAr ? "فشل فصل واتساب" : "Failed to disconnect");
+      setStatus({ ...status, confirm_order_delay_minutes: prev });
+      toast.error(isAr ? "فشل الحفظ" : "Failed to save");
+    } finally {
+      setSavingKey(null);
     }
   };
 
-  const handleToggle = async (key: keyof NotificationSettings, value: boolean) => {
-    if (!storeId) return;
+  // Apply the current draft (value + unit) as a minutes total.
+  const applyDelayDraft = () => {
+    const v = Math.max(1, Math.floor(delayValue || 0));
+    saveConfirmDelay(delayUnitHours ? v * 60 : v);
+  };
+
+  const handleLanguage = async (lang: WhatsAppMessageLanguage) => {
+    if (!storeId || !status || status.message_language === lang) return;
+    const prev = status.message_language;
+    setSavingKey(`lang:${lang}`);
+    setStatus({ ...status, message_language: lang });
     try {
-      const res = await updateNotificationSettings(storeId, { [key]: value });
-      setNotifications(res.data);
-      toast.success(isAr ? "تم التحديث" : "Updated");
+      const res = await updateWhatsAppSettings(storeId, { message_language: lang });
+      setStatus(res);
+      flashSaved(`lang:${lang}`);
     } catch {
-      toast.error(isAr ? "فشل التحديث" : "Failed to update");
+      setStatus({ ...status, message_language: prev });
+      toast.error(isAr ? "فشل تحديث اللغة" : "Failed to update language");
+    } finally {
+      setSavingKey(null);
     }
   };
+
+  const connected = status?.connected ?? false;
+  const isByo = status?.mode === "byo";
+
+  const fmtNum = (n: number) => new Intl.NumberFormat(isAr ? "ar-EG" : "en-US").format(n);
+
+  const chartData = useMemo(
+    () =>
+      (analytics?.daily_stats ?? []).map((d) => ({
+        date: d.date.slice(5),
+        sent: d.sent,
+        delivered: d.delivered,
+      })),
+    [analytics]
+  );
+
+  // Show every template the store has, not only Meta-APPROVED ones —
+  // a merchant who created/submitted templates expects to see them here
+  // (with their real status) rather than an empty card. Approved first,
+  // then pending, then rejected.
+  const visibleTemplates = useMemo(() => {
+    const rank = (s: string) =>
+      s.toUpperCase() === "APPROVED" ? 0 : s.toUpperCase() === "REJECTED" ? 2 : 1;
+    return [...templates].sort((a, b) => rank(a.status) - rank(b.status));
+  }, [templates]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  const connected = status?.connected ?? false;
-
-  // ── Not Connected State ──
-  if (!connected || status?.connection_type === "shared") {
-    return (
-      <div className="space-y-6 max-w-3xl mx-auto py-8" dir={isAr ? "rtl" : "ltr"}>
-        {/* Hero */}
-        <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100">
-            <MessageSquare className="h-10 w-10 text-green-600" />
-          </div>
-          <h1 className="text-2xl font-bold">
-            {isAr ? "كن حيث يوجد عملاؤك" : "Be Where Your Customers Are"}
-          </h1>
-          <p className="text-muted-foreground max-w-md mx-auto">
-            {isAr
-              ? "اربط رقم واتساب للأعمال الخاص بك وأرسل تحديثات الطلبات والحملات التسويقية مباشرة"
-              : "Connect your WhatsApp Business number to send order updates and marketing campaigns directly"}
-          </p>
-        </div>
-
-        {/* Benefits */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            {
-              icon: <Zap className="h-5 w-5 text-yellow-500" />,
-              title: isAr ? "98% معدل فتح" : "98% Open Rate",
-              desc: isAr ? "أعلى بكتير من الإيميل" : "Way higher than email",
-            },
-            {
-              icon: <ShoppingCart className="h-5 w-5 text-blue-500" />,
-              title: isAr ? "استرجع السلات المتروكة" : "Recover Abandoned Carts",
-              desc: isAr ? "رسالة تذكير تلقائية" : "Auto reminder messages",
-            },
-            {
-              icon: <TrendingUp className="h-5 w-5 text-green-500" />,
-              title: isAr ? "زود مبيعاتك" : "Boost Sales",
-              desc: isAr ? "حملات تسويقية مستهدفة" : "Targeted campaigns",
-            },
-          ].map((b, i) => (
-            <Card key={i}>
-              <CardContent className="pt-6 text-center space-y-2">
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted">
-                  {b.icon}
-                </div>
-                <h3 className="font-semibold text-sm">{b.title}</h3>
-                <p className="text-xs text-muted-foreground">{b.desc}</p>
-              </CardContent>
-            </Card>
+      <div className="p-4 md:p-8 space-y-6 max-w-6xl mx-auto">
+        <Skeleton className="h-40 w-full rounded-2xl" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-xl" />
           ))}
         </div>
-
-        {/* Connect Button */}
-        <div className="text-center">
-          <Button
-            size="lg"
-            className="bg-green-600 hover:bg-green-700 text-white gap-2 px-8"
-            onClick={handleConnect}
-            disabled={connecting}
-          >
-            {connecting ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : (
-              <Phone className="h-4 w-4" />
-            )}
-            {isAr ? "ربط واتساب للأعمال" : "Connect WhatsApp Business"}
-          </Button>
-          {status?.connection_type === "shared" && (
-            <p className="text-xs text-muted-foreground mt-2">
-              {isAr
-                ? "حالياً بتستخدم رقم NUMU المشترك. اربط رقمك الخاص لتجربة أفضل"
-                : "Currently using shared NUMU number. Connect your own for a branded experience"}
-            </p>
-          )}
-        </div>
+        <Skeleton className="h-72 w-full rounded-2xl" />
       </div>
     );
   }
 
-  // ── Connected State ──
-  const notifItems: {
-    key: keyof NotificationSettings;
-    icon: React.ReactNode;
-    label: string;
-    labelAr: string;
-  }[] = [
-    { key: "order_confirmation", icon: <ShoppingCart className="h-4 w-4" />, label: "Order Confirmation", labelAr: "تأكيد الطلب" },
-    { key: "order_shipped", icon: <Truck className="h-4 w-4" />, label: "Order Shipped", labelAr: "تم الشحن" },
-    { key: "out_for_delivery", icon: <Package className="h-4 w-4" />, label: "Out for Delivery", labelAr: "في الطريق" },
-    { key: "order_delivered", icon: <CheckCheck className="h-4 w-4" />, label: "Delivered", labelAr: "تم التوصيل" },
-    { key: "payment_received", icon: <CreditCard className="h-4 w-4" />, label: "Payment Received", labelAr: "تم الدفع" },
-    { key: "abandoned_cart", icon: <Clock className="h-4 w-4" />, label: "Abandoned Cart", labelAr: "سلة متروكة" },
-  ];
-
   return (
-    <div className="space-y-6" dir={isAr ? "rtl" : "ltr"}>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">{isAr ? "واتساب للأعمال" : "WhatsApp Business"}</h1>
-          <p className="text-sm text-muted-foreground">
-            {isAr ? "إدارة الرسائل والحملات" : "Manage messages and campaigns"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1 text-green-600 border-green-200 bg-green-50">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            {isAr ? "متصل" : "Connected"}
-          </Badge>
-          <Button variant="ghost" size="sm" onClick={handleDisconnect}>
-            <Unplug className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Connection Info */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-              <Phone className="h-6 w-6 text-green-600" />
+    <>
+      <div className="p-4 md:p-8 space-y-6 max-w-6xl mx-auto" dir={dir}>
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-emerald-50 to-teal-50/40 dark:from-emerald-950/30 dark:to-teal-950/10 p-6 md:p-8">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-5">
+            <div
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-sm"
+              style={{ backgroundColor: WA_GREEN }}
+            >
+              <WhatsAppGlyph className="h-8 w-8 text-white" />
             </div>
-            <div className="flex-1">
-              <p className="font-medium">{status?.phone_display_name || "WhatsApp Business"}</p>
-              <p className="text-sm text-muted-foreground">{status?.phone_number || ""}</p>
-            </div>
-            {status?.quality_rating && (
-              <Badge variant={status.quality_rating === "GREEN" ? "default" : "destructive"}>
-                {status.quality_rating}
-              </Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tabs */}
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="overview">{isAr ? "نظرة عامة" : "Overview"}</TabsTrigger>
-          <TabsTrigger value="notifications">{isAr ? "الإشعارات" : "Notifications"}</TabsTrigger>
-          <TabsTrigger value="analytics">{isAr ? "التحليلات" : "Analytics"}</TabsTrigger>
-        </TabsList>
-
-        {/* Overview */}
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { label: isAr ? "مرسلة" : "Sent", value: analytics?.total_sent ?? 0, icon: <Send className="h-4 w-4 text-blue-500" /> },
-              { label: isAr ? "وصلت" : "Delivered", value: analytics?.total_delivered ?? 0, icon: <CheckCheck className="h-4 w-4 text-green-500" /> },
-              { label: isAr ? "مقروءة" : "Read", value: analytics?.total_read ?? 0, icon: <Eye className="h-4 w-4 text-purple-500" /> },
-              { label: isAr ? "فشلت" : "Failed", value: analytics?.total_failed ?? 0, icon: <AlertCircle className="h-4 w-4 text-red-500" /> },
-            ].map((stat, i) => (
-              <Card key={i}>
-                <CardContent className="pt-4 pb-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    {stat.icon}
-                    <span className="text-xs text-muted-foreground">{stat.label}</span>
-                  </div>
-                  <p className="text-2xl font-bold">{stat.value.toLocaleString()}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Card>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground mb-1">{isAr ? "نسبة التوصيل" : "Delivery Rate"}</p>
-                <p className="text-2xl font-bold text-green-600">{analytics?.delivery_rate ?? 0}%</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground mb-1">{isAr ? "نسبة القراءة" : "Read Rate"}</p>
-                <p className="text-2xl font-bold text-purple-600">{analytics?.read_rate ?? 0}%</p>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Notifications */}
-        <TabsContent value="notifications" className="space-y-3">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{isAr ? "إشعارات تلقائية" : "Automated Notifications"}</CardTitle>
-              <CardDescription className="text-xs">
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+                  {isAr ? "واتساب للأعمال" : "WhatsApp Business"}
+                </h1>
+                {connected ? (
+                  <Badge className="gap-1 border-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {isByo
+                      ? isAr
+                        ? "متصل برقمك"
+                        : "Your number"
+                      : isAr
+                      ? "مفعّل عبر NUMU"
+                      : "Live via NUMU"}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-muted-foreground">
+                    {isAr ? "غير مفعّل" : "Not active"}
+                  </Badge>
+                )}
+              </div>
+              <p className="mt-1.5 text-sm md:text-base text-muted-foreground max-w-2xl">
                 {isAr
-                  ? "اختر الرسائل اللي تتبعت تلقائياً لعملاءك"
-                  : "Choose which messages are automatically sent to your customers"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {notifItems.map((item) => {
-                const toggle = notifications?.[item.key];
-                return (
-                  <div key={item.key} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                        {item.icon}
-                      </div>
-                      <span className="text-sm font-medium">{isAr ? item.labelAr : item.label}</span>
-                    </div>
-                    <Switch
-                      checked={toggle?.enabled ?? false}
-                      onCheckedChange={(v) => handleToggle(item.key, v)}
-                    />
-                  </div>
-                );
-              })}
+                  ? "أبلغ عملاءك تلقائياً بكل خطوة في طلبهم عبر واتساب — تأكيد الطلب، الدفع، الشحن، والتسليم. تصل الرسائل من رقم NUMU الموثّق دون أي إعداد."
+                  : "Automatically keep customers updated at every step on WhatsApp — order, payment, shipping and delivery. Messages go out from NUMU's verified number with zero setup."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Not-connected explainer */}
+        {!connected && (
+          <Card className="border-emerald-200 dark:border-emerald-900/50">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-3">
+                <Sparkles className="h-5 w-5 mt-0.5 text-emerald-600 shrink-0" />
+                <div>
+                  <h3 className="font-semibold">
+                    {isAr ? "واتساب غير مُعدّ لهذا المتجر بعد" : "WhatsApp isn't set up for this store yet"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {isAr
+                      ? "بمجرد تفعيل رقم NUMU المشترك، يمكنك تشغيل الإشعارات أدناه فوراً — أو اربط رقم واتساب الخاص بك."
+                      : "Once the shared NUMU number is enabled, switch on the notifications below — or connect your own WhatsApp number."}
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        )}
 
         {/* Analytics */}
-        <TabsContent value="analytics" className="space-y-4">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">{isAr ? "الأداء" : "Performance"}</h2>
+            <div className="inline-flex rounded-lg border bg-card p-0.5">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setPeriod(p.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    period === p.key
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {isAr ? p.ar : p.en}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label={isAr ? "أُرسلت" : "Sent"} value={fmtNum(analytics?.total_sent ?? 0)} icon={Send} tone="default" />
+            <StatCard
+              label={isAr ? "وصلت" : "Delivered"}
+              value={fmtNum(analytics?.total_delivered ?? 0)}
+              icon={CheckCircle2}
+              tone="success"
+              sub={analytics ? `${analytics.delivery_rate}%` : undefined}
+            />
+            <StatCard
+              label={isAr ? "قُرئت" : "Read"}
+              value={fmtNum(analytics?.total_read ?? 0)}
+              icon={Eye}
+              tone="info"
+              sub={analytics ? `${analytics.read_rate}%` : undefined}
+            />
+            <StatCard
+              label={isAr ? "محادثات نشطة" : "Active chats"}
+              value={fmtNum(analytics?.active_conversations ?? 0)}
+              icon={WhatsAppGlyph}
+              tone="default"
+            />
+          </div>
+
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{isAr ? "الرسائل يومياً" : "Messages Per Day"}</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {isAr ? "الرسائل اليومية" : "Daily messages"}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              {analytics?.daily_stats && analytics.daily_stats.length > 0 ? (
-                <div className="space-y-2">
-                  {analytics.daily_stats.slice(-14).map((day) => (
-                    <div key={day.date} className="flex items-center gap-3 text-xs">
-                      <span className="w-20 text-muted-foreground">{day.date}</span>
-                      <div className="flex-1 flex gap-1 h-4">
-                        {day.sent > 0 && (
-                          <div
-                            className="bg-blue-400 rounded-sm"
-                            style={{ width: `${Math.min((day.sent / Math.max(...analytics.daily_stats.map(d => d.sent || 1))) * 100, 100)}%` }}
-                            title={`Sent: ${day.sent}`}
-                          />
-                        )}
-                      </div>
-                      <span className="w-8 text-right">{day.sent}</span>
-                    </div>
-                  ))}
+              {chartData.length === 0 ? (
+                <div className="h-56 flex items-center justify-center text-sm text-muted-foreground">
+                  {isAr ? "لا توجد بيانات بعد لهذه الفترة" : "No data yet for this period"}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  {isAr ? "لا توجد بيانات بعد" : "No data yet"}
-                </p>
+                <div className="h-56" dir="ltr">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                      <RechartsTooltip
+                        contentStyle={{
+                          borderRadius: 12,
+                          border: "1px solid hsl(var(--border))",
+                          background: "hsl(var(--popover))",
+                          fontSize: 12,
+                        }}
+                      />
+                      <Bar dataKey="sent" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                      <Bar dataKey="delivered" fill={WA_GREEN} radius={[4, 4, 0, 0]} maxBarSize={28} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+        </div>
+
+        {/* Recent messages — live feed of what's actually been sent to /
+            received from this store's customers on WhatsApp. */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <WhatsAppGlyph className="h-4 w-4" style={{ color: WA_GREEN }} />
+                  {isAr ? "أحدث الرسائل" : "Recent messages"}
+                </CardTitle>
+                <CardDescription>
+                  {isAr
+                    ? "آخر الرسائل المُرسلة والمستلمة عبر واتساب لهذا المتجر."
+                    : "The latest messages sent to and received from this store's customers."}
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 shrink-0"
+                onClick={() => navigate("/whatsapp/inbox")}
+              >
+                {isAr ? "صندوق الوارد" : "Open inbox"}
+                <ArrowRight className={`h-4 w-4 ${isAr ? "rotate-180" : ""}`} />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {messages.length === 0 ? (
+              <div className="py-8 flex flex-col items-center gap-2 text-center">
+                <Inbox className="h-8 w-8 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">
+                  {isAr ? "لا توجد رسائل بعد." : "No messages yet."}
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y rounded-xl border">
+                {messages.map((m) => {
+                  const outbound = m.direction === "outbound";
+                  const DirIcon = outbound ? ArrowUpRight : ArrowDownLeft;
+                  const st = messageStatusStyle(m.status, isAr);
+                  const preview =
+                    m.content ||
+                    (m.template_name
+                      ? humanizeTemplate(m.template_name)
+                      : isAr
+                      ? "بدون معاينة"
+                      : "No preview");
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => navigate("/whatsapp/inbox")}
+                      className="flex w-full items-center gap-3 p-3.5 text-start transition-colors hover:bg-muted/40"
+                    >
+                      <div
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                          outbound
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            : "bg-muted text-foreground/70"
+                        }`}
+                      >
+                        <DirIcon className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-sm truncate" dir="ltr">
+                            {m.phone}
+                          </p>
+                          {st && (
+                            <Badge className={`border-0 text-[10px] px-1.5 py-0 h-4 ${st.cls}`}>
+                              {st.label}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{preview}</p>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
+                        {timeAgo(m.created_at, isAr)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Notifications */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="h-4 w-4 text-emerald-600" />
+                {isAr ? "الإشعارات التلقائية" : "Automatic notifications"}
+              </CardTitle>
+              {lastSavedAt && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  {isAr ? "حُفظ " : "Saved "}
+                  {lastSavedAt.toLocaleTimeString(isAr ? "ar-EG" : "en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              )}
+            </div>
+            <CardDescription>
+              {isAr
+                ? "اختر أي رسائل تُرسَل لعملائك تلقائياً عند كل خطوة في الطلب."
+                : "Choose which messages go to customers automatically at each order step."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {NOTIFICATION_EVENTS.map((evt) => {
+              const Icon = evt.icon;
+              const enabled = status?.notifications?.[evt.key] ?? false;
+              return (
+                <div
+                  key={evt.key}
+                  className="flex items-center gap-4 rounded-xl border p-3.5 transition-colors hover:bg-muted/40"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <Icon className="h-5 w-5 text-foreground/70" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">{isAr ? evt.ar : evt.en}</p>
+                    <p className="text-xs text-muted-foreground">{isAr ? evt.descAr : evt.descEn}</p>
+                  </div>
+                  {savingKey === evt.key ? (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {isAr ? "جارٍ الحفظ…" : "Saving…"}
+                    </span>
+                  ) : savedKey === evt.key ? (
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 shrink-0">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {isAr ? "تم الحفظ" : "Saved"}
+                    </span>
+                  ) : null}
+                  <Switch
+                    checked={enabled}
+                    disabled={!connected || savingKey === evt.key}
+                    onCheckedChange={(v) => handleToggle(evt.key, v)}
+                  />
+                </div>
+              );
+            })}
+            {!connected && (
+              <p className="text-xs text-muted-foreground pt-1">
+                {isAr ? "فعّل واتساب أولاً لتشغيل الإشعارات." : "Connect WhatsApp first to switch these on."}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Confirm-order timing — only relevant when the feature is on */}
+        {connected && status?.notifications?.require_order_confirmation && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Clock className="h-4 w-4 text-emerald-600" />
+                {isAr ? "توقيت رسالة التأكيد" : "Confirmation timing"}
+              </CardTitle>
+              <CardDescription>
+                {isAr
+                  ? "متى تُرسل رسالة «تأكيد الطلب» إلى العميل بعد إنشاء الطلب؟"
+                  : "When should the “confirm order” request be sent after an order is placed?"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => saveConfirmDelay(0)}
+                  disabled={savingKey === "confirm_delay"}
+                  className={`flex flex-col items-start gap-0.5 rounded-xl border p-4 text-start transition-all disabled:opacity-60 ${
+                    confirmDelayMinutes === 0
+                      ? "border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
+                      : "hover:border-foreground/20 hover:bg-muted/40"
+                  }`}
+                >
+                  <span className="font-semibold text-sm">
+                    {isAr ? "فوراً" : "Immediately"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {isAr ? "تُرسل لحظة إنشاء الطلب" : "Sent the moment the order is placed"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirmDelayMinutes === 0) {
+                      saveConfirmDelay(delayUnitHours ? delayValue * 60 : delayValue);
+                    }
+                  }}
+                  disabled={savingKey === "confirm_delay"}
+                  className={`flex flex-col items-start gap-0.5 rounded-xl border p-4 text-start transition-all disabled:opacity-60 ${
+                    confirmDelayMinutes > 0
+                      ? "border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
+                      : "hover:border-foreground/20 hover:bg-muted/40"
+                  }`}
+                >
+                  <span className="font-semibold text-sm">
+                    {isAr ? "بعد فترة" : "After a delay"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {isAr ? "أمهل العميل بعض الوقت" : "Give the customer some time first"}
+                  </span>
+                </button>
+              </div>
+              {confirmDelayMinutes > 0 && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    value={delayValue}
+                    onChange={(e) => setDelayValue(Number(e.target.value))}
+                    onBlur={applyDelayDraft}
+                    disabled={savingKey === "confirm_delay"}
+                    aria-label={isAr ? "مدة التأخير" : "Delay amount"}
+                    title={isAr ? "مدة التأخير" : "Delay amount"}
+                    className="h-9 w-24 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <select
+                    value={delayUnitHours ? "hours" : "minutes"}
+                    onChange={(e) => {
+                      const hours = e.target.value === "hours";
+                      setDelayUnitHours(hours);
+                      const v = Math.max(1, Math.floor(delayValue || 0));
+                      saveConfirmDelay(hours ? v * 60 : v);
+                    }}
+                    disabled={savingKey === "confirm_delay"}
+                    aria-label={isAr ? "وحدة التأخير" : "Delay unit"}
+                    title={isAr ? "وحدة التأخير" : "Delay unit"}
+                    className="h-9 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="minutes">{isAr ? "دقيقة" : "minutes"}</option>
+                    <option value="hours">{isAr ? "ساعة" : "hours"}</option>
+                  </select>
+                  {savingKey === "confirm_delay" ? (
+                    <span className="text-xs text-muted-foreground">
+                      {isAr ? "جارٍ الحفظ…" : "Saving…"}
+                    </span>
+                  ) : savedKey === "confirm_delay" ? (
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {isAr ? "تم الحفظ" : "Saved"}
+                    </span>
+                  ) : null}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Language */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Languages className="h-4 w-4 text-emerald-600" />
+              {isAr ? "لغة الرسائل" : "Message language"}
+            </CardTitle>
+            <CardDescription>
+              {isAr
+                ? "بأي لغة تصل الإشعارات التلقائية إلى عملائك؟"
+                : "Which language should automatic notifications be sent in?"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {LANGUAGE_OPTIONS.map((opt) => {
+                const active = (status?.message_language ?? "auto") === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => handleLanguage(opt.key)}
+                    disabled={!status || savingKey === `lang:${opt.key}`}
+                    className={`flex flex-col items-start gap-0.5 rounded-xl border p-4 text-start transition-all disabled:opacity-60 ${
+                      active
+                        ? "border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
+                        : "hover:border-foreground/20 hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className="flex w-full items-center justify-between">
+                      <span className="font-semibold text-sm">{isAr ? opt.ar : opt.en}</span>
+                      {savingKey === `lang:${opt.key}` ? (
+                        <span className="text-[11px] text-muted-foreground">
+                          {isAr ? "جارٍ الحفظ…" : "Saving…"}
+                        </span>
+                      ) : active && savedKey === `lang:${opt.key}` ? (
+                        <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          {isAr ? "تم الحفظ" : "Saved"}
+                        </span>
+                      ) : (
+                        active && <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{isAr ? opt.subAr : opt.subEn}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Templates preview */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Eye className="h-4 w-4 text-emerald-600" />
+                  {isAr ? "معاينة القوالب" : "Message previews"}
+                </CardTitle>
+                <CardDescription>
+                  {isAr ? "هكذا تظهر رسائلك على واتساب العميل." : "Exactly how your messages land on a customer's WhatsApp."}
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 shrink-0"
+                onClick={() => navigate("/channels/whatsapp/templates")}
+              >
+                {isAr ? "كل القوالب" : "All templates"}
+                <ArrowRight className={`h-4 w-4 ${isAr ? "rotate-180" : ""}`} />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {visibleTemplates.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                {isAr ? "لم تُرسل أي قوالب إلى Meta بعد." : "No templates submitted to Meta yet."}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {visibleTemplates.slice(0, 6).map((t) => {
+                  const st = templateStatusStyle(t.status, isAr);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setPreviewTemplate(t)}
+                      className="group flex flex-col gap-2 rounded-xl border p-4 text-start transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          {t.language}
+                        </span>
+                        <Badge className={`border-0 text-[10px] ${st.cls}`}>{st.label}</Badge>
+                      </div>
+                      <p className="font-medium text-sm truncate">{t.name}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{templateBody(t)}</p>
+                      <span className="mt-auto inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                        <Eye className="h-3.5 w-3.5" />
+                        {isAr ? "معاينة" : "Preview"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Connection / BYO entry */}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted">
+                {isByo ? <Phone className="h-5 w-5" /> : <Globe className="h-5 w-5" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-sm">
+                    {isByo
+                      ? isAr
+                        ? "متصل برقم واتساب الخاص بك"
+                        : "Connected with your own WhatsApp number"
+                      : isAr
+                      ? "تستخدم رقم NUMU المشترك"
+                      : "Using the shared NUMU number"}
+                  </p>
+                  {isByo && <ShieldCheck className="h-4 w-4 text-emerald-600" />}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isByo
+                    ? status?.display_phone_number || status?.phone_display_name || ""
+                    : isAr
+                    ? "مناسب لمعظم المتاجر. تريد رقمك الخاص وعلامتك التجارية؟ اربط حساب Meta WABA."
+                    : "Great for most stores. Want your own branded number? Connect your Meta WABA."}
+                </p>
+              </div>
+              <Button
+                variant={isByo ? "outline" : "default"}
+                className="gap-1.5 shrink-0"
+                onClick={() => navigate("/whatsapp/byo")}
+              >
+                <Settings2 className="h-4 w-4" />
+                {isByo
+                  ? isAr
+                    ? "إدارة الاتصال"
+                    : "Manage connection"
+                  : isAr
+                  ? "استخدم رقمك الخاص"
+                  : "Use your own number"}
+                <ArrowRight className={`h-4 w-4 ${isAr ? "rotate-180" : ""}`} />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {previewTemplate && (
+        <WhatsAppTemplatePreview
+          template={previewTemplate}
+          onClose={() => setPreviewTemplate(null)}
+          isAr={isAr}
+        />
+      )}
+    </>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  tone,
+  sub,
+}: {
+  label: string;
+  value: string;
+  icon: ComponentType<{ className?: string }>;
+  tone: "default" | "success" | "info";
+  sub?: string;
+}) {
+  const toneClass =
+    tone === "success"
+      ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
+      : tone === "info"
+      ? "text-sky-600 bg-sky-50 dark:bg-sky-950/30"
+      : "text-foreground/70 bg-muted";
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${toneClass}`}>
+            <Icon className="h-4 w-4" />
+          </span>
+          {sub && <span className="text-xs font-medium text-muted-foreground">{sub}</span>}
+        </div>
+        <p className="mt-3 text-2xl font-bold tabular-nums">{value}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
+      </CardContent>
+    </Card>
   );
 }

@@ -75,6 +75,7 @@ import {
 } from "@/hooks/usePromotions";
 import {
   issuePreviewToken,
+  type DiscountRule,
   type PromotionListItem,
   type PromotionStatus,
   type PromotionSurface,
@@ -185,6 +186,30 @@ export default function PromotionsList() {
     }
   };
 
+  // Human-readable discount value for the table, e.g. "17% off" /
+  // "50 EGP off" / "Free shipping". Null rule (visual surfaces) → em dash.
+  const discountLabel = (rule: DiscountRule | null | undefined): string => {
+    if (!rule) return t("promotions.list.discount_none") as string;
+    switch (rule.kind) {
+      case "percentage":
+        return t("promotions.list.discount_percent", {
+          value: rule.value_percent ?? 0,
+        }) as string;
+      case "fixed":
+        return t("promotions.list.discount_fixed", {
+          value: ((rule.value_cents ?? 0) / 100).toLocaleString(),
+        }) as string;
+      case "free_shipping":
+        return t("promotions.list.discount_free_shipping") as string;
+      case "bogo":
+        return t("promotions.list.discount_bogo") as string;
+      case "tiered":
+        return t("promotions.list.discount_tiered") as string;
+      default:
+        return t("promotions.list.discount_none") as string;
+    }
+  };
+
   const renderRow = (p: PromotionListItem) => (
     <TableRow key={p.id} className="hover:bg-muted/30">
       <TableCell className="font-medium">
@@ -195,11 +220,39 @@ export default function PromotionsList() {
           {p.name}
         </Link>
       </TableCell>
+      <TableCell className="font-mono text-[13px] font-bold text-navy">
+        {p.code ? (
+          <span className="inline-flex items-center gap-1.5">
+            {p.code}
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(p.code!).then(() =>
+                  toast.success(language === "ar" ? "تم نسخ الكود" : "Code copied"),
+                );
+              }}
+              className="text-muted-foreground/50 hover:text-navy transition-colors"
+              aria-label={language === "ar" ? "نسخ الكود" : "Copy code"}
+              title={language === "ar" ? "نسخ الكود" : "Copy code"}
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
+          </span>
+        ) : (
+          "—"
+        )}
+      </TableCell>
+      <TableCell className="text-sm font-medium">
+        {discountLabel(p.discount_rule)}
+      </TableCell>
       <TableCell>
         <PromotionSurfaceLabel surface={p.surface} />
       </TableCell>
       <TableCell>
         <PromotionStatusBadge status={p.status} />
+      </TableCell>
+      <TableCell className="text-sm tabular-nums text-muted-foreground">
+        {p.usage_count ?? 0}
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">
         {formatDate(p.starts_at)}
@@ -277,10 +330,10 @@ export default function PromotionsList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
             {t("promotions.list.title")}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-1">
             {t("promotions.list.subtitle")}
           </p>
         </div>
@@ -384,10 +437,15 @@ export default function PromotionsList() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t("promotions.list.column_name")}</TableHead>
+                  <TableHead>{t("promotions.list.column_code")}</TableHead>
+                  <TableHead>
+                    {t("promotions.list.column_discount")}
+                  </TableHead>
                   <TableHead>
                     {t("promotions.list.column_surface")}
                   </TableHead>
                   <TableHead>{t("promotions.list.column_status")}</TableHead>
+                  <TableHead>{t("promotions.list.column_used")}</TableHead>
                   <TableHead>
                     {t("promotions.list.column_schedule")}
                   </TableHead>

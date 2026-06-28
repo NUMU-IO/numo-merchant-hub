@@ -1,184 +1,204 @@
-import { useTranslation } from "react-i18next";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { listTemplates, type WhatsAppTemplate } from "@/services/templatesApi";
-import { formatDistanceToNow } from "date-fns";
-import { ar } from "date-fns/locale";
-import { enUS } from "date-fns/locale";
-import { Plus, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { useState } from "react";
+import { WhatsAppTemplatePreview } from "@/components/whatsapp/WhatsAppTemplatePreview";
+import { toast } from "sonner";
+import { Search, Plus, Eye, RefreshCw, FileText } from "lucide-react";
 
-const statusColors = {
-  PENDING: "bg-yellow-500",
-  APPROVED: "bg-green-500",
-  REJECTED: "bg-red-500",
-};
+type StatusFilter = "ALL" | "APPROVED" | "PENDING" | "REJECTED";
 
-export const WhatsAppTemplates = () => {
-  const { t } = useTranslation();
-  const { i18n } = useTranslation();
-  const navigate = useNavigate();
-  const { currentStore } = useDashboardStore();
-  const storeId = currentStore?.id;
-  const isRTL = i18n.language === "ar";
-  const locale = isRTL ? ar : enUS;
+const STATUS_FILTERS: Array<{ key: StatusFilter; en: string; ar: string }> = [
+  { key: "ALL", en: "All", ar: "الكل" },
+  { key: "APPROVED", en: "Approved", ar: "معتمد" },
+  { key: "PENDING", en: "Pending", ar: "قيد المراجعة" },
+  { key: "REJECTED", en: "Rejected", ar: "مرفوض" },
+];
 
-  const [selectedTemplate, setSelectedTemplate] = useState<WhatsAppTemplate | null>(null);
+// Short body preview — the first BODY component's text.
+function templateBody(t: WhatsAppTemplate): string {
+  const body = t.components?.find((c) => c.type === "BODY");
+  return body?.text || "";
+}
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["whatsapp-templates", storeId],
-    queryFn: () => listTemplates(storeId!),
-    enabled: !!storeId,
-  });
-
-  if (!storeId) {
-    return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold">WhatsApp Templates</h1>
-        <p className="text-muted-foreground mt-2">{t("common.loading")}</p>
-      </div>
-    );
+function statusBadgeClass(s: string): string {
+  switch (s) {
+    case "APPROVED":
+      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300";
+    case "PENDING":
+      return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300";
+    case "REJECTED":
+      return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300";
+    default:
+      return "bg-muted text-muted-foreground";
   }
+}
+
+export default function WhatsAppTemplates() {
+  const { currentStore } = useDashboardStore();
+  const { language } = useLanguage();
+  const isAr = language === "ar";
+  const dir = isAr ? "rtl" : "ltr";
+  const navigate = useNavigate();
+  const storeId = currentStore?.id;
+
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [previewTemplate, setPreviewTemplate] = useState<WhatsAppTemplate | null>(null);
+
+  const loadTemplates = useCallback(async () => {
+    if (!storeId) return;
+    setLoading(true);
+    try {
+      const res = await listTemplates(storeId);
+      setTemplates(res.templates);
+    } catch {
+      toast.error(isAr ? "فشل تحميل القوالب" : "Failed to load templates");
+    } finally {
+      setLoading(false);
+    }
+  }, [storeId, isAr]);
+
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
+
+  const counts = useMemo(() => {
+    const c: Record<StatusFilter, number> = { ALL: templates.length, APPROVED: 0, PENDING: 0, REJECTED: 0 };
+    for (const t of templates) {
+      if (t.status === "APPROVED") c.APPROVED++;
+      else if (t.status === "PENDING") c.PENDING++;
+      else if (t.status === "REJECTED") c.REJECTED++;
+    }
+    return c;
+  }, [templates]);
+
+  const filtered = useMemo(
+    () =>
+      templates.filter((t) => {
+        const matchesSearch = t.name.toLowerCase().includes(search.toLowerCase());
+        const matchesStatus = statusFilter === "ALL" || t.status === statusFilter;
+        return matchesSearch && matchesStatus;
+      }),
+    [templates, search, statusFilter]
+  );
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">WhatsApp Templates</h1>
-        <Button onClick={() => navigate("/channels/whatsapp/templates/new")}>
-          <Plus className="h-4 w-4 mr-2" />
-          {t("omnichannel.new_template")}
-        </Button>
+    <>
+      <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6" dir={dir}>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {isAr ? "قوالب واتساب" : "WhatsApp templates"}
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              {isAr
+                ? "القوالب التي اعتمدتها Meta لرسائلك — عاينها كما يراها العميل."
+                : "The Meta-approved templates behind your messages — preview them exactly as a customer sees them."}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={loadTemplates} className="gap-1.5">
+              <RefreshCw className="h-4 w-4" />
+              {isAr ? "تحديث" : "Refresh"}
+            </Button>
+            <Button size="sm" onClick={() => navigate("/channels/whatsapp/templates/new")} className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              {isAr ? "قالب جديد" : "New"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Status filter chips */}
+        <div className="flex flex-wrap gap-2">
+          {STATUS_FILTERS.map((f) => {
+            const active = statusFilter === f.key;
+            return (
+              <button
+                key={f.key}
+                onClick={() => setStatusFilter(f.key)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  active
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {isAr ? f.ar : f.en}
+                <span className={`tabular-nums ${active ? "opacity-80" : "opacity-60"}`}>{counts[f.key]}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="ps-9"
+            placeholder={isAr ? "ابحث عن قالب..." : "Search templates..."}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        {/* Gallery */}
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="h-40 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <Card>
+            <CardContent className="py-16 flex flex-col items-center text-center text-muted-foreground">
+              <FileText className="h-8 w-8 mb-3 opacity-40" />
+              <p>{isAr ? "لا توجد قوالب مطابقة." : "No matching templates."}</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filtered.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setPreviewTemplate(t)}
+                className="group flex flex-col gap-2 rounded-xl border p-4 text-start transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {t.category} · {t.language}
+                  </span>
+                  <Badge className={`border-0 text-[10px] ${statusBadgeClass(t.status)}`} variant="secondary">
+                    {t.status}
+                  </Badge>
+                </div>
+                <p className="font-medium text-sm truncate">{t.name}</p>
+                <p className="text-xs text-muted-foreground line-clamp-3 min-h-[2.5rem]">{templateBody(t)}</p>
+                <span className="mt-auto inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                  <Eye className="h-3.5 w-3.5" />
+                  {isAr ? "معاينة" : "Preview"}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {isLoading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
-      ) : data?.templates.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <p>No templates yet</p>
-          <Button
-            variant="link"
-            onClick={() => navigate("/channels/whatsapp/templates/new")}
-            className="mt-2"
-          >
-            {t("omnichannel.new_template")}
-          </Button>
-        </div>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("omnichannel.template_name")}</TableHead>
-              <TableHead>{t("omnichannel.template_language")}</TableHead>
-              <TableHead>{t("omnichannel.template_category")}</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>{t("dashboard.date")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data?.templates.map((template) => (
-              <TableRow
-                key={template.id}
-                className="cursor-pointer"
-                onClick={() => setSelectedTemplate(template)}
-              >
-                <TableCell className="font-medium">{template.name}</TableCell>
-                <TableCell>{template.language}</TableCell>
-                <TableCell>
-                  {template.category === "MARKETING"
-                    ? t("omnichannel.category_marketing")
-                    : template.category === "UTILITY"
-                    ? t("omnichannel.category_utility")
-                    : t("omnichannel.category_authentication")}
-                </TableCell>
-                <TableCell>
-                  <Badge className={`${statusColors[template.status]} text-white`}>
-                    {template.status === "PENDING"
-                      ? t("omnichannel.template_pending")
-                      : template.status === "APPROVED"
-                      ? t("omnichannel.template_approved")
-                      : t("omnichannel.template_rejected")}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {formatDistanceToNow(new Date(template.created_at), {
-                    addSuffix: true,
-                    locale,
-                  })}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      {previewTemplate && (
+        <WhatsAppTemplatePreview
+          template={previewTemplate}
+          onClose={() => setPreviewTemplate(null)}
+          isAr={isAr}
+        />
       )}
-
-      <Sheet open={!!selectedTemplate} onOpenChange={() => setSelectedTemplate(null)}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>{selectedTemplate?.name}</SheetTitle>
-          </SheetHeader>
-          {selectedTemplate && (
-            <div className="mt-6 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Status:</span>
-                <Badge className={`${statusColors[selectedTemplate.status]} text-white`}>
-                  {selectedTemplate.status}
-                </Badge>
-              </div>
-              {selectedTemplate.rejection_reason && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm font-medium text-red-800">Rejection Reason</p>
-                  <p className="text-sm text-red-600 mt-1">
-                    {selectedTemplate.rejection_reason}
-                  </p>
-                </div>
-              )}
-              <div className="space-y-3">
-                {selectedTemplate.components.map((comp, idx) => (
-                  <div key={idx} className="p-3 border rounded-lg">
-                    <p className="text-xs text-muted-foreground uppercase mb-1">
-                      {comp.type}
-                    </p>
-                    <p className="text-sm">{comp.text}</p>
-                    {comp.buttons && comp.buttons.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {comp.buttons.map((btn, btnIdx) => (
-                          <Badge key={btnIdx} variant="outline">
-                            {btn.text}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
-    </div>
+    </>
   );
-};
-
-export default WhatsAppTemplates;
+}

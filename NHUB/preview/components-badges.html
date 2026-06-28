@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .pill { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:4px 12px; font-size:12.5px; font-weight:700; }
+  .dot { width:7px; height:7px; border-radius:999px; }
+  .chip { display:inline-flex; align-items:center; height:38px; padding:0 16px; border-radius:999px; font-size:13px; font-weight:600; border:1px solid var(--border); background:var(--surface); }
+  .chip.on { background:var(--navy); color:#fff; border-color:var(--navy); }
+  .count { background:var(--saffron); color:var(--navy-900); min-width:22px; height:22px; padding:0 7px; border-radius:999px; font-size:11px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; }
+</style></head>
+<body>
+  <div class="col" style="gap:14px">
+    <div class="row" style="gap:9px">
+      <span class="chip on">All</span>
+      <span class="chip">Pending</span>
+      <span class="chip">Shipped</span>
+      <span class="chip">Delivered</span>
+    </div>
+    <div class="row" style="gap:14px; align-items:center">
+      <div class="row" style="gap:7px"><span class="label">Orders</span><span class="count">6</span></div>
+      <div class="row" style="gap:7px"><span class="label">Inbox</span><span class="count">12</span></div>
+      <div class="row" style="gap:7px"><span class="label">Overflow</span><span class="count">99+</span></div>
+    </div>
+    <div class="label">Filter chips toggle to solid navy when active. Count badges use saffron-on-navy (the brand's signature pairing).</div>
+  </div>
+</body></html>

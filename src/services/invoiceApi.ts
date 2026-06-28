@@ -261,3 +261,32 @@ export async function downloadInvoicePdf(
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// ─── Invoice / Tax (seller) settings ───────────────────────────────────────
+
+export interface InvoiceSettings {
+  tax_id: string;
+  name_ar: string;
+  branch_id: string;
+  activity_code: string;
+  governorate: string;
+  city: string;
+  street: string;
+  building_number: string;
+}
+
+export async function getInvoiceSettings(
+  storeId: string,
+): Promise<InvoiceSettings> {
+  return apiClient<InvoiceSettings>(`/stores/${storeId}/settings/invoice`);
+}
+
+export async function updateInvoiceSettings(
+  storeId: string,
+  data: Partial<InvoiceSettings>,
+): Promise<InvoiceSettings> {
+  return apiClient<InvoiceSettings>(`/stores/${storeId}/settings/invoice`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}

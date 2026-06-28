@@ -9,11 +9,13 @@ import {
 } from "lucide-react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { getSessions, getSessionDetail } from "@/services/analyticsApi";
+import { dateRangeKey } from "@/services/dateRangeParams";
+import type { DateRange } from "@/components/filters/DateRangePicker";
 import { SessionTimeline } from "@/components/analytics/SessionTimeline";
 import { useState } from "react";
 
 interface JourneyReplayTabProps {
-  period: number;
+  range: DateRange;
   formatCurrency: (cents: number) => string;
 }
 
@@ -44,7 +46,7 @@ function formatDuration(seconds: number, isAr: boolean): string {
 
 type DeviceFilter = "" | "desktop" | "mobile" | "tablet";
 
-export function JourneyReplayTab({ period, formatCurrency }: JourneyReplayTabProps) {
+export function JourneyReplayTab({ range, formatCurrency }: JourneyReplayTabProps) {
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
@@ -55,11 +57,14 @@ export function JourneyReplayTab({ period, formatCurrency }: JourneyReplayTabPro
   const [deviceFilter, setDeviceFilter] = useState<DeviceFilter>("");
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
 
-  const days = Math.min(period, 30); // Sessions max 30 days
-
+  // Sessions endpoint clamps to last 30 days server-side; we just
+  // forward the picker's range.
   const sessionsQuery = useQuery({
-    queryKey: ["analytics", "sessions", storeId, days, hasOrder, minPages, deviceFilter],
-    queryFn: () => getSessions(storeId!, days, hasOrder, minPages, deviceFilter),
+    queryKey: [
+      "analytics", "sessions", storeId, ...dateRangeKey(range),
+      hasOrder, minPages, deviceFilter,
+    ],
+    queryFn: () => getSessions(storeId!, range, hasOrder, minPages, deviceFilter),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="currentColor" role="img" aria-label="Network orders">
+  <!-- Stacked packages — represents COD orders flowing through the network -->
+  <path d="M11 14a2 2 0 0 1 1.06-1.77l18-9.5a2 2 0 0 1 1.88 0l18 9.5A2 2 0 0 1 51 14v3.4l-19 9.7-21-10.7V14Z"/>
+  <path d="M11 21.4 30 31.2v25.4a2 2 0 0 1-2.94 1.77l-15-7.92A2 2 0 0 1 11 48.7V21.4Z"/>
+  <path d="M51 21.4v15.5l-7-4v-7.7l-3 1.5v4.6l-6.94-3.78A2 2 0 0 0 32 25.7v5.5L51 21.4Z"/>
+  <path d="M50 38a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.6 14.5L43 47.1l2.1-2.1 3.3 3.3 6.5-6.5L57 43.9l-8.6 8.6Z"/>
+</svg>

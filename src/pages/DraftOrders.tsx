@@ -115,8 +115,8 @@ const DraftOrders = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t("drafts.title")}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{t("drafts.title")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {t("drafts.subtitle")}
           </p>
         </div>

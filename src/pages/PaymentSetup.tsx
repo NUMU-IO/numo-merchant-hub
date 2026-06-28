@@ -10,10 +10,9 @@ import {
   fetchKashierCredentials, saveKashierCredentials, deleteKashierCredentials,
   fetchFawryCredentials, saveFawryCredentials, deleteFawryCredentials,
   fetchFawaterakCredentials, saveFawaterakCredentials, deleteFawaterakCredentials,
-  fetchCodTrustSettings, updateCodTrustSettings,
+  fetchMoyasarCredentials, saveMoyasarCredentials, deleteMoyasarCredentials,
   type PaymobCredentialsResponse, type KashierCredentialsResponse, type FawryCredentialsResponse,
-  type FawaterakCredentialsResponse,
-  type CodTrustSettings,
+  type FawaterakCredentialsResponse, type MoyasarCredentialsResponse,
 } from "@/services/storeApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +26,6 @@ import {
 } from "lucide-react";
 import InstapaySetupCard from "@/components/payments/InstapaySetupCard";
 import CodDepositPolicyCard from "@/components/payments/CodDepositPolicyCard";
-import CodTrustDecisions from "@/components/payments/CodTrustDecisions";
 import { useNavigate } from "react-router-dom";
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -68,6 +66,20 @@ const FawaterakLogo = ({ height = 18 }: { height?: number }) => (
 const FawaterakIcon = ({ size = 32 }: { size?: number }) => (
   <div className="rounded-lg flex items-center justify-center" style={{ width: size, height: size, background: "#6C63FF12" }}>
     <span style={{ color: "#6C63FF", fontSize: size * 0.45, fontWeight: 900, fontFamily: "system-ui" }}>F</span>
+  </div>
+);
+
+/* Moyasar (KSA) — official "M" mark. Asset: docs.moyasar.com/img/logo.svg */
+const MOYASAR_MARK = "M64.71,2.7c38.7-9.73,77.4,7.36,96.27,42.53l37.11,69.15-32.97,61.43-55.33-103.11c-9.4-17.52-26.04-14.88-30.92-13.66-4.88,1.23-20.78,6.77-20.78,26.65v242.57c0,19.88,15.91,25.43,20.78,26.65,4.88,1.24,21.52,3.86,30.92-13.66L268.64,45.23c18.87-35.17,57.57-52.26,96.27-42.53,38.71,9.73,64.71,43.08,64.71,82.99v242.57c0,39.91-26.01,73.27-64.72,82.99-7.24,1.82-14.48,2.7-21.59,2.7-30.89,0-59.33-16.64-74.67-45.23l-37.42-69.74,32.97-61.43,55.65,103.7c9.4,17.52,26.05,14.89,30.92,13.66,4.88-1.23,20.78-6.77,20.78-26.65V85.7c0-19.88-15.91-25.43-20.78-26.65-1.52-.38-4.2-.9-7.44-.9-7.13,0-17.01,2.52-23.48,14.56l-158.85,296.03c-15.34,28.59-43.78,45.23-74.67,45.23-7.11,0-14.35-.88-21.59-2.7C26.01,401.54,0,368.18,0,328.27V85.7C0,45.79,26.01,12.43,64.71,2.7Z";
+const MoyasarLogo = ({ height = 18 }: { height?: number }) => (
+  <span className="inline-flex items-center gap-1.5">
+    <svg height={height} viewBox="0 0 429.63 413.97" fill="none" xmlns="http://www.w3.org/2000/svg"><path d={MOYASAR_MARK} fill="#191502" /></svg>
+    <span style={{ color: "#191502", fontSize: height, fontWeight: 800, letterSpacing: "-0.02em", fontFamily: "system-ui, sans-serif" }}>moyasar</span>
+  </span>
+);
+const MoyasarIcon = ({ size = 32 }: { size?: number }) => (
+  <div className="rounded-lg flex items-center justify-center" style={{ width: size, height: size, background: "#19150210" }}>
+    <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 429.63 413.97" fill="none" xmlns="http://www.w3.org/2000/svg"><path d={MOYASAR_MARK} fill="#191502" /></svg>
   </div>
 );
 
@@ -123,14 +135,30 @@ const NUMU_PRIMARY = "hsl(222.2, 47.4%, 11.2%)";
    CARRIER META
    ═══════════════════════════════════════════════════════════════════════ */
 
-type GatewayKey = "paymob" | "kashier" | "fawry" | "fawaterak";
-interface GatewayMeta { key: GatewayKey; color: string; description: string; descriptionAr: string; methods: string[]; }
+type GatewayKey = "paymob" | "kashier" | "fawry" | "fawaterak" | "moyasar";
+interface GatewayMeta { key: GatewayKey; market: "EG" | "SA"; color: string; description: string; descriptionAr: string; methods: string[]; }
 const GATEWAYS: GatewayMeta[] = [
-  { key: "paymob", color: "#1A8CFF", description: "Accept cards, wallets, and installments through Egypt's leading payment processor.", descriptionAr: "قبول البطاقات والمحافظ الإلكترونية والتقسيط عبر أكبر معالج مدفوعات في مصر.", methods: ["Visa", "Mastercard", "Meeza", "Wallets", "ValU"] },
-  { key: "kashier", color: "#2EC4B6", description: "Simple card payments with quick integration. Accept Visa and Mastercard.", descriptionAr: "مدفوعات بطاقات بسيطة مع تكامل سريع. قبول فيزا وماستركارد.", methods: ["Visa", "Mastercard"] },
-  { key: "fawry", color: "#F7941D", description: "Accept payments at 250,000+ Fawry retail points across Egypt.", descriptionAr: "قبول المدفوعات عبر أكثر من 250,000 نقطة فوري في مصر.", methods: ["Fawry Pay", "Reference Code"] },
-  { key: "fawaterak", color: "#6C63FF", description: "Accept cards, wallets, Fawry, Aman & Masary through one integration.", descriptionAr: "قبول البطاقات والمحافظ وفوري وأمان ومصاري عبر تكامل واحد.", methods: ["Visa", "Mastercard", "Wallets", "Fawry", "Aman"] },
+  { key: "paymob", market: "EG", color: "#1A8CFF", description: "Accept cards, wallets, and installments through Egypt's leading payment processor.", descriptionAr: "قبول البطاقات والمحافظ الإلكترونية والتقسيط عبر أكبر معالج مدفوعات في مصر.", methods: ["Visa", "Mastercard", "Meeza", "Wallets", "ValU"] },
+  { key: "kashier", market: "EG", color: "#2EC4B6", description: "Simple card payments with quick integration. Accept Visa and Mastercard.", descriptionAr: "مدفوعات بطاقات بسيطة مع تكامل سريع. قبول فيزا وماستركارد.", methods: ["Visa", "Mastercard"] },
+  { key: "fawry", market: "EG", color: "#F7941D", description: "Accept payments at 250,000+ Fawry retail points across Egypt.", descriptionAr: "قبول المدفوعات عبر أكثر من 250,000 نقطة فوري في مصر.", methods: ["Fawry Pay", "Reference Code"] },
+  { key: "fawaterak", market: "EG", color: "#6C63FF", description: "Accept cards, wallets, Fawry, Aman & Masary through one integration.", descriptionAr: "قبول البطاقات والمحافظ وفوري وأمان ومصاري عبر تكامل واحد.", methods: ["Visa", "Mastercard", "Wallets", "Fawry", "Aman"] },
+  { key: "moyasar", market: "SA", color: "#191502", description: "Accept mada, Visa, Mastercard, and Apple Pay through Saudi Arabia's leading gateway.", descriptionAr: "قبول مدى وفيزا وماستركارد وApple Pay عبر بوابة الدفع الرائدة في السعودية.", methods: ["mada", "Visa", "Mastercard", "Apple Pay"] },
 ];
+
+/* Brand icon / wordmark by gateway key — used in the card grid and the
+   detail header so a new gateway only needs one switch arm. */
+const gatewayIcon = (key: GatewayKey, size: number) =>
+  key === "paymob" ? <PaymobIcon size={size} />
+  : key === "kashier" ? <KashierIcon size={size} />
+  : key === "fawaterak" ? <FawaterakIcon size={size} />
+  : key === "moyasar" ? <MoyasarIcon size={size} />
+  : <FawryIcon size={size} />;
+const gatewayLogo = (key: GatewayKey, height: number) =>
+  key === "paymob" ? <PaymobLogo height={height} />
+  : key === "kashier" ? <KashierLogo height={height} />
+  : key === "fawaterak" ? <FawaterakLogo height={height} />
+  : key === "moyasar" ? <MoyasarLogo height={height} />
+  : <FawryLogo height={height} />;
 
 interface BnplMeta { key: string; color: string; description: string; descriptionAr: string; }
 const BNPL: BnplMeta[] = [
@@ -153,21 +181,20 @@ const PaymentSetup = () => {
   const storeId = currentStore?.id;
   const navigate = useNavigate();
 
+  // The store's market decides which gateways are offered: a Saudi store
+  // sees Moyasar only; an Egyptian store sees the Egyptian gateways only.
+  const market: "EG" | "SA" =
+    (currentStore?.country || "EG").toUpperCase() === "SA" ? "SA" : "EG";
+  const visibleGateways = GATEWAYS.filter((g) => g.market === market);
+
   const [view, setView] = useState<PageView>("hub");
   const [paymobCreds, setPaymobCreds] = useState<PaymobCredentialsResponse | null>(null);
   const [kashierCreds, setKashierCreds] = useState<KashierCredentialsResponse | null>(null);
   const [fawryCreds, setFawryCreds] = useState<FawryCredentialsResponse | null>(null);
   const [fawaterakCreds, setFawaterakCreds] = useState<FawaterakCredentialsResponse | null>(null);
+  const [moyasarCreds, setMoyasarCreds] = useState<MoyasarCredentialsResponse | null>(null);
   const [enabledGateway, setEnabledGateway] = useState<GatewayKey | null>(null);
   const [codEnabled, setCodEnabled] = useState(true);
-  const [codTrust, setCodTrust] = useState<CodTrustSettings>({
-    enabled: false,
-    threshold: 70,
-    min_confidence: "medium",
-    action: "block",
-    auto_rto_days: 14,
-    auto_rto_disabled: false,
-  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -182,14 +209,13 @@ const PaymentSetup = () => {
       fetchKashierCredentials(storeId).catch(() => null),
       fetchFawryCredentials(storeId).catch(() => null),
       fetchFawaterakCredentials(storeId).catch(() => null),
-      fetchCodTrustSettings(storeId).catch(() => null),
+      fetchMoyasarCredentials(storeId).catch(() => null),
       apiClient<{ payment: { cod?: { enabled?: boolean } } }>(
         `/stores/${storeId}/settings`,
       ).catch(() => null),
     ])
-      .then(([p, k, f, fw, ct, settings]) => {
-        setPaymobCreds(p); setKashierCreds(k); setFawryCreds(f); setFawaterakCreds(fw);
-        if (ct) setCodTrust(ct);
+      .then(([p, k, f, fw, m, settings]) => {
+        setPaymobCreds(p); setKashierCreds(k); setFawryCreds(f); setFawaterakCreds(fw); setMoyasarCreds(m);
         if (settings?.payment?.cod?.enabled !== undefined) {
           setCodEnabled(Boolean(settings.payment.cod.enabled));
         }
@@ -198,6 +224,7 @@ const PaymentSetup = () => {
           k?.is_configured ? { key: "kashier" as const, time: k.last_configured ? new Date(k.last_configured).getTime() : 0 } : null,
           f?.is_configured ? { key: "fawry" as const, time: f.last_configured ? new Date(f.last_configured).getTime() : 0 } : null,
           fw?.is_configured ? { key: "fawaterak" as const, time: fw.last_configured ? new Date(fw.last_configured).getTime() : 0 } : null,
+          m?.is_configured ? { key: "moyasar" as const, time: m.last_configured ? new Date(m.last_configured).getTime() : 0 } : null,
         ].filter(Boolean) as { key: GatewayKey; time: number }[];
         if (configured.length > 0) setEnabledGateway(configured.sort((a, b) => b.time - a.time)[0].key);
       }).finally(() => setLoading(false));
@@ -226,22 +253,8 @@ const PaymentSetup = () => {
     }
   };
 
-  const handleUpdateCodTrust = async (patch: Partial<CodTrustSettings>) => {
-    if (!storeId) return;
-    const previous = codTrust;
-    const optimistic = { ...codTrust, ...patch };
-    setCodTrust(optimistic);
-    try {
-      const result = await updateCodTrustSettings(storeId, patch);
-      setCodTrust(result);
-    } catch (err) {
-      setCodTrust(previous);
-      showError(err, language);
-    }
-  };
-
   const getStatus = (key: GatewayKey) => {
-    const c = key === "paymob" ? paymobCreds : key === "kashier" ? kashierCreds : key === "fawaterak" ? fawaterakCreds : fawryCreds;
+    const c = key === "paymob" ? paymobCreds : key === "kashier" ? kashierCreds : key === "fawaterak" ? fawaterakCreds : key === "moyasar" ? moyasarCreds : fawryCreds;
     if (!c?.is_configured) return "not_configured";
     return enabledGateway === key ? "live" : "ready";
   };
@@ -251,6 +264,17 @@ const PaymentSetup = () => {
   /* ═══════════════════════════════════════════════════════════════
      GATEWAY DETAIL VIEW (Bosta-style)
      ═══════════════════════════════════════════════════════════════ */
+  if (view === "moyasar") {
+    return (
+      <MoyasarDetailView
+        storeId={storeId} isAr={isAr} language={language}
+        creds={moyasarCreds} setCreds={setMoyasarCreds}
+        enabledGateway={enabledGateway} setEnabledGateway={setEnabledGateway}
+        onBack={() => setView("hub")}
+      />
+    );
+  }
+
   if (view === "paymob" || view === "kashier" || view === "fawry" || view === "fawaterak") {
     return (
       <GatewayDetailView
@@ -270,7 +294,7 @@ const PaymentSetup = () => {
     <div className="p-6 max-w-[1100px] mx-auto space-y-8">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => navigate("/payments")}><ArrowLeft className="h-4 w-4" /></Button>
-        <h1 className="text-xl font-bold">{isAr ? "المدفوعات" : "Payments"}</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "المدفوعات" : "Payments"}</h1>
       </div>
 
       {/* ── Section: البطاقات — Cards ── */}
@@ -280,9 +304,9 @@ const PaymentSetup = () => {
           {/* Supported networks */}
           <div className="rounded-xl border bg-muted/20 p-5 mb-6">
             <p className="text-sm font-semibold mb-1">{isAr ? "شبكات الدفع المدعومة" : "Supported Payment Networks"}</p>
-            <p className="text-xs text-muted-foreground mb-3">{isAr ? "ميزة - فيزا/ماستركارد - المحافظ الإلكترونية - أمريكان اكسبريس" : "Meeza · Visa/Mastercard · Mobile Wallets · Amex"}</p>
+            <p className="text-xs text-muted-foreground mb-3">{market === "SA" ? (isAr ? "مدى · فيزا/ماستركارد · Apple Pay" : "mada · Visa/Mastercard · Apple Pay") : (isAr ? "ميزة - فيزا/ماستركارد - المحافظ الإلكترونية - أمريكان اكسبريس" : "Meeza · Visa/Mastercard · Mobile Wallets · Amex")}</p>
             <div className="flex items-center gap-2 flex-wrap">
-              {["VISA", "Mastercard", "Meeza", "Apple Pay", "Wallet"].map(n => (
+              {(market === "SA" ? ["mada", "VISA", "Mastercard", "Apple Pay"] : ["VISA", "Mastercard", "Meeza", "Apple Pay", "Wallet"]).map(n => (
                 <span key={n} className="px-2.5 py-1 rounded-md bg-background border text-[10px] font-medium tracking-wide">{n}</span>
               ))}
             </div>
@@ -290,7 +314,7 @@ const PaymentSetup = () => {
 
           {/* Hero banner */}
           <div className="rounded-xl p-6 mb-6 text-white relative overflow-hidden" style={{ background: NUMU_PRIMARY }}>
-            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('/numu_v3.webp')", backgroundSize: "120px", backgroundRepeat: "repeat" }} />
+            <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{ backgroundImage: "url('/numu-n-mark-transparent.png')", backgroundSize: "120px", backgroundRepeat: "repeat" }} />
             <div className="relative z-10">
               <h3 className="text-lg font-bold mb-1">{isAr ? "ابدأ باستقبال المدفوعات الإلكترونية فوراً من خلال نمو!" : "Start accepting payments instantly with NUMU!"}</h3>
               <div className="grid gap-4 sm:grid-cols-3 mt-5">
@@ -311,16 +335,16 @@ const PaymentSetup = () => {
 
           {/* Gateway cards */}
           <div className="grid gap-4 sm:grid-cols-3">
-            {GATEWAYS.map(gw => {
+            {visibleGateways.map(gw => {
               const status = getStatus(gw.key);
               return (
                 <div key={gw.key} className="group rounded-xl border bg-background p-5 flex flex-col justify-between hover:shadow-md transition-all cursor-pointer" onClick={() => setView(gw.key)}>
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        {gw.key === "paymob" ? <PaymobIcon size={36} /> : gw.key === "kashier" ? <KashierIcon size={36} /> : gw.key === "fawaterak" ? <FawaterakIcon size={36} /> : <FawryIcon size={36} />}
+                        {gatewayIcon(gw.key, 36)}
                         <div>
-                          {gw.key === "paymob" ? <PaymobLogo height={16} /> : gw.key === "kashier" ? <KashierLogo height={15} /> : gw.key === "fawaterak" ? <FawaterakLogo height={15} /> : <FawryLogo height={15} />}
+                          {gatewayLogo(gw.key, 15)}
                           <div className="flex items-center gap-1.5 mt-0.5">
                             {status === "live" && <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-emerald-600"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />{isAr ? "نشط" : "LIVE"}</span>}
                             {status === "ready" && <Badge variant="secondary" className="text-[9px]">{isAr ? "مُعد" : "Ready"}</Badge>}
@@ -347,8 +371,8 @@ const PaymentSetup = () => {
         </div>
       </div>
 
-      {/* ── Section: InstaPay ── */}
-      {storeId ? (
+      {/* ── Section: InstaPay (Egypt only) ── */}
+      {storeId && market === "EG" ? (
         <InstapaySetupCard storeId={storeId} isAr={isAr} />
       ) : null}
 
@@ -379,12 +403,16 @@ const PaymentSetup = () => {
             />
           ) : null}
 
-          {/* COD Fraud Protection */}
-          <div className="rounded-xl border bg-background p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3 flex-1">
+          {/* COD Fraud Protection — moved to the dedicated Trust Network page */}
+          <button
+            type="button"
+            onClick={() => navigate("/trust-network")}
+            className="w-full text-start rounded-xl border bg-background p-5 hover:bg-muted/40 transition-colors"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
                 <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
-                  <img src="/icons/fraud-detection.webp" alt="" className="h-6 w-6" />
+                  <ShieldCheck className="h-5 w-5 text-violet-600" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -392,188 +420,13 @@ const PaymentSetup = () => {
                     <span className="text-[9px] font-bold uppercase tracking-wider text-violet-600 bg-violet-500/10 px-1.5 py-0.5 rounded">{isAr ? "شبكة نمو" : "NUMU NETWORK"}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {isAr
-                      ? "حظر العملاء ذوي معدل رفض عالي بناءً على شبكة الثقة بين التجار."
-                      : "Block customers flagged as high-risk by the cross-merchant trust network."}
+                    {isAr ? "انتقلت إعدادات شبكة الثقة إلى صفحتها المخصّصة — اضغط للفتح." : "Trust Network settings have moved to their own page — tap to open."}
                   </p>
                 </div>
               </div>
-              <Switch
-                checked={codTrust.enabled}
-                onCheckedChange={(v) => handleUpdateCodTrust({ enabled: v })}
-              />
+              <ArrowUpRight className="h-4 w-4 text-muted-foreground shrink-0" />
             </div>
-
-            {codTrust.enabled && (
-              <div className="mt-5 pt-5 border-t space-y-5">
-                {/* Threshold slider */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label className="text-xs font-medium">
-                      {isAr ? "حد المخاطرة" : "Risk Threshold"}
-                    </Label>
-                    <span className="text-sm font-bold tabular-nums text-violet-600">
-                      {codTrust.threshold}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={50}
-                    max={95}
-                    step={5}
-                    value={codTrust.threshold}
-                    onChange={(e) => handleUpdateCodTrust({ threshold: Number(e.target.value) })}
-                    className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-violet-600"
-                    aria-label={isAr ? "حد المخاطرة" : "Risk threshold"}
-                  />
-                  <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                    <span>{isAr ? "حساس" : "Strict"}</span>
-                    <span>{isAr ? "متساهل" : "Lenient"}</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-2">
-                    {isAr
-                      ? `العملاء بدرجة مخاطرة ≥ ${codTrust.threshold} (بثقة متوسطة فأعلى) سيتم حظرهم.`
-                      : `Customers with score ≥ ${codTrust.threshold} (medium+ confidence) will be blocked.`}
-                  </p>
-                </div>
-
-                {/* Action selector */}
-                <div>
-                  <Label className="text-xs font-medium mb-2 block">
-                    {isAr ? "الإجراء" : "Action"}
-                  </Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateCodTrust({ action: "warn" })}
-                      className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
-                        codTrust.action === "warn"
-                          ? "border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-300"
-                          : "border-border bg-background text-muted-foreground hover:bg-muted"
-                      }`}
-                    >
-                      {isAr ? "تحذير فقط" : "Warn only"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateCodTrust({ action: "block" })}
-                      className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
-                        codTrust.action === "block"
-                          ? "border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-300"
-                          : "border-border bg-background text-muted-foreground hover:bg-muted"
-                      }`}
-                    >
-                      {isAr ? "حظر الطلب" : "Block order"}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-2">
-                    {codTrust.action === "warn"
-                      ? (isAr ? "السماح بالطلب وتسجيل تحذير في السجلات." : "Allow the order and log a warning.")
-                      : (isAr ? "رفض الطلب واقتراح الدفع الإلكتروني." : "Reject the order and suggest online payment.")}
-                  </p>
-                </div>
-
-                {/* Auto-RTO sweep — flags stale SHIPPED orders so manual-ship
-                    merchants who forget to mark outcomes still feed network signals. */}
-                <div className="rounded-lg border bg-muted/20 p-3">
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="flex-1 min-w-0">
-                      <Label className="text-xs font-medium block">
-                        {isAr ? "تحديد المرتجعات تلقائياً" : "Auto-mark stale orders as returned"}
-                      </Label>
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        {isAr
-                          ? "إذا تشحن الطلبات بنفسك ونسيت تحديثها، سنُعلِّم الطلبات الراكدة كمرتجعة لتغذية الشبكة بإشاراتها."
-                          : "If you ship manually and forget to update, we'll auto-flag stale orders so the network learns from them."}
-                      </p>
-                    </div>
-                    <Switch
-                      checked={!codTrust.auto_rto_disabled}
-                      onCheckedChange={(v) => handleUpdateCodTrust({ auto_rto_disabled: !v })}
-                    />
-                  </div>
-                  {!codTrust.auto_rto_disabled && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <Label className="text-[11px] text-muted-foreground shrink-0">
-                        {isAr ? "بعد كم يوم؟" : "After how many days?"}
-                      </Label>
-                      <input
-                        type="number"
-                        min={7}
-                        max={60}
-                        value={codTrust.auto_rto_days}
-                        onChange={(e) => {
-                          const n = Number(e.target.value);
-                          if (n >= 7 && n <= 60) {
-                            handleUpdateCodTrust({ auto_rto_days: n });
-                          }
-                        }}
-                        className="w-16 h-7 px-2 rounded border bg-background text-xs tabular-nums"
-                        title={isAr ? "أيام قبل تحديد المرتجع تلقائياً" : "Days before auto-RTO"}
-                        aria-label={isAr ? "أيام قبل تحديد المرتجع تلقائياً" : "Days before auto-RTO"}
-                      />
-                      <span className="text-[11px] text-muted-foreground">
-                        {isAr ? "يوم (٧-٦٠)" : "days (7-60)"}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Minimum confidence selector */}
-                <div>
-                  <Label className="text-xs font-medium mb-2 block">
-                    {isAr ? "الحد الأدنى للثقة" : "Minimum confidence to act"}
-                  </Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(["low", "medium", "high"] as const).map((level) => {
-                      const active = codTrust.min_confidence === level;
-                      const labelAr =
-                        level === "low" ? "منخفض" : level === "medium" ? "متوسط" : "عالٍ";
-                      const labelEn =
-                        level === "low" ? "Low" : level === "medium" ? "Medium" : "High";
-                      return (
-                        <button
-                          key={level}
-                          type="button"
-                          onClick={() => handleUpdateCodTrust({ min_confidence: level })}
-                          className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
-                            active
-                              ? "border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-300"
-                              : "border-border bg-background text-muted-foreground hover:bg-muted"
-                          }`}
-                        >
-                          {isAr ? labelAr : labelEn}
-                          {level === "medium" && (
-                            <span className="ml-1 text-[9px] uppercase tracking-wider opacity-70">
-                              {isAr ? "موصى به" : "Recommended"}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-2">
-                    {codTrust.min_confidence === "low"
-                      ? (isAr
-                          ? "حظر العملاء الجدد بناءً على إشارات الموقع وحدها (لا يحتاج تاريخ سابق)."
-                          : "Block first-time customers using location signals alone — strongest at pre-launch scale.")
-                      : codTrust.min_confidence === "medium"
-                      ? (isAr
-                          ? "الانتظار حتى يكون لدى العميل ٣ طلبات على الأقل قبل التصرف."
-                          : "Wait for at least 3 orders of history before acting.")
-                      : (isAr
-                          ? "حظر فقط العملاء ذوي السجل الطويل من الإساءة (١٠ طلبات أو أكثر)."
-                          : "Only block established serial abusers with 10+ orders of history.")}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Decisions feed — visible whenever the merchant has the panel open */}
-          {storeId && codTrust.enabled ? (
-            <CodTrustDecisions storeId={storeId} isAr={isAr} />
-          ) : null}
+          </button>
         </div>
       </div>
 
@@ -582,7 +435,7 @@ const PaymentSetup = () => {
         <div className="px-5 py-4 border-b"><h2 className="text-base font-bold">{isAr ? "الدفع لاحقاً" : "Buy Now, Pay Later"}</h2></div>
         <div className="p-5">
           <div className="grid gap-4 sm:grid-cols-3">
-            {BNPL.map(p => (
+            {BNPL.filter(p => p.key !== "valu" || market === "EG").map(p => (
               <div key={p.key} className="rounded-xl border bg-background p-5 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-3 mb-3">
@@ -633,6 +486,11 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
   const creds = isPaymob ? paymobCreds : isFawry ? fawryCreds : isFawaterak ? fawaterakCreds : kashierCreds;
   const color = isPaymob ? "#1A8CFF" : isFawry ? "#F7941D" : isFawaterak ? "#6C63FF" : "#2EC4B6";
 
+  // Gate connect actions behind the trial paywall (handleSave calls
+  // requireTrial). Without this hook the call threw "requireTrial is not
+  // defined" on /payment-setup (Sentry).
+  const { requireTrial } = useTrialPaywall();
+
   const [editing, setEditing] = useState(!creds?.is_configured);
   const [paymobForm, setPaymobForm] = useState({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" });
   const [kashierForm, setKashierForm] = useState({ merchant_id: "", api_key: "", secret_key: "" });
@@ -646,10 +504,12 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
     if (!storeId) return;
     if (!requireTrial("connect_payment")) return;
     setSaving(true);
+    let validationWarning: string | null = null;
     try {
       if (isPaymob) {
         const r = await savePaymobCredentials(storeId, { secret_key: paymobForm.secret_key, public_key: paymobForm.public_key, hmac_secret: paymobForm.hmac_secret, card_integration_id: paymobForm.card_integration_id, wallet_integration_id: paymobForm.wallet_integration_id || undefined });
         setPaymobCreds(r); setPaymobForm({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" });
+        validationWarning = r.validation_warning ?? null;
       } else if (isFawry) {
         const r = await saveFawryCredentials(storeId, { merchant_code: fawryForm.merchant_code, security_key: fawryForm.security_key });
         setFawryCreds(r); setFawryForm({ merchant_code: "", security_key: "" });
@@ -661,7 +521,16 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
         setKashierCreds(r); setKashierForm({ merchant_id: "", api_key: "", secret_key: "" });
       }
       setEnabledGateway(gatewayKey); setEditing(false);
-      toast.success(isAr ? "تم التفعيل بنجاح" : "Activated successfully");
+      if (validationWarning) {
+        // Saved, but the live probe (e.g. Paymob) rejected the credentials —
+        // show the real reason now instead of letting checkout fail later.
+        toast.error(
+          (isAr ? "تم الحفظ لكن فشل التحقق: " : "Saved, but validation failed: ") + validationWarning,
+          { duration: 12000 },
+        );
+      } else {
+        toast.success(isAr ? "تم التفعيل بنجاح" : "Activated successfully");
+      }
     } catch (e) { showError(e, language); } finally { setSaving(false); }
   };
 
@@ -740,7 +609,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
               {/* Credential fields */}
               <div className="grid gap-3 sm:grid-cols-2">
                 {(isPaymob ? [
-                  { l: "API Key", v: paymobCreds!.secret_key_masked },
+                  { l: "Secret Key", v: paymobCreds!.secret_key_masked },
                   { l: "Public Key", v: paymobCreds!.public_key_masked },
                   { l: "HMAC Secret", v: paymobCreds!.hmac_secret_masked },
                   { l: "Card Integration ID", v: paymobCreds!.card_integration_id },
@@ -832,6 +701,190 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
             ? [{ icon: <CreditCard className="h-4 w-4" />, l: isAr ? "بطاقات" : "Cards", d: "Visa, Mastercard" }, { icon: <Banknote className="h-4 w-4" />, l: isAr ? "محافظ ونقاط بيع" : "Wallets & Retail", d: isAr ? "فوري، أمان، مصاري" : "Fawry, Aman, Masary" }, { icon: <CircleDollarSign className="h-4 w-4" />, l: isAr ? "محافظ إلكترونية" : "Mobile Wallets", d: isAr ? "فودافون كاش، أورانج" : "Vodafone Cash, Orange" }]
             : [{ icon: <CreditCard className="h-4 w-4" />, l: isAr ? "بطاقات" : "Cards", d: "Visa, Mastercard" }]
           ).map((m, i) => (
+            <div key={i} className="rounded-lg border bg-muted/10 p-3 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground">{m.icon}</div>
+              <div><p className="text-xs font-medium">{m.l}</p><p className="text-[10px] text-muted-foreground">{m.d}</p></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MOYASAR DETAIL VIEW (KSA) — secret key + publishable key + webhook secret
+   ═══════════════════════════════════════════════════════════════════════ */
+
+interface MoyasarDetailProps {
+  storeId: string | undefined;
+  isAr: boolean;
+  language: string;
+  creds: MoyasarCredentialsResponse | null;
+  setCreds: (c: MoyasarCredentialsResponse) => void;
+  enabledGateway: GatewayKey | null;
+  setEnabledGateway: (g: GatewayKey | null) => void;
+  onBack: () => void;
+}
+
+const MoyasarDetailView = ({ storeId, isAr, language, creds, setCreds, enabledGateway, setEnabledGateway, onBack }: MoyasarDetailProps) => {
+  const { requireTrial } = useTrialPaywall();
+  const color = "#191502";
+
+  const [editing, setEditing] = useState(!creds?.is_configured);
+  const [form, setForm] = useState({ secret_key: "", publishable_key: "", webhook_secret: "" });
+  const [saving, setSaving] = useState(false);
+  const [showKeys, setShowKeys] = useState(false);
+  const [enablingSaving, setEnablingSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!storeId) return;
+    if (!requireTrial("connect_payment")) return;
+    setSaving(true);
+    try {
+      const r = await saveMoyasarCredentials(storeId, {
+        secret_key: form.secret_key,
+        publishable_key: form.publishable_key || undefined,
+        webhook_secret: form.webhook_secret || undefined,
+      });
+      setCreds(r);
+      setForm({ secret_key: "", publishable_key: "", webhook_secret: "" });
+      setEnabledGateway("moyasar");
+      setEditing(false);
+      toast.success(isAr ? "تم التفعيل بنجاح" : "Activated successfully");
+    } catch (e) { showError(e, language); } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!storeId) return;
+    try {
+      await deleteMoyasarCredentials(storeId);
+      setCreds({ is_configured: false, secret_key_masked: null, publishable_key_masked: null, webhook_secret_masked: null, last_configured: null });
+      if (enabledGateway === "moyasar") setEnabledGateway(null);
+      setEditing(true);
+      toast.success(isAr ? "تم قطع الاتصال" : "Disconnected");
+    } catch (e) { showError(e, language); }
+  };
+
+  const handleToggle = async (checked: boolean) => {
+    if (!storeId) return; setEnablingSaving(true);
+    try {
+      await apiClient(`/stores/${storeId}/settings/payment`, { method: "PATCH", body: JSON.stringify({ moyasar_enabled: checked }) });
+      setEnabledGateway(checked ? "moyasar" : null);
+      toast.success(checked ? (isAr ? "تم التفعيل" : "Enabled") : (isAr ? "تم الإيقاف" : "Disabled"));
+    } catch (e) { showError(e, language); } finally { setEnablingSaving(false); }
+  };
+
+  return (
+    <div className="p-6 max-w-[1100px] mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
+          <MoyasarIcon size={36} />
+          <div>
+            <div className="flex items-center gap-2">
+              <MoyasarLogo height={20} />
+              {creds?.is_configured && enabledGateway === "moyasar" && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />{isAr ? "متصل" : "LIVE"}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{isAr ? "بوابة الدفع الرائدة في السعودية" : "Saudi Arabia's leading payment gateway"}</p>
+          </div>
+        </div>
+        {creds?.is_configured && (
+          <Switch checked={enabledGateway === "moyasar"} disabled={enablingSaving} onCheckedChange={handleToggle} />
+        )}
+      </div>
+
+      {/* Connection Card */}
+      <div className="rounded-xl border bg-card overflow-hidden">
+        <div className="px-5 py-4 border-b" style={{ background: `linear-gradient(135deg, ${color}08, ${color}03)` }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MoyasarIcon size={28} />
+              <p className="text-sm font-semibold">{isAr ? "إعدادات الاتصال" : "Connection Settings"}</p>
+            </div>
+            {creds?.is_configured && !editing && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />{isAr ? "متصل" : "LIVE"}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="p-5">
+          {creds?.is_configured && !editing ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200/50 dark:border-emerald-500/10 px-3 py-2">
+                <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{isAr ? "متصل وجاهز لاستقبال المدفوعات" : "Connected & ready to accept payments"}</span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  { l: "Secret Key", v: creds.secret_key_masked },
+                  { l: "Publishable Key", v: creds.publishable_key_masked },
+                  { l: isAr ? "مفتاح التحقق من Webhook" : "Webhook Secret", v: creds.webhook_secret_masked },
+                ].map(f => (
+                  <div key={f.l} className="rounded-lg bg-muted/30 px-3 py-2.5">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">{f.l}</p>
+                    <p className="font-mono text-xs">{f.v || "••••"}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => setEditing(true)}>{isAr ? "تعديل" : "Edit"}</Button>
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] text-destructive hover:text-destructive" onClick={handleDelete}><Trash2 className="h-3 w-3 mr-1" />{isAr ? "قطع الاتصال" : "Disconnect"}</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-[11px] text-muted-foreground">
+                {isAr ? "تجد المفاتيح في Moyasar Dashboard → Settings → API Keys، ورمز التحقق في Settings → Webhooks." : "Find the keys in Moyasar Dashboard → Settings → API Keys, and the verification token in Settings → Webhooks."}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-medium">Secret Key</Label>
+                  <div className="relative">
+                    <Input type={showKeys ? "text" : "password"} placeholder="sk_live_..." className="h-9 text-xs pr-8" value={form.secret_key} onChange={e => setForm(f => ({ ...f, secret_key: e.target.value }))} />
+                    <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer" onClick={() => setShowKeys(!showKeys)}>{showKeys ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}</button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] font-medium">Publishable Key <span className="text-muted-foreground font-normal">({isAr ? "اختياري" : "optional"})</span></Label>
+                  <Input placeholder="pk_live_..." className="h-9 text-xs" value={form.publishable_key} onChange={e => setForm(f => ({ ...f, publishable_key: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-[11px] font-medium">{isAr ? "مفتاح التحقق من Webhook" : "Webhook Secret"} <span className="text-muted-foreground font-normal">({isAr ? "للتحقق من إشعارات الدفع" : "verifies payment notifications"})</span></Label>
+                  <div className="relative">
+                    <Input type={showKeys ? "text" : "password"} placeholder={isAr ? "رمز التحقق من Webhook" : "Webhook verification token"} className="h-9 text-xs pr-8" value={form.webhook_secret} onChange={e => setForm(f => ({ ...f, webhook_secret: e.target.value }))} />
+                    <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer" onClick={() => setShowKeys(!showKeys)}>{showKeys ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}</button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{isAr ? "أضف رابط Webhook في Moyasar: " : "Add this webhook URL in Moyasar: "}<span className="font-mono">https://numueg.app/api/v1/webhooks/moyasar/callback</span></p>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button size="sm" className="h-8 text-xs gap-1.5" style={{ background: color }} disabled={saving || !form.secret_key} onClick={handleSave}>
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                  {creds?.is_configured ? (isAr ? "تحديث" : "Update") : (isAr ? "تفعيل" : "Activate")}
+                </Button>
+                {creds?.is_configured && editing && <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setEditing(false)}>{isAr ? "إلغاء" : "Cancel"}</Button>}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Supported Methods */}
+      <div className="rounded-xl border bg-card p-5">
+        <h3 className="text-sm font-semibold mb-3">{isAr ? "طرق الدفع المدعومة" : "Supported Methods"}</h3>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[
+            { icon: <CreditCard className="h-4 w-4" />, l: isAr ? "بطاقات" : "Cards", d: "mada, Visa, Mastercard" },
+            { icon: <CircleDollarSign className="h-4 w-4" />, l: "Apple Pay", d: isAr ? "الدفع عبر Apple Pay" : "Pay with Apple Pay" },
+            { icon: <Banknote className="h-4 w-4" />, l: "STC Pay", d: isAr ? "محفظة STC Pay" : "STC Pay wallet" },
+          ].map((m, i) => (
             <div key={i} className="rounded-lg border bg-muted/10 p-3 flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground">{m.icon}</div>
               <div><p className="text-xs font-medium">{m.l}</p><p className="text-[10px] text-muted-foreground">{m.d}</p></div>

@@ -30,11 +30,13 @@ const TableFooter = React.forwardRef<HTMLTableSectionElement, React.HTMLAttribut
 );
 TableFooter.displayName = "TableFooter";
 
+/* Souq table — warm cream hover row, tabular-friendly cells, eyebrow
+   header (11px uppercase ink-faint), matches NHUB `.tbl` spec. */
 const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(
   ({ className, ...props }, ref) => (
     <tr
       ref={ref}
-      className={cn("border-b transition-colors data-[state=selected]:bg-muted hover:bg-muted/50", className)}
+      className={cn("border-t border-border transition-colors data-[state=selected]:bg-muted hover:bg-muted/60", className)}
       {...props}
     />
   ),
@@ -46,7 +48,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
     <th
       ref={ref}
       className={cn(
-        "h-12 px-4 text-start align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pe-0",
+        "h-11 px-4 text-start align-middle text-[11px] font-bold uppercase tracking-wider text-ink-faint [&:has([role=checkbox])]:pe-0",
         className,
       )}
       {...props}
@@ -57,7 +59,7 @@ TableHead.displayName = "TableHead";
 
 const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(
   ({ className, ...props }, ref) => (
-    <td ref={ref} className={cn("p-4 align-middle [&:has([role=checkbox])]:pe-0", className)} {...props} />
+    <td ref={ref} className={cn("px-4 py-3.5 align-middle text-[13.5px] [&:has([role=checkbox])]:pe-0", className)} {...props} />
   ),
 );
 TableCell.displayName = "TableCell";

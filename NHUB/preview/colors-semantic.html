@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:999px; font-size:12.5px; font-weight:700; }
+  .dot { width:7px; height:7px; border-radius:999px; }
+</style></head>
+<body>
+  <div class="col">
+    <div class="row" style="gap:9px">
+      <span class="pill" style="background:color-mix(in srgb,var(--st-delivered) 14%,transparent);color:var(--st-delivered)"><span class="dot" style="background:var(--st-delivered)"></span>Delivered</span>
+      <span class="pill" style="background:color-mix(in srgb,var(--st-shipped) 14%,transparent);color:var(--st-shipped)"><span class="dot" style="background:var(--st-shipped)"></span>Shipped</span>
+      <span class="pill" style="background:color-mix(in srgb,var(--st-confirmed) 14%,transparent);color:var(--st-confirmed)"><span class="dot" style="background:var(--st-confirmed)"></span>Confirmed</span>
+      <span class="pill" style="background:color-mix(in srgb,var(--st-processing) 14%,transparent);color:var(--st-processing)"><span class="dot" style="background:var(--st-processing)"></span>Processing</span>
+      <span class="pill" style="background:color-mix(in srgb,var(--st-pending) 14%,transparent);color:var(--st-pending)"><span class="dot" style="background:var(--st-pending)"></span>Pending</span>
+      <span class="pill" style="background:color-mix(in srgb,var(--st-cancelled) 14%,transparent);color:var(--st-cancelled)"><span class="dot" style="background:var(--st-cancelled)"></span>Cancelled</span>
+    </div>
+    <div class="row" style="gap:12px; align-items:stretch; margin-top:6px">
+      <div class="swatch"><div class="sw" style="background:var(--success)"></div><div class="name">Success</div><div class="hex">#2E9E5B</div></div>
+      <div class="swatch"><div class="sw" style="background:var(--warning)"></div><div class="name">Warning</div><div class="hex">#DE941E</div></div>
+      <div class="swatch"><div class="sw" style="background:var(--danger)"></div><div class="name">Danger</div><div class="hex">#D64541</div></div>
+      <div class="swatch"><div class="sw" style="background:var(--sage)"></div><div class="name">Sage</div><div class="hex">#5E8A5C</div></div>
+    </div>
+    <div class="label" style="margin-top:2px">Order status = soft tinted pill (color at 14% bg). Numbers/charts stay LTR.</div>
+  </div>
+</body></html>

@@ -11,9 +11,11 @@ import {
 } from "recharts";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { getOrdersBreakdown } from "@/services/analyticsApi";
+import { dateRangeKey } from "@/services/dateRangeParams";
+import type { DateRange } from "@/components/filters/DateRangePicker";
 
 interface OrdersTabProps {
-  period: number;
+  range: DateRange;
   formatCurrency: (cents: number) => string;
 }
 
@@ -49,15 +51,15 @@ const DAY_LABELS_AR: Record<string, string> = {
   Sunday: "الأحد",
 };
 
-export function OrdersTab({ period, formatCurrency }: OrdersTabProps) {
+export function OrdersTab({ range, formatCurrency }: OrdersTabProps) {
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const isAr = language === "ar";
 
   const breakdownQuery = useQuery({
-    queryKey: ["analytics", "orders-breakdown", storeId, period],
-    queryFn: () => getOrdersBreakdown(storeId!, period),
+    queryKey: ["analytics", "orders-breakdown", storeId, ...dateRangeKey(range)],
+    queryFn: () => getOrdersBreakdown(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });

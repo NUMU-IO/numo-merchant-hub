@@ -224,6 +224,12 @@ export interface PromotionListItem {
   ends_at: string | null;
   version: number;
   coupon_id: string | null;
+  // Enriched for the Discounts table: the linked coupon's code + how many
+  // times it's been used (null/0 for automatic discounts), and the discount
+  // value itself.
+  code?: string | null;
+  usage_count?: number;
+  discount_rule?: DiscountRule | null;
   created_at: string;
   updated_at: string;
 }

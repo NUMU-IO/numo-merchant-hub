@@ -83,3 +83,50 @@ export async function getCustomerTrustStats(
     `/stores/${storeId}/customers/${customerId}/trust-stats`
   );
 }
+
+// ─── Network-wide stats (for the empty-state trust card) ────────────────────
+
+export interface NetworkStats {
+  phones_analyzed: number;
+  orders_analyzed: number;
+  contributing_merchants: number;
+}
+
+export async function getNetworkStats(storeId: string): Promise<NetworkStats> {
+  return apiClient<NetworkStats>(`/stores/${storeId}/customers/network-stats`);
+}
+
+// ─── Customer Journey (full touch timeline) ─────────────────────────────────
+
+export interface JourneyTouch {
+  id: string;
+  ts: string;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+  gclid: string | null;
+  fbclid: string | null;
+  referrer: string | null;
+  landing_path: string | null;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  is_first_touch: boolean;
+}
+
+export interface CustomerJourney {
+  customer_id: string;
+  touch_count: number;
+  touches: JourneyTouch[];
+}
+
+export async function getCustomerJourney(
+  storeId: string,
+  customerId: string,
+  limit = 100
+): Promise<CustomerJourney> {
+  return apiClient<CustomerJourney>(
+    `/stores/${storeId}/customers/${customerId}/journey?limit=${limit}`
+  );
+}

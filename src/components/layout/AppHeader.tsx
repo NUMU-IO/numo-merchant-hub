@@ -6,7 +6,7 @@ import {
   Bell,
   Check,
   ChevronDown,
-  Globe,
+  Languages,
   LogOut,
   Moon,
   Plus,
@@ -28,10 +28,12 @@ import {
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { getStoreUrl } from "@/lib/storefront";
 import { SearchPalette } from "@/components/layout/SearchPalette";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
+import { getRealtimeSnapshot } from "@/services/analyticsApi";
 
 const AppHeader = () => {
   const { t } = useTranslation();
@@ -54,6 +56,17 @@ const AppHeader = () => {
   // updates the moment the user taps a notification.
   const unreadCount = useUnreadNotificationCount(storeId);
 
+  // Live-visitor count in the header chip — refetches every 30s so the
+  // number ticks in near-real-time without hammering the analytics endpoint.
+  const realtimeQuery = useQuery({
+    queryKey: ["header", "realtime", storeId],
+    queryFn: () => getRealtimeSnapshot(storeId!),
+    enabled: !!storeId,
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+  });
+  const liveVisitors = realtimeQuery.data?.active_now ?? 0;
+
   const toggleDark = () => {
     const next = !isDark;
     setIsDark(next);
@@ -69,7 +82,10 @@ const AppHeader = () => {
     }
   }, []);
 
-  // ⌘K / Ctrl+K shortcut
+  // ⌘K / Ctrl+K shortcut + programmatic open via window CustomEvent.
+  // The MobileBottomNav uses `window.dispatchEvent(new CustomEvent("numu:open-search"))`
+  // instead of dispatching a synthetic keyboard event (which is
+  // unreliable for assistive tech).
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
@@ -77,77 +93,116 @@ const AppHeader = () => {
         setSearchOpen((prev) => !prev);
       }
     };
+    const openHandler = () => setSearchOpen(true);
     document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
+    window.addEventListener("numu:open-search", openHandler);
+    return () => {
+      document.removeEventListener("keydown", down);
+      window.removeEventListener("numu:open-search", openHandler);
+    };
   }, []);
 
   const openStore = useCallback(() => {
     if (!currentStore) return;
+    // Prefer the env-aware storefront URL (v3 when configured) over the
+    // backend's canonical store_url so "Visit store" matches the preview.
     const url =
+      (currentStore.subdomain ? getStoreUrl(currentStore.subdomain) : null) ||
       currentStore.store_url ||
-      (currentStore.subdomain ? getStoreUrl(currentStore.subdomain) : null);
+      null;
     if (url) window.open(url, "_blank");
   }, [currentStore]);
 
   return (
     <>
       <header className="dash-header">
-        <SidebarTrigger className="h-8 w-8" />
+        <SidebarTrigger
+          className="h-[42px] w-[42px] rounded-xl bg-card border border-border hover:bg-muted"
+          aria-label={language === "ar" ? "تبديل الشريط الجانبي" : "Toggle sidebar"}
+        />
 
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Quick Actions Row */}
-        <div className="flex items-center gap-1">
-          {/* Search trigger */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden md:flex gap-2 h-8 rounded-lg text-muted-foreground hover:text-foreground px-3"
+        {/* Quick Actions Row — Souq chrome: chunky 42px icon buttons,
+            warm hairline borders, ≥44px touch targets. */}
+        <div className="flex items-center gap-2">
+          {/* Search trigger — pill-shaped chip with card surface + border,
+              matches NHUB's `.h-search`. */}
+          <button
+            type="button"
             onClick={() => setSearchOpen(true)}
+            className="hidden md:flex items-center gap-2.5 h-[42px] px-4 rounded-xl bg-card border border-border text-muted-foreground hover:border-[hsl(var(--border-strong))] transition-colors min-w-[220px]"
           >
-            <Search className="h-3.5 w-3.5" />
-            <span className="text-xs">{t("header.search")}</span>
-            <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:flex">
+            <Search className="h-[18px] w-[18px]" />
+            <span className="text-sm">{t("header.search")}</span>
+            <kbd className="ms-auto pointer-events-none hidden h-[22px] select-none items-center rounded-md border border-border bg-muted px-1.5 font-mono text-[11px] font-medium text-muted-foreground sm:flex">
               ⌘K
             </kbd>
-          </Button>
+          </button>
 
           {/* Mobile search */}
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden h-8 w-8 rounded-lg"
+            className="md:hidden h-[42px] w-[42px] rounded-xl bg-card border border-border hover:bg-muted"
             onClick={() => setSearchOpen(true)}
+            aria-label={t("header.search")}
           >
-            <Search className="h-3.5 w-3.5" />
+            <Search className="h-[18px] w-[18px]" />
           </Button>
+
+          {/* Live-now chip — sage pulse dot + tabular visitor count.
+              Matches the NHUB header spec; refetches every 30s via the
+              realtime analytics endpoint. Hidden on tiny screens to
+              keep the chrome from wrapping. */}
+          <div
+            className="hidden lg:inline-flex items-center gap-2 h-[42px] px-3.5 rounded-xl bg-card border border-border"
+            title={language === "ar" ? "زوار يتصفحون متجرك دلوقتي" : "Visitors browsing your store right now"}
+          >
+            <span className="relative flex h-[9px] w-[9px]">
+              {liveVisitors > 0 && (
+                <span className="absolute inset-0 inline-flex rounded-full bg-sage opacity-50 animate-ping" />
+              )}
+              <span
+                className={`relative inline-flex rounded-full h-[9px] w-[9px] ${liveVisitors > 0 ? "bg-sage" : "bg-ink-faint"}`}
+              />
+            </span>
+            <span className="tabular-nums font-extrabold text-sm">
+              {language === "ar" ? liveVisitors.toLocaleString("ar-EG") : liveVisitors.toLocaleString()}
+            </span>
+            <span className="text-ink-soft text-[13px] font-semibold">
+              {language === "ar" ? "زائر دلوقتي" : "live now"}
+            </span>
+          </div>
 
           {/* Dark Mode */}
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-lg"
+            className="h-[42px] w-[42px] rounded-xl bg-card border border-border hover:bg-muted"
             onClick={toggleDark}
+            aria-label={isDark ? (language === "ar" ? "وضع نهاري" : "Light mode") : (language === "ar" ? "وضع ليلي" : "Dark mode")}
           >
             {isDark ? (
-              <Sun className="h-3.5 w-3.5" />
+              <Sun className="h-[18px] w-[18px]" />
             ) : (
-              <Moon className="h-3.5 w-3.5" />
+              <Moon className="h-[18px] w-[18px]" />
             )}
           </Button>
 
-          {/* Language */}
+          {/* Language — label now always visible (was hidden < sm,
+              leaving a globe icon with no affordance that it toggles
+              language). "ع" / "EN" is a 1-char label that always fits. */}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setLanguage(language === "en" ? "ar" : "en")}
-            className="gap-1.5 text-xs h-8 rounded-lg px-2.5"
+            className="gap-1.5 text-sm font-bold h-[42px] rounded-xl px-3 bg-card border border-border hover:bg-muted"
+            aria-label={language === "en" ? "Switch to Arabic" : "تبديل إلى الإنجليزية"}
           >
-            <Globe className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">
-              {language === "en" ? "AR" : "EN"}
-            </span>
+            <Languages className="h-[18px] w-[18px]" />
+            <span>{language === "en" ? "ع" : "EN"}</span>
           </Button>
 
           {/* Store Selector */}
@@ -157,26 +212,26 @@ const AppHeader = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 max-w-[160px] h-8 rounded-lg px-2.5"
+                  className="gap-2 max-w-[180px] h-[42px] rounded-xl px-3 bg-card border border-border hover:bg-muted"
                 >
                   {currentStore?.logo_url ? (
                     <img
                       src={currentStore.logo_url}
                       alt=""
-                      width={20}
-                      height={20}
+                      width={24}
+                      height={24}
                       loading="lazy"
-                      className="h-5 w-5 rounded-md object-cover shrink-0"
+                      className="h-6 w-6 rounded-lg object-cover shrink-0"
                     />
                   ) : (
-                    <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary text-[9px] font-bold text-primary-foreground shrink-0">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-navy text-[10px] font-bold text-white shrink-0">
                       {currentStore?.name?.charAt(0)?.toUpperCase() || "S"}
                     </div>
                   )}
-                  <span className="hidden text-xs font-medium sm:inline truncate">
+                  <span className="hidden text-sm font-semibold sm:inline truncate">
                     {currentStore?.name || "Store"}
                   </span>
-                  <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 rounded-xl">
@@ -225,16 +280,19 @@ const AppHeader = () => {
             </DropdownMenu>
           )}
 
-          {/* Notifications */}
+          {/* Notifications — Souq icon button with saffron dot when unread */}
           <Button
             variant="ghost"
             size="icon"
-            className="relative h-8 w-8 rounded-lg"
+            className="relative h-[42px] w-[42px] rounded-xl bg-card border border-border hover:bg-muted"
             onClick={() => navigate("/notifications")}
+            aria-label={language === "ar"
+              ? (unreadCount > 0 ? `الإشعارات (${unreadCount} غير مقروءة)` : "الإشعارات")
+              : (unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications")}
           >
-            <Bell className="h-3.5 w-3.5" />
+            <Bell className="h-[18px] w-[18px]" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -end-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground px-1">
+              <span className="absolute top-1.5 end-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-saffron text-[10px] font-bold text-navy-900 px-1 ring-2 ring-card">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
@@ -246,26 +304,26 @@ const AppHeader = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="gap-2 h-8 rounded-lg ps-1.5 pe-2"
+                className="gap-2.5 h-[42px] rounded-xl ps-2 pe-3 bg-card border border-border hover:bg-muted"
               >
-                <span className="hidden text-xs font-medium text-muted-foreground sm:block max-w-[160px] truncate">
+                <span className="hidden text-sm font-semibold text-muted-foreground sm:block max-w-[160px] truncate">
                   {user?.email}
                 </span>
                 {user?.avatar_url ? (
                   <img
                     src={user.avatar_url}
                     alt=""
-                    width={24}
-                    height={24}
+                    width={28}
+                    height={28}
                     loading="lazy"
-                    className="h-6 w-6 rounded-full object-cover ring-2 ring-border"
+                    className="h-7 w-7 rounded-full object-cover ring-2 ring-border"
                   />
                 ) : (
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-navy text-[11px] font-bold text-white">
                     {user?.first_name?.charAt(0)?.toUpperCase() || "N"}
                   </div>
                 )}
-                <ChevronDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground hidden sm:block" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent

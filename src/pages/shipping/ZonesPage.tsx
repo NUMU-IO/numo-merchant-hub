@@ -9,7 +9,7 @@
  * merchant isn't shipping to.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Plus, Pencil, Power, Sparkles, Truck } from "lucide-react";
 import { toast } from "sonner";
@@ -39,6 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
 import { CoverageBanner } from "@/components/shipping/CoverageBanner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -49,6 +50,7 @@ import {
   useShippingZones,
 } from "@/hooks/useShippingZones";
 import type { RateConfigFlat, ShippingRate } from "@/services/shippingApi";
+import { fetchShippingSettings, updateShippingSettings } from "@/services/storeApi";
 
 export default function ZonesPage() {
   const { language } = useLanguage();
@@ -66,6 +68,18 @@ export default function ZonesPage() {
 
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmPreset, setConfirmPreset] = useState(false);
+
+  // Per-store "restrict to zones" toggle (stores.settings.shipping). null = not
+  // loaded yet. When on, uncovered governorates dead-end at checkout; when off
+  // (default) they fall back to a free default rate so every place is shippable.
+  const [restrict, setRestrict] = useState<boolean | null>(null);
+  const [savingRestrict, setSavingRestrict] = useState(false);
+  useEffect(() => {
+    if (!storeId) return;
+    fetchShippingSettings(storeId)
+      .then((s) => setRestrict(!!s.restrict_to_zones))
+      .catch(() => {});
+  }, [storeId]);
 
   const nameByCode = useMemo(
     () => new Map(governorates.map((g) => [g.code, g.name] as const)),
@@ -119,6 +133,22 @@ export default function ZonesPage() {
     }
   };
 
+  const toggleRestrict = async (v: boolean) => {
+    if (!storeId) return;
+    const prev = restrict;
+    setRestrict(v); // optimistic
+    setSavingRestrict(true);
+    try {
+      await updateShippingSettings(storeId, { restrict_to_zones: v });
+      toast.success(ar ? "تم التحديث" : "Updated");
+    } catch (e: unknown) {
+      setRestrict(prev ?? false); // revert on failure
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingRestrict(false);
+    }
+  };
+
   if (!storeId) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
@@ -150,7 +180,28 @@ export default function ZonesPage() {
         )}
       </div>
 
-      <CoverageBanner storeId={storeId} />
+      <CoverageBanner storeId={storeId} restrictToZones={!!restrict} />
+
+      <Card>
+        <CardContent className="flex items-center justify-between gap-4 py-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">
+              {ar ? "اقصر الشحن على مناطقي فقط" : "Restrict shipping to my zones"}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {ar
+                ? 'لما يكون مفعّل، أي محافظة من غير منطقة شحن هتشوف "لا توجد خيارات شحن" عند الدفع. لو مقفول (الافتراضي)، كل المحافظات تقدر تطلب — والمناطق غير المُسعّرة بتاخد شحن مجاني افتراضي.'
+                : 'When on, governorates without a zone show "no shipping options" at checkout. When off (default), every governorate can order — unpriced areas get a free default rate.'}
+            </p>
+          </div>
+          <Switch
+            checked={!!restrict}
+            disabled={restrict === null || savingRestrict}
+            onCheckedChange={toggleRestrict}
+            aria-label={ar ? "اقصر الشحن على مناطقي" : "Restrict shipping to my zones"}
+          />
+        </CardContent>
+      </Card>
 
       {isLoading && (
         <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">

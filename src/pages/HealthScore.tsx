@@ -203,8 +203,8 @@ export default function HealthScore() {
           {isAr ? <ArrowRight className="h-4 w-4" /> : <ArrowLeft className="h-4 w-4" />}
         </Button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold">{isAr ? "تفاصيل صحة المتجر" : "Store Health Details"}</h1>
-          <p className="text-xs text-muted-foreground">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "تفاصيل صحة المتجر" : "Store Health Details"}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {isAr ? "تحليل شامل لأداء متجرك خلال آخر 30 يوم" : "Comprehensive analysis of your store performance over the last 30 days"}
           </p>
         </div>

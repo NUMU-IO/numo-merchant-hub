@@ -5,6 +5,7 @@ import {
   getSalesByLocation, getCustomerAnalytics, getConversionStats,
   getCodRejectionStats,
 } from "@/services/analyticsApi";
+import { dateRangeKey } from "@/services/dateRangeParams";
 import { AnalyticsSkeleton } from "@/components/skeletons/AnalyticsSkeleton";
 import { OverviewTab } from "@/components/analytics/OverviewTab";
 import { AnalyticsLayout, useAnalyticsContext } from "@/components/analytics/AnalyticsLayout";
@@ -12,53 +13,54 @@ import { AnalyticsLayout, useAnalyticsContext } from "@/components/analytics/Ana
 function OverviewContent() {
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
-  const { period, formatCurrency } = useAnalyticsContext();
+  const { range, formatCurrency } = useAnalyticsContext();
+  const rangeKey = dateRangeKey(range);
 
   const overviewQuery = useQuery({
-    queryKey: ["analytics", "overview", storeId, period],
-    queryFn: () => getSalesOverview(storeId!, period),
+    queryKey: ["analytics", "overview", storeId, ...rangeKey],
+    queryFn: () => getSalesOverview(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
 
   const chartQuery = useQuery({
-    queryKey: ["analytics", "chart", storeId, period],
-    queryFn: () => getSalesChart(storeId!, period),
+    queryKey: ["analytics", "chart", storeId, ...rangeKey],
+    queryFn: () => getSalesChart(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
 
   const topProductsQuery = useQuery({
-    queryKey: ["analytics", "topProducts", storeId, period],
-    queryFn: () => getAnalyticsTopProducts(storeId!, period, 5),
+    queryKey: ["analytics", "topProducts", storeId, ...rangeKey],
+    queryFn: () => getAnalyticsTopProducts(storeId!, range, 5),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
 
   const locationsQuery = useQuery({
-    queryKey: ["analytics", "locations", storeId, period],
-    queryFn: () => getSalesByLocation(storeId!, period),
+    queryKey: ["analytics", "locations", storeId, ...rangeKey],
+    queryFn: () => getSalesByLocation(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
 
   const customerStatsQuery = useQuery({
-    queryKey: ["analytics", "customers", storeId, period],
-    queryFn: () => getCustomerAnalytics(storeId!, period),
+    queryKey: ["analytics", "customers", storeId, ...rangeKey],
+    queryFn: () => getCustomerAnalytics(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
 
   const conversionQuery = useQuery({
-    queryKey: ["analytics", "conversion", storeId, period],
-    queryFn: () => getConversionStats(storeId!, period),
+    queryKey: ["analytics", "conversion", storeId, ...rangeKey],
+    queryFn: () => getConversionStats(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
 
   const codRejectionQuery = useQuery({
-    queryKey: ["analytics", "codRejections", storeId, period],
-    queryFn: () => getCodRejectionStats(storeId!, period),
+    queryKey: ["analytics", "codRejections", storeId, ...rangeKey],
+    queryFn: () => getCodRejectionStats(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });

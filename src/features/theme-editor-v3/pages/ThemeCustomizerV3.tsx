@@ -22,6 +22,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { getStoreUrl } from "@/lib/storefront";
 import { useCustomizerStore } from "../store/customizerStore";
 import { TopBar } from "../components/toolbar/TopBar";
 import { LivePreview } from "../components/preview/LivePreview";
@@ -32,13 +33,30 @@ import {
   GroupEditorPanel,
   AddSectionDialog,
   VersionHistoryPanel,
+  GlobalSettingsPanel,
+  AppEmbedsPanel,
+  WordingPanel,
+  EditorModeSwitcher,
 } from "../components/panels";
 
 // ─── Left Panel Router ──────────────────────────────────────────────────────
 
+/**
+ * Two-tier routing:
+ *  1. Top-level mode (Sections / Theme settings / App embeds) routes to the
+ *     matching root panel.
+ *  2. Inside Sections mode, sub-state (`activePanel`) routes to the section,
+ *     block, or group editor.
+ */
 function LeftPanelRouter() {
+  const activeMode = useCustomizerStore((s) => s.activeMode);
   const activePanel = useCustomizerStore((s) => s.activePanel);
 
+  if (activeMode === "theme-settings") return <GlobalSettingsPanel />;
+  if (activeMode === "wording") return <WordingPanel />;
+  if (activeMode === "app-embeds") return <AppEmbedsPanel />;
+
+  // Sections mode — fall through to the previous sub-panel router.
   switch (activePanel) {
     case "section-editor":
       return <SectionEditorPanel />;
@@ -65,6 +83,15 @@ export function ThemeCustomizerV3() {
   const error = useCustomizerStore((s) => s.error);
   const locale = useCustomizerStore((s) => s.locale);
   const setLocale = useCustomizerStore((s) => s.setLocale);
+  const sessionExpired = useCustomizerStore((s) => s.sessionExpired);
+  const retryAfterReauth = useCustomizerStore((s) => s.retryAfterReauth);
+  const editConflict = useCustomizerStore((s) => s.editConflict);
+  const resolveConflictReload = useCustomizerStore(
+    (s) => s.resolveConflictReload,
+  );
+  const resolveConflictKeepMine = useCustomizerStore(
+    (s) => s.resolveConflictKeepMine,
+  );
 
   const [showVersionHistory, setShowVersionHistory] = useState(false);
 
@@ -87,13 +114,10 @@ export function ThemeCustomizerV3() {
   }, [storeId, initialize, reset]);
 
   const handleBack = useCallback(() => {
-    // navigate(-1) leaves the app if the user opened the editor via direct
-    // link. Fall back to the themes overview.
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate("/online-store/themes");
-    }
+    // Always exit to the themes overview — the editor's canonical parent.
+    // Using navigate(-1) leaked to the dashboard when the merchant landed
+    // on the editor via a direct link or new-tab, which felt broken.
+    navigate("/online-store/themes");
   }, [navigate]);
 
   const handleToggleVersionHistory = useCallback(() => {
@@ -128,19 +152,13 @@ export function ThemeCustomizerV3() {
     );
   }
 
-  // ── Loading state ──
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">
-            {locale === "ar" ? "جاري تحميل المحرر..." : "Loading editor..."}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // NOTE: the editor BOOT loading (draft + schemas) deliberately does NOT
+  // full-screen-block anymore. The shell (top bar) and the live-preview iframe
+  // render immediately so the iframe's network/bundle load overlaps the
+  // draft/schema fetch instead of waiting for it — and only the LEFT PANEL
+  // shows a local spinner until its data lands (see `isLoading ? … : …` below).
+  // Full-screen loading stays reserved for "no store/editor metadata yet"
+  // (the `storeLoading` / `!storeId` gates above).
 
   // ── Error state ──
   if (error) {
@@ -180,17 +198,36 @@ export function ThemeCustomizerV3() {
         onBack={handleBack}
         onToggleVersionHistory={handleToggleVersionHistory}
         showVersionHistory={showVersionHistory}
+        viewStoreUrl={
+          currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null
+        }
       />
 
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Panel */}
+        {/* Left Panel — mode switcher pinned above the panel router so it's
+            always visible regardless of which sub-panel the merchant is
+            inside. Matches Shopify's tab strip placement. */}
         <div
           className={cn(
-            "w-80 shrink-0 overflow-hidden border-e bg-background transition-all",
+            "flex w-80 shrink-0 flex-col overflow-hidden border-e bg-background transition-all",
           )}
         >
-          <LeftPanelRouter />
+          <EditorModeSwitcher />
+          <div className="flex-1 overflow-hidden">
+            {isLoading ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
+                <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <p className="text-xs text-muted-foreground">
+                  {locale === "ar"
+                    ? "جاري تحميل المحرر..."
+                    : "Loading editor..."}
+                </p>
+              </div>
+            ) : (
+              <LeftPanelRouter />
+            )}
+          </div>
         </div>
 
         {/* Live Preview */}
@@ -213,6 +250,148 @@ export function ThemeCustomizerV3() {
 
       {/* Add Section Dialog (modal overlay) */}
       <AddSectionDialog />
+
+      {/* Autosave conflict banner — surfaced when a save hit 409 because
+          another tab/session saved a newer draft. Non-blocking: the
+          merchant keeps seeing their edits and chooses how to resolve. */}
+      {editConflict && (
+        <ConflictBanner
+          locale={locale}
+          onReload={() => {
+            resolveConflictReload();
+          }}
+          onKeepMine={() => {
+            void resolveConflictKeepMine();
+          }}
+        />
+      )}
+
+      {/* Session-expired overlay. Surfaced by the V3 service layer when
+          a 401 escapes the silent refresh. We block the whole editor
+          rather than letting the merchant edit a dead session (the
+          subsequent autosave/publish would fail), and offer two paths:
+          retry (after re-auth in another tab) or full sign-out. The
+          draft itself is already on the server thanks to the 3s
+          autosave debounce, so no work is lost. */}
+      {sessionExpired && (
+        <SessionExpiredOverlay
+          locale={locale}
+          onRetry={() => {
+            void retryAfterReauth();
+          }}
+          onSignIn={() => {
+            // Open /login in a new tab so the existing editor tab can
+            // continue once the merchant signs in. The retry flow
+            // picks up the new cookie automatically because httpOnly
+            // session cookies are shared across the dashboard origin.
+            window.open("/login", "_blank", "noopener");
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Session Expired Overlay ────────────────────────────────────────────────
+
+function SessionExpiredOverlay({
+  locale,
+  onRetry,
+  onSignIn,
+}: {
+  locale: "ar" | "en";
+  onRetry: () => void;
+  onSignIn: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="session-expired-title"
+      className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+    >
+      <div className="mx-4 max-w-md rounded-xl border bg-card p-6 text-card-foreground shadow-2xl">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+            ⚠
+          </div>
+          <div className="flex-1">
+            <h2 id="session-expired-title" className="text-base font-semibold">
+              {locale === "ar" ? "انتهت جلستك" : "Session expired"}
+            </h2>
+            <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+              {locale === "ar"
+                ? "تم حفظ التغييرات على الخادم تلقائياً. سجّل الدخول من جديد للمتابعة."
+                : "Your changes are safe on the server — autosave already pushed them. Sign in again to continue customizing."}
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onSignIn}
+            className="rounded-md border bg-background px-3.5 py-2 text-sm font-medium hover:bg-accent"
+          >
+            {locale === "ar" ? "تسجيل الدخول" : "Sign in"}
+          </button>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+          >
+            {locale === "ar" ? "حاول مجدداً" : "Try again"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Autosave Conflict Banner ───────────────────────────────────────────────
+
+/**
+ * Non-blocking banner shown after an autosave 409 (another tab/session saved
+ * a newer draft). Offers reload (adopt the other draft) or keep-my-changes
+ * (force-overwrite with the fresh etag). Floats at the bottom so it never
+ * covers the toolbar.
+ */
+function ConflictBanner({
+  locale,
+  onReload,
+  onKeepMine,
+}: {
+  locale: "ar" | "en";
+  onReload: () => void;
+  onKeepMine: () => void;
+}) {
+  const isAr = locale === "ar";
+  return (
+    <div
+      role="alert"
+      dir={isAr ? "rtl" : "ltr"}
+      className="absolute inset-x-0 bottom-4 z-40 mx-auto flex w-fit max-w-[92%] flex-wrap items-center justify-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-lg"
+    >
+      <span className="font-medium">
+        {isAr
+          ? "تم تعديل هذا الثيم في مكان آخر. أعد التحميل للمتابعة أو احتفظ بتغييراتك."
+          : "This theme was edited elsewhere. Reload to continue, or keep your changes."}
+      </span>
+      <div className="flex shrink-0 gap-2">
+        <button
+          type="button"
+          onClick={onReload}
+          className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-amber-100"
+        >
+          {isAr ? "إعادة التحميل" : "Reload"}
+        </button>
+        <button
+          type="button"
+          onClick={onKeepMine}
+          className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+        >
+          {isAr ? "احتفظ بتغييراتي" : "Keep my changes"}
+        </button>
+      </div>
     </div>
   );
 }
