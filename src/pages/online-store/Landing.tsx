@@ -386,7 +386,6 @@ const OnlineStoreLanding = () => {
   };
 
   const goEditorV3 = () => navigate("/online-store/themes/editor-v3");
-  const goEditorV2 = () => navigate("/online-store/themes/editor");
   const goCodeEditor = () => navigate("/online-store/themes/code-editor");
   const goThemes = () => navigate("/online-store/themes");
   const goMarketplace = () => navigate("/online-store/themes?tab=marketplace");
@@ -596,10 +595,6 @@ const OnlineStoreLanding = () => {
                     <Sparkles className="h-3.5 w-3.5 me-2" />
                     {isRTL ? "المحرر الجديد" : "New editor"}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={goEditorV2}>
-                    <Pencil className="h-3.5 w-3.5 me-2" />
-                    {isRTL ? "المحرر الكلاسيكي" : "Classic editor"}
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={goCodeEditor}>
                     <Code2 className="h-3.5 w-3.5 me-2" />
@@ -708,15 +703,6 @@ const OnlineStoreLanding = () => {
                       </span>
                       <span className="text-[10px] text-muted-foreground">
                         {isRTL ? "أقسام وكتل بمعاينة مباشرة" : "Sections & blocks, live preview"}
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={goEditorV2}>
-                    <Pencil className="h-3.5 w-3.5 me-2" />
-                    <div className="flex flex-col">
-                      <span>{isRTL ? "المحرر الكلاسيكي" : "Classic editor"}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {isRTL ? "تخصيص شامل لصفحة واحدة" : "Single-page customization"}
                       </span>
                     </div>
                   </DropdownMenuItem>
