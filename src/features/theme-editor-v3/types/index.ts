@@ -325,6 +325,9 @@ export interface PublishDraftResponse {
   verified?: boolean;
   /** Structured outcome of the Next.js storefront revalidation, if attempted. */
   revalidation?: RevalidationSummary | null;
+  /** New post-publish etag — the client adopts it so the next edit/autosave
+   *  isn't rejected as stale. Body copy (the header may be dropped by a proxy). */
+  etag?: string | null;
 }
 
 export interface DiscardDraftResponse {

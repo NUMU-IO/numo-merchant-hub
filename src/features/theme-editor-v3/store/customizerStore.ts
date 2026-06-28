@@ -1598,14 +1598,29 @@ export const useCustomizerStore = create<CustomizerStore>()(
           // Forward the merchant-supplied label so the published version
           // row carries it (named-versions UX). Backend that hasn't
           // rolled out the label support yet drops it harmlessly.
-          const res = await publishV3(storeId, label?.trim() || undefined);
+          // Capture the NEW etag the publish echoes — publishing bumps the
+          // server's updated_at (the ETag source) and clears the draft, so the
+          // old etag is now stale. Adopting it avoids the "publish → edit →
+          // publish (or autosave) → 409 stale_etag" bug that forced a refresh.
+          let publishedEtag: string | null | undefined;
+          const res = await publishV3(
+            storeId,
+            label?.trim() || undefined,
+            (etag) => {
+              publishedEtag = etag;
+            },
+          );
           // Capture the backend's freshness outcome so the toolbar can show an
           // honest state. `revalidation == null` means the backend never
           // attempted it (no subdomain) — treat as "not attempted", not failed.
           const reval = res?.revalidation ?? null;
+          // Prefer the body etag (a gzip-aware proxy/CDN can drop the header);
+          // fall back to the header-captured value.
+          const newPublishedEtag = res?.etag ?? publishedEtag;
           set((s) => {
             s.isPublishing = false;
             s.isDirty = false;
+            if (newPublishedEtag != null) s.draftEtag = newPublishedEtag;
             s.lastSavedAt = new Date().toISOString();
             s.lastPublish = {
               verified: Boolean(res?.verified),

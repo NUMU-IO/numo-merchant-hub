@@ -116,6 +116,9 @@ export function saveDraftV3(
 export function publishV3(
   storeId: string,
   versionLabel?: string,
+  /** Receives the NEW ETag echoed by a successful publish, so the store can
+   *  refresh its draft etag and the next edit/save isn't rejected as stale. */
+  onEtag?: (etag: string | null) => void,
 ): Promise<PublishDraftResponse> {
   return apiClient<PublishDraftResponse>(
     `${BASE(storeId)}/publish`,
@@ -126,7 +129,10 @@ export function publishV3(
         ? JSON.stringify({ version_label: versionLabel })
         : undefined,
     },
-    EDITOR_OPTS,
+    {
+      ...EDITOR_OPTS,
+      onResponse: onEtag ? (res) => onEtag(res.headers.get("ETag")) : undefined,
+    },
   );
 }
 
