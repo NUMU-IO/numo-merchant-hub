@@ -1,0 +1,32 @@
+name: Mirror prod to deploy fork
+
+# Keeps Yahiasherif002/numo-merchant-hub:prod in lock-step with NUMU-IO:prod.
+# Vercel deploys the merchant hub from that fork (org forking disabled), so
+# every push to NUMU-IO prod is force-mirrored to the fork -> Vercel deploys.
+on:
+  push:
+    branches: [prod]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    # Only run on the upstream repo. The fork inherits this file when mirrored,
+    # but must never run it (would push to itself).
+    if: github.repository == 'NUMU-IO/numo-merchant-hub'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: prod
+          fetch-depth: 0
+          # Don't persist GITHUB_TOKEN as a git auth header — it would override
+          # the MIRROR_PAT in the push URL and fail (no fork access).
+          persist-credentials: false
+      - name: Force-mirror prod -> fork
+        run: |
+          git push --force \
+            "https://x-access-token:${{ secrets.MIRROR_PAT }}@github.com/Yahiasherif002/numo-merchant-hub.git" \
+            HEAD:prod
