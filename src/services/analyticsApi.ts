@@ -51,6 +51,7 @@ export interface TopProduct {
   quantity_sold: number;
   revenue: number; // cents
   percentage?: number;
+  image_url?: string | null;
 }
 
 // ── Analytics endpoints ──

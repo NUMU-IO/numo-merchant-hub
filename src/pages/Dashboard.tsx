@@ -1230,8 +1230,17 @@ const Dashboard = () => {
                         <span className="text-[14px] font-extrabold text-muted-foreground/50 w-5 text-center tabular-nums">
                           {isAr ? (i + 1).toLocaleString("ar-EG") : i + 1}
                         </span>
-                        <div className="souq-thumb h-9 w-9">
-                          <Package className="h-4 w-4 text-muted-foreground" />
+                        <div className="souq-thumb h-9 w-9 overflow-hidden">
+                          {p.image_url ? (
+                            <img
+                              src={p.image_url}
+                              alt=""
+                              loading="lazy"
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-semibold truncate">
