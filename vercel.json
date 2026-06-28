@@ -1,0 +1,7 @@
+{
+  "buildCommand": "vite build",
+  "rewrites": [
+    { "source": "/api/:path(.*)", "destination": "https://numueg.app/api/:path" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
