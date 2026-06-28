@@ -103,6 +103,8 @@ const PAGES: { value: string; label: Record<EditorLocale, string> }[] = [
   { value: "checkout", label: { en: "Checkout", ar: "الدفع" } },
   { value: "order-confirmation", label: { en: "Order confirmation", ar: "تأكيد الطلب" } },
   { value: "profile", label: { en: "Profile", ar: "الحساب" } },
+  { value: "about", label: { en: "About", ar: "من نحن" } },
+  { value: "contact", label: { en: "Contact", ar: "تواصل معنا" } },
   { value: "page", label: { en: "Page", ar: "صفحة" } },
   { value: "404", label: { en: "404 — Not found", ar: "404 — غير موجود" } },
 ];

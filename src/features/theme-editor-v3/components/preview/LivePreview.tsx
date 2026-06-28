@@ -232,6 +232,10 @@ export function LivePreview() {
         return "order-confirmation";
       case "profile":
         return "profile";
+      case "about":
+        return "about";
+      case "contact":
+        return "contact";
       case "page":
         return "pages/about";
       case "404":
