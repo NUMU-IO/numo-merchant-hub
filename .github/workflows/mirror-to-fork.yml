@@ -22,6 +22,9 @@ jobs:
         with:
           ref: prod
           fetch-depth: 0
+          # Don't persist GITHUB_TOKEN as a git auth header — it would override
+          # the MIRROR_PAT in the push URL and fail (no fork access).
+          persist-credentials: false
       - name: Force-mirror prod -> fork
         run: |
           git push --force \
