@@ -609,7 +609,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
               {/* Credential fields */}
               <div className="grid gap-3 sm:grid-cols-2">
                 {(isPaymob ? [
-                  { l: "API Key", v: paymobCreds!.secret_key_masked },
+                  { l: "Secret Key", v: paymobCreds!.secret_key_masked },
                   { l: "Public Key", v: paymobCreds!.public_key_masked },
                   { l: "HMAC Secret", v: paymobCreds!.hmac_secret_masked },
                   { l: "Card Integration ID", v: paymobCreds!.card_integration_id },
