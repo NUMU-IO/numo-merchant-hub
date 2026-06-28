@@ -504,10 +504,12 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
     if (!storeId) return;
     if (!requireTrial("connect_payment")) return;
     setSaving(true);
+    let validationWarning: string | null = null;
     try {
       if (isPaymob) {
         const r = await savePaymobCredentials(storeId, { secret_key: paymobForm.secret_key, public_key: paymobForm.public_key, hmac_secret: paymobForm.hmac_secret, card_integration_id: paymobForm.card_integration_id, wallet_integration_id: paymobForm.wallet_integration_id || undefined });
         setPaymobCreds(r); setPaymobForm({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" });
+        validationWarning = r.validation_warning ?? null;
       } else if (isFawry) {
         const r = await saveFawryCredentials(storeId, { merchant_code: fawryForm.merchant_code, security_key: fawryForm.security_key });
         setFawryCreds(r); setFawryForm({ merchant_code: "", security_key: "" });
@@ -519,7 +521,16 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
         setKashierCreds(r); setKashierForm({ merchant_id: "", api_key: "", secret_key: "" });
       }
       setEnabledGateway(gatewayKey); setEditing(false);
-      toast.success(isAr ? "تم التفعيل بنجاح" : "Activated successfully");
+      if (validationWarning) {
+        // Saved, but the live probe (e.g. Paymob) rejected the credentials —
+        // show the real reason now instead of letting checkout fail later.
+        toast.error(
+          (isAr ? "تم الحفظ لكن فشل التحقق: " : "Saved, but validation failed: ") + validationWarning,
+          { duration: 12000 },
+        );
+      } else {
+        toast.success(isAr ? "تم التفعيل بنجاح" : "Activated successfully");
+      }
     } catch (e) { showError(e, language); } finally { setSaving(false); }
   };
 

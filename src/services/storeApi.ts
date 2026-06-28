@@ -479,6 +479,9 @@ export interface PaymobCredentialsResponse {
   card_integration_id: string | null;
   wallet_integration_id: string | null;
   last_configured: string | null;
+  /** Non-fatal warning from the save-time validation probe (e.g. Paymob
+   *  Integration ID / currency mismatch). null when validation passed. */
+  validation_warning?: string | null;
 }
 
 export async function fetchPaymobCredentials(
