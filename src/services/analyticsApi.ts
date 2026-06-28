@@ -389,6 +389,7 @@ export interface ProductPerformanceItem {
   id: string;
   name: string;
   sku: string | null;
+  image_url?: string | null;
   revenue: number; // cents
   quantity_sold: number;
   current_stock: number;

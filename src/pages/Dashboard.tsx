@@ -1224,8 +1224,9 @@ const Dashboard = () => {
                     {topProducts.map((p, i) => (
                       <div
                         key={p.id}
-                        className="flex items-center gap-3 rounded-lg p-2.5 -mx-1 souq-hoverrow"
-                        onClick={() => navigate("/products")}
+                        className="flex items-center gap-3 rounded-lg p-2.5 -mx-1 souq-hoverrow cursor-pointer"
+                        onClick={() => navigate(`/analytics/products?product=${p.id}`)}
+                        title={isAr ? "اعرض تحليلات المنتج" : "View product analytics"}
                       >
                         <span className="text-[14px] font-extrabold text-muted-foreground/50 w-5 text-center tabular-nums">
                           {isAr ? (i + 1).toLocaleString("ar-EG") : i + 1}
