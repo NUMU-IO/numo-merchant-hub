@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import {
   Package, FolderOpen, AlertTriangle, ArrowUpDown,
-  Crown, TrendingDown, BarChart3, AlertCircle, Receipt,
+  Crown, TrendingDown, BarChart3, Receipt,
   Percent, PackagePlus, ScatterChart as ScatterIcon,
 } from "lucide-react";
 import {
@@ -171,12 +171,6 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
   const sortedByRev = [...(data?.products ?? [])].sort((a, b) => b.revenue - a.revenue);
   const top20Revenue = sortedByRev.slice(0, top20Count).reduce((sum, p) => sum + p.revenue, 0);
   const concentrationPct = totalRevenue > 0 ? (top20Revenue / totalRevenue) * 100 : 0;
-
-  // Stock risk: products with sales but low/zero stock
-  const stockRisk = (data?.products ?? [])
-    .filter((p) => p.quantity_sold > 0 && p.current_stock <= 5)
-    .sort((a, b) => b.quantity_sold - a.quantity_sold)
-    .slice(0, 5);
 
   // Dead stock products (have stock, zero sales)
   const deadStockProducts = (data?.products ?? [])
@@ -430,72 +424,6 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
         </CardContent>
       </Card>
 
-      {/* Stock Risk Alerts + Dead Stock */}
-      {(stockRisk.length > 0 || deadStockProducts.length > 0) && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {/* Stock Risk */}
-          {stockRisk.length > 0 && (
-            <Card className="border-border/60 border-amber-500/30">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  {isAr ? "منتجات مطلوبة بمخزون منخفض" : "High-Demand, Low Stock"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-0.5">
-                  {stockRisk.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between rounded-lg p-2 -mx-2 hover:bg-muted/50 transition-colors">
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-medium truncate">{p.name}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {p.quantity_sold} {isAr ? "مبيع" : "sold"} · {formatCurrency(p.revenue)}
-                        </p>
-                      </div>
-                      <span className={`text-[12px] font-bold tabular-nums shrink-0 ${p.current_stock <= 0 ? "text-destructive" : "text-amber-600 dark:text-amber-400"}`}>
-                        {p.current_stock <= 0 ? (isAr ? "نفذ" : "OUT") : `${p.current_stock} ${isAr ? "متبقي" : "left"}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Dead Stock */}
-          {deadStockProducts.length > 0 && (
-            <Card className="border-border/60 border-slate-400/30">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-1.5 text-muted-foreground">
-                  <TrendingDown className="h-3.5 w-3.5" />
-                  {isAr ? "منتجات راكدة (بدون مبيعات)" : "Dead Stock (Zero Sales)"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-0.5">
-                  {deadStockProducts.slice(0, 5).map((p) => (
-                    <div key={p.id} className="flex items-center justify-between rounded-lg p-2 -mx-2 hover:bg-muted/50 transition-colors">
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-medium truncate">{p.name}</p>
-                        {p.sku && <p className="text-[10px] text-muted-foreground font-mono">{p.sku}</p>}
-                      </div>
-                      <span className="text-[12px] tabular-nums text-muted-foreground shrink-0">
-                        {p.current_stock} {isAr ? "في المخزون" : "in stock"}
-                      </span>
-                    </div>
-                  ))}
-                  {deadStockProducts.length > 5 && (
-                    <p className="text-[10px] text-muted-foreground text-center pt-1">
-                      +{deadStockProducts.length - 5} {isAr ? "منتج آخر" : "more products"}
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Category Performance */}
         <Card className="border-border/60">
@@ -670,7 +598,8 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
         </div>
       )}
 
-      {/* Restock suggestions */}
+      {/* Inventory action + price positioning — paired into two columns */}
+      <div className="grid gap-4 lg:grid-cols-2 items-start">
       {restock.length > 0 && (
         <Card className="border-border/60 border-blue-500/30">
           <CardHeader className="pb-2">
@@ -680,7 +609,7 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-1.5">
               {restock.map((p) => {
                 const days = Math.floor(p.daysLeft);
                 return (
@@ -688,7 +617,7 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
                     key={p.id}
                     type="button"
                     onClick={() => openProduct(p.id)}
-                    className="flex items-center gap-2.5 rounded-xl border border-border/60 p-2.5 hover:bg-muted/40 transition-colors text-start"
+                    className="flex w-full items-center gap-2.5 rounded-xl border border-border/60 p-2.5 hover:bg-muted/40 transition-colors text-start"
                   >
                     <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-muted grid place-items-center ring-1 ring-border/30">
                       {p.image_url ? (
@@ -729,7 +658,7 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[260px]">
+            <div className="h-[210px]">
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart margin={{ top: 10, right: 16, bottom: 20, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
@@ -790,6 +719,39 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
                 ? "حجم النقطة = الإيراد · أعلى يمين = منتجات مميزة عالية المبيعات"
                 : "Bubble size = revenue · top-right = premium bestsellers"}
             </p>
+          </CardContent>
+        </Card>
+      )}
+      </div>
+
+      {/* Dead stock — has inventory but zero sales this period (rare) */}
+      {deadStockProducts.length > 0 && (
+        <Card className="border-border/60 border-slate-400/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-1.5 text-muted-foreground">
+              <TrendingDown className="h-3.5 w-3.5" />
+              {isAr ? "منتجات راكدة (بدون مبيعات)" : "Dead Stock (Zero Sales)"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {deadStockProducts.slice(0, 6).map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-lg border border-border/60 p-2.5">
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-medium truncate">{p.name}</p>
+                    {p.sku && <p className="text-[10px] text-muted-foreground font-mono">{p.sku}</p>}
+                  </div>
+                  <span className="text-[11px] tabular-nums text-muted-foreground shrink-0">
+                    {p.current_stock} {isAr ? "بالمخزون" : "in stock"}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {deadStockProducts.length > 6 && (
+              <p className="mt-2 text-[10px] text-muted-foreground text-center">
+                +{deadStockProducts.length - 6} {isAr ? "منتج آخر" : "more products"}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

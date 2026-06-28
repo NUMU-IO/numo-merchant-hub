@@ -102,7 +102,7 @@ export function AnalyticsLayout({
 
   return (
     <AnalyticsContext.Provider value={ctxValue}>
-      <div className="space-y-5">
+      <div className="space-y-5 max-w-[1500px] mx-auto w-full">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
