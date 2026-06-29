@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { SettingsBreadcrumb } from "@/components/layout/SettingsBreadcrumb";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { CustomDomainCard } from "@/components/settings/CustomDomainCard";
 import {
   Card,
   CardContent,
@@ -1875,22 +1876,13 @@ const StoreSettings = () => {
               <div className="settings-field-group-label">
                 {t("store.customDomain")}
               </div>
-              <div className="space-y-3">
-                <Input
-                  value={currentStore?.custom_domain || ""}
-                  placeholder={t("store.customDomainPlaceholder")}
-                  disabled
-                  className="max-w-sm bg-muted/30"
+              {currentStore?.id ? (
+                <CustomDomainCard
+                  storeId={currentStore.id}
+                  language={language === "ar" ? "ar" : "en"}
+                  onChanged={() => refetchStores()}
                 />
-                <Button
-                  variant="outline"
-                  onClick={() => requireTrial("custom_domain")}
-                >
-                  {language === "ar"
-                    ? "ربط نطاق مخصص"
-                    : "Connect Custom Domain"}
-                </Button>
-              </div>
+              ) : null}
             </div>
 
             <div className="settings-field-group">

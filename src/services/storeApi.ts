@@ -103,6 +103,63 @@ export async function checkSubdomain(
   });
 }
 
+// ─── Custom domain (Cloudflare for SaaS) ─────────────────────────────────────
+
+export interface CustomDomainDnsRecord {
+  type: string;
+  name: string;
+  value: string;
+}
+
+/** Lifecycle the hub renders for a connected custom domain. */
+export type CustomDomainStatus =
+  | "none"
+  | "pending_dns"
+  | "verifying"
+  | "active"
+  | "failed";
+
+export interface CustomDomainState {
+  connected: boolean;
+  domain: string | null;
+  status: CustomDomainStatus;
+  ssl_status: string | null;
+  is_active: boolean;
+  /** The single CNAME the merchant adds at their registrar. */
+  cname: CustomDomainDnsRecord | null;
+  /** Extra DCV records Cloudflare may require (usually empty with HTTP DCV). */
+  verification: CustomDomainDnsRecord[];
+  errors: string[];
+  checked_at: string | null;
+}
+
+/** Current custom-domain status; polls Cloudflare for live cert state. */
+export async function getCustomDomain(
+  storeId: string,
+): Promise<CustomDomainState> {
+  return apiClient<CustomDomainState>(`/stores/${storeId}/custom-domain`);
+}
+
+/** Register a merchant-owned domain → returns the CNAME to add + status. */
+export async function connectCustomDomain(
+  storeId: string,
+  domain: string,
+): Promise<CustomDomainState> {
+  return apiClient<CustomDomainState>(`/stores/${storeId}/custom-domain`, {
+    method: "POST",
+    body: JSON.stringify({ domain }),
+  });
+}
+
+/** Remove the custom domain + its Cloudflare custom hostname. */
+export async function disconnectCustomDomain(
+  storeId: string,
+): Promise<CustomDomainState> {
+  return apiClient<CustomDomainState>(`/stores/${storeId}/custom-domain`, {
+    method: "DELETE",
+  });
+}
+
 export async function getStore(storeId: string): Promise<StoreData> {
   return apiClient<StoreData>(`/stores/${storeId}`);
 }
