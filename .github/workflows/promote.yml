@@ -1,19 +1,12 @@
 name: Promote
 
+# Promote dev → prod in one click. Staging is intentionally bypassed.
+# Pushing `prod` triggers mirror-to-fork.yml → Vercel deploys the hub.
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: "Promote to which environment?"
-        required: true
-        type: choice
-        options:
-          - stage   # dev → stage (triggers stage deploy)
-          - prod    # stage → prod (triggers prod deploy)
-          - all     # dev → stage → prod (one-click full promotion)
 
 concurrency:
-  group: promote-merchant-hub-${{ github.event.inputs.environment }}
+  group: promote-merchant-hub
   cancel-in-progress: false
 
 env:
@@ -41,7 +34,7 @@ jobs:
         run: npm run lint
 
   promote:
-    name: Promote (${{ github.event.inputs.environment }})
+    name: dev → prod
     runs-on: ubuntu-latest
     needs: lint
     permissions:
@@ -56,31 +49,20 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin dev prod
 
-      - name: Promote dev → stage
-        if: github.event.inputs.environment == 'stage' || github.event.inputs.environment == 'all'
+      - name: Promote dev → prod
         run: |
-          git fetch origin dev stage
-          git checkout stage
-          git merge --ff-only origin/dev
-          git push origin stage
-
-      - name: Promote stage → prod
-        if: github.event.inputs.environment == 'prod' || github.event.inputs.environment == 'all'
-        run: |
-          git fetch origin stage prod
+          echo "==> Promoting prod ← dev"
           git checkout prod
-          git merge --ff-only origin/stage
+          # Fast-forward when prod is an ancestor of dev (the common case);
+          # fall back to a real merge if prod diverged so promote never wedges.
+          git merge --ff-only origin/dev \
+            || git merge --no-edit -m "Promote dev → prod" origin/dev
           git push origin prod
 
       - name: Summary
         run: |
-          TARGET="${{ github.event.inputs.environment }}"
-          case "$TARGET" in
-            stage) echo "### Promoted dev → stage" >> $GITHUB_STEP_SUMMARY ;;
-            prod)  echo "### Promoted stage → prod" >> $GITHUB_STEP_SUMMARY ;;
-            all)   echo "### Promoted dev → stage → prod" >> $GITHUB_STEP_SUMMARY ;;
-          esac
+          echo "### Promoted dev → prod" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Merchant Hub branch(es) updated." >> $GITHUB_STEP_SUMMARY
-          echo "Commit: \`$(git rev-parse --short HEAD)\`" >> $GITHUB_STEP_SUMMARY
+          echo "Mirror-to-fork → Vercel will deploy. Commit: \`$(git rev-parse --short HEAD)\`" >> $GITHUB_STEP_SUMMARY
