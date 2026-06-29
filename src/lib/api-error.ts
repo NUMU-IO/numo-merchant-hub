@@ -106,8 +106,8 @@ const SERVER_DETAIL_MAP: Array<[RegExp, string, string]> = [
   [/account.*not.*verified/i, "Please verify your email first.", "يرجى تأكيد بريدك الإلكتروني أولاً."],
   [/incorrect.*password/i, "Current password is incorrect.", "كلمة المرور الحالية غير صحيحة."],
   [/password.*too.*short/i, "Password must be at least 8 characters.", "كلمة المرور يجب أن تكون 8 أحرف على الأقل."],
-  [/token.*expired/i, "Link has expired. Please request a new one.", "انتهت صلاحية الرابط. يرجى طلب رابط جديد."],
-  [/invalid.*token/i, "Invalid or expired link.", "رابط غير صالح أو منتهي الصلاحية."],
+  [/token.*expired/i, "Your session has expired. Please log in again.", "انتهت جلستك. يرجى تسجيل الدخول مرة أخرى."],
+  [/invalid.*token/i, "Your session is no longer valid. Please log in again.", "لم تعد جلستك صالحة. يرجى تسجيل الدخول مرة أخرى."],
   [/invalid.*code/i, "Invalid verification code.", "رمز التحقق غير صحيح."],
   [/2fa.*invalid/i, "Invalid 2FA code. Try again.", "رمز التحقق غير صحيح. حاول مرة أخرى."],
 

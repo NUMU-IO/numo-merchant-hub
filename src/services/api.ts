@@ -23,6 +23,40 @@ const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
 
+// Admin "log in as merchant" handoff token (tab-scoped). Mirrors the keys in
+// ImpersonationBanner; kept as literals here so this low-level service doesn't
+// import a layout component.
+const IMPERSONATION_TOKEN_KEY = "numu.impersonation_token";
+const IMPERSONATION_BY_KEY = "numu.impersonating_by";
+
+function getImpersonationToken(): string | null {
+  try {
+    return sessionStorage.getItem(IMPERSONATION_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * End an impersonation session that the server has rejected (401). The handoff
+ * Bearer lives only in sessionStorage and is NOT refreshable — trying to
+ * refresh the cookie renews a different session and the retry re-sends the same
+ * dead Bearer, which storms /auth/refresh and surfaces as "invalid link" +
+ * bogus create-store redirects. So we clear it and bounce to /login once.
+ */
+function endImpersonation(): never {
+  try {
+    sessionStorage.removeItem(IMPERSONATION_TOKEN_KEY);
+    sessionStorage.removeItem(IMPERSONATION_BY_KEY);
+  } catch {
+    /* sessionStorage unavailable */
+  }
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login?impersonation_expired=1";
+  }
+  throw new ApiError(401, "Impersonation session expired");
+}
+
 // Endpoints whose 401s must NOT trigger a refresh attempt. Refreshing on a
 // login/register 401 would be pointless (there's no session yet) and could
 // mask legitimate "wrong password" errors.
@@ -84,13 +118,9 @@ async function rawFetch(
   // impersonation tabs in the same browser each act as their own merchant
   // without cookie collisions on `.numueg.app`.
   const authHeaders: Record<string, string> = {};
-  try {
-    const handoff = sessionStorage.getItem("numu.impersonation_token");
-    if (handoff) {
-      authHeaders["Authorization"] = `Bearer ${handoff}`;
-    }
-  } catch {
-    /* sessionStorage unavailable — fall back to cookie auth */
+  const handoff = getImpersonationToken();
+  if (handoff) {
+    authHeaders["Authorization"] = `Bearer ${handoff}`;
   }
 
   return fetch(`${API_BASE}${endpoint}`, {
@@ -181,6 +211,11 @@ export async function apiClient<T>(
   }
 
   if (res.status === 401) {
+    // Impersonation Bearer can't be refreshed — a 401 means it expired. End it
+    // cleanly rather than storming /auth/refresh with a dead token.
+    if (getImpersonationToken()) {
+      endImpersonation();
+    }
     const retried = await handle401(endpoint, options, () =>
       rawFetch(endpoint, options),
     );
@@ -242,6 +277,9 @@ export async function apiClientFormData<T>(
   }
 
   if (res.status === 401) {
+    if (getImpersonationToken()) {
+      endImpersonation();
+    }
     const retried = await handle401(endpoint, undefined, doFetch);
     if (retried === null) {
       redirectToLogin();
