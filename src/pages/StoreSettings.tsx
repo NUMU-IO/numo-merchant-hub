@@ -74,7 +74,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { ThemePreview } from "@/components/ThemePreview";
-import { ImageCropDialog } from "@/components/ImageCropDialog";
+import { ImageCropDialog, fileFromCropBlob } from "@/components/ImageCropDialog";
 import {
   Dialog,
   DialogContent,
@@ -1484,7 +1484,17 @@ const StoreSettings = () => {
                   <img
                     src={currentStore.logo_url}
                     alt="Logo"
-                    className="h-16 w-16 rounded-xl object-cover ring-2 ring-border/20"
+                    // `object-contain` shows the whole logo (no crop); the
+                    // checkerboard backdrop makes a transparent logo read as
+                    // transparent and keeps both light and dark marks visible.
+                    className="h-16 w-16 rounded-xl object-contain ring-2 ring-border/20"
+                    style={{
+                      backgroundColor: "hsl(var(--background))",
+                      backgroundImage:
+                        "linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%, transparent 75%, hsl(var(--muted)) 75%)",
+                      backgroundSize: "10px 10px",
+                      backgroundPosition: "0 0, 5px 5px",
+                    }}
                   />
                 ) : (
                   <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-muted/30 text-muted-foreground">
@@ -3996,7 +4006,7 @@ const StoreSettings = () => {
             if (!currentStore?.id) return;
             setUploadingLogo(true);
             try {
-              const file = new File([blob], "logo.jpg", { type: "image/jpeg" });
+              const file = fileFromCropBlob(blob, "logo");
               const result = await uploadStoreAsset(
                 currentStore.id,
                 file,
@@ -4037,9 +4047,7 @@ const StoreSettings = () => {
             if (!currentStore?.id) return;
             setUploadingFavicon(true);
             try {
-              const file = new File([blob], "favicon.png", {
-                type: "image/png",
-              });
+              const file = fileFromCropBlob(blob, "favicon");
               const result = await uploadStoreAsset(
                 currentStore.id,
                 file,

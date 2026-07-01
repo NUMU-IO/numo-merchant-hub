@@ -37,7 +37,7 @@ import { toast } from "sonner";
 import { uploadStoreAsset, updateStore } from "@/services/storeApi";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Button } from "@/components/ui/button";
-import { ImageCropDialog } from "@/components/ImageCropDialog";
+import { ImageCropDialog, fileFromCropBlob } from "@/components/ImageCropDialog";
 import { useCustomizerStore } from "../../store/customizerStore";
 import { SchemaFormV3 } from "../inputs/SchemaFormV3";
 import { SocialLinksEditor } from "./SocialLinksEditor";
@@ -139,7 +139,7 @@ function FaviconField({ isAr }: { isAr: boolean }) {
     if (!currentStore?.id) return;
     setSaving(true);
     try {
-      const file = new File([blob], "favicon.png", { type: "image/png" });
+      const file = fileFromCropBlob(blob, "favicon");
       const result = await uploadStoreAsset(currentStore.id, file, "favicon");
       await updateStore(currentStore.id, {
         settings: { favicon_url: result.url },

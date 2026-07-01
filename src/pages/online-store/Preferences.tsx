@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
-import { ImageCropDialog } from "@/components/ImageCropDialog";
+import { ImageCropDialog, fileFromCropBlob } from "@/components/ImageCropDialog";
 interface PrefsState {
   seo_title: string;
   seo_description: string;
@@ -523,7 +523,7 @@ function SocialImageField({
     if (!currentStore?.id) return;
     setUploading(true);
     try {
-      const file = new File([blob], "social_image.jpg", { type: "image/jpeg" });
+      const file = fileFromCropBlob(blob, "social_image");
       const result = await uploadStoreAsset(currentStore.id, file, "social_image");
       onChange(result.url);
       setCropSrc(null);
@@ -698,7 +698,7 @@ function FaviconField({
     if (!currentStore?.id) return;
     setUploading(true);
     try {
-      const file = new File([blob], "favicon.png", { type: "image/png" });
+      const file = fileFromCropBlob(blob, "favicon");
       const result = await uploadStoreAsset(currentStore.id, file, "favicon");
       onChange(result.url);
       setCropSrc(null);
