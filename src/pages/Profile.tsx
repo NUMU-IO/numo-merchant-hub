@@ -14,7 +14,7 @@ import {
 import { changePassword, updateProfile } from "@/services/authApi";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { uploadStoreAsset } from "@/services/storeApi";
-import { ImageCropDialog } from "@/components/ImageCropDialog";
+import { ImageCropDialog, fileFromCropBlob } from "@/components/ImageCropDialog";
 import { useNavigate } from "react-router-dom";
 
 const NUMU_PRIMARY = "hsl(222.2, 47.4%, 11.2%)";
@@ -77,7 +77,7 @@ export default function Profile() {
     if (!currentStore?.id) return;
     setUploadingAvatar(true);
     try {
-      const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+      const file = fileFromCropBlob(blob, "avatar");
       const result = await uploadStoreAsset(currentStore.id, file, "profile_picture");
       await updateProfile({ avatar_url: result.url });
       if (refreshUser) await refreshUser();

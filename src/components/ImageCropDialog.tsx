@@ -17,6 +17,21 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Loader2, ZoomIn, RotateCw } from "lucide-react";
 
+/**
+ * Build an upload-ready File from a crop blob, naming/typing it by the blob's
+ * real MIME. The crop preserves transparency (WebP/PNG) for alpha-capable
+ * sources, so the result must NOT be relabeled `.jpg` — that would ship a
+ * transparent logo/favicon under a JPEG name and content-type.
+ */
+export function fileFromCropBlob(blob: Blob, basename: string): File {
+  const ext =
+    blob.type === "image/webp" ? "webp" : blob.type === "image/png" ? "png" : "jpg";
+  return new File([blob], `${basename}.${ext}`, {
+    type: blob.type || "image/png",
+    lastModified: Date.now(),
+  });
+}
+
 /** Preset aspect ratio entry shown in the dialog's chooser strip. */
 export interface AspectRatioPreset {
   /** Stored aspect ratio. `undefined` means freeform (no constraint). */
@@ -128,13 +143,20 @@ export function ImageCropDialog({
       );
     }
 
-    canvas.toBlob(
-      (blob) => {
-        if (blob) onCropComplete(blob);
-      },
-      "image/jpeg",
-      0.9,
-    );
+    // Preserve transparency: exporting a transparent PNG/WebP/SVG crop as JPEG
+    // flattens the alpha onto BLACK (the "logo shows on a black background"
+    // bug). Keep alpha for alpha-capable sources via WebP (small) with a PNG
+    // fallback; only opaque JPEG input stays JPEG.
+    const srcMime = /^data:(image\/[a-z0-9.+-]+)/i
+      .exec(imageSrc)?.[1]
+      ?.toLowerCase();
+    const keepAlpha = srcMime !== "image/jpeg" && srcMime !== "image/jpg";
+    const encode = (type: string) =>
+      new Promise<Blob | null>((res) => canvas.toBlob(res, type, 0.92));
+    let blob = await encode(keepAlpha ? "image/webp" : "image/jpeg");
+    if (!blob && keepAlpha) blob = await encode("image/png");
+    if (!blob) blob = await encode("image/jpeg");
+    if (blob) onCropComplete(blob);
   }, [croppedAreaPixels, imageSrc, rotation, cropShape, onCropComplete]);
 
   return (
