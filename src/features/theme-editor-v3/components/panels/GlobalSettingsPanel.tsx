@@ -52,7 +52,15 @@ export function GlobalSettingsPanel() {
   );
   const setActiveMode = useCustomizerStore((s) => s.setActiveMode);
 
-  const settings = schemas?.global_settings ?? [];
+  // `logo` and `favicon` are STORE-level (they live on the store record, not
+  // the theme customization) and are edited by the dedicated LogoField /
+  // FaviconField below. Drop them from the schema-driven form so a theme that
+  // still declares them in its settings_schema doesn't render a second,
+  // competing upload that writes to the wrong place.
+  const STORE_LEVEL_KEYS = new Set(["logo", "favicon"]);
+  const settings = (schemas?.global_settings ?? []).filter(
+    (s) => !STORE_LEVEL_KEYS.has((s as { id?: string }).id ?? ""),
+  );
   const values = (draft?.global_settings ?? {}) as Record<string, unknown>;
   const isAr = locale === "ar";
 
@@ -77,6 +85,17 @@ export function GlobalSettingsPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* Logo — STORE-level (store.logo_url). Edited here AND in dashboard →
+            Store Settings; both write the same store logo, so the two are
+            always in sync (change it in either place, it shows in both and on
+            the storefront). Any theme shape/size controls below style it. */}
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {isAr ? "الشعار" : "Logo"}
+          </h3>
+          <LogoField isAr={isAr} />
+        </div>
+
         {settings.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {isAr
@@ -110,6 +129,155 @@ export function GlobalSettingsPanel() {
             exposes no global settings. Drives the storefront footer icons. */}
         <SocialLinksEditor locale={locale} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * LogoField — store logo uploader for the V3 customizer.
+ *
+ * Writes the STORE-level logo (`store.logo_url`) via the store update API — the
+ * SAME field the dashboard's Store Settings → Store Logo edits. There is one
+ * logo per store, so setting it here or there keeps both (and the storefront)
+ * in sync. The theme reads `shop.logo_url`, so this is the single source of
+ * truth; the theme's shape/size controls (rendered by the schema form) only
+ * affect how this logo is displayed.
+ */
+function LogoField({ isAr }: { isAr: boolean }) {
+  const { currentStore, refetchStores } = useDashboardStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const value = (currentStore?.logo_url ?? "") || "";
+
+  const onCropDone = async (blob: Blob) => {
+    if (!currentStore?.id) return;
+    setSaving(true);
+    try {
+      const file = fileFromCropBlob(blob, "logo");
+      const result = await uploadStoreAsset(currentStore.id, file, "logo");
+      await updateStore(currentStore.id, { logo_url: result.url });
+      await refetchStores();
+      setCropSrc(null);
+      toast.success(isAr ? "تم رفع الشعار" : "Logo uploaded");
+    } catch {
+      toast.error(isAr ? "فشل رفع الشعار" : "Failed to upload logo");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onRemove = async () => {
+    if (!currentStore?.id) return;
+    setSaving(true);
+    try {
+      await updateStore(currentStore.id, { logo_url: null });
+      await refetchStores();
+      toast.success(isAr ? "تم إزالة الشعار" : "Logo removed");
+    } catch {
+      toast.error(isAr ? "فشل إزالة الشعار" : "Failed to remove logo");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        {isAr
+          ? "شعار متجرك — نفس الشعار الموجود في إعدادات المتجر، فأي تغيير هنا يظهر هناك وعلى المتجر. يُفضّل صورة PNG شفافة."
+          : "Your store logo — the same one in Store Settings, so a change here shows there and on your storefront. A transparent PNG works best."}
+      </p>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        aria-label={isAr ? "رفع الشعار" : "Upload logo"}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) {
+            const reader = new FileReader();
+            reader.onload = () => setCropSrc(reader.result as string);
+            reader.readAsDataURL(f);
+          }
+          e.target.value = "";
+        }}
+      />
+
+      <div className="flex items-center gap-4">
+        <div
+          className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border"
+          style={{
+            backgroundColor: "hsl(var(--background))",
+            backgroundImage:
+              "linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%, transparent 75%, hsl(var(--muted)) 75%)",
+            backgroundSize: "10px 10px",
+            backgroundPosition: "0 0, 5px 5px",
+          }}
+        >
+          {value ? (
+            <img
+              src={value}
+              alt="Logo"
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={saving || !currentStore?.id}
+          >
+            {saving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Upload className="h-3.5 w-3.5" />
+            )}
+            {value
+              ? isAr
+                ? "استبدال"
+                : "Replace"
+              : isAr
+                ? "رفع شعار"
+                : "Upload logo"}
+          </Button>
+          {value && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 text-muted-foreground hover:text-destructive"
+              disabled={saving}
+              onClick={onRemove}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {isAr ? "إزالة" : "Remove"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {cropSrc && (
+        <ImageCropDialog
+          open={!!cropSrc}
+          onClose={() => setCropSrc(null)}
+          imageSrc={cropSrc}
+          cropShape="rect"
+          aspect={1}
+          title={isAr ? "تعديل الشعار" : "Edit logo"}
+          loading={saving}
+          onCropComplete={onCropDone}
+        />
+      )}
     </div>
   );
 }
