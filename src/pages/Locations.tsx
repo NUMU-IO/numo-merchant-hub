@@ -1,73 +1,103 @@
 /**
  * Locations page — Phase 8.2.
  *
- * Minimal CRUD for fulfillment + pickup locations. Stock-level
- * editing (per variant × location) and inter-location transfers
- * are separate flows; for v1 the merchant can already see those
- * via the API. This page covers the most common need: define
- * where the store ships from + where customers can pick up.
+ * CRUD for fulfillment + pickup locations. A location can fulfill
+ * shipping orders (warehouse / dark store), offer in-store pickup,
+ * or both. Pickup-eligible locations surface to the storefront at
+ * checkout; inventory is tracked per variant per location once the
+ * store has more than one.
+ *
+ * Bilingual (en + Egyptian Arabic) + RTL, on the hub design system.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   createLocation,
   deleteLocation,
   listLocations,
   updateLocation,
+  type CreateLocationData,
   type Location,
 } from "@/services/locationsApi";
 import { showError } from "@/lib/show-error";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  MapPin,
+  Plus,
+  Pencil,
+  Trash2,
+  Truck,
+  Store,
+  Loader2,
+} from "lucide-react";
 
 interface DraftForm {
   name: string;
   name_ar: string;
+  is_active: boolean;
   fulfills_orders: boolean;
   fulfills_pickup: boolean;
   address_line1: string;
   city: string;
-  state: string;
   country: string;
-  postal_code: string;
   pickup_instructions: string;
 }
 
 const EMPTY_DRAFT: DraftForm = {
   name: "",
   name_ar: "",
+  is_active: true,
   fulfills_orders: true,
   fulfills_pickup: false,
   address_line1: "",
   city: "",
-  state: "",
   country: "EG",
-  postal_code: "",
   pickup_instructions: "",
 };
 
 export default function LocationsPage() {
   const { currentStore } = useDashboardStore();
+  const { isRTL } = useLanguage();
+  const t = (en: string, ar: string) => (isRTL ? ar : en);
   const storeId = currentStore?.id;
 
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Location | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DraftForm>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!storeId) return;
     setLoading(true);
     try {
-      const list = await listLocations(storeId);
-      setLocations(list);
+      setLocations(await listLocations(storeId));
     } catch (err) {
-      showError(err, "Couldn't load locations.");
+      showError(err, t("Couldn't load locations.", "تعذّر تحميل المواقع."));
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
 
   useEffect(() => {
@@ -77,7 +107,7 @@ export default function LocationsPage() {
   function openCreate() {
     setEditing(null);
     setDraft(EMPTY_DRAFT);
-    setCreating(true);
+    setOpen(true);
   }
 
   function openEdit(loc: Location) {
@@ -85,58 +115,57 @@ export default function LocationsPage() {
     setDraft({
       name: loc.name,
       name_ar: loc.name_ar ?? "",
+      is_active: loc.is_active,
       fulfills_orders: loc.fulfills_orders,
       fulfills_pickup: loc.fulfills_pickup,
       address_line1: loc.address?.line1 ?? "",
       city: loc.address?.city ?? "",
-      state: loc.address?.state ?? "",
       country: loc.address?.country ?? "EG",
-      postal_code: loc.address?.postal_code ?? "",
       pickup_instructions: loc.pickup_instructions ?? "",
     });
-    setCreating(true);
-  }
-
-  function closeDialog() {
-    setCreating(false);
-    setEditing(null);
-    setDraft(EMPTY_DRAFT);
+    setOpen(true);
   }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!storeId) return;
     if (!draft.name.trim()) {
-      toast.error("Location name is required.");
+      toast.error(t("Location name is required.", "اسم الموقع مطلوب."));
       return;
     }
-    const payload = {
+    // PUT is a full replace — carry through fields the form doesn't expose
+    // (position, Arabic pickup text) from the row being edited so they aren't
+    // reset to server defaults.
+    const payload: CreateLocationData = {
       name: draft.name.trim(),
       name_ar: draft.name_ar.trim() || null,
+      is_active: draft.is_active,
       fulfills_orders: draft.fulfills_orders,
       fulfills_pickup: draft.fulfills_pickup,
       address: {
         line1: draft.address_line1.trim() || null,
         city: draft.city.trim() || null,
-        state: draft.state.trim() || null,
         country: draft.country.trim() || null,
-        postal_code: draft.postal_code.trim() || null,
       },
-      pickup_instructions: draft.pickup_instructions.trim() || null,
+      pickup_instructions: draft.fulfills_pickup
+        ? draft.pickup_instructions.trim() || null
+        : null,
+      pickup_instructions_ar: editing?.pickup_instructions_ar ?? null,
+      position: editing?.position ?? locations.length,
     };
     setSaving(true);
     try {
       if (editing) {
         await updateLocation(storeId, editing.id, payload);
-        toast.success("Location updated.");
+        toast.success(t("Location updated.", "تم تحديث الموقع."));
       } else {
         await createLocation(storeId, payload);
-        toast.success("Location created.");
+        toast.success(t("Location created.", "تم إنشاء الموقع."));
       }
-      closeDialog();
+      setOpen(false);
       await refresh();
     } catch (err) {
-      showError(err, "Couldn't save location.");
+      showError(err, t("Couldn't save location.", "تعذّر حفظ الموقع."));
     } finally {
       setSaving(false);
     }
@@ -146,258 +175,318 @@ export default function LocationsPage() {
     if (!storeId) return;
     if (
       !confirm(
-        `Delete location "${loc.name}"? Existing inventory levels at this location will be unlinked.`,
+        t(
+          `Delete "${loc.name}"? Inventory levels at this location will be unlinked.`,
+          `حذف "${loc.name}"؟ سيتم فصل مستويات المخزون في هذا الموقع.`,
+        ),
       )
     )
       return;
+    setDeletingId(loc.id);
     try {
       await deleteLocation(storeId, loc.id);
-      toast.success("Location deleted.");
+      toast.success(t("Location deleted.", "تم حذف الموقع."));
       await refresh();
     } catch (err) {
-      showError(err, "Couldn't delete location.");
+      showError(err, t("Couldn't delete location.", "تعذّر حذف الموقع."));
+    } finally {
+      setDeletingId(null);
     }
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-start">
+    <div className="max-w-5xl mx-auto p-6 space-y-6" dir={isRTL ? "rtl" : "ltr"}>
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Locations</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Fulfillment + pickup points. Inventory is tracked per
-            variant per location once you have more than one.
+          <h1 className="text-2xl font-extrabold tracking-tight">
+            {t("Locations", "المواقع")}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1 max-w-xl leading-relaxed">
+            {t(
+              "Fulfillment + pickup points. Inventory is tracked per variant per location once you have more than one.",
+              "نقاط التجهيز والاستلام. يتم تتبّع المخزون لكل متغيّر في كل موقع بمجرد وجود أكثر من موقع.",
+            )}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="px-4 py-2 bg-black text-white rounded font-medium"
-        >
-          + Add location
-        </button>
+        <Button onClick={openCreate} className="gap-1.5 shrink-0">
+          <Plus className="h-4 w-4" strokeWidth={2.4} />
+          {t("Add location", "أضف موقع")}
+        </Button>
       </div>
 
-      <section className="border rounded-lg bg-white">
-        {loading ? (
-          <div className="p-6 text-sm text-gray-500">Loading…</div>
-        ) : locations.length === 0 ? (
-          <div className="p-6 text-sm text-gray-500">
-            No locations yet. Add one to start tracking inventory and
-            enable in-store pickup at checkout.
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left p-3 font-medium">Name</th>
-                <th className="text-left p-3 font-medium">City</th>
-                <th className="text-left p-3 font-medium">Fulfills orders</th>
-                <th className="text-left p-3 font-medium">Pickup</th>
-                <th className="text-left p-3 font-medium">Status</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {locations.map((loc) => (
-                <tr key={loc.id} className="border-t">
-                  <td className="p-3">
-                    <div className="font-medium">{loc.name}</div>
-                    {loc.name_ar && (
-                      <div className="text-xs text-gray-500">{loc.name_ar}</div>
-                    )}
-                  </td>
-                  <td className="p-3 text-gray-700">
-                    {loc.address?.city || "—"}
-                  </td>
-                  <td className="p-3">
-                    {loc.fulfills_orders ? "Yes" : "—"}
-                  </td>
-                  <td className="p-3">
-                    {loc.fulfills_pickup ? "Yes" : "—"}
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={[
-                        "inline-block px-2 py-0.5 text-xs rounded",
-                        loc.is_active
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-gray-100 text-gray-700",
-                      ].join(" ")}
-                    >
-                      {loc.is_active ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right space-x-2 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => openEdit(loc)}
-                      className="text-xs text-gray-600 hover:text-black"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(loc)}
-                      className="text-xs text-gray-500 hover:text-red-700"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+      {/* Body */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[0, 1].map((i) => (
+            <Skeleton key={i} className="h-36 rounded-2xl" />
+          ))}
+        </div>
+      ) : locations.length === 0 ? (
+        <Card className="rounded-2xl">
+          <EmptyState
+            icon={MapPin}
+            title={t("No locations yet", "لا توجد مواقع بعد")}
+            description={t(
+              "Add one to start tracking inventory and enable in-store pickup at checkout.",
+              "أضف موقعًا لبدء تتبّع المخزون وتفعيل الاستلام من المتجر عند الدفع.",
+            )}
+            action={
+              <Button onClick={openCreate} className="gap-1.5">
+                <Plus className="h-4 w-4" strokeWidth={2.4} />
+                {t("Add location", "أضف موقع")}
+              </Button>
+            }
+          />
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {locations.map((loc) => (
+            <Card
+              key={loc.id}
+              className={`group rounded-2xl transition-all hover:shadow-md ${
+                loc.is_active ? "" : "opacity-70"
+              }`}
+            >
+              <CardContent className="p-5 flex flex-col gap-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="ichip ichip-saffron shrink-0">
+                      <MapPin className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-extrabold tracking-tight truncate">
+                        {isRTL && loc.name_ar ? loc.name_ar : loc.name}
+                      </h3>
+                      <p className="text-[13px] text-muted-foreground truncate">
+                        {loc.address?.city ||
+                          t("No address", "بدون عنوان")}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge
+                    variant={loc.is_active ? "secondary" : "outline"}
+                    className={
+                      loc.is_active
+                        ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-400"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {loc.is_active
+                      ? t("Active", "نشط")
+                      : t("Inactive", "غير نشط")}
+                  </Badge>
+                </div>
 
-      {creating && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto"
-          role="dialog"
-          aria-modal="true"
+                <div className="flex flex-wrap gap-1.5">
+                  {loc.fulfills_orders && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-foreground/80">
+                      <Truck className="h-3.5 w-3.5 text-muted-foreground" />
+                      {t("Ships orders", "يشحن الطلبات")}
+                    </span>
+                  )}
+                  {loc.fulfills_pickup && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium text-foreground/80">
+                      <Store className="h-3.5 w-3.5 text-muted-foreground" />
+                      {t("In-store pickup", "استلام من المتجر")}
+                    </span>
+                  )}
+                  {!loc.fulfills_orders && !loc.fulfills_pickup && (
+                    <span className="text-[11px] text-muted-foreground">
+                      {t("No fulfillment roles", "لا توجد أدوار تجهيز")}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1 pt-1 border-t border-border/60 -mx-1 px-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEdit(loc)}
+                    className="gap-1.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    {t("Edit", "تعديل")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={deletingId === loc.id}
+                    onClick={() => handleDelete(loc)}
+                    className="gap-1.5 text-muted-foreground hover:text-destructive"
+                  >
+                    {deletingId === loc.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                    {t("Delete", "حذف")}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Create / edit dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          className="max-w-lg"
+          dir={isRTL ? "rtl" : "ltr"}
         >
-          <form
-            onSubmit={save}
-            className="bg-white rounded-lg max-w-lg w-full p-6 shadow-xl space-y-4"
-          >
-            <h2 className="text-lg font-semibold">
-              {editing ? "Edit location" : "New location"}
-            </h2>
+          <DialogHeader>
+            <DialogTitle>
+              {editing
+                ? t("Edit location", "تعديل الموقع")
+                : t("New location", "موقع جديد")}
+            </DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={save} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2">
-                <label className="block text-xs text-gray-600 mb-1">Name</label>
-                <input
-                  type="text"
+              <div className="sm:col-span-2 space-y-1.5">
+                <Label htmlFor="loc-name">{t("Name", "الاسم")}</Label>
+                <Input
+                  id="loc-name"
                   required
                   value={draft.name}
                   onChange={(e) =>
                     setDraft((d) => ({ ...d, name: e.target.value }))
                   }
-                  className="w-full border rounded px-3 py-2 text-sm"
+                  placeholder={t("Main warehouse", "المخزن الرئيسي")}
                 />
               </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs text-gray-600 mb-1">
-                  Name (Arabic)
-                </label>
-                <input
-                  type="text"
+              <div className="sm:col-span-2 space-y-1.5">
+                <Label htmlFor="loc-name-ar">
+                  {t("Name (Arabic)", "الاسم (بالعربية)")}
+                </Label>
+                <Input
+                  id="loc-name-ar"
+                  dir="rtl"
                   value={draft.name_ar}
                   onChange={(e) =>
                     setDraft((d) => ({ ...d, name_ar: e.target.value }))
                   }
-                  className="w-full border rounded px-3 py-2 text-sm"
-                  dir="rtl"
+                  placeholder="المخزن الرئيسي"
                 />
               </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs text-gray-600 mb-1">
-                  Address
-                </label>
-                <input
-                  type="text"
+              <div className="sm:col-span-2 space-y-1.5">
+                <Label htmlFor="loc-addr">{t("Address", "العنوان")}</Label>
+                <Input
+                  id="loc-addr"
                   value={draft.address_line1}
                   onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      address_line1: e.target.value,
-                    }))
+                    setDraft((d) => ({ ...d, address_line1: e.target.value }))
                   }
-                  className="w-full border rounded px-3 py-2 text-sm"
                 />
               </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">City</label>
-                <input
-                  type="text"
+              <div className="space-y-1.5">
+                <Label htmlFor="loc-city">{t("City", "المدينة")}</Label>
+                <Input
+                  id="loc-city"
                   value={draft.city}
                   onChange={(e) =>
                     setDraft((d) => ({ ...d, city: e.target.value }))
                   }
-                  className="w-full border rounded px-3 py-2 text-sm"
                 />
               </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">
-                  Country
-                </label>
-                <input
-                  type="text"
+              <div className="space-y-1.5">
+                <Label htmlFor="loc-country">{t("Country", "الدولة")}</Label>
+                <Input
+                  id="loc-country"
                   value={draft.country}
                   onChange={(e) =>
                     setDraft((d) => ({ ...d, country: e.target.value }))
                   }
-                  className="w-full border rounded px-3 py-2 text-sm"
                 />
               </div>
-              <div className="sm:col-span-2 flex flex-col gap-2">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={draft.fulfills_orders}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        fulfills_orders: e.target.checked,
-                      }))
-                    }
-                  />
-                  Fulfills shipping orders
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={draft.fulfills_pickup}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        fulfills_pickup: e.target.checked,
-                      }))
-                    }
-                  />
-                  Offers in-store pickup
-                </label>
+            </div>
+
+            {/* Roles */}
+            <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
+              <label className="flex items-center justify-between gap-4 cursor-pointer">
+                <span className="flex items-center gap-2.5 text-sm">
+                  <Truck className="h-4 w-4 text-muted-foreground" />
+                  {t("Fulfills shipping orders", "يجهّز طلبات الشحن")}
+                </span>
+                <Switch
+                  checked={draft.fulfills_orders}
+                  onCheckedChange={(v) =>
+                    setDraft((d) => ({ ...d, fulfills_orders: v }))
+                  }
+                />
+              </label>
+              <label className="flex items-center justify-between gap-4 cursor-pointer">
+                <span className="flex items-center gap-2.5 text-sm">
+                  <Store className="h-4 w-4 text-muted-foreground" />
+                  {t("Offers in-store pickup", "يوفّر الاستلام من المتجر")}
+                </span>
+                <Switch
+                  checked={draft.fulfills_pickup}
+                  onCheckedChange={(v) =>
+                    setDraft((d) => ({ ...d, fulfills_pickup: v }))
+                  }
+                />
+              </label>
+              <label className="flex items-center justify-between gap-4 cursor-pointer">
+                <span className="flex items-center gap-2.5 text-sm">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  {t("Active", "نشط")}
+                </span>
+                <Switch
+                  checked={draft.is_active}
+                  onCheckedChange={(v) =>
+                    setDraft((d) => ({ ...d, is_active: v }))
+                  }
+                />
+              </label>
+            </div>
+
+            {draft.fulfills_pickup && (
+              <div className="space-y-1.5">
+                <Label htmlFor="loc-pickup">
+                  {t(
+                    "Pickup instructions (shown to customers)",
+                    "تعليمات الاستلام (تظهر للعملاء)",
+                  )}
+                </Label>
+                <Textarea
+                  id="loc-pickup"
+                  rows={3}
+                  value={draft.pickup_instructions}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      pickup_instructions: e.target.value,
+                    }))
+                  }
+                  placeholder={t(
+                    "e.g. Open 10am–9pm. Bring your order confirmation.",
+                    "مثال: من ١٠ص إلى ٩م. أحضر تأكيد الطلب.",
+                  )}
+                />
               </div>
-              {draft.fulfills_pickup && (
-                <div className="sm:col-span-2">
-                  <label className="block text-xs text-gray-600 mb-1">
-                    Pickup instructions (shown to customers)
-                  </label>
-                  <textarea
-                    value={draft.pickup_instructions}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        pickup_instructions: e.target.value,
-                      }))
-                    }
-                    rows={3}
-                    className="w-full border rounded px-3 py-2 text-sm"
-                    placeholder="e.g. Open 10am-9pm. Bring your order confirmation."
-                  />
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
+            )}
+
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button
                 type="button"
-                onClick={closeDialog}
-                className="px-4 py-2 border rounded font-medium"
+                variant="outline"
+                onClick={() => setOpen(false)}
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 bg-black text-white rounded font-medium disabled:opacity-50"
-              >
-                {saving ? "Saving…" : editing ? "Update" : "Create"}
-              </button>
-            </div>
+                {t("Cancel", "إلغاء")}
+              </Button>
+              <Button type="submit" disabled={saving} className="gap-1.5">
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                {editing
+                  ? t("Save changes", "حفظ التغييرات")
+                  : t("Create location", "إنشاء الموقع")}
+              </Button>
+            </DialogFooter>
           </form>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

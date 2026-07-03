@@ -28,6 +28,7 @@ import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { listThreads } from "@/services/inboxApi";
+import { listThemeUpdates } from "@/services/themeUpdatesApi";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -64,6 +65,20 @@ const AppSidebar = () => {
     enabled: !!currentStore?.id,
   });
   const totalUnread = inboxData?.total_unread ?? 0;
+
+  // Pending theme-update notifications drive a red dot on the Online Store
+  // parent + its Themes child. Lightweight GET (no server-side rescan) — the
+  // Themes page itself runs the POST /check that populates this set.
+  const { data: themeUpdates } = useQuery({
+    queryKey: ["theme-updates", "pending", currentStore?.id],
+    queryFn: () => listThemeUpdates(currentStore!.id),
+    enabled: !!currentStore?.id,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const hasThemeUpdate = (themeUpdates ?? []).some(
+    (n) => n.status === "pending",
+  );
 
   const isActive = (url: string) =>
     url === "/" ? location.pathname === "/" : location.pathname.startsWith(url);
@@ -208,6 +223,8 @@ const AppSidebar = () => {
     active: boolean,
     groupName: string,
     badge?: React.ReactNode,
+    // navKeys that should carry a red "needs attention" dot on their child row.
+    dotKeys?: Set<string>,
   ) => (
     <Collapsible defaultOpen={active} className={`group/${groupName}`}>
       <SidebarMenuItem>
@@ -239,6 +256,12 @@ const AppSidebar = () => {
                       <NavLink to={item.url}>
                         <item.icon size={14} weight={subActive ? "fill" : "duotone"} />
                         <span>{item.title}</span>
+                        {dotKeys?.has(item.navKey) && (
+                          <span
+                            className="ms-auto h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-sidebar"
+                            aria-label="Update available"
+                          />
+                        )}
                       </NavLink>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
@@ -333,6 +356,15 @@ const AppSidebar = () => {
                   onlineStoreSub,
                   onlineStoreActive,
                   "online-store",
+                  hasThemeUpdate ? (
+                    <span
+                      className="ms-auto h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-sidebar"
+                      aria-label="Update available"
+                    />
+                  ) : undefined,
+                  hasThemeUpdate
+                    ? new Set(["online-store.themes"])
+                    : undefined,
                 )}
               </NavItemGate>
 
