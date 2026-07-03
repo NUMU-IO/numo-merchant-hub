@@ -41,6 +41,7 @@ import {
 } from "@/services/storeApi";
 import type { OnboardingData } from "@/services/storeApi";
 import { getStoreUrl } from "@/lib/storefront";
+import { toast } from "sonner";
 import {
   TrendingUp,
   ShoppingCart,
@@ -100,6 +101,29 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const isAr = language === "ar";
   const periodLabel = triggerLabel(range, isAr ? "ar" : "en");
+
+  // Share the storefront link — native share sheet when available, otherwise
+  // copy to clipboard with a toast. Used by the onboarding "Share store link"
+  // step (and the zero-orders card) so "Share" actually shares instead of
+  // routing to store settings.
+  const shareStoreLink = async () => {
+    if (!currentStore?.subdomain) return;
+    const url = getStoreUrl(currentStore.subdomain);
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: currentStore.name, url });
+        return;
+      } catch {
+        /* user cancelled — fall through to copy */
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(isAr ? "تم نسخ رابط المتجر" : "Store link copied");
+    } catch {
+      window.open(url, "_blank");
+    }
+  };
 
   // Goals — orders/month or orders/year, persisted per-store in localStorage.
   // Lives in §GROW since "what should I do next?" is the natural home for
@@ -568,6 +592,13 @@ const Dashboard = () => {
             },
           };
           const cta = next ? NEXT_CTA[next.key] : null;
+          const runCta = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            // The "first order" step is a share action, not a settings page —
+            // route everything else, but share the store link here.
+            if (next?.key === "first_order") shareStoreLink();
+            else if (cta) navigate(cta.href);
+          };
           const scrollToWizard = () => {
             document
               .getElementById("onboarding-wizard")
@@ -607,10 +638,7 @@ const Dashboard = () => {
                     variant="accent"
                     size="sm"
                     className="shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(cta.href);
-                    }}
+                    onClick={runCta}
                   >
                     {isAr ? cta.ar : cta.en}
                     <ChevronRight className="h-4 w-4 rtl:rotate-180" />
@@ -1547,28 +1575,20 @@ const Dashboard = () => {
               timeAr: "5 دقائق",
             },
             first_order: {
-              label: "Get Your First Order",
-              labelAr: "احصل على أول طلب",
-              desc: "Share your store link",
-              descAr: "شارك رابط متجرك",
-              action: () => {
-                if (currentStore?.subdomain)
-                  window.open(getStoreUrl(currentStore.subdomain), "_blank");
-              },
-              cta: "Share",
-              ctaAr: "مشاركة",
+              label: "Share Your Store Link",
+              labelAr: "شارك رابط متجرك",
+              desc: "Send your store link to customers and start selling",
+              descAr: "ابعت رابط متجرك لعملائك وابدأ البيع",
+              action: shareStoreLink,
+              cta: "Share Link",
+              ctaAr: "شارك الرابط",
               Icon: Zap,
               time: "1 min",
               timeAr: "دقيقة",
             },
           };
           const steps = onboardingData.steps
-            .filter(
-              (s) =>
-                s.key !== "create_store" &&
-                s.key !== "first_order" &&
-                STEP_UI[s.key],
-            )
+            .filter((s) => s.key !== "create_store" && STEP_UI[s.key])
             .map((s, i) => ({
               ...STEP_UI[s.key],
               key: s.key,
@@ -1576,10 +1596,10 @@ const Dashboard = () => {
               done: s.status === "completed" || s.status === "skipped",
             }));
           const doneCount = steps.filter((s) => s.done).length;
-          const totalSteps = steps.length + 1;
-          const displayDone =
-            doneCount === steps.length ? steps.length : doneCount;
-          const progressPercent = Math.round((displayDone / totalSteps) * 100);
+          const totalSteps = steps.length;
+          const displayDone = doneCount;
+          const progressPercent =
+            totalSteps > 0 ? Math.round((displayDone / totalSteps) * 100) : 0;
 
           return (
             <section>
