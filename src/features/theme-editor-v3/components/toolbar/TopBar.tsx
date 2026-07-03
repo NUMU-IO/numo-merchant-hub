@@ -140,6 +140,7 @@ export function TopBar({
   const redo = useCustomizerStore((s) => s.redo);
   const publish = useCustomizerStore((s) => s.publish);
   const discardDraft = useCustomizerStore((s) => s.discardDraft);
+  const flushPendingSave = useCustomizerStore((s) => s.flushPendingSave);
   const lastPublish = useCustomizerStore((s) => s.lastPublish);
 
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
@@ -235,6 +236,17 @@ export function TopBar({
     setShowDiscardDialog(false);
   }, [discardDraft]);
 
+  // Gate the Back button on dirty/in-flight state: flush the pending debounced
+  // autosave so an edit still in the 3s window is persisted before we leave.
+  // The editor's unmount cleanup also flushes (dedup'd via the in-flight save
+  // promise), so this is belt-and-suspenders — no data loss on exit.
+  const handleBack = useCallback(() => {
+    if (isDirty || isSaving) {
+      flushPendingSave();
+    }
+    onBack();
+  }, [isDirty, isSaving, flushPendingSave, onBack]);
+
   return (
     <TooltipProvider delayDuration={300}>
       <div className="flex h-14 items-center justify-between border-b bg-background px-3">
@@ -250,7 +262,7 @@ export function TopBar({
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
-                onClick={onBack}
+                onClick={handleBack}
                 aria-label={locale === "ar" ? "رجوع" : "Back"}
               >
                 <ArrowLeft className="h-4 w-4" />

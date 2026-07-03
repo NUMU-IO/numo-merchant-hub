@@ -79,6 +79,9 @@ export function ThemeCustomizerV3() {
 
   const initialize = useCustomizerStore((s) => s.initialize);
   const reset = useCustomizerStore((s) => s.reset);
+  const flushPendingSave = useCustomizerStore((s) => s.flushPendingSave);
+  const isDirty = useCustomizerStore((s) => s.isDirty);
+  const isSaving = useCustomizerStore((s) => s.isSaving);
   const isLoading = useCustomizerStore((s) => s.isLoading);
   const error = useCustomizerStore((s) => s.error);
   const locale = useCustomizerStore((s) => s.locale);
@@ -109,9 +112,26 @@ export function ThemeCustomizerV3() {
       initialize(storeId);
     }
     return () => {
+      // Flush the pending debounced autosave BEFORE reset() wipes the draft —
+      // otherwise an edit made within the last 3s (the debounce window) is
+      // silently lost on unmount. flushPendingSave reads the draft/storeId
+      // synchronously, so the save still completes after reset() runs.
+      flushPendingSave();
       reset();
     };
-  }, [storeId, initialize, reset]);
+  }, [storeId, initialize, reset, flushPendingSave]);
+
+  // Warn before a tab close / reload while the draft has unsaved or in-flight
+  // changes. Mirrors EmailTemplateEditor's beforeunload guard.
+  useEffect(() => {
+    if (!isDirty && !isSaving) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty, isSaving]);
 
   const handleBack = useCallback(() => {
     // Always exit to the themes overview — the editor's canonical parent.
