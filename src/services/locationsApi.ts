@@ -53,7 +53,7 @@ export type UpdateLocationData = Partial<CreateLocationData>;
 
 export async function listLocations(storeId: string): Promise<Location[]> {
   const res = await apiClient<{ items?: Location[] } | Location[]>(
-    `/stores/${storeId}/inventory/locations`,
+    `/stores/${storeId}/locations`,
   );
   if (Array.isArray(res)) return res;
   return res?.items ?? [];
@@ -63,20 +63,23 @@ export async function createLocation(
   storeId: string,
   data: CreateLocationData,
 ): Promise<Location> {
-  return apiClient<Location>(`/stores/${storeId}/inventory/locations`, {
+  return apiClient<Location>(`/stores/${storeId}/locations`, {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
+// The backend update is a full-replace PUT (not PATCH) — the caller must send
+// the complete location payload or omitted fields fall back to server defaults
+// (is_active→true, position→0). The page passes the full object.
 export async function updateLocation(
   storeId: string,
   locationId: string,
-  data: UpdateLocationData,
+  data: CreateLocationData,
 ): Promise<Location> {
   return apiClient<Location>(
-    `/stores/${storeId}/inventory/locations/${locationId}`,
-    { method: "PATCH", body: JSON.stringify(data) },
+    `/stores/${storeId}/locations/${locationId}`,
+    { method: "PUT", body: JSON.stringify(data) },
   );
 }
 
@@ -85,7 +88,7 @@ export async function deleteLocation(
   locationId: string,
 ): Promise<void> {
   return apiClient<void>(
-    `/stores/${storeId}/inventory/locations/${locationId}`,
+    `/stores/${storeId}/locations/${locationId}`,
     { method: "DELETE" },
   );
 }
