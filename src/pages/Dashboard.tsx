@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import React, { useMemo, useState } from "react";
-import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   AreaChart,
   Area,
@@ -38,7 +38,6 @@ import {
   getOnboarding,
   dismissOnboarding,
   undismissOnboarding,
-  completeOnboardingStep,
 } from "@/services/storeApi";
 import type { OnboardingData } from "@/services/storeApi";
 import { getStoreUrl } from "@/lib/storefront";
@@ -100,45 +99,30 @@ const Dashboard = () => {
   const { range, setRange } = useDateRangeUrlState();
   const rangeKey = dateRangeKey(range);
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const isAr = language === "ar";
   const periodLabel = triggerLabel(range, isAr ? "ar" : "en");
 
   // Share the storefront link — native share sheet when available, otherwise
-  // copy to clipboard with a toast. Used by the onboarding "Share store link"
-  // step (and the zero-orders card) so "Share" actually shares instead of
-  // routing to store settings. On a successful share the onboarding
-  // "first_order" step is marked complete (idempotent; it also auto-completes
-  // once a real order lands) so the checklist reaches its final step from an
-  // action the merchant controls.
+  // copy to clipboard with a toast. Used by the onboarding "Get your first
+  // order" step (and the zero-orders card) so "Share" actually shares instead
+  // of routing to store settings. Sharing does NOT tick the step — that
+  // completes on its own when the first real order lands.
   const shareStoreLink = async () => {
     if (!currentStore?.subdomain) return;
     const url = getStoreUrl(currentStore.subdomain);
-    let shared = false;
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({ title: currentStore.name, url });
-        shared = true;
+        return;
       } catch {
         /* user cancelled — fall through to copy */
       }
     }
-    if (!shared) {
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.success(isAr ? "تم نسخ رابط المتجر" : "Store link copied");
-        shared = true;
-      } catch {
-        window.open(url, "_blank");
-      }
-    }
-    if (shared && storeId) {
-      try {
-        await completeOnboardingStep(storeId, "first_order");
-        void queryClient.invalidateQueries({ queryKey: ["onboarding", storeId] });
-      } catch {
-        /* non-fatal — step also auto-completes on the first real order */
-      }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(isAr ? "تم نسخ رابط المتجر" : "Store link copied");
+    } catch {
+      window.open(url, "_blank");
     }
   };
 
@@ -1592,12 +1576,12 @@ const Dashboard = () => {
               timeAr: "5 دقائق",
             },
             first_order: {
-              label: "Share Your Store Link",
-              labelAr: "شارك رابط متجرك",
-              desc: "Send your store link to customers and start selling",
-              descAr: "ابعت رابط متجرك لعملائك وابدأ البيع",
+              label: "Get Your First Order",
+              labelAr: "أول طلب",
+              desc: "Share your store link — this ticks itself when your first order lands",
+              descAr: "شارك رابط متجرك — بتكمّل لوحدها أول ما يجيلك أول طلب",
               action: shareStoreLink,
-              cta: "Share Link",
+              cta: "Share store link",
               ctaAr: "شارك الرابط",
               Icon: Zap,
               time: "1 min",
