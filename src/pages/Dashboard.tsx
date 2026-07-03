@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import React, { useMemo, useState } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   AreaChart,
   Area,
@@ -38,6 +38,7 @@ import {
   getOnboarding,
   dismissOnboarding,
   undismissOnboarding,
+  completeOnboardingStep,
 } from "@/services/storeApi";
 import type { OnboardingData } from "@/services/storeApi";
 import { getStoreUrl } from "@/lib/storefront";
@@ -99,29 +100,45 @@ const Dashboard = () => {
   const { range, setRange } = useDateRangeUrlState();
   const rangeKey = dateRangeKey(range);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isAr = language === "ar";
   const periodLabel = triggerLabel(range, isAr ? "ar" : "en");
 
   // Share the storefront link — native share sheet when available, otherwise
   // copy to clipboard with a toast. Used by the onboarding "Share store link"
   // step (and the zero-orders card) so "Share" actually shares instead of
-  // routing to store settings.
+  // routing to store settings. On a successful share the onboarding
+  // "first_order" step is marked complete (idempotent; it also auto-completes
+  // once a real order lands) so the checklist reaches its final step from an
+  // action the merchant controls.
   const shareStoreLink = async () => {
     if (!currentStore?.subdomain) return;
     const url = getStoreUrl(currentStore.subdomain);
+    let shared = false;
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({ title: currentStore.name, url });
-        return;
+        shared = true;
       } catch {
         /* user cancelled — fall through to copy */
       }
     }
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success(isAr ? "تم نسخ رابط المتجر" : "Store link copied");
-    } catch {
-      window.open(url, "_blank");
+    if (!shared) {
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success(isAr ? "تم نسخ رابط المتجر" : "Store link copied");
+        shared = true;
+      } catch {
+        window.open(url, "_blank");
+      }
+    }
+    if (shared && storeId) {
+      try {
+        await completeOnboardingStep(storeId, "first_order");
+        void queryClient.invalidateQueries({ queryKey: ["onboarding", storeId] });
+      } catch {
+        /* non-fatal — step also auto-completes on the first real order */
+      }
     }
   };
 
