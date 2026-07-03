@@ -13,16 +13,15 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import {
-  Sparkles,
+  ArrowUpCircle,
   AlertTriangle,
+  ArrowRight,
   ChevronDown,
   ChevronUp,
   Loader2,
-  Download,
 } from "lucide-react";
 import {
   checkThemeUpdates,
@@ -32,7 +31,8 @@ import {
 } from "@/services/themeUpdatesApi";
 
 const T = {
-  available: { en: "Theme update available", ar: "يتوفّر تحديث للقالب" },
+  eyebrow: { en: "Theme update", ar: "تحديث القالب" },
+  available: { en: "A new version is ready", ar: "إصدار جديد جاهز" },
   manual: { en: "Review needed", ar: "يتطلّب مراجعة" },
   automatic: { en: "Safe update", ar: "تحديث آمن" },
   from: { en: "Installed", ar: "المثبّت" },
@@ -102,108 +102,158 @@ export function ThemeUpdatesAlert({ storeId }: { storeId: string }) {
         return (
           <div
             key={n.id}
-            className={`rounded-lg border p-4 ${
-              manual
-                ? "border-amber-300 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/30"
-                : "border-indigo-200 bg-indigo-50 dark:border-indigo-800/60 dark:bg-indigo-950/30"
-            }`}
+            className="group relative overflow-hidden rounded-2xl border bg-card shadow-sm"
           >
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 shrink-0">
-                {manual ? (
-                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                ) : (
-                  <Sparkles className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold">{tr("available")}</span>
-                  <Badge variant={manual ? "outline" : "secondary"}>
-                    {manual ? tr("manual") : tr("automatic")}
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    {tr("from")} v{n.from_version || "?"} → {tr("to")} v{n.to_version}
-                  </span>
+            {/* Slim status rail — the only color the card carries, so it reads
+                as a native surface rather than a tinted alert box. */}
+            <span
+              aria-hidden
+              className={`absolute inset-y-0 ${isRTL ? "right-0" : "left-0"} w-1 ${
+                manual ? "bg-amber-400/80" : "bg-primary/70"
+              }`}
+            />
+
+            <div className="p-5 ps-6">
+              <div className="flex items-start gap-4">
+                {/* Icon chip — neutral tile, not a floating sparkle. */}
+                <div
+                  className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
+                    manual
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                      : "bg-primary/10 text-primary"
+                  }`}
+                >
+                  {manual ? (
+                    <AlertTriangle className="h-5 w-5" />
+                  ) : (
+                    <ArrowUpCircle className="h-5 w-5" />
+                  )}
                 </div>
 
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {manual ? tr("manualHint") : tr("autoHint")}
-                </p>
-
-                {(n.changes.length > 0 || n.release_notes) && (
-                  <button
-                    type="button"
-                    className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-foreground/80 hover:text-foreground"
-                    onClick={() => setExpanded(isOpen ? null : n.id)}
-                  >
-                    {isOpen ? tr("hideChanges") : tr("whatChanged")}
-                    {isOpen ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </button>
-                )}
-
-                {isOpen && (
-                  <div className="mt-2 space-y-2 rounded-md border bg-background/60 p-3 text-sm">
-                    {n.changes.length > 0 && (
-                      <ul className="space-y-1">
-                        {n.changes.map((c, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span
-                              className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
-                                c.breaking ? "bg-amber-500" : "bg-emerald-500"
-                              }`}
-                            />
-                            <span>
-                              {c.detail}
-                              {c.breaking && (
-                                <span className="text-amber-600 dark:text-amber-400">
-                                  {" "}
-                                  — {tr("breaking")}
-                                </span>
-                              )}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {n.release_notes && (
-                      <div className="border-t pt-2">
-                        <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                          {tr("releaseNotes")}
-                        </div>
-                        <p className="whitespace-pre-wrap text-foreground/90">
-                          {n.release_notes}
-                        </p>
-                      </div>
-                    )}
+                <div className="min-w-0 flex-1">
+                  {/* Eyebrow + status pill */}
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
+                      {tr("eyebrow")}
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                        manual
+                          ? "border-amber-300/70 text-amber-700 dark:border-amber-800/60 dark:text-amber-400"
+                          : "border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          manual ? "bg-amber-500" : "bg-emerald-500"
+                        }`}
+                      />
+                      {manual ? tr("manual") : tr("automatic")}
+                    </span>
                   </div>
-                )}
 
-                <div className="mt-3 flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => applyMut.mutate(n.id)}
+                  {/* Headline */}
+                  <h3 className="mt-1.5 text-[15px] font-semibold tracking-tight">
+                    {tr("available")}
+                  </h3>
+
+                  {/* Version jump — mono pills, new version emphasized */}
+                  <div
+                    dir="ltr"
+                    className={`mt-2 inline-flex items-center gap-2 font-mono text-xs ltr-nums ${
+                      isRTL ? "flex-row-reverse" : ""
+                    }`}
                   >
-                    {applyMut.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                    {tr("apply")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => skipMut.mutate(n.id)}
-                  >
-                    {tr("skip")}
-                  </Button>
+                    <span className="text-muted-foreground/70 line-through decoration-muted-foreground/30">
+                      v{n.from_version || "?"}
+                    </span>
+                    <ArrowRight className={`h-3.5 w-3.5 shrink-0 text-muted-foreground/50 ${isRTL ? "rotate-180" : ""}`} />
+                    <span className="rounded-md bg-primary/10 px-1.5 py-0.5 font-semibold text-primary">
+                      v{n.to_version}
+                    </span>
+                  </div>
+
+                  <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
+                    {manual ? tr("manualHint") : tr("autoHint")}
+                  </p>
+
+                  {(n.changes.length > 0 || n.release_notes) && (
+                    <button
+                      type="button"
+                      className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-foreground/70 transition-colors hover:text-foreground"
+                      onClick={() => setExpanded(isOpen ? null : n.id)}
+                    >
+                      {isOpen ? tr("hideChanges") : tr("whatChanged")}
+                      {isOpen ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </button>
+                  )}
+
+                  {isOpen && (
+                    <div className="mt-3 space-y-2.5 rounded-xl border bg-muted/40 p-3.5 text-sm">
+                      {n.changes.length > 0 && (
+                        <ul className="space-y-1.5">
+                          {n.changes.map((c, i) => (
+                            <li key={i} className="flex items-start gap-2.5">
+                              <span
+                                className={`mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full ${
+                                  c.breaking ? "bg-amber-500" : "bg-emerald-500"
+                                }`}
+                              />
+                              <span className="leading-relaxed">
+                                {c.detail}
+                                {c.breaking && (
+                                  <span className="text-amber-600 dark:text-amber-400">
+                                    {" "}
+                                    — {tr("breaking")}
+                                  </span>
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {n.release_notes && (
+                        <div className="border-t pt-2.5">
+                          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {tr("releaseNotes")}
+                          </div>
+                          <p className="whitespace-pre-wrap leading-relaxed text-foreground/90">
+                            {n.release_notes}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="mt-4 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={busy}
+                      onClick={() => applyMut.mutate(n.id)}
+                    >
+                      {applyMut.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ArrowUpCircle className="h-4 w-4" />
+                      )}
+                      {tr("apply")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground hover:text-foreground"
+                      disabled={busy}
+                      onClick={() => skipMut.mutate(n.id)}
+                    >
+                      {tr("skip")}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
