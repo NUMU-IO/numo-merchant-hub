@@ -31,6 +31,10 @@ import {
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
 import { getStoreUrl } from "@/lib/storefront";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { useTemplateOptions, DEFAULT_TEMPLATE_VALUE } from "@/hooks/useTemplateOptions";
 
 function makeSlug(title: string) {
   return title.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -48,6 +52,8 @@ interface PageDraft {
   seoDescEn: string;
   seoDescAr: string;
   isPublished: boolean;
+  /** Alternate storefront template ("template_suffix"). null = default. */
+  templateSuffix: string | null;
   /** Original handle when editing (so we PUT to the right key). */
   originalHandle?: string;
 }
@@ -68,6 +74,7 @@ function toDraft(p?: StorePage): PageDraft {
     seoDescEn: seo?.description?.en ?? "",
     seoDescAr: seo?.description?.ar ?? "",
     isPublished: p?.is_published ?? false,
+    templateSuffix: p?.template_suffix ?? null,
   };
 }
 
@@ -76,6 +83,7 @@ export default function OnlineStorePages() {
   const { currentStore } = useDashboardStore();
   const queryClient = useQueryClient();
   const storeId = currentStore?.id ?? "";
+  const { options: templateOptions } = useTemplateOptions("page");
 
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<PageDraft | null>(null);
@@ -100,6 +108,7 @@ export default function OnlineStorePages() {
           description: { en: d.seoDescEn, ar: d.seoDescAr },
         },
         is_published: d.isPublished,
+        template_suffix: d.templateSuffix,
       };
       if (d.originalHandle) {
         return upsertPage(storeId, d.originalHandle, payload);
@@ -321,6 +330,36 @@ export default function OnlineStorePages() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Template (alternate storefront template) */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">{isRTL ? "قالب العرض" : "Template"}</Label>
+                <Select
+                  value={editing.templateSuffix ?? DEFAULT_TEMPLATE_VALUE}
+                  onValueChange={(v) =>
+                    setEditing({ ...editing, templateSuffix: v === DEFAULT_TEMPLATE_VALUE ? null : v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templateOptions.map((opt) => (
+                      <SelectItem
+                        key={opt.value ?? DEFAULT_TEMPLATE_VALUE}
+                        value={opt.value ?? DEFAULT_TEMPLATE_VALUE}
+                      >
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  {isRTL
+                    ? "قالب بديل لهذه الصفحة. تُنشأ القوالب من محرر الثيم."
+                    : "Alternate template for this page. Variants are created in the theme editor."}
+                </p>
               </div>
 
               {/* Published toggle */}
