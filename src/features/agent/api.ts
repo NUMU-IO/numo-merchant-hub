@@ -75,6 +75,47 @@ function jsonHeaders(): Record<string, string> {
   return headers;
 }
 
+export interface ConversationSummary {
+  id: string;
+  title: string | null;
+  status: string;
+  updated_at: string | null;
+}
+
+export interface ConversationTurn {
+  role: "user" | "agent";
+  content: string;
+  tool_calls: string[];
+  model_used: string | null;
+  created_at: string | null;
+}
+
+/** List the caller's recent conversations (newest first). */
+export async function listConversations(
+  storeId: string,
+): Promise<ConversationSummary[]> {
+  const res = await fetch(`${API_BASE}/stores/${storeId}/agent/conversations`, {
+    headers: jsonHeaders(),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`History failed (${res.status})`);
+  const data = await res.json();
+  return (data.conversations ?? []) as ConversationSummary[];
+}
+
+/** Fetch one conversation with its turns, to resume the thread. */
+export async function getConversation(
+  storeId: string,
+  conversationId: string,
+): Promise<{ id: string; title: string | null; turns: ConversationTurn[] }> {
+  const res = await fetch(
+    `${API_BASE}/stores/${storeId}/agent/conversations/${conversationId}`,
+    { headers: jsonHeaders(), credentials: "include" },
+  );
+  if (!res.ok) throw new Error(`Conversation failed (${res.status})`);
+  return res.json();
+}
+
 /** Confirm or decline a pending write proposal (US2 gated write path). */
 export async function confirmProposal(
   storeId: string,

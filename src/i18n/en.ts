@@ -20,6 +20,10 @@ export default {
     applied: "Applied ✓",
     declined: "Declined",
     undo: "Undo",
+    history: "Chat history",
+    newChat: "New chat",
+    noHistory: "No previous conversations yet",
+    untitled: "Untitled conversation",
   },
   nav: {
     dashboard: "Dashboard",

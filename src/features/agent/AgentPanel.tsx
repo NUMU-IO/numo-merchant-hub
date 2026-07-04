@@ -5,7 +5,7 @@
  * RTL-aware, and renders in the merchant's language (English / Egyptian Arabic).
  * Mount once inside the dashboard layout; a floating launcher toggles it open.
  */
-import { Loader2, Send } from "lucide-react";
+import { ArrowLeft, History, Loader2, Plus, Send } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -26,9 +26,30 @@ export function AgentPanel() {
   const { language, isRTL } = useLanguage();
   const locale = language === "ar" ? "ar" : "en";
 
-  const { isOpen, isStreaming, messages, open, close, sendMessage } = useAgentStore();
+  const {
+    isOpen,
+    isStreaming,
+    messages,
+    view,
+    history,
+    isLoadingHistory,
+    open,
+    close,
+    sendMessage,
+    showHistory,
+    backToChat,
+    openConversation,
+    newChat,
+    restoreLastConversation,
+  } = useAgentStore();
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Resume the last thread once per panel-open so a refresh doesn't wipe context.
+  useEffect(() => {
+    const storeId = currentStoreId();
+    if (isOpen && storeId) void restoreLastConversation(storeId);
+  }, [isOpen, restoreLastConversation]);
 
   // Drive the mascot from conversation state: think before the first token,
   // talk while streaming, get excited on a proposed change, smile when a reply
@@ -75,12 +96,87 @@ export function AgentPanel() {
         >
           <SheetHeader className="flex-row items-center gap-2 border-b px-4 py-3 space-y-0">
             <MascotSprite state={mascotState} size={40} />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <SheetTitle>{t("agent.title")}</SheetTitle>
               <p className="text-xs text-muted-foreground">{t("agent.subtitle")}</p>
             </div>
+            <div className="me-6 flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label={t("agent.newChat")}
+                title={t("agent.newChat")}
+                onClick={() => {
+                  const storeId = currentStoreId();
+                  if (storeId) newChat(storeId);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label={t("agent.history")}
+                title={t("agent.history")}
+                onClick={() => {
+                  const storeId = currentStoreId();
+                  if (!storeId) return;
+                  if (view === "history") backToChat();
+                  else void showHistory(storeId);
+                }}
+              >
+                {view === "history" ? (
+                  <ArrowLeft className={`h-4 w-4 ${isRTL ? "rotate-180" : ""}`} />
+                ) : (
+                  <History className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </SheetHeader>
 
+          {view === "history" ? (
+            <div className="flex-1 overflow-y-auto px-2 py-2">
+              {isLoadingHistory ? (
+                <div className="flex h-full items-center justify-center text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              ) : history.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center text-center text-sm text-muted-foreground">
+                  <History className="mb-2 h-6 w-6 opacity-50" />
+                  <p>{t("agent.noHistory")}</p>
+                </div>
+              ) : (
+                <ul className="space-y-1">
+                  {history.map((c) => (
+                    <li key={c.id}>
+                      <button
+                        type="button"
+                        className="w-full rounded-md px-3 py-2 text-start text-sm hover:bg-muted"
+                        onClick={() => {
+                          const storeId = currentStoreId();
+                          if (storeId) void openConversation(storeId, c.id);
+                        }}
+                      >
+                        <span className="block truncate font-medium">
+                          {c.title || t("agent.untitled")}
+                        </span>
+                        {c.updated_at && (
+                          <span className="block text-xs text-muted-foreground">
+                            {new Date(c.updated_at).toLocaleString(
+                              locale === "ar" ? "ar-EG" : undefined,
+                              { dateStyle: "medium", timeStyle: "short" },
+                            )}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center text-sm text-muted-foreground">
@@ -115,6 +211,7 @@ export function AgentPanel() {
               ))
             )}
           </div>
+          )}
 
           <div className="border-t p-3">
             <div className="flex items-end gap-2">

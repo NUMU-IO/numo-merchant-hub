@@ -20,6 +20,10 @@
     applied: "اتطبّق ✓",
     declined: "اترفض",
     undo: "تراجع",
+    history: "المحادثات السابقة",
+    newChat: "محادثة جديدة",
+    noHistory: "مفيش محادثات سابقة لسه",
+    untitled: "محادثة بدون عنوان",
   },
   nav: {
     dashboard: "لوحة التحكم",
