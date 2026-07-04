@@ -44,6 +44,7 @@ import {
   clearUndoStack,
 } from "@/services/customizerUndoApi";
 import { ApiError } from "@/lib/api-error";
+import { toast } from "sonner";
 import {
   MAX_BLOCK_DEPTH,
   asBlockPath,
@@ -107,6 +108,10 @@ function readEtagConflict(err: unknown): EtagConflict | null {
 const MAX_HISTORY = 50;
 /** Debounce window for autosave round-trips. */
 const AUTOSAVE_DEBOUNCE_MS = 3000;
+/** Bounded exponential-backoff retry for the debounced autosave, so a
+ *  transient network blip doesn't silently strand a dirty draft. */
+const AUTOSAVE_MAX_RETRIES = 3;
+const AUTOSAVE_RETRY_BASE_MS = 800;
 /** Time within which consecutive same-target writes coalesce into one undo
  *  entry. Avoids the "type one character → one entry" problem. */
 const HISTORY_COALESCE_MS = 1500;
@@ -221,6 +226,11 @@ interface CustomizerActions {
   // Initialization
   initialize: (storeId: string) => Promise<void>;
   reset: () => void;
+  /** Flush any pending debounced autosave immediately (used before the editor
+   *  unmounts / the merchant navigates away) so an edit still sitting in the
+   *  3s debounce window isn't lost. Cancels the timer, then fires performSave
+   *  when dirty. No-op when clean or while a conflict banner is open. */
+  flushPendingSave: () => void;
 
   // Autosave conflict resolution (after a 409 stale-etag)
   /** Discard local edits and adopt the newer draft from the other session. */
@@ -778,6 +788,50 @@ export const useCustomizerStore = create<CustomizerStore>()(
       return promise;
     }
 
+    /**
+     * Autosave with bounded exponential-backoff retry. Wraps performSave so a
+     * transient failure (network blip / 5xx) is retried a few times instead of
+     * being swallowed by a lone console.error — previously the draft just
+     * stayed dirty with no further attempt until the next edit. A 409 conflict
+     * and a session-expiry are terminal here (performSave resolves the former
+     * without throwing and flags the latter), so those are never retried. After
+     * the final attempt fails we surface a non-blocking toast; isDirty stays
+     * true so a later edit re-triggers the save.
+     */
+    async function performSaveWithRetry(): Promise<void> {
+      for (let attempt = 0; attempt <= AUTOSAVE_MAX_RETRIES; attempt++) {
+        try {
+          await performSave();
+          return;
+        } catch (err) {
+          // Don't retry a dead session — the re-login overlay drives recovery.
+          if (isSessionExpiredError(err)) return;
+          if (attempt >= AUTOSAVE_MAX_RETRIES) {
+            console.error("[V3 Autosave] Failed after retries:", err);
+            const isAr = get().locale === "ar";
+            toast.error(
+              isAr
+                ? "تعذّر حفظ التغييرات تلقائياً"
+                : "Couldn't autosave your changes",
+              {
+                description: isAr
+                  ? "سنحاول مرة أخرى عند تعديلك التالي. تحقّق من اتصالك بالإنترنت."
+                  : "We'll retry on your next edit. Check your connection.",
+              },
+            );
+            return;
+          }
+          // Back off, then bail if the draft went clean or a conflict opened
+          // while we waited (retrying either is pointless).
+          await new Promise((resolve) =>
+            setTimeout(resolve, AUTOSAVE_RETRY_BASE_MS * 2 ** attempt),
+          );
+          const { isDirty, editConflict } = get();
+          if (!isDirty || editConflict) return;
+        }
+      }
+    }
+
     function scheduleAutosave() {
       // While a conflict banner is open, autosave is paused — saving would
       // just hit 409 again. Edits still accumulate locally (isDirty) and
@@ -787,10 +841,9 @@ export const useCustomizerStore = create<CustomizerStore>()(
       const newTimer = setTimeout(() => {
         const { storeId, draft, isDirty, editConflict } = get();
         if (!storeId || !draft || !isDirty || editConflict) return;
-        performSave().catch((err) => {
-          // Non-fatal: autosaves should never throw out of the timer.
-          console.error("[V3 Autosave] Failed:", err);
-        });
+        // Bounded-retry wrapper: never throws out of the timer, and no longer
+        // gives up silently after a single transient failure.
+        void performSaveWithRetry();
       }, AUTOSAVE_DEBOUNCE_MS);
       set((s) => {
         s._autosaveTimer = newTimer;
@@ -922,6 +975,22 @@ export const useCustomizerStore = create<CustomizerStore>()(
       reset: () => {
         cancelAutosaveTimer();
         set(initialState);
+      },
+
+      flushPendingSave: () => {
+        // Cancel the debounce and persist immediately so an edit still sitting
+        // in the 3s window survives an unmount / navigation. performSave dedups
+        // against any in-flight save and reads storeId/draft synchronously, so
+        // the request still completes even if reset() nulls the store right
+        // after this returns.
+        cancelAutosaveTimer();
+        const { isDirty, editConflict, draft, storeId } = get();
+        if (!isDirty || editConflict || !draft || !storeId) return;
+        void performSave().catch((err) => {
+          // Non-fatal — and nothing downstream is left to catch it on the way
+          // out of the editor.
+          console.error("[V3 flushPendingSave] Failed:", err);
+        });
       },
 
       resolveConflictReload: () => {
