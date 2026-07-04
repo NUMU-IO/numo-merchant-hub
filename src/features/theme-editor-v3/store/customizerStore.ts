@@ -22,6 +22,7 @@ import type {
   SectionSchemaDefinition,
   BlockSchemaDefinition,
   PresetBlockDefinition,
+  PageTemplate,
   SectionInstance,
   BlockInstance,
   SettingDefinition,
@@ -44,6 +45,7 @@ import {
   clearUndoStack,
 } from "@/services/customizerUndoApi";
 import { ApiError } from "@/lib/api-error";
+import { toast } from "sonner";
 import {
   MAX_BLOCK_DEPTH,
   asBlockPath,
@@ -107,6 +109,10 @@ function readEtagConflict(err: unknown): EtagConflict | null {
 const MAX_HISTORY = 50;
 /** Debounce window for autosave round-trips. */
 const AUTOSAVE_DEBOUNCE_MS = 3000;
+/** Bounded exponential-backoff retry for the debounced autosave, so a
+ *  transient network blip doesn't silently strand a dirty draft. */
+const AUTOSAVE_MAX_RETRIES = 3;
+const AUTOSAVE_RETRY_BASE_MS = 800;
 /** Time within which consecutive same-target writes coalesce into one undo
  *  entry. Avoids the "type one character → one entry" problem. */
 const HISTORY_COALESCE_MS = 1500;
@@ -221,6 +227,11 @@ interface CustomizerActions {
   // Initialization
   initialize: (storeId: string) => Promise<void>;
   reset: () => void;
+  /** Flush any pending debounced autosave immediately (used before the editor
+   *  unmounts / the merchant navigates away) so an edit still sitting in the
+   *  3s debounce window isn't lost. Cancels the timer, then fires performSave
+   *  when dirty. No-op when clean or while a conflict banner is open. */
+  flushPendingSave: () => void;
 
   // Autosave conflict resolution (after a 409 stale-etag)
   /** Discard local edits and adopt the newer draft from the other session. */
@@ -344,6 +355,19 @@ interface CustomizerActions {
   setActiveMode: (mode: EditorMode) => void;
   setActivePanel: (panel: SidebarPanel) => void;
   setActivePage: (page: string) => void;
+  /**
+   * Template epic — create a Shopify-style alternate-template variant.
+   * Duplicates the base template (e.g. `product`) into `<baseType>.<suffix>`
+   * and switches to it. `suffix` must match `^[a-z0-9][a-z0-9-]{0,31}$`
+   * (validated; invalid input is a no-op). If the base template hasn't been
+   * seeded yet the variant starts empty. Returns the new template key, or
+   * `null` when the input was rejected / there's no draft.
+   *
+   * The new key lives in `draft.templates` so it autosaves + publishes like
+   * any other template, and resource editors (product/collection/page) can
+   * then assign it via `template_suffix`.
+   */
+  addTemplateVariant: (baseType: string, suffix: string) => string | null;
   setSelection: (selection: EditorSelection) => void;
   clearSelection: () => void;
   setShowAddSection: (show: boolean, insertAfter?: string | null) => void;
@@ -778,6 +802,50 @@ export const useCustomizerStore = create<CustomizerStore>()(
       return promise;
     }
 
+    /**
+     * Autosave with bounded exponential-backoff retry. Wraps performSave so a
+     * transient failure (network blip / 5xx) is retried a few times instead of
+     * being swallowed by a lone console.error — previously the draft just
+     * stayed dirty with no further attempt until the next edit. A 409 conflict
+     * and a session-expiry are terminal here (performSave resolves the former
+     * without throwing and flags the latter), so those are never retried. After
+     * the final attempt fails we surface a non-blocking toast; isDirty stays
+     * true so a later edit re-triggers the save.
+     */
+    async function performSaveWithRetry(): Promise<void> {
+      for (let attempt = 0; attempt <= AUTOSAVE_MAX_RETRIES; attempt++) {
+        try {
+          await performSave();
+          return;
+        } catch (err) {
+          // Don't retry a dead session — the re-login overlay drives recovery.
+          if (isSessionExpiredError(err)) return;
+          if (attempt >= AUTOSAVE_MAX_RETRIES) {
+            console.error("[V3 Autosave] Failed after retries:", err);
+            const isAr = get().locale === "ar";
+            toast.error(
+              isAr
+                ? "تعذّر حفظ التغييرات تلقائياً"
+                : "Couldn't autosave your changes",
+              {
+                description: isAr
+                  ? "سنحاول مرة أخرى عند تعديلك التالي. تحقّق من اتصالك بالإنترنت."
+                  : "We'll retry on your next edit. Check your connection.",
+              },
+            );
+            return;
+          }
+          // Back off, then bail if the draft went clean or a conflict opened
+          // while we waited (retrying either is pointless).
+          await new Promise((resolve) =>
+            setTimeout(resolve, AUTOSAVE_RETRY_BASE_MS * 2 ** attempt),
+          );
+          const { isDirty, editConflict } = get();
+          if (!isDirty || editConflict) return;
+        }
+      }
+    }
+
     function scheduleAutosave() {
       // While a conflict banner is open, autosave is paused — saving would
       // just hit 409 again. Edits still accumulate locally (isDirty) and
@@ -787,10 +855,9 @@ export const useCustomizerStore = create<CustomizerStore>()(
       const newTimer = setTimeout(() => {
         const { storeId, draft, isDirty, editConflict } = get();
         if (!storeId || !draft || !isDirty || editConflict) return;
-        performSave().catch((err) => {
-          // Non-fatal: autosaves should never throw out of the timer.
-          console.error("[V3 Autosave] Failed:", err);
-        });
+        // Bounded-retry wrapper: never throws out of the timer, and no longer
+        // gives up silently after a single transient failure.
+        void performSaveWithRetry();
       }, AUTOSAVE_DEBOUNCE_MS);
       set((s) => {
         s._autosaveTimer = newTimer;
@@ -922,6 +989,22 @@ export const useCustomizerStore = create<CustomizerStore>()(
       reset: () => {
         cancelAutosaveTimer();
         set(initialState);
+      },
+
+      flushPendingSave: () => {
+        // Cancel the debounce and persist immediately so an edit still sitting
+        // in the 3s window survives an unmount / navigation. performSave dedups
+        // against any in-flight save and reads storeId/draft synchronously, so
+        // the request still completes even if reset() nulls the store right
+        // after this returns.
+        cancelAutosaveTimer();
+        const { isDirty, editConflict, draft, storeId } = get();
+        if (!isDirty || editConflict || !draft || !storeId) return;
+        void performSave().catch((err) => {
+          // Non-fatal — and nothing downstream is left to catch it on the way
+          // out of the editor.
+          console.error("[V3 flushPendingSave] Failed:", err);
+        });
       },
 
       resolveConflictReload: () => {
@@ -1792,6 +1875,49 @@ export const useCustomizerStore = create<CustomizerStore>()(
           };
           s.activePanel = "sections";
         }),
+
+      addTemplateVariant: (baseType, suffix) => {
+        const clean = (suffix ?? "").trim().toLowerCase();
+        // Same rule the resource editors validate against, so a suffix that
+        // publishes here is always a legal `template_suffix` value.
+        if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(clean)) return null;
+        const { draft } = get();
+        if (!draft) return null;
+
+        const newKey = `${baseType}.${clean}`;
+        // Already exists — just navigate to it (idempotent, no history churn).
+        if (draft.templates[newKey]) {
+          get().setActivePage(newKey);
+          return newKey;
+        }
+
+        pushHistory(`add-template:${newKey}`, `Create template ${newKey}`);
+        set((s) => {
+          if (!s.draft) return;
+          const baseTpl = s.draft.templates[baseType];
+          // Duplicate the base template's sections/order (deep clone so the
+          // variant is fully independent). Section ids are template-scoped, so
+          // keeping them is safe — every read goes through
+          // `templates[activePage]`. When the base isn't seeded yet the
+          // variant starts empty, mirroring addSection's on-demand creation.
+          const cloned: PageTemplate = baseTpl
+            ? cloneDeep(baseTpl)
+            : { name: friendlyTemplateName(baseType), sections: {}, order: [] };
+          cloned.name = `${friendlyTemplateName(baseType)} — ${clean}`;
+          s.draft.templates[newKey] = cloned;
+          s.activePage = newKey;
+          s.selection = {
+            type: null,
+            sectionId: null,
+            blockId: null,
+            groupId: null,
+          };
+          s.activePanel = "sections";
+        });
+        markDirty();
+        return newKey;
+      },
+
       setSelection: (selection) =>
         set((s) => {
           s.selection = selection;

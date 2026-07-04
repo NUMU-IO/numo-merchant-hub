@@ -37,6 +37,10 @@ export interface ApiProductResponse {
   /** Meta Commerce Catalog product ID — surfaced in ProductEditor's
    *  Marketing pane so merchants can pin their Catalog row IDs. */
   meta_catalog_id?: string | null;
+  /** Shopify-style alternate-template key. `"wholesale"` selects the theme's
+   *  `product.wholesale` template variant; `null` = the default `product`
+   *  template. */
+  template_suffix?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -83,6 +87,9 @@ export interface CreateProductData {
    *  Meta Pixel events as `content_ids` when set, so dynamic ads can
    *  match conversions to a catalog row. Empty string clears the value. */
   meta_catalog_id?: string;
+  /** Shopify-style alternate-template key (e.g. `"wholesale"` →
+   *  `product.wholesale`). `null`/omitted = the default `product` template. */
+  template_suffix?: string | null;
 }
 
 export interface UpdateProductData extends Partial<CreateProductData> {
@@ -287,6 +294,9 @@ export interface ProductFormData {
   slug?: string;
   /** Meta Commerce Catalog product ID — see ProductEditor's Marketing pane. */
   metaCatalogId?: string;
+  /** Alternate-template key. `null` = default template; a string like
+   *  `"wholesale"` selects `product.wholesale`. */
+  templateSuffix?: string | null;
 }
 
 export function productToApiCreate(form: ProductFormData): CreateProductData {
@@ -310,6 +320,7 @@ export function productToApiCreate(form: ProductFormData): CreateProductData {
     seo_title: form.seoTitle || undefined,
     seo_description: form.seoDescription || undefined,
     meta_catalog_id: form.metaCatalogId || undefined,
+    template_suffix: form.templateSuffix ?? null,
     attributes: {
       nameAr: form.nameAr,
       descriptionAr: form.descriptionAr,
@@ -550,6 +561,9 @@ export function productToApiUpdate(
   if (form.seoTitle !== undefined) data.seo_title = form.seoTitle || undefined;
   if (form.seoDescription !== undefined) data.seo_description = form.seoDescription || undefined;
   if (form.metaCatalogId !== undefined) data.meta_catalog_id = form.metaCatalogId || undefined;
+  // template_suffix: null clears it (back to the default template); a string
+  // selects `<type>.<suffix>`. Sent whenever provided (incl. explicit null).
+  if (form.templateSuffix !== undefined) data.template_suffix = form.templateSuffix;
 
   // Always send full attributes to avoid partial overwrites
   const attributes: Record<string, unknown> = {};

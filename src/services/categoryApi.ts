@@ -17,6 +17,9 @@ export interface Category {
   is_active: boolean;
   product_count: number;
   extra_data: Record<string, unknown> | null;
+  /** Shopify-style alternate-template key. `"wholesale"` selects the theme's
+   *  `collection.wholesale` template variant; `null` = default `collection`. */
+  template_suffix?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -30,6 +33,9 @@ export interface CreateCategoryData {
   position?: number;
   is_active?: boolean;
   extra_data?: Record<string, unknown>;
+  /** Alternate-template key (e.g. `"wholesale"` → `collection.wholesale`).
+   *  `null`/omitted = the default `collection` template. */
+  template_suffix?: string | null;
 }
 
 export interface UpdateCategoryData {
@@ -41,6 +47,9 @@ export interface UpdateCategoryData {
   position?: number;
   is_active?: boolean;
   extra_data?: Record<string, unknown>;
+  /** Alternate-template key. `null` clears it (back to `collection`); a string
+   *  selects `collection.<suffix>`. */
+  template_suffix?: string | null;
 }
 
 export async function listCategories(

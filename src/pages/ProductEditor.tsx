@@ -17,6 +17,7 @@ import {
 } from "@/services/productApi";
 import { prepareImageForUpload } from "@/lib/image-validation";
 import { updateStore } from "@/services/storeApi";
+import { useTemplateOptions, DEFAULT_TEMPLATE_VALUE } from "@/hooks/useTemplateOptions";
 import { VariantMatrix, type VariantCombination } from "@/components/products/VariantMatrix";
 import {
   SizeChartEditor,
@@ -129,6 +130,9 @@ const ProductEditor = () => {
   const [formSeoDesc, setFormSeoDesc] = useState("");
   const [formMetaCatalogId, setFormMetaCatalogId] = useState("");
   const [formSlug, setFormSlug] = useState("");
+  // Alternate storefront template ("template_suffix"). null = default template.
+  const [formTemplateSuffix, setFormTemplateSuffix] = useState<string | null>(null);
+  const { options: templateOptions } = useTemplateOptions("product");
   const [formVariants, setFormVariants] = useState<{
     name: string;
     nameAr: string;
@@ -191,6 +195,7 @@ const ProductEditor = () => {
         setFormSeoDesc(api.seo_description || "");
         setFormMetaCatalogId(api.meta_catalog_id || "");
         setFormSlug(api.slug || "");
+        setFormTemplateSuffix(api.template_suffix ?? null);
         setFormVariants(p.variants.map(v => ({
           name: v.name, nameAr: v.nameAr,
           options: v.options.join(", "), optionsAr: v.optionsAr.join(", "),
@@ -338,6 +343,7 @@ const ProductEditor = () => {
           seoDescription: formSeoDesc || undefined,
           metaCatalogId: formMetaCatalogId || undefined,
           slug: formSlug || undefined,
+          templateSuffix: formTemplateSuffix,
         });
         if (variantCombinations.length > 0 && payload.attributes) {
           (payload.attributes as Record<string, unknown>).variant_combinations = variantCombinations;
@@ -367,6 +373,7 @@ const ProductEditor = () => {
           seoDescription: formSeoDesc || undefined,
           metaCatalogId: formMetaCatalogId || undefined,
           slug: formSlug || undefined,
+          templateSuffix: formTemplateSuffix,
         });
         if (variantCombinations.length > 0 && payload.attributes) {
           (payload.attributes as Record<string, unknown>).variant_combinations = variantCombinations;
@@ -392,7 +399,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, variantCombinations, sizeChart, continueSellingOutOfStock]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock]);
 
   if (isLoadingProduct) {
     return (
@@ -681,6 +688,38 @@ const ProductEditor = () => {
               </Select>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Template (قالب العرض) ── */}
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-bold">{language === "ar" ? "قالب العرض" : "Template"}</CardTitle>
+          <CardDescription className="text-xs">
+            {language === "ar"
+              ? "اختر قالب عرض بديل لهذا المنتج. القوالب تُنشأ من محرر الثيم."
+              : "Pick an alternate storefront template for this product. Variants are created in the theme editor."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Select
+            value={formTemplateSuffix ?? DEFAULT_TEMPLATE_VALUE}
+            onValueChange={(v) => setFormTemplateSuffix(v === DEFAULT_TEMPLATE_VALUE ? null : v)}
+          >
+            <SelectTrigger className="h-10 rounded-lg bg-muted/30 border-transparent">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {templateOptions.map((opt) => (
+                <SelectItem
+                  key={opt.value ?? DEFAULT_TEMPLATE_VALUE}
+                  value={opt.value ?? DEFAULT_TEMPLATE_VALUE}
+                >
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 

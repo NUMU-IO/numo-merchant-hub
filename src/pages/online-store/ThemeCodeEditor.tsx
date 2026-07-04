@@ -233,6 +233,57 @@ const ThemeCodeEditor = () => {
     } catch (e) { showError(e); } finally { setSaving(false); }
   }, [storeId, activePath, dirty, contents, isRTL]);
 
+  // Save EVERY dirty file, not just the active tab. Awaits each write and
+  // collects failures so one bad file doesn't strand the rest; returns the
+  // paths that failed (empty = all saved) so Publish can gate on a clean flush.
+  const saveAll = useCallback(async (): Promise<string[]> => {
+    if (!storeId || dirty.size === 0) return [];
+    setSaving(true);
+    const paths = Array.from(dirty);
+    const failed: string[] = [];
+    try {
+      for (const path of paths) {
+        try {
+          await writeThemeFile(storeId, path, contents[path] ?? "");
+          setDirty((d) => { const n = new Set(d); n.delete(path); return n; });
+        } catch (e) {
+          failed.push(path);
+          showError(e);
+        }
+      }
+      if (failed.length === 0) {
+        toast.success(isRTL ? "تم الحفظ" : "Saved");
+      } else {
+        toast.error(
+          isRTL
+            ? `تعذّر حفظ ${failed.length} ملف`
+            : `Couldn't save ${failed.length} file${failed.length > 1 ? "s" : ""}`,
+        );
+      }
+      return failed;
+    } finally {
+      setSaving(false);
+    }
+  }, [storeId, dirty, contents, isRTL]);
+
+  // Confirm before leaving with unsaved files. Mirrors this editor's own
+  // delete-confirm and EmailTemplateEditor's guarded-back pattern (the app
+  // uses a non-data <BrowserRouter>, so useBlocker isn't available — we gate
+  // the navigation trigger itself instead).
+  const handleBack = useCallback(() => {
+    if (
+      dirty.size > 0 &&
+      !window.confirm(
+        isRTL
+          ? "لديك ملفات غير محفوظة. المغادرة ستتجاهل التغييرات. المتابعة؟"
+          : "You have unsaved files. Leaving will discard those changes. Continue?",
+      )
+    ) {
+      return;
+    }
+    navigate("/online-store");
+  }, [dirty, isRTL, navigate]);
+
   const handleScaffold = async () => {
     if (!storeId) return;
     setScaffolding(true);
@@ -279,7 +330,20 @@ const ThemeCodeEditor = () => {
 
   const handlePublish = async () => {
     if (!storeId) return;
-    if (activePath && dirty.has(activePath)) await saveActive();
+    // Flush ALL unsaved files before building — previously only the active
+    // tab was saved, so edits in other dirty tabs were silently omitted from
+    // the published build.
+    if (dirty.size > 0) {
+      const failed = await saveAll();
+      if (failed.length > 0) {
+        toast.error(
+          isRTL
+            ? "تعذّر حفظ بعض الملفات — لم يبدأ النشر"
+            : "Some files couldn't be saved — publish aborted",
+        );
+        return;
+      }
+    }
     try {
       const res = await publishThemeCode(storeId);
       setBuildStatus(res.status);
@@ -319,6 +383,22 @@ const ThemeCodeEditor = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filesQuery.isLoading, filesQuery.isError, filesQuery.data, hasWorkspace]);
 
+  // Warn before a tab close / reload while there are unsaved files. Mirrors
+  // EmailTemplateEditor's beforeunload guard.
+  useEffect(() => {
+    if (dirty.size === 0) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
+
+  // Stop the build-status poller on unmount so its interval can't leak past
+  // the page (it was previously cleared only on publish success/failure).
+  useEffect(() => () => stopPolling(), []);
+
   const dirtyCount = dirty.size;
   const building = buildStatus != null && buildStatus !== "complete" && buildStatus !== "failed";
   const crumbs = activePath ? activePath.split("/") : [];
@@ -329,7 +409,7 @@ const ThemeCodeEditor = () => {
     }}>
       {/* Title bar */}
       <header className="h-11 shrink-0 flex items-center gap-3 px-3 bg-[#323233] border-b border-black/40">
-        <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-[#cccccc] hover:bg-white/10 hover:text-white" onClick={() => navigate("/online-store")}>
+        <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-[#cccccc] hover:bg-white/10 hover:text-white" onClick={handleBack}>
           <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
           {isRTL ? "رجوع" : "Back"}
         </Button>
@@ -374,7 +454,7 @@ const ThemeCodeEditor = () => {
               {buildStatus}
             </span>
           )}
-          <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-[#cccccc] hover:bg-white/10 hover:text-white" onClick={saveActive} disabled={saving || dirtyCount === 0}>
+          <Button variant="ghost" size="sm" className="gap-1.5 h-8 text-[#cccccc] hover:bg-white/10 hover:text-white" onClick={saveAll} disabled={saving || dirtyCount === 0}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             {isRTL ? "حفظ" : "Save"}{dirtyCount > 0 ? ` (${dirtyCount})` : ""}
           </Button>

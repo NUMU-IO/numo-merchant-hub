@@ -28,6 +28,7 @@ import {
   CloudOff,
   X,
   ExternalLink,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +62,7 @@ import {
   selectCanRedo,
 } from "../../store/customizerStore";
 import { PreviewResourcePicker } from "./PreviewResourcePicker";
+import { CreateTemplateDialog } from "./CreateTemplateDialog";
 import type { DeviceMode, EditorLocale } from "../../types";
 import { PrePublishDiffDialog } from "../panels/PrePublishDiffDialog";
 
@@ -140,9 +142,11 @@ export function TopBar({
   const redo = useCustomizerStore((s) => s.redo);
   const publish = useCustomizerStore((s) => s.publish);
   const discardDraft = useCustomizerStore((s) => s.discardDraft);
+  const flushPendingSave = useCustomizerStore((s) => s.flushPendingSave);
   const lastPublish = useCustomizerStore((s) => s.lastPublish);
 
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [showCreateTemplate, setShowCreateTemplate] = useState(false);
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [showPrePublishDiff, setShowPrePublishDiff] = useState(false);
   const [publishLabel, setPublishLabel] = useState("");
@@ -235,6 +239,25 @@ export function TopBar({
     setShowDiscardDialog(false);
   }, [discardDraft]);
 
+  // Gate the Back button on dirty/in-flight state: flush the pending debounced
+  // autosave so an edit still in the 3s window is persisted before we leave.
+  // The editor's unmount cleanup also flushes (dedup'd via the in-flight save
+  // promise), so this is belt-and-suspenders — no data loss on exit.
+  const handleBack = useCallback(() => {
+    if (isDirty || isSaving) {
+      flushPendingSave();
+    }
+    onBack();
+  }, [isDirty, isSaving, flushPendingSave, onBack]);
+
+  // Template epic — alternate-template variants the merchant has created
+  // (keys like `product.wholesale`). Surfaced in the page picker beneath the
+  // canonical bases so they're navigable + editable like any template.
+  const variantKeys = Object.keys(draft?.templates ?? {})
+    .filter((k) => k.includes("."))
+    .sort();
+  const activeBase = activePage.split(".")[0];
+
   return (
     <TooltipProvider delayDuration={300}>
       <div className="flex h-14 items-center justify-between border-b bg-background px-3">
@@ -250,7 +273,7 @@ export function TopBar({
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
-                onClick={onBack}
+                onClick={handleBack}
                 aria-label={locale === "ar" ? "رجوع" : "Back"}
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -293,8 +316,39 @@ export function TopBar({
                   </SelectItem>
                 );
               })}
+              {/* Alternate-template variants (product.wholesale, page.about, …) */}
+              {variantKeys.length > 0 && (
+                <div className="my-1 border-t border-border" role="presentation" />
+              )}
+              {variantKeys.map((key) => (
+                <SelectItem key={key} value={key}>
+                  <span className="font-mono text-[11px]">
+                    {draft?.templates?.[key]?.name || key}
+                  </span>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
+
+          {/* Create alternate-template variant */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setShowCreateTemplate(true)}
+                aria-label={
+                  locale === "ar" ? "إنشاء قالب بديل" : "Create template variant"
+                }
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {locale === "ar" ? "إنشاء قالب بديل" : "Create template variant"}
+            </TooltipContent>
+          </Tooltip>
 
           {/* Preview resource picker — auto-hides for non-resource templates. */}
           <PreviewResourcePicker />
@@ -557,6 +611,16 @@ export function TopBar({
           </Button>
         </div>
       </div>
+
+      {/* ── Create template variant dialog (Template epic) ──
+          Conditionally mounted so each open starts with a fresh suffix. */}
+      {showCreateTemplate && (
+        <CreateTemplateDialog
+          open
+          onOpenChange={(o) => setShowCreateTemplate(o)}
+          defaultBase={activeBase}
+        />
+      )}
 
       {/* ── Discard confirmation dialog ── */}
       <AlertDialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>

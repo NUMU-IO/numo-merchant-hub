@@ -103,9 +103,10 @@ const Dashboard = () => {
   const periodLabel = triggerLabel(range, isAr ? "ar" : "en");
 
   // Share the storefront link — native share sheet when available, otherwise
-  // copy to clipboard with a toast. Used by the onboarding "Share store link"
-  // step (and the zero-orders card) so "Share" actually shares instead of
-  // routing to store settings.
+  // copy to clipboard with a toast. Used by the onboarding "Get your first
+  // order" step (and the zero-orders card) so "Share" actually shares instead
+  // of routing to store settings. Sharing does NOT tick the step — that
+  // completes on its own when the first real order lands.
   const shareStoreLink = async () => {
     if (!currentStore?.subdomain) return;
     const url = getStoreUrl(currentStore.subdomain);
@@ -1575,12 +1576,12 @@ const Dashboard = () => {
               timeAr: "5 دقائق",
             },
             first_order: {
-              label: "Share Your Store Link",
-              labelAr: "شارك رابط متجرك",
-              desc: "Send your store link to customers and start selling",
-              descAr: "ابعت رابط متجرك لعملائك وابدأ البيع",
+              label: "Get Your First Order",
+              labelAr: "أول طلب",
+              desc: "Share your store link — this ticks itself when your first order lands",
+              descAr: "شارك رابط متجرك — بتكمّل لوحدها أول ما يجيلك أول طلب",
               action: shareStoreLink,
-              cta: "Share Link",
+              cta: "Share store link",
               ctaAr: "شارك الرابط",
               Icon: Zap,
               time: "1 min",

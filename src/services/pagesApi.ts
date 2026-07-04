@@ -22,6 +22,9 @@ export interface StorePage {
   seo: Record<string, unknown>;
   is_published: boolean;
   template: string;
+  /** Shopify-style alternate-template key. `"about"` selects the theme's
+   *  `page.about` template variant; `null` = the default `page` template. */
+  template_suffix?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -33,6 +36,9 @@ export interface CreatePageInput {
   seo?: Record<string, unknown>;
   is_published?: boolean;
   template?: string;
+  /** Alternate-template key (e.g. `"about"` → `page.about`). `null`/omitted =
+   *  the default `page` template. */
+  template_suffix?: string | null;
 }
 
 export interface UpdatePageInput {
@@ -41,6 +47,9 @@ export interface UpdatePageInput {
   seo?: Record<string, unknown>;
   is_published?: boolean;
   template?: string;
+  /** Alternate-template key. `null` clears it (back to `page`); a string
+   *  selects `page.<suffix>`. */
+  template_suffix?: string | null;
 }
 
 /** List all content pages for a store (published + drafts). */
