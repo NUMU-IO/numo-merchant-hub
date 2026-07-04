@@ -22,6 +22,7 @@ import type {
   SectionSchemaDefinition,
   BlockSchemaDefinition,
   PresetBlockDefinition,
+  PageTemplate,
   SectionInstance,
   BlockInstance,
   SettingDefinition,
@@ -344,6 +345,19 @@ interface CustomizerActions {
   setActiveMode: (mode: EditorMode) => void;
   setActivePanel: (panel: SidebarPanel) => void;
   setActivePage: (page: string) => void;
+  /**
+   * Template epic — create a Shopify-style alternate-template variant.
+   * Duplicates the base template (e.g. `product`) into `<baseType>.<suffix>`
+   * and switches to it. `suffix` must match `^[a-z0-9][a-z0-9-]{0,31}$`
+   * (validated; invalid input is a no-op). If the base template hasn't been
+   * seeded yet the variant starts empty. Returns the new template key, or
+   * `null` when the input was rejected / there's no draft.
+   *
+   * The new key lives in `draft.templates` so it autosaves + publishes like
+   * any other template, and resource editors (product/collection/page) can
+   * then assign it via `template_suffix`.
+   */
+  addTemplateVariant: (baseType: string, suffix: string) => string | null;
   setSelection: (selection: EditorSelection) => void;
   clearSelection: () => void;
   setShowAddSection: (show: boolean, insertAfter?: string | null) => void;
@@ -1792,6 +1806,49 @@ export const useCustomizerStore = create<CustomizerStore>()(
           };
           s.activePanel = "sections";
         }),
+
+      addTemplateVariant: (baseType, suffix) => {
+        const clean = (suffix ?? "").trim().toLowerCase();
+        // Same rule the resource editors validate against, so a suffix that
+        // publishes here is always a legal `template_suffix` value.
+        if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(clean)) return null;
+        const { draft } = get();
+        if (!draft) return null;
+
+        const newKey = `${baseType}.${clean}`;
+        // Already exists — just navigate to it (idempotent, no history churn).
+        if (draft.templates[newKey]) {
+          get().setActivePage(newKey);
+          return newKey;
+        }
+
+        pushHistory(`add-template:${newKey}`, `Create template ${newKey}`);
+        set((s) => {
+          if (!s.draft) return;
+          const baseTpl = s.draft.templates[baseType];
+          // Duplicate the base template's sections/order (deep clone so the
+          // variant is fully independent). Section ids are template-scoped, so
+          // keeping them is safe — every read goes through
+          // `templates[activePage]`. When the base isn't seeded yet the
+          // variant starts empty, mirroring addSection's on-demand creation.
+          const cloned: PageTemplate = baseTpl
+            ? cloneDeep(baseTpl)
+            : { name: friendlyTemplateName(baseType), sections: {}, order: [] };
+          cloned.name = `${friendlyTemplateName(baseType)} — ${clean}`;
+          s.draft.templates[newKey] = cloned;
+          s.activePage = newKey;
+          s.selection = {
+            type: null,
+            sectionId: null,
+            blockId: null,
+            groupId: null,
+          };
+          s.activePanel = "sections";
+        });
+        markDirty();
+        return newKey;
+      },
+
       setSelection: (selection) =>
         set((s) => {
           s.selection = selection;

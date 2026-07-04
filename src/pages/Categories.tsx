@@ -38,6 +38,7 @@ import {
   listCategories, createCategory, updateCategory, deleteCategory, uploadCategoryImage,
   type Category, type CreateCategoryData, type UpdateCategoryData,
 } from "@/services/categoryApi";
+import { useTemplateOptions, DEFAULT_TEMPLATE_VALUE } from "@/hooks/useTemplateOptions";
 
 function getCatName(cat: Category, lang: string): string {
   if (lang === "ar") {
@@ -219,6 +220,9 @@ export default function Categories() {
   const [formIsActive, setFormIsActive] = useState(true);
   const [formParentId, setFormParentId] = useState<string>("none");
   const [formImageUrl, setFormImageUrl] = useState<string | null>(null);
+  // Alternate storefront template ("template_suffix"). null = default template.
+  const [formTemplateSuffix, setFormTemplateSuffix] = useState<string | null>(null);
+  const { options: templateOptions } = useTemplateOptions("collection");
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
@@ -244,7 +248,7 @@ export default function Categories() {
   const resetForm = () => {
     setFormName(""); setFormNameAr(""); setFormDescription(""); setFormDescriptionAr("");
     setFormPosition("0"); setFormIsActive(true); setFormParentId("none");
-    setFormImageUrl(null); setEditingCategory(null);
+    setFormImageUrl(null); setFormTemplateSuffix(null); setEditingCategory(null);
   };
 
   const openAddDialog = () => { resetForm(); setDialogOpen(true); };
@@ -259,6 +263,7 @@ export default function Categories() {
     setFormIsActive(cat.is_active);
     setFormParentId(cat.parent_id || "none");
     setFormImageUrl(cat.image_url);
+    setFormTemplateSuffix(cat.template_suffix ?? null);
     setDialogOpen(true);
   };
 
@@ -298,6 +303,7 @@ export default function Categories() {
           position: parseInt(formPosition) || 0, is_active: formIsActive,
           parent_id: formParentId === "none" ? null : formParentId,
           extra_data: Object.keys(extra_data).length > 0 ? extra_data : undefined,
+          template_suffix: formTemplateSuffix,
         };
         await updateCategory(storeId, editingCategory.id, data);
         toast.success(isAr ? "تم تحديث الفئة" : "Category updated");
@@ -307,6 +313,7 @@ export default function Categories() {
           position: parseInt(formPosition) || 0, is_active: formIsActive,
           parent_id: formParentId === "none" ? null : formParentId,
           extra_data: Object.keys(extra_data).length > 0 ? extra_data : undefined,
+          template_suffix: formTemplateSuffix,
         };
         await createCategory(storeId, data);
         toast.success(isAr ? "تم إنشاء الفئة" : "Category created");
@@ -604,6 +611,32 @@ export default function Categories() {
               </Select>
               <p className="text-xs text-muted-foreground">
                 {isAr ? "اختر فئة أم لجعل هذه فئة فرعية" : "Select a parent to make this a subcategory"}
+              </p>
+            </div>
+
+            {/* Template (alternate storefront template) */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">{isAr ? "قالب العرض" : "Template"}</Label>
+              <Select
+                value={formTemplateSuffix ?? DEFAULT_TEMPLATE_VALUE}
+                onValueChange={(v) => setFormTemplateSuffix(v === DEFAULT_TEMPLATE_VALUE ? null : v)}
+              >
+                <SelectTrigger className="h-10 rounded-lg">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {templateOptions.map((opt) => (
+                    <SelectItem
+                      key={opt.value ?? DEFAULT_TEMPLATE_VALUE}
+                      value={opt.value ?? DEFAULT_TEMPLATE_VALUE}
+                    >
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {isAr ? "قالب بديل لصفحة الفئة. تُنشأ القوالب من محرر الثيم." : "Alternate template for this collection page. Variants are created in the theme editor."}
               </p>
             </div>
 
