@@ -1,5 +1,7 @@
 /**
- * NUMU Loading Screen — full-screen loader with a tapping-hand animation.
+ * NUMU Welcome Screen — full-screen tapping-hand animation.
+ * Shown ONCE per account: the first login of a freshly registered user
+ * (see FirstLoginGate). All routine loading uses RingLoader instead.
  * Credit: adapted from Uiverse.io by Pradeepsaranbishnoi.
  */
 
@@ -24,7 +26,7 @@ export function NumuLoadingScreen() {
         </div>
 
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-          Loading Numu
+          Welcome to Numu
         </p>
       </div>
     </div>

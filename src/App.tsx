@@ -10,7 +10,8 @@ import { StoreProvider, useDashboardStore } from "@/contexts/StoreContext";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { NumuLoadingScreen } from "@/components/NumuLoader";
+import { NumuRingScreen } from "@/components/NumuLoader/RingLoader";
+import { FirstLoginGate } from "@/components/NumuLoader/FirstLoginGate";
 import { PageLoader } from "@/components/PageLoader";
 import { Suspense } from "react";
 import { lazyWithRetry as lazy } from "@/lib/lazy-with-retry";
@@ -140,7 +141,7 @@ const queryClient = new QueryClient({
 /** Redirects unauthenticated users to /login */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <NumuLoadingScreen />;
+  if (isLoading) return <NumuRingScreen />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -159,7 +160,7 @@ function RouteResolver({ children }: { children: React.ReactNode }) {
 
   // Single loading state for all checks
   if (authLoading || (isAuthenticated && storeLoading)) {
-    return <NumuLoadingScreen />;
+    return <NumuRingScreen />;
   }
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
@@ -183,6 +184,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+              <FirstLoginGate>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   {/* Public */}
@@ -403,6 +405,7 @@ const App = () => (
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
+              </FirstLoginGate>
             </BrowserRouter>
           </StoreProvider>
           </TrialPaywallProvider>
