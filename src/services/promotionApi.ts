@@ -92,6 +92,11 @@ export type PromotionContent =
       icon?: string | null;
       dismissible?: boolean;
       link_url?: string | null;
+      /** 2nd color → the bar background becomes a left→right gradient. */
+      background_gradient_to?: string | null;
+      font_size?: "sm" | "md" | "lg";
+      text_align?: "start" | "center" | "end";
+      animation?: "none" | "pulse" | "marquee";
     }
   | {
       surface: "popup";
