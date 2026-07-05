@@ -1081,12 +1081,14 @@ function PopupCustomHtmlField({
           <Label>{t("promotions.visual.popup_custom_preview")}</Label>
           <div className="overflow-hidden rounded-lg border">
             {/* sandbox="" fully locks the preview: no scripts, no navigation,
-                no same-origin access — safe to render untrusted markup. */}
+                no same-origin access — safe to render untrusted markup. Wrap in
+                a zero-margin doc so the preview matches the storefront (the
+                snippet fills edge-to-edge, no white gutter). */}
             <iframe
               title="popup-preview"
               sandbox=""
-              srcDoc={html}
-              className="h-64 w-full border-0 bg-white"
+              srcDoc={`<!doctype html><html dir="rtl"><head><meta charset="utf-8"><style>*{box-sizing:border-box}html,body{margin:0;padding:0;height:100%}body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}</style></head><body>${html}</body></html>`}
+              className="block h-80 w-full border-0 bg-white"
             />
           </div>
         </div>
@@ -1215,10 +1217,24 @@ function AiPromptPanel({
     setBusy(true);
     setError(null);
     try {
+      // Feed the AI the copy the merchant already typed (headline / body /
+      // button label) so it builds on *their* content instead of inventing a
+      // generic offer. The free-text brief, when present, leads.
+      const headline = state.headlineEn || state.headlineAr;
+      const bodyText = state.bodyEn || state.bodyAr;
+      const ctaLabel = state.ctaLabelEn || state.ctaLabelAr;
+      const composedBrief = [
+        brief.trim(),
+        headline && `Headline: ${headline}`,
+        bodyText && `Body: ${bodyText}`,
+        ctaLabel && `Button label: ${ctaLabel}`,
+      ]
+        .filter(Boolean)
+        .join(". ");
       const r = await generatePromoContent(storeId, {
         surface,
         mode: isHtml ? "html" : "copy",
-        brief: brief.trim(),
+        brief: composedBrief,
         primary_color: state.bg,
         text_color: state.fg,
         cta_url: state.ctaUrl || null,
