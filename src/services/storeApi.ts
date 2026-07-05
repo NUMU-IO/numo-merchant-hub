@@ -539,6 +539,8 @@ export interface PaymobCredentialsResponse {
   hmac_secret_masked: string | null;
   card_integration_id: string | null;
   wallet_integration_id: string | null;
+  /** Paymob Apple Pay integration ID. Presence ⇒ Apple Pay offered at checkout. */
+  apple_pay_integration_id?: string | null;
   last_configured: string | null;
   /** Non-fatal warning from the save-time validation probe (e.g. Paymob
    *  Integration ID / currency mismatch). null when validation passed. */
@@ -561,6 +563,7 @@ export async function savePaymobCredentials(
     hmac_secret: string;
     card_integration_id: string;
     wallet_integration_id?: string;
+    apple_pay_integration_id?: string;
   }
 ): Promise<PaymobCredentialsResponse> {
   return apiClient<PaymobCredentialsResponse>(
@@ -583,6 +586,8 @@ export interface KashierCredentialsResponse {
   is_configured: boolean;
   merchant_id: string | null;
   api_key_masked: string | null;
+  /** Apple Pay offered inside the Kashier session when true (opt-in). */
+  apple_pay_enabled?: boolean;
   last_configured: string | null;
 }
 
@@ -596,7 +601,7 @@ export async function fetchKashierCredentials(
 
 export async function saveKashierCredentials(
   storeId: string,
-  data: { merchant_id: string; api_key: string; secret_key?: string }
+  data: { merchant_id: string; api_key: string; secret_key?: string; apple_pay_enabled?: boolean }
 ): Promise<KashierCredentialsResponse> {
   return apiClient<KashierCredentialsResponse>(
     `/stores/${storeId}/settings/payment/kashier/credentials`,

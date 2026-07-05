@@ -492,8 +492,8 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
   const { requireTrial } = useTrialPaywall();
 
   const [editing, setEditing] = useState(!creds?.is_configured);
-  const [paymobForm, setPaymobForm] = useState({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" });
-  const [kashierForm, setKashierForm] = useState({ merchant_id: "", api_key: "", secret_key: "" });
+  const [paymobForm, setPaymobForm] = useState({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "", apple_pay_integration_id: "" });
+  const [kashierForm, setKashierForm] = useState({ merchant_id: "", api_key: "", secret_key: "", apple_pay_enabled: kashierCreds?.apple_pay_enabled ?? false });
   const [fawryForm, setFawryForm] = useState({ merchant_code: "", security_key: "" });
   const [fawaterakForm, setFawaterakForm] = useState({ api_key: "", vendor_key: "", environment: "staging" });
   const [saving, setSaving] = useState(false);
@@ -507,8 +507,8 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
     let validationWarning: string | null = null;
     try {
       if (isPaymob) {
-        const r = await savePaymobCredentials(storeId, { secret_key: paymobForm.secret_key, public_key: paymobForm.public_key, hmac_secret: paymobForm.hmac_secret, card_integration_id: paymobForm.card_integration_id, wallet_integration_id: paymobForm.wallet_integration_id || undefined });
-        setPaymobCreds(r); setPaymobForm({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "" });
+        const r = await savePaymobCredentials(storeId, { secret_key: paymobForm.secret_key, public_key: paymobForm.public_key, hmac_secret: paymobForm.hmac_secret, card_integration_id: paymobForm.card_integration_id, wallet_integration_id: paymobForm.wallet_integration_id || undefined, apple_pay_integration_id: paymobForm.apple_pay_integration_id || undefined });
+        setPaymobCreds(r); setPaymobForm({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "", apple_pay_integration_id: "" });
         validationWarning = r.validation_warning ?? null;
       } else if (isFawry) {
         const r = await saveFawryCredentials(storeId, { merchant_code: fawryForm.merchant_code, security_key: fawryForm.security_key });
@@ -517,8 +517,8 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
         const r = await saveFawaterakCredentials(storeId, { api_key: fawaterakForm.api_key, vendor_key: fawaterakForm.vendor_key, environment: fawaterakForm.environment });
         setFawaterakCreds(r); setFawaterakForm({ api_key: "", vendor_key: "", environment: "staging" });
       } else {
-        const r = await saveKashierCredentials(storeId, { merchant_id: kashierForm.merchant_id, api_key: kashierForm.api_key, secret_key: kashierForm.secret_key || undefined });
-        setKashierCreds(r); setKashierForm({ merchant_id: "", api_key: "", secret_key: "" });
+        const r = await saveKashierCredentials(storeId, { merchant_id: kashierForm.merchant_id, api_key: kashierForm.api_key, secret_key: kashierForm.secret_key || undefined, apple_pay_enabled: kashierForm.apple_pay_enabled });
+        setKashierCreds(r); setKashierForm({ merchant_id: "", api_key: "", secret_key: "", apple_pay_enabled: false });
       }
       setEnabledGateway(gatewayKey); setEditing(false);
       if (validationWarning) {
@@ -614,6 +614,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
                   { l: "HMAC Secret", v: paymobCreds!.hmac_secret_masked },
                   { l: "Card Integration ID", v: paymobCreds!.card_integration_id },
                   ...(paymobCreds!.wallet_integration_id ? [{ l: "Wallet ID", v: paymobCreds!.wallet_integration_id }] : []),
+                  ...(paymobCreds!.apple_pay_integration_id ? [{ l: "Apple Pay ID", v: paymobCreds!.apple_pay_integration_id }] : []),
                 ] : isFawry ? [
                   { l: "Merchant Code", v: fawryCreds!.merchant_code },
                   { l: "Security Key", v: fawryCreds!.security_key_masked },
@@ -624,6 +625,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
                 ] : [
                   { l: "Merchant ID", v: kashierCreds!.merchant_id },
                   { l: "API Key", v: kashierCreds!.api_key_masked },
+                  ...(kashierCreds!.apple_pay_enabled ? [{ l: "Apple Pay", v: isAr ? "مُفعّل" : "Enabled" }] : []),
                 ]).map(f => (
                   <div key={f.l} className="rounded-lg bg-muted/30 px-3 py-2.5">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">{f.l}</p>
@@ -649,6 +651,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
                     { k: "hmac_secret" as const, l: "HMAC Secret", p: "HMAC secret", s: true },
                     { k: "card_integration_id" as const, l: "Card Integration ID", p: "123456", s: false },
                     { k: "wallet_integration_id" as const, l: `Wallet ID (${isAr ? "اختياري" : "optional"})`, p: "789012", s: false },
+                    { k: "apple_pay_integration_id" as const, l: `Apple Pay ID (${isAr ? "اختياري" : "optional"})`, p: "789013", s: false },
                   ].map(f => (
                     <div key={f.k} className="space-y-1.5">
                       <Label className="text-[11px] font-medium">{f.l}</Label>
@@ -675,6 +678,13 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
                   <div className="space-y-1.5"><Label className="text-[11px] font-medium">Merchant ID</Label><Input placeholder="MID-xxx" className="h-9 text-xs" value={kashierForm.merchant_id} onChange={e => setKashierForm(f => ({ ...f, merchant_id: e.target.value }))} /></div>
                   <div className="space-y-1.5"><Label className="text-[11px] font-medium">API Key</Label><div className="relative"><Input type={showKeys ? "text" : "password"} placeholder="API key" className="h-9 text-xs pr-8" value={kashierForm.api_key} onChange={e => setKashierForm(f => ({ ...f, api_key: e.target.value }))} /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer" onClick={() => setShowKeys(!showKeys)}>{showKeys ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}</button></div></div>
                   <div className="space-y-1.5"><Label className="text-[11px] font-medium">Secret Key <span className="text-muted-foreground font-normal">({isAr ? "اختياري" : "optional"})</span></Label><Input type={showKeys ? "text" : "password"} placeholder="Secret" className="h-9 text-xs" value={kashierForm.secret_key} onChange={e => setKashierForm(f => ({ ...f, secret_key: e.target.value }))} /></div>
+                  <div className="sm:col-span-2 flex items-center justify-between rounded-lg border bg-muted/10 px-3 py-2.5">
+                    <div>
+                      <p className="text-[11px] font-medium"> Apple Pay</p>
+                      <p className="text-[10px] text-muted-foreground">{isAr ? "اعرض Apple Pay في صفحة الدفع (يتطلب تفعيله في حساب كاشير)" : "Show Apple Pay at checkout (requires Apple Pay enabled on your Kashier account)"}</p>
+                    </div>
+                    <Switch checked={kashierForm.apple_pay_enabled} onCheckedChange={c => setKashierForm(f => ({ ...f, apple_pay_enabled: c }))} />
+                  </div>
                 </div>
               )}
               <div className="flex gap-2 pt-2">
