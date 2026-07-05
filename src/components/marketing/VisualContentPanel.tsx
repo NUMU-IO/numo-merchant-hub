@@ -9,8 +9,10 @@
  * actually create / edit popups and banners against the API today.
  */
 
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -18,7 +20,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import {
+  MediaLibraryDialog,
+  getImageUrl,
+} from "@/features/theme-editor-v3/components/inputs/MediaLibraryDialog";
 import {
   Select,
   SelectContent,
@@ -63,6 +70,10 @@ export interface VisualContentState {
    */
   ctaUrl: string;
   // popup
+  /** Template = our headline/body/form popup; Custom = merchant-pasted HTML. */
+  popupContentMode: "template" | "custom";
+  /** Raw HTML pasted by the merchant, used when popupContentMode === "custom". */
+  popupCustomHtml: string;
   popupLayout: "centered" | "side";
   popupCodeReveal: string;
   popupShowAfterDays: number;
@@ -110,6 +121,8 @@ export const EMPTY_VISUAL_CONTENT: VisualContentState = {
   ctaLabelEn: "",
   ctaLabelAr: "",
   ctaUrl: "",
+  popupContentMode: "template",
+  popupCustomHtml: "",
   popupLayout: "centered",
   popupCodeReveal: "",
   popupShowAfterDays: 30,
@@ -161,6 +174,18 @@ export function buildVisualContent(
         link_url: s.linkUrl || null,
       };
     case "popup": {
+      // Custom-HTML mode: the merchant supplies the entire popup body
+      // (e.g. pasted from an AI assistant). The storefront renders it in
+      // a sandboxed iframe, so we only ship the markup + the dismissal
+      // window — none of the templated copy/form/image fields apply.
+      if (s.popupContentMode === "custom") {
+        return {
+          surface: "popup",
+          layout: "custom",
+          custom_html: s.popupCustomHtml || null,
+          show_after_dismiss_days: s.popupShowAfterDays,
+        };
+      }
       // Backend stores form-capture toggles as a `form_fields` list of
       // discriminated values, NOT as separate `collect_email` /
       // `collect_phone` booleans. Sending the boolean keys tripped
@@ -439,48 +464,32 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-2">
-              <Label htmlFor="popup-layout">
-                {t("promotions.visual.popup_layout")}
+              <Label htmlFor="popup-mode">
+                {t("promotions.visual.popup_mode")}
               </Label>
               <Select
-                value={state.popupLayout}
+                value={state.popupContentMode}
                 onValueChange={(v) =>
-                  update("popupLayout", v as "centered" | "side")
+                  update("popupContentMode", v as "template" | "custom")
                 }
               >
-                <SelectTrigger id="popup-layout">
+                <SelectTrigger id="popup-mode">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="centered">
-                    {t("promotions.visual.popup_layout_centered")}
+                  <SelectItem value="template">
+                    {t("promotions.visual.popup_mode_template")}
                   </SelectItem>
-                  <SelectItem value="side">
-                    {t("promotions.visual.popup_layout_side")}
+                  <SelectItem value="custom">
+                    {t("promotions.visual.popup_mode_custom")}
                   </SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="popup-code">
-                {t("promotions.visual.popup_code")}
-              </Label>
-              <Input
-                id="popup-code"
-                value={state.popupCodeReveal}
-                onChange={(e) =>
-                  update(
-                    "popupCodeReveal",
-                    e.target.value.toUpperCase(),
-                  )
-                }
-                className="font-mono"
-                placeholder="WELCOME10"
-              />
               <p className="text-xs text-muted-foreground">
-                {t("promotions.visual.popup_code_hint")}
+                {t("promotions.visual.popup_mode_hint")}
               </p>
             </div>
+
             <div className="grid gap-2">
               <Label htmlFor="popup-show-after">
                 {t("promotions.visual.popup_show_after")}
@@ -499,41 +508,81 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
                 }
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="popup-image">
-                {t("promotions.visual.popup_image_url")}
-              </Label>
-              <Input
-                id="popup-image"
-                value={state.popupImageUrl}
-                onChange={(e) => update("popupImageUrl", e.target.value)}
-                placeholder="https://… (1200×600 recommended)"
-                dir="ltr"
-              />
-              <p className="text-xs text-muted-foreground">
-                {t("promotions.visual.popup_image_hint")}
-              </p>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="popup-cta-url">
-                {t("promotions.visual.cta_url")}
-              </Label>
-              <LinkPicker
-                id="popup-cta-url"
-                storeId={storeId}
-                value={state.ctaUrl}
-                onChange={(v) => update("ctaUrl", v)}
-                placeholder="/products"
-              />
-              <p className="text-xs text-muted-foreground">
-                {t("promotions.visual.popup_cta_hint")}
-              </p>
-            </div>
+
+            {state.popupContentMode === "custom" ? (
+              <PopupCustomHtmlField state={state} update={update} />
+            ) : (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="popup-layout">
+                    {t("promotions.visual.popup_layout")}
+                  </Label>
+                  <Select
+                    value={state.popupLayout}
+                    onValueChange={(v) =>
+                      update("popupLayout", v as "centered" | "side")
+                    }
+                  >
+                    <SelectTrigger id="popup-layout">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="centered">
+                        {t("promotions.visual.popup_layout_centered")}
+                      </SelectItem>
+                      <SelectItem value="side">
+                        {t("promotions.visual.popup_layout_side")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="popup-code">
+                    {t("promotions.visual.popup_code")}
+                  </Label>
+                  <Input
+                    id="popup-code"
+                    value={state.popupCodeReveal}
+                    onChange={(e) =>
+                      update(
+                        "popupCodeReveal",
+                        e.target.value.toUpperCase(),
+                      )
+                    }
+                    className="font-mono"
+                    placeholder="WELCOME10"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("promotions.visual.popup_code_hint")}
+                  </p>
+                </div>
+                <PopupImageField
+                  state={state}
+                  update={update}
+                  storeId={storeId}
+                />
+                <div className="grid gap-2">
+                  <Label htmlFor="popup-cta-url">
+                    {t("promotions.visual.cta_url")}
+                  </Label>
+                  <LinkPicker
+                    id="popup-cta-url"
+                    storeId={storeId}
+                    value={state.ctaUrl}
+                    onChange={(v) => update("ctaUrl", v)}
+                    placeholder="/products"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("promotions.visual.popup_cta_hint")}
+                  </p>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {surface === "popup" && (
+      {surface === "popup" && state.popupContentMode === "template" && (
         <Card>
           <CardHeader>
             <CardTitle>{t("promotions.visual.popup_form_title")}</CardTitle>
@@ -715,6 +764,127 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
             </div>
           </CardContent>
         </Card>
+      )}
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------- //
+// Popup image picker + custom-HTML fields                                      //
+// --------------------------------------------------------------------------- //
+
+type PopupFieldUpdate = <K extends keyof VisualContentState>(
+  key: K,
+  value: VisualContentState[K],
+) => void;
+
+/** Image field backed by the same media library / uploader the theme editor
+ *  uses — shows existing uploads, an Upload tab, and a URL tab. */
+function PopupImageField({
+  state,
+  update,
+  storeId,
+}: {
+  state: VisualContentState;
+  update: PopupFieldUpdate;
+  storeId: string | undefined;
+}) {
+  const { t, i18n } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const locale = i18n.language?.startsWith("ar") ? "ar" : "en";
+  return (
+    <div className="grid gap-2">
+      <Label>{t("promotions.visual.popup_image_url")}</Label>
+      <div className="flex items-center gap-3">
+        {state.popupImageUrl ? (
+          <img
+            src={state.popupImageUrl}
+            alt=""
+            className="h-16 w-24 rounded-md border object-cover"
+          />
+        ) : (
+          <div className="flex h-16 w-24 items-center justify-center rounded-md border border-dashed text-center text-xs text-muted-foreground">
+            {t("promotions.visual.popup_image_none")}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setOpen(true)}
+          >
+            {t("promotions.visual.popup_image_choose")}
+          </Button>
+          {state.popupImageUrl && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => update("popupImageUrl", "")}
+            >
+              {t("promotions.visual.popup_image_remove")}
+            </Button>
+          )}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {t("promotions.visual.popup_image_hint")}
+      </p>
+      <MediaLibraryDialog
+        open={open}
+        onOpenChange={setOpen}
+        value={state.popupImageUrl}
+        onChange={(next) => update("popupImageUrl", getImageUrl(next))}
+        locale={locale}
+        storeId={storeId}
+      />
+    </div>
+  );
+}
+
+/** Textarea for merchant-pasted HTML + a fully-sandboxed live preview. */
+function PopupCustomHtmlField({
+  state,
+  update,
+}: {
+  state: VisualContentState;
+  update: PopupFieldUpdate;
+}) {
+  const { t } = useTranslation();
+  const html = state.popupCustomHtml;
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-2">
+        <Label htmlFor="popup-custom-html">
+          {t("promotions.visual.popup_custom_html")}
+        </Label>
+        <Textarea
+          id="popup-custom-html"
+          value={html}
+          onChange={(e) => update("popupCustomHtml", e.target.value)}
+          placeholder='<div style="padding:24px;text-align:center">…</div>'
+          className="min-h-[200px] font-mono text-xs"
+          dir="ltr"
+        />
+        <p className="text-xs text-muted-foreground">
+          {t("promotions.visual.popup_custom_html_hint")}
+        </p>
+      </div>
+      {html.trim() && (
+        <div className="grid gap-2">
+          <Label>{t("promotions.visual.popup_custom_preview")}</Label>
+          <div className="overflow-hidden rounded-lg border">
+            {/* sandbox="" fully locks the preview: no scripts, no navigation,
+                no same-origin access — safe to render untrusted markup. */}
+            <iframe
+              title="popup-preview"
+              sandbox=""
+              srcDoc={html}
+              className="h-64 w-full border-0 bg-white"
+            />
+          </div>
+        </div>
       )}
     </div>
   );
