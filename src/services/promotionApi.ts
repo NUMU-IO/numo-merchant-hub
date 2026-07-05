@@ -465,3 +465,40 @@ export async function issuePreviewToken(storeId: string): Promise<PreviewToken> 
     { method: "POST" },
   );
 }
+
+// --------------------------------------------------------------------------- //
+// "Design by NUMU AI" — integrated AI promo-content generation                //
+// --------------------------------------------------------------------------- //
+
+export interface GeneratePromoContentPayload {
+  surface: "announcement_bar" | "popup" | "floating_widget" | "cookie_banner";
+  mode: "copy" | "html";
+  brief?: string;
+  store_name?: string;
+  primary_color?: string | null;
+  text_color?: string | null;
+  cta_url?: string | null;
+}
+
+export interface GeneratedPromoContent {
+  mode: "copy" | "html";
+  headline_en?: string | null;
+  headline_ar?: string | null;
+  body_en?: string | null;
+  body_ar?: string | null;
+  cta_en?: string | null;
+  cta_ar?: string | null;
+  html?: string | null;
+}
+
+/** Generate promo content with the integrated AI (gpt-4o). Returns HTML for a
+ *  custom popup, or short bilingual copy for banner / widget / cookie. */
+export async function generatePromoContent(
+  storeId: string,
+  payload: GeneratePromoContentPayload,
+): Promise<GeneratedPromoContent> {
+  return apiClient<GeneratedPromoContent>(
+    `/stores/${storeId}/ai/generate-promo-content`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+}
