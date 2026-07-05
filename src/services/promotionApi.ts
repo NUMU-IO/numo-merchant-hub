@@ -95,7 +95,9 @@ export type PromotionContent =
     }
   | {
       surface: "popup";
-      layout?: "centered" | "side";
+      // "custom" renders merchant-authored `custom_html` instead of the
+      // templated headline/body/form (storefront sandboxes it in an iframe).
+      layout?: "centered" | "side" | "custom";
       image_url?: string | null;
       // Legacy: older rows used a `form_fields` array; new builder
       // writes `collect_email` / `collect_phone` booleans instead.
@@ -106,6 +108,8 @@ export type PromotionContent =
       collect_phone?: boolean;
       discount_code_to_reveal?: string | null;
       show_after_dismiss_days?: number;
+      /** Merchant-pasted HTML, used when `layout === "custom"`. */
+      custom_html?: string | null;
     }
   | {
       surface: "floating_widget";

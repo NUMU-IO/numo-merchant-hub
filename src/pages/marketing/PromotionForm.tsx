@@ -340,9 +340,12 @@ export default function PromotionForm() {
         ctaLabelEn: enT?.cta_label?.en ?? "",
         ctaLabelAr: arT?.cta_label?.ar ?? "",
         ctaUrl: savedCtaUrl,
+        popupContentMode: c.layout === "custom" ? "custom" : "template",
+        popupCustomHtml: (c.custom_html as string) ?? "",
         popupLayout:
-          (c.layout as "centered" | "side") ??
-          EMPTY_VISUAL_CONTENT.popupLayout,
+          c.layout === "centered" || c.layout === "side"
+            ? c.layout
+            : EMPTY_VISUAL_CONTENT.popupLayout,
         popupCodeReveal: (c.discount_code_to_reveal as string) ?? "",
         popupShowAfterDays:
           (c.show_after_dismiss_days as number | undefined) ??
