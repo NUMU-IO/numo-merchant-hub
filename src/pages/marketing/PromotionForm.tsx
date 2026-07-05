@@ -333,6 +333,16 @@ export default function PromotionForm() {
           (c.dismissible as boolean | undefined) ??
           EMPTY_VISUAL_CONTENT.dismissible,
         linkUrl: (c.link_url as string) ?? "",
+        barGradientTo: (c.background_gradient_to as string) ?? "",
+        barFontSize:
+          (c.font_size as VisualContentState["barFontSize"]) ??
+          EMPTY_VISUAL_CONTENT.barFontSize,
+        barTextAlign:
+          (c.text_align as VisualContentState["barTextAlign"]) ??
+          EMPTY_VISUAL_CONTENT.barTextAlign,
+        barAnimation:
+          (c.animation as VisualContentState["barAnimation"]) ??
+          EMPTY_VISUAL_CONTENT.barAnimation,
         headlineEn: enT?.headline?.en ?? "",
         headlineAr: arT?.headline?.ar ?? "",
         bodyEn: enT?.body?.en ?? "",
@@ -340,6 +350,7 @@ export default function PromotionForm() {
         ctaLabelEn: enT?.cta_label?.en ?? "",
         ctaLabelAr: arT?.cta_label?.ar ?? "",
         ctaUrl: savedCtaUrl,
+        autoApplyCode: (c.auto_apply_code as string) ?? "",
         popupContentMode: c.layout === "custom" ? "custom" : "template",
         popupCustomHtml: (c.custom_html as string) ?? "",
         popupLayout:

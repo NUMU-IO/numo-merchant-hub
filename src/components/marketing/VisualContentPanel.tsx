@@ -10,6 +10,7 @@
  */
 
 import { useState } from "react";
+import { Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -42,9 +43,11 @@ import {
 } from "@/components/ui/tabs";
 
 import type {
+  GeneratedPromoContent,
   PromotionContent,
   PromotionSurface,
 } from "@/services/promotionApi";
+import { generatePromoContent } from "@/services/promotionApi";
 
 import { LinkPicker } from "./LinkPicker";
 
@@ -55,6 +58,11 @@ export interface VisualContentState {
   icon: string;
   dismissible: boolean;
   linkUrl: string;
+  /** Optional 2nd color — when set the bar background is a gradient. */
+  barGradientTo: string;
+  barFontSize: "sm" | "md" | "lg";
+  barTextAlign: "start" | "center" | "end";
+  barAnimation: "none" | "pulse" | "marquee";
   // shared bilingual headline / body / cta
   headlineEn: string;
   headlineAr: string;
@@ -69,6 +77,8 @@ export interface VisualContentState {
    * because the spec doesn't ask for per-locale destinations.
    */
   ctaUrl: string;
+  /** Coupon code auto-pinned to the cart when a shopper follows this promo's CTA. */
+  autoApplyCode: string;
   // popup
   /** Template = our headline/body/form popup; Custom = merchant-pasted HTML. */
   popupContentMode: "template" | "custom";
@@ -111,9 +121,13 @@ export interface VisualContentState {
 export const EMPTY_VISUAL_CONTENT: VisualContentState = {
   bg: "#0f172a",
   fg: "#ffffff",
-  icon: "sparkle",
+  icon: "",
   dismissible: true,
   linkUrl: "",
+  barGradientTo: "",
+  barFontSize: "md",
+  barTextAlign: "center",
+  barAnimation: "none",
   headlineEn: "",
   headlineAr: "",
   bodyEn: "",
@@ -121,6 +135,7 @@ export const EMPTY_VISUAL_CONTENT: VisualContentState = {
   ctaLabelEn: "",
   ctaLabelAr: "",
   ctaUrl: "",
+  autoApplyCode: "",
   popupContentMode: "template",
   popupCustomHtml: "",
   popupLayout: "centered",
@@ -172,6 +187,11 @@ export function buildVisualContent(
         icon: s.icon || null,
         dismissible: s.dismissible,
         link_url: s.linkUrl || null,
+        background_gradient_to: s.barGradientTo || null,
+        font_size: s.barFontSize,
+        text_align: s.barTextAlign,
+        animation: s.barAnimation,
+        auto_apply_code: s.autoApplyCode || null,
       };
     case "popup": {
       // Custom-HTML mode: the merchant supplies the entire popup body
@@ -184,6 +204,7 @@ export function buildVisualContent(
           layout: "custom",
           custom_html: s.popupCustomHtml || null,
           show_after_dismiss_days: s.popupShowAfterDays,
+          auto_apply_code: s.autoApplyCode || null,
         };
       }
       // Backend stores form-capture toggles as a `form_fields` list of
@@ -201,6 +222,7 @@ export function buildVisualContent(
         show_after_dismiss_days: s.popupShowAfterDays,
         image_url: s.popupImageUrl || null,
         form_fields: formFields,
+        auto_apply_code: s.autoApplyCode || null,
       };
     }
     case "floating_widget":
@@ -210,6 +232,7 @@ export function buildVisualContent(
         icon: s.widgetIcon,
         expanded_default: s.widgetExpanded,
         color_bg: s.widgetBg,
+        auto_apply_code: s.autoApplyCode || null,
       };
     case "cookie_banner":
       return {
@@ -443,6 +466,110 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
                 placeholder="/products"
               />
             </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="bar-icon">
+                  {t("promotions.visual.bar_icon")}
+                </Label>
+                <Input
+                  id="bar-icon"
+                  value={state.icon}
+                  onChange={(e) => update("icon", e.target.value)}
+                  placeholder="🎉"
+                  maxLength={4}
+                  className="w-24 text-center text-lg"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="bar-grad">
+                  {t("promotions.visual.bar_gradient")}
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="bar-grad"
+                    type="color"
+                    value={state.barGradientTo || state.bg}
+                    onChange={(e) => update("barGradientTo", e.target.value)}
+                    className="h-10 w-20"
+                  />
+                  {state.barGradientTo && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => update("barGradientTo", "")}
+                    >
+                      {t("promotions.visual.bar_gradient_clear")}
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t("promotions.visual.bar_gradient_hint")}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-2">
+                <Label htmlFor="bar-size">
+                  {t("promotions.visual.bar_font_size")}
+                </Label>
+                <Select
+                  value={state.barFontSize}
+                  onValueChange={(v) =>
+                    update("barFontSize", v as VisualContentState["barFontSize"])
+                  }
+                >
+                  <SelectTrigger id="bar-size">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sm">{t("promotions.visual.size_sm")}</SelectItem>
+                    <SelectItem value="md">{t("promotions.visual.size_md")}</SelectItem>
+                    <SelectItem value="lg">{t("promotions.visual.size_lg")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="bar-align">
+                  {t("promotions.visual.bar_align")}
+                </Label>
+                <Select
+                  value={state.barTextAlign}
+                  onValueChange={(v) =>
+                    update("barTextAlign", v as VisualContentState["barTextAlign"])
+                  }
+                >
+                  <SelectTrigger id="bar-align">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="start">{t("promotions.visual.align_start")}</SelectItem>
+                    <SelectItem value="center">{t("promotions.visual.align_center")}</SelectItem>
+                    <SelectItem value="end">{t("promotions.visual.align_end")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="bar-anim">
+                  {t("promotions.visual.bar_animation")}
+                </Label>
+                <Select
+                  value={state.barAnimation}
+                  onValueChange={(v) =>
+                    update("barAnimation", v as VisualContentState["barAnimation"])
+                  }
+                >
+                  <SelectTrigger id="bar-anim">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("promotions.visual.anim_none")}</SelectItem>
+                    <SelectItem value="pulse">{t("promotions.visual.anim_pulse")}</SelectItem>
+                    <SelectItem value="marquee">{t("promotions.visual.anim_marquee")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="bar-dismiss" className="text-base">
                 {t("promotions.visual.dismissible")}
@@ -453,6 +580,13 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
                 onCheckedChange={(c) => update("dismissible", c)}
               />
             </div>
+            <AutoApplyCodeField state={state} update={update} />
+            <AiPromptPanel
+              surface="announcement_bar"
+              state={state}
+              update={update}
+              storeId={storeId}
+            />
           </CardContent>
         </Card>
       )}
@@ -510,7 +644,11 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
             </div>
 
             {state.popupContentMode === "custom" ? (
-              <PopupCustomHtmlField state={state} update={update} />
+              <PopupCustomHtmlField
+                state={state}
+                update={update}
+                storeId={storeId}
+              />
             ) : (
               <>
                 <div className="grid gap-2">
@@ -576,6 +714,7 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
                     {t("promotions.visual.popup_cta_hint")}
                   </p>
                 </div>
+                <AutoApplyCodeField state={state} update={update} />
               </>
             )}
           </CardContent>
@@ -708,6 +847,13 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
                 placeholder="/products"
               />
             </div>
+            <AutoApplyCodeField state={state} update={update} />
+            <AiPromptPanel
+              surface="floating_widget"
+              state={state}
+              update={update}
+              storeId={storeId}
+            />
           </CardContent>
         </Card>
       )}
@@ -762,6 +908,12 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
                 onCheckedChange={(c) => update("cookieAcceptRequired", c)}
               />
             </div>
+            <AiPromptPanel
+              surface="cookie_banner"
+              state={state}
+              update={update}
+              storeId={storeId}
+            />
           </CardContent>
         </Card>
       )}
@@ -777,6 +929,36 @@ type PopupFieldUpdate = <K extends keyof VisualContentState>(
   key: K,
   value: VisualContentState[K],
 ) => void;
+
+/** Optional coupon code auto-pinned to the cart when a shopper follows this
+ *  promo's CTA — shared by the banner, popup and floating-widget cards. */
+function AutoApplyCodeField({
+  state,
+  update,
+}: {
+  state: VisualContentState;
+  update: PopupFieldUpdate;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor="auto-apply-code">
+        {t("promotions.visual.auto_apply_code")}
+      </Label>
+      <Input
+        id="auto-apply-code"
+        value={state.autoApplyCode}
+        onChange={(e) => update("autoApplyCode", e.target.value.toUpperCase())}
+        className="font-mono"
+        placeholder="WELCOME10"
+        dir="ltr"
+      />
+      <p className="text-xs text-muted-foreground">
+        {t("promotions.visual.auto_apply_code_hint")}
+      </p>
+    </div>
+  );
+}
 
 /** Image field backed by the same media library / uploader the theme editor
  *  uses — shows existing uploads, an Upload tab, and a URL tab. */
@@ -847,14 +1029,27 @@ function PopupImageField({
 function PopupCustomHtmlField({
   state,
   update,
+  storeId,
 }: {
   state: VisualContentState;
   update: PopupFieldUpdate;
+  storeId?: string;
 }) {
   const { t } = useTranslation();
   const html = state.popupCustomHtml;
+  const trimmed = html.trim();
+  // Lightweight, non-blocking checks so the merchant knows their pasted HTML
+  // will render + act the way our popup expects.
+  const hasScript = /<script[\s>]/i.test(html);
+  const hasCta = /<a[\s>]/i.test(html);
   return (
     <div className="space-y-3">
+      <AiPromptPanel
+        surface="popup"
+        state={state}
+        update={update}
+        storeId={storeId}
+      />
       <div className="grid gap-2">
         <Label htmlFor="popup-custom-html">
           {t("promotions.visual.popup_custom_html")}
@@ -870,8 +1065,18 @@ function PopupCustomHtmlField({
         <p className="text-xs text-muted-foreground">
           {t("promotions.visual.popup_custom_html_hint")}
         </p>
+        {trimmed && hasScript && (
+          <p className="text-xs font-medium text-amber-600">
+            ⚠ {t("promotions.visual.popup_custom_warn_script")}
+          </p>
+        )}
+        {trimmed && !hasCta && (
+          <p className="text-xs font-medium text-amber-600">
+            ⚠ {t("promotions.visual.popup_custom_warn_cta")}
+          </p>
+        )}
       </div>
-      {html.trim() && (
+      {trimmed && (
         <div className="grid gap-2">
           <Label>{t("promotions.visual.popup_custom_preview")}</Label>
           <div className="overflow-hidden rounded-lg border">
@@ -886,6 +1091,196 @@ function PopupCustomHtmlField({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------- //
+// AI prompt helper — a copyable, contract-aware prompt the merchant pastes    //
+// into their own AI assistant (ChatGPT / Claude) to generate popup HTML or    //
+// banner copy that fits what our surfaces actually render.                    //
+// --------------------------------------------------------------------------- //
+
+function buildAiPrompt(
+  surface: PromotionSurface,
+  s: VisualContentState,
+  brief?: string,
+): string {
+  const details =
+    (brief && brief.trim()) ||
+    [s.headlineEn || s.headlineAr, s.bodyEn || s.bodyAr]
+      .filter(Boolean)
+      .join(" — ") ||
+    "(describe your promotion / offer here)";
+
+  if (surface === "popup") {
+    const cta = s.ctaUrl || "https://your-store-link";
+    const label = s.ctaLabelEn || s.ctaLabelAr || "Shop now";
+    return [
+      "Design the inner HTML for an e-commerce popup modal.",
+      "Output ONLY one self-contained HTML snippet — no <html>/<head>/<body>, no <script>, no markdown code fences.",
+      "",
+      "Hard requirements (our popup renders your HTML inside a sandboxed iframe ~460px wide):",
+      "- Inline CSS only (style=\"...\"). No <script>, no <link>, no external fonts/images/URLs — scripts and remote resources are stripped for security.",
+      "- Design for ~460px wide, responsive down to 320px. Keep the total height under ~560px.",
+      `- Include EXACTLY ONE call to action as a link: <a href="${cta}" target="_top" style="...">${label}</a>. target="_top" is REQUIRED so the click navigates the storefront.`,
+      "- If the copy is Arabic, add dir=\"rtl\" to the root element.",
+      "- Do NOT add a close (X) button — our modal already provides one.",
+      "",
+      `Brand colors to use: background ${s.bg}, text ${s.fg}.`,
+      `Offer to feature: ${details}.`,
+      "",
+      "Return only the HTML.",
+    ].join("\n");
+  }
+
+  // Copy-only surfaces (announcement bar / floating widget / cookie banner) —
+  // we style these ourselves, so the AI just writes short bilingual copy.
+  const surfaceBrief =
+    surface === "floating_widget"
+      ? "a small floating corner widget (a pill that expands to a card)"
+      : surface === "cookie_banner"
+        ? "a cookie-consent banner"
+        : "a store's top announcement bar";
+  const ctaLine =
+    surface === "cookie_banner"
+      ? "CTA (EN): <accept-button label, max 24 chars>\nCTA (AR): <accept-button label, max 24 chars>"
+      : "CTA (EN): <button label, max 24 chars>\nCTA (AR): <button label, max 24 chars>";
+  const toneLine =
+    surface === "cookie_banner"
+      ? "Tone: reassuring, plain-language, privacy-respecting."
+      : "Tone: energetic and trustworthy.";
+  return [
+    `Write short bilingual copy for ${surfaceBrief} on an e-commerce store. Keep it concise.`,
+    "",
+    "Return exactly this, filling BOTH languages:",
+    "Headline (EN): <max 60 chars, include one relevant emoji unless it's the cookie banner>",
+    "Headline (AR): <max 60 chars>",
+    "Body (EN): <max 90 chars>",
+    "Body (AR): <max 90 chars>",
+    ctaLine,
+    "",
+    `Offer / context: ${details}.`,
+    `${toneLine} Plain text only — no links, no HTML.`,
+  ].join("\n");
+}
+
+function AiPromptPanel({
+  surface,
+  state,
+  update,
+  storeId,
+}: {
+  surface: PromotionSurface;
+  state: VisualContentState;
+  update: PopupFieldUpdate;
+  storeId?: string;
+}) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  const [brief, setBrief] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // The popup's AI panel lives in custom-HTML mode, so it generates HTML;
+  // every other surface generates short bilingual copy.
+  const isHtml = surface === "popup";
+  const prompt = buildAiPrompt(surface, state, brief);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard blocked — the prompt textarea is selectable as a fallback */
+    }
+  };
+
+  const applyResult = (r: GeneratedPromoContent) => {
+    if (r.mode === "html" && r.html) {
+      update("popupContentMode", "custom");
+      update("popupCustomHtml", r.html);
+      return;
+    }
+    if (r.headline_en) update("headlineEn", r.headline_en);
+    if (r.headline_ar) update("headlineAr", r.headline_ar);
+    if (r.body_en) update("bodyEn", r.body_en);
+    if (r.body_ar) update("bodyAr", r.body_ar);
+    if (r.cta_en) update("ctaLabelEn", r.cta_en);
+    if (r.cta_ar) update("ctaLabelAr", r.cta_ar);
+  };
+
+  const generate = async () => {
+    if (!storeId || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await generatePromoContent(storeId, {
+        surface,
+        mode: isHtml ? "html" : "copy",
+        brief: brief.trim(),
+        primary_color: state.bg,
+        text_color: state.fg,
+        cta_url: state.ctaUrl || null,
+      });
+      applyResult(r);
+    } catch (e) {
+      setError(
+        e instanceof Error && /429|rate|too many/i.test(e.message)
+          ? (t("promotions.visual.ai_err_rate") as string)
+          : (t("promotions.visual.ai_err") as string),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed bg-muted/40 p-3">
+      <Label className="flex items-center gap-1.5 text-sm font-medium">
+        <Sparkles className="h-4 w-4" />
+        {t("promotions.visual.ai_title")}
+      </Label>
+      <Textarea
+        value={brief}
+        onChange={(e) => setBrief(e.target.value)}
+        placeholder={t("promotions.visual.ai_brief_ph") as string}
+        className="min-h-[64px] text-sm"
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          onClick={generate}
+          disabled={busy || !storeId}
+        >
+          <Sparkles className="me-1.5 h-3.5 w-3.5" />
+          {busy
+            ? t("promotions.visual.ai_generating")
+            : t("promotions.visual.ai_generate")}
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={copy}>
+          {copied
+            ? t("promotions.visual.ai_copied")
+            : t("promotions.visual.ai_copy")}
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {t("promotions.visual.ai_or_copy")}
+        </span>
+      </div>
+      {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+      <details className="text-xs">
+        <summary className="cursor-pointer text-muted-foreground">
+          {t("promotions.visual.ai_view_prompt")}
+        </summary>
+        <Textarea
+          readOnly
+          value={prompt}
+          onFocus={(e) => e.currentTarget.select()}
+          className="mt-2 min-h-[120px] font-mono text-xs"
+          dir="ltr"
+        />
+      </details>
     </div>
   );
 }

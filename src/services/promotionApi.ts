@@ -92,6 +92,13 @@ export type PromotionContent =
       icon?: string | null;
       dismissible?: boolean;
       link_url?: string | null;
+      /** 2nd color → the bar background becomes a left→right gradient. */
+      background_gradient_to?: string | null;
+      font_size?: "sm" | "md" | "lg";
+      text_align?: "start" | "center" | "end";
+      animation?: "none" | "pulse" | "marquee";
+      /** Coupon code auto-pinned to the cart when the shopper follows the CTA. */
+      auto_apply_code?: string | null;
     }
   | {
       surface: "popup";
@@ -110,6 +117,8 @@ export type PromotionContent =
       show_after_dismiss_days?: number;
       /** Merchant-pasted HTML, used when `layout === "custom"`. */
       custom_html?: string | null;
+      /** Coupon code auto-pinned to the cart when the shopper follows the CTA. */
+      auto_apply_code?: string | null;
     }
   | {
       surface: "floating_widget";
@@ -117,6 +126,8 @@ export type PromotionContent =
       icon?: string;
       expanded_default?: boolean;
       color_bg?: string;
+      /** Coupon code auto-pinned to the cart when the shopper follows the CTA. */
+      auto_apply_code?: string | null;
     }
   | {
       surface: "cookie_banner";
@@ -458,5 +469,42 @@ export async function issuePreviewToken(storeId: string): Promise<PreviewToken> 
   return apiClient<PreviewToken>(
     `/stores/${storeId}/promotions/preview-token`,
     { method: "POST" },
+  );
+}
+
+// --------------------------------------------------------------------------- //
+// "Design by NUMU AI" — integrated AI promo-content generation                //
+// --------------------------------------------------------------------------- //
+
+export interface GeneratePromoContentPayload {
+  surface: "announcement_bar" | "popup" | "floating_widget" | "cookie_banner";
+  mode: "copy" | "html";
+  brief?: string;
+  store_name?: string;
+  primary_color?: string | null;
+  text_color?: string | null;
+  cta_url?: string | null;
+}
+
+export interface GeneratedPromoContent {
+  mode: "copy" | "html";
+  headline_en?: string | null;
+  headline_ar?: string | null;
+  body_en?: string | null;
+  body_ar?: string | null;
+  cta_en?: string | null;
+  cta_ar?: string | null;
+  html?: string | null;
+}
+
+/** Generate promo content with the integrated AI (gpt-4o). Returns HTML for a
+ *  custom popup, or short bilingual copy for banner / widget / cookie. */
+export async function generatePromoContent(
+  storeId: string,
+  payload: GeneratePromoContentPayload,
+): Promise<GeneratedPromoContent> {
+  return apiClient<GeneratedPromoContent>(
+    `/stores/${storeId}/ai/generate-promo-content`,
+    { method: "POST", body: JSON.stringify(payload) },
   );
 }
