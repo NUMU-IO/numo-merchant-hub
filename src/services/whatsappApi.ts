@@ -512,6 +512,63 @@ export async function updateByoNotifications(
   );
 }
 
+// ── WhatsApp access gate ──
+
+// A store must be granted WhatsApp access by a platform admin
+// (request → approve) BEFORE it can connect a number or switch on any
+// notification. Until then the connect + notifications endpoints reject
+// with 403 `{"code":"whatsapp_access_not_approved"}`, so the UI gates on
+// this state to keep merchants out of silent 403s. Both endpoints below
+// return the RAW access object (not wrapped in `{data}`), same as
+// `getByoStatus`.
+
+export type WhatsAppAccessStatus =
+  | "none"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "disabled";
+
+export interface WhatsAppAccessState {
+  status: WhatsAppAccessStatus;
+  note: string | null;
+  contact_phone: string | null;
+  expected_volume: string | null;
+  requested_at: string | null; // ISO datetime
+  reviewed_at: string | null;
+  review_reason: string | null; // admin's reason on reject/disable — surfaced to the merchant
+  can_request: boolean; // true only when status is "none" or "rejected"
+}
+
+export interface WhatsAppAccessRequestBody {
+  note?: string;
+  contact_phone?: string;
+  expected_volume?: string;
+}
+
+export async function getWhatsAppAccess(storeId: string) {
+  return apiClient<WhatsAppAccessState>(
+    `/stores/${storeId}/whatsapp/access`,
+    { method: "GET" }
+  );
+}
+
+/**
+ * Ask a platform admin to grant this store WhatsApp access. Returns the
+ * updated access object (HTTP 201). Rejects with an `ApiError` — a 409
+ * whose `body.detail.code === "whatsapp_access_not_requestable"` means the
+ * store's current status isn't requestable (e.g. already pending/approved).
+ */
+export async function requestWhatsAppAccess(
+  storeId: string,
+  body: WhatsAppAccessRequestBody
+) {
+  return apiClient<WhatsAppAccessState>(
+    `/stores/${storeId}/whatsapp/access/request`,
+    { method: "POST", body: JSON.stringify(body) }
+  );
+}
+
 // ── Store-level WhatsApp settings (message language, …) ──
 
 /**

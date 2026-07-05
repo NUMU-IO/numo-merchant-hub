@@ -8,13 +8,17 @@ import {
   updateByoNotifications,
   updateWhatsAppSettings,
   listWhatsAppMessages,
+  getWhatsAppAccess,
+  requestWhatsAppAccess,
   type WhatsAppStatus,
   type WhatsAppNotificationSettings,
   type WhatsAppMessageLanguage,
   type WhatsAppAnalytics,
   type WhatsAppMessageLogItem,
+  type WhatsAppAccessState,
 } from "@/services/whatsappApi";
 import { listTemplates, type WhatsAppTemplate } from "@/services/templatesApi";
+import { ApiError } from "@/lib/api-error";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -51,6 +55,11 @@ import {
   Inbox,
   ArrowDownLeft,
   ArrowUpRight,
+  Lock,
+  Hourglass,
+  CircleX,
+  Ban,
+  LoaderCircle,
 } from "lucide-react";
 
 // WhatsApp brand green — used sparingly for the channel identity (hero,
@@ -225,6 +234,10 @@ export default function WhatsApp() {
   const storeId = currentStore?.id;
 
   const [status, setStatus] = useState<WhatsAppStatus | null>(null);
+  // Platform access-gate state (request → approve). Until status is
+  // "approved" the connect + notifications endpoints 403, so the UI hides
+  // those and shows the access-gate panel instead.
+  const [access, setAccess] = useState<WhatsAppAccessState | null>(null);
   const [analytics, setAnalytics] = useState<WhatsAppAnalytics | null>(null);
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [messages, setMessages] = useState<WhatsAppMessageLogItem[]>([]);
@@ -260,16 +273,18 @@ export default function WhatsApp() {
   const loadData = useCallback(async () => {
     if (!storeId) return;
     setLoading(true);
-    const [statusRes, analyticsRes, templatesRes, messagesRes] = await Promise.allSettled([
+    const [statusRes, analyticsRes, templatesRes, messagesRes, accessRes] = await Promise.allSettled([
       getByoStatus(storeId),
       getWhatsAppAnalytics(storeId, period),
       listTemplates(storeId),
       listWhatsAppMessages(storeId, { limit: 8 }),
+      getWhatsAppAccess(storeId),
     ]);
     if (statusRes.status === "fulfilled") setStatus(statusRes.value);
     if (analyticsRes.status === "fulfilled") setAnalytics(analyticsRes.value);
     if (templatesRes.status === "fulfilled") setTemplates(templatesRes.value.templates);
     if (messagesRes.status === "fulfilled") setMessages(messagesRes.value.messages);
+    if (accessRes.status === "fulfilled") setAccess(accessRes.value);
     if (statusRes.status === "rejected" && analyticsRes.status === "rejected") {
       toast.error(isAr ? "فشل تحميل بيانات واتساب" : "Failed to load WhatsApp data");
     }
@@ -360,6 +375,9 @@ export default function WhatsApp() {
 
   const connected = status?.connected ?? false;
   const isByo = status?.mode === "byo";
+  // The platform gate that sits ABOVE `connected`: a store can only connect
+  // a number / switch on notifications once an admin has approved access.
+  const approved = access?.status === "approved";
 
   const fmtNum = (n: number) => new Intl.NumberFormat(isAr ? "ar-EG" : "en-US").format(n);
 
@@ -440,8 +458,21 @@ export default function WhatsApp() {
           </div>
         </div>
 
-        {/* Not-connected explainer */}
-        {!connected && (
+        {/* Platform access gate — shown until an admin approves WhatsApp
+            access. It stands in for the connection + notifications cards,
+            which stay hidden while unapproved so the merchant can't trigger
+            a backend 403. */}
+        {access && !approved && storeId && (
+          <WhatsAppAccessGate
+            access={access}
+            isAr={isAr}
+            storeId={storeId}
+            onChange={setAccess}
+          />
+        )}
+
+        {/* Not-connected explainer — only meaningful once access is granted */}
+        {approved && !connected && (
           <Card className="border-emerald-200 dark:border-emerald-900/50">
             <CardContent className="p-6">
               <div className="flex items-start gap-3">
@@ -630,7 +661,8 @@ export default function WhatsApp() {
           </CardContent>
         </Card>
 
-        {/* Notifications */}
+        {/* Notifications — only once WhatsApp access is approved */}
+        {approved && (
         <Card>
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
@@ -696,6 +728,7 @@ export default function WhatsApp() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Confirm-order timing — only relevant when the feature is on */}
         {connected && status?.notifications?.require_order_confirmation && (
@@ -909,7 +942,8 @@ export default function WhatsApp() {
           </CardContent>
         </Card>
 
-        {/* Connection / BYO entry */}
+        {/* Connection / BYO entry — hidden until WhatsApp access is approved */}
+        {approved && (
         <Card>
           <CardContent className="p-5">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
@@ -955,6 +989,7 @@ export default function WhatsApp() {
             </div>
           </CardContent>
         </Card>
+        )}
       </div>
 
       {previewTemplate && (
@@ -998,6 +1033,283 @@ function StatCard({
         </div>
         <p className="mt-3 text-2xl font-bold tabular-nums">{value}</p>
         <p className="text-xs text-muted-foreground">{label}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Expected-volume buckets for the access request. The stored value is the
+// English label (self-describing for the admin who reviews the request);
+// the Arabic string is display-only.
+const VOLUME_OPTIONS: Array<{ value: string; en: string; ar: string }> = [
+  { value: "", en: "Select an estimate…", ar: "اختر تقديراً…" },
+  { value: "Under 500 / month", en: "Under 500 / month", ar: "أقل من ٥٠٠ شهرياً" },
+  { value: "500–2,000 / month", en: "500–2,000 / month", ar: "٥٠٠–٢٠٠٠ شهرياً" },
+  { value: "2,000–10,000 / month", en: "2,000–10,000 / month", ar: "٢٠٠٠–١٠٠٠٠ شهرياً" },
+  { value: "10,000+ / month", en: "10,000+ / month", ar: "أكثر من ١٠٠٠٠ شهرياً" },
+];
+
+// Static Tailwind class sets per tone — declared in full so the classes
+// survive Tailwind's content scan (no dynamic class-name construction).
+const ACCESS_TONE = {
+  emerald: {
+    card: "border-emerald-200 dark:border-emerald-900/50",
+    icon: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  },
+  amber: {
+    card: "border-amber-200 dark:border-amber-900/50",
+    icon: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  },
+  rose: {
+    card: "border-rose-200 dark:border-rose-900/50",
+    icon: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+  },
+} as const;
+
+// The access-gate panel. Stands in for the connection + notifications cards
+// until a platform admin approves the store's WhatsApp access. Covers all
+// four non-approved states and, when the store `can_request`, a short
+// request form (use-case note + optional contact phone + expected volume).
+function WhatsAppAccessGate({
+  access,
+  isAr,
+  storeId,
+  onChange,
+}: {
+  access: WhatsAppAccessState;
+  isAr: boolean;
+  storeId: string;
+  onChange: (a: WhatsAppAccessState) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [note, setNote] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [expectedVolume, setExpectedVolume] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const status = access.status;
+  const canRequest = access.can_request;
+
+  const fmtDate = (iso: string | null) =>
+    iso
+      ? new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      : "";
+
+  const submit = async () => {
+    setSubmitting(true);
+    try {
+      const updated = await requestWhatsAppAccess(storeId, {
+        note: note.trim() || undefined,
+        contact_phone: contactPhone.trim() || undefined,
+        expected_volume: expectedVolume || undefined,
+      });
+      toast.success(isAr ? "تم إرسال طلبك للمراجعة" : "Access request sent for review");
+      setShowForm(false);
+      onChange(updated); // optimistic → pending, straight from the server's response
+    } catch (err) {
+      // The store's status changed out from under us (already pending /
+      // approved / disabled): explain, then re-sync to the true state.
+      if (
+        err instanceof ApiError &&
+        err.status === 409 &&
+        (err.body as { detail?: { code?: string } } | null)?.detail?.code ===
+          "whatsapp_access_not_requestable"
+      ) {
+        toast.error(
+          isAr
+            ? "تعذّر إرسال الطلب في الحالة الحالية. يتم تحديث الحالة."
+            : "This request can't be submitted right now. Refreshing status."
+        );
+        try {
+          onChange(await getWhatsAppAccess(storeId));
+        } catch {
+          /* keep the current view if the refresh also fails */
+        }
+        return;
+      }
+      toast.error(isAr ? "فشل إرسال الطلب" : "Failed to send request");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const tone =
+    status === "pending" ? "amber" : status === "none" ? "emerald" : "rose";
+  const t = ACCESS_TONE[tone];
+  const HeaderIcon =
+    status === "pending"
+      ? Hourglass
+      : status === "rejected"
+      ? CircleX
+      : status === "disabled"
+      ? Ban
+      : Lock;
+
+  const title =
+    status === "pending"
+      ? isAr
+        ? "طلبك قيد المراجعة"
+        : "Your request is under review"
+      : status === "rejected"
+      ? isAr
+        ? "لم تتم الموافقة على الطلب"
+        : "Access request not approved"
+      : status === "disabled"
+      ? isAr
+        ? "تم إيقاف تفعيل واتساب"
+        : "WhatsApp access disabled"
+      : isAr
+      ? "فعِّل واتساب لأعمالك"
+      : "Enable WhatsApp for your store";
+
+  const blurb =
+    status === "pending"
+      ? isAr
+        ? "شكراً لك! يراجع فريق NUMU طلب تفعيل واتساب لمتجرك، وسيُفعَّل هنا فور الموافقة — عادةً خلال يوم عمل واحد."
+        : "Thanks! The NUMU team is reviewing your WhatsApp access request. We'll switch it on here as soon as it's approved — usually within one business day."
+      : status === "disabled"
+      ? isAr
+        ? "قام أحد مسؤولي NUMU بإيقاف تفعيل واتساب لهذا المتجر. تواصل مع الدعم إن كنت تعتقد أن هذا خطأ."
+        : "A NUMU admin has turned off WhatsApp access for this store. Contact support if you think this is a mistake."
+      : status === "rejected"
+      ? isAr
+        ? "لم تتم الموافقة على طلب تفعيل واتساب هذه المرة. راجع السبب أدناه، ويمكنك إرسال الطلب من جديد."
+        : "Your WhatsApp access request wasn't approved this time. Review the reason below — you're welcome to request again."
+      : isAr
+      ? "يجب أن يفعّل فريق NUMU واتساب للأعمال لمتجرك قبل أن تتمكن من ربط رقم أو تشغيل الإشعارات التلقائية. أخبرنا كيف تنوي استخدامه وسنراجع طلبك."
+      : "The NUMU team needs to enable WhatsApp Business for your store before you can connect a number or switch on automatic notifications. Tell us how you plan to use it and we'll review your request.";
+
+  const optionalLabel = isAr ? " (اختياري)" : " (optional)";
+
+  return (
+    <Card className={t.card}>
+      <CardContent className="p-6">
+        <div className="flex items-start gap-4">
+          <div
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${t.icon}`}
+          >
+            <HeaderIcon className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1">
+            <h3 className="font-semibold text-base">{title}</h3>
+            <p className="text-sm text-muted-foreground max-w-2xl">{blurb}</p>
+
+            {status === "pending" && access.requested_at && (
+              <p className="text-xs text-muted-foreground pt-1">
+                {isAr ? "أُرسل الطلب في " : "Requested on "}
+                {fmtDate(access.requested_at)}
+              </p>
+            )}
+
+            {(status === "rejected" || status === "disabled") &&
+              access.review_reason && (
+                <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-300">
+                  <span className="font-medium">{isAr ? "السبب: " : "Reason: "}</span>
+                  {access.review_reason}
+                </div>
+              )}
+          </div>
+        </div>
+
+        {canRequest && (
+          <div className="mt-5">
+            {!showForm ? (
+              <Button className="gap-1.5" onClick={() => setShowForm(true)}>
+                <Send className="h-4 w-4" />
+                {status === "rejected"
+                  ? isAr
+                    ? "إرسال الطلب من جديد"
+                    : "Request again"
+                  : isAr
+                  ? "طلب تفعيل واتساب"
+                  : "Request access"}
+              </Button>
+            ) : (
+              <div className="space-y-4 rounded-xl border bg-muted/30 p-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="wa-access-note" className="text-sm font-medium">
+                    {isAr ? "كيف ستستخدم واتساب؟" : "How will you use WhatsApp?"}
+                    <span className="font-normal text-muted-foreground">{optionalLabel}</span>
+                  </label>
+                  <textarea
+                    id="wa-access-note"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    rows={3}
+                    disabled={submitting}
+                    placeholder={
+                      isAr
+                        ? "مثال: إرسال تأكيدات الطلب وتحديثات الشحن لعملائنا."
+                        : "e.g. Send order confirmations and shipping updates to our customers."
+                    }
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label htmlFor="wa-access-phone" className="text-sm font-medium">
+                      {isAr ? "رقم للتواصل" : "Contact phone"}
+                      <span className="font-normal text-muted-foreground">{optionalLabel}</span>
+                    </label>
+                    <input
+                      id="wa-access-phone"
+                      type="tel"
+                      dir="ltr"
+                      value={contactPhone}
+                      onChange={(e) => setContactPhone(e.target.value)}
+                      disabled={submitting}
+                      placeholder="+20 100 000 0000"
+                      className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="wa-access-volume" className="text-sm font-medium">
+                      {isAr ? "عدد الرسائل الشهري المتوقع" : "Expected monthly messages"}
+                      <span className="font-normal text-muted-foreground">{optionalLabel}</span>
+                    </label>
+                    <select
+                      id="wa-access-volume"
+                      value={expectedVolume}
+                      onChange={(e) => setExpectedVolume(e.target.value)}
+                      disabled={submitting}
+                      className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    >
+                      {VOLUME_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {isAr ? o.ar : o.en}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button className="gap-1.5" onClick={submit} disabled={submitting}>
+                    {submitting ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    {isAr ? "إرسال الطلب" : "Submit request"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setShowForm(false)}
+                    disabled={submitting}
+                  >
+                    {isAr ? "إلغاء" : "Cancel"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
