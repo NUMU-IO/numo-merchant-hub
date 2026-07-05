@@ -97,6 +97,8 @@ export type PromotionContent =
       font_size?: "sm" | "md" | "lg";
       text_align?: "start" | "center" | "end";
       animation?: "none" | "pulse" | "marquee";
+      /** Coupon code auto-pinned to the cart when the shopper follows the CTA. */
+      auto_apply_code?: string | null;
     }
   | {
       surface: "popup";
@@ -115,6 +117,8 @@ export type PromotionContent =
       show_after_dismiss_days?: number;
       /** Merchant-pasted HTML, used when `layout === "custom"`. */
       custom_html?: string | null;
+      /** Coupon code auto-pinned to the cart when the shopper follows the CTA. */
+      auto_apply_code?: string | null;
     }
   | {
       surface: "floating_widget";
@@ -122,6 +126,8 @@ export type PromotionContent =
       icon?: string;
       expanded_default?: boolean;
       color_bg?: string;
+      /** Coupon code auto-pinned to the cart when the shopper follows the CTA. */
+      auto_apply_code?: string | null;
     }
   | {
       surface: "cookie_banner";

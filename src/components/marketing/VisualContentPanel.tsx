@@ -77,6 +77,8 @@ export interface VisualContentState {
    * because the spec doesn't ask for per-locale destinations.
    */
   ctaUrl: string;
+  /** Coupon code auto-pinned to the cart when a shopper follows this promo's CTA. */
+  autoApplyCode: string;
   // popup
   /** Template = our headline/body/form popup; Custom = merchant-pasted HTML. */
   popupContentMode: "template" | "custom";
@@ -133,6 +135,7 @@ export const EMPTY_VISUAL_CONTENT: VisualContentState = {
   ctaLabelEn: "",
   ctaLabelAr: "",
   ctaUrl: "",
+  autoApplyCode: "",
   popupContentMode: "template",
   popupCustomHtml: "",
   popupLayout: "centered",
@@ -188,6 +191,7 @@ export function buildVisualContent(
         font_size: s.barFontSize,
         text_align: s.barTextAlign,
         animation: s.barAnimation,
+        auto_apply_code: s.autoApplyCode || null,
       };
     case "popup": {
       // Custom-HTML mode: the merchant supplies the entire popup body
@@ -200,6 +204,7 @@ export function buildVisualContent(
           layout: "custom",
           custom_html: s.popupCustomHtml || null,
           show_after_dismiss_days: s.popupShowAfterDays,
+          auto_apply_code: s.autoApplyCode || null,
         };
       }
       // Backend stores form-capture toggles as a `form_fields` list of
@@ -217,6 +222,7 @@ export function buildVisualContent(
         show_after_dismiss_days: s.popupShowAfterDays,
         image_url: s.popupImageUrl || null,
         form_fields: formFields,
+        auto_apply_code: s.autoApplyCode || null,
       };
     }
     case "floating_widget":
@@ -226,6 +232,7 @@ export function buildVisualContent(
         icon: s.widgetIcon,
         expanded_default: s.widgetExpanded,
         color_bg: s.widgetBg,
+        auto_apply_code: s.autoApplyCode || null,
       };
     case "cookie_banner":
       return {
@@ -573,6 +580,7 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
                 onCheckedChange={(c) => update("dismissible", c)}
               />
             </div>
+            <AutoApplyCodeField state={state} update={update} />
             <AiPromptPanel
               surface="announcement_bar"
               state={state}
@@ -706,6 +714,7 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
                     {t("promotions.visual.popup_cta_hint")}
                   </p>
                 </div>
+                <AutoApplyCodeField state={state} update={update} />
               </>
             )}
           </CardContent>
@@ -838,6 +847,7 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
                 placeholder="/products"
               />
             </div>
+            <AutoApplyCodeField state={state} update={update} />
             <AiPromptPanel
               surface="floating_widget"
               state={state}
@@ -919,6 +929,36 @@ type PopupFieldUpdate = <K extends keyof VisualContentState>(
   key: K,
   value: VisualContentState[K],
 ) => void;
+
+/** Optional coupon code auto-pinned to the cart when a shopper follows this
+ *  promo's CTA — shared by the banner, popup and floating-widget cards. */
+function AutoApplyCodeField({
+  state,
+  update,
+}: {
+  state: VisualContentState;
+  update: PopupFieldUpdate;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor="auto-apply-code">
+        {t("promotions.visual.auto_apply_code")}
+      </Label>
+      <Input
+        id="auto-apply-code"
+        value={state.autoApplyCode}
+        onChange={(e) => update("autoApplyCode", e.target.value.toUpperCase())}
+        className="font-mono"
+        placeholder="WELCOME10"
+        dir="ltr"
+      />
+      <p className="text-xs text-muted-foreground">
+        {t("promotions.visual.auto_apply_code_hint")}
+      </p>
+    </div>
+  );
+}
 
 /** Image field backed by the same media library / uploader the theme editor
  *  uses — shows existing uploads, an Upload tab, and a URL tab. */

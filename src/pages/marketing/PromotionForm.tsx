@@ -350,6 +350,7 @@ export default function PromotionForm() {
         ctaLabelEn: enT?.cta_label?.en ?? "",
         ctaLabelAr: arT?.cta_label?.ar ?? "",
         ctaUrl: savedCtaUrl,
+        autoApplyCode: (c.auto_apply_code as string) ?? "",
         popupContentMode: c.layout === "custom" ? "custom" : "template",
         popupCustomHtml: (c.custom_html as string) ?? "",
         popupLayout:

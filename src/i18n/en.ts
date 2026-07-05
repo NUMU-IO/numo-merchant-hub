@@ -807,6 +807,8 @@ export default {
       anim_none: "None",
       anim_pulse: "Pulse",
       anim_marquee: "Scrolling",
+      auto_apply_code: "Auto-apply discount code",
+      auto_apply_code_hint: "Optional — when a shopper follows this promo's link, this coupon is added to their cart automatically, so the discount is already applied at checkout.",
       ai_title: "Design by NUMU AI",
       ai_brief_ph: "Describe your offer, e.g. 20% off the summer collection this weekend",
       ai_generate: "Design by NUMU AI",
