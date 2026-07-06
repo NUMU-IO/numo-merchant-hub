@@ -44,6 +44,7 @@ import {
   type AbandonedCheckout,
 } from "@/services/abandonedCheckoutApi";
 import { showError } from "@/lib/show-error";
+import { TrafficSourceIcon } from "@/components/orders/TrafficSourceIcon";
 
 type AbandonedFilter = "abandoned" | "recovered" | "all";
 type ContactFilter = "recoverable" | "browse" | "any";
@@ -285,9 +286,20 @@ const AbandonedCheckouts = () => {
                         {contactDisplay(c)}
                       </div>
                       {c.utm_source && (
-                        <div className="text-[10px] text-muted-foreground">
-                          {c.utm_source}
-                          {c.utm_campaign ? ` · ${c.utm_campaign}` : ""}
+                        <div
+                          className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground"
+                          title={[c.utm_source, c.utm_medium, c.utm_campaign]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        >
+                          <TrafficSourceIcon
+                            source={c.utm_source}
+                            className="h-3 w-3 shrink-0"
+                          />
+                          <span className="truncate max-w-[200px]">
+                            {c.utm_source}
+                            {c.utm_campaign ? ` · ${c.utm_campaign}` : ""}
+                          </span>
                         </div>
                       )}
                     </TableCell>
