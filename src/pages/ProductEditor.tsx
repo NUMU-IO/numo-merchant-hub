@@ -17,6 +17,11 @@ import {
 } from "@/services/productApi";
 import { prepareImageForUpload } from "@/lib/image-validation";
 import { updateStore } from "@/services/storeApi";
+import {
+  getProductLabels,
+  updateProductLabels,
+  type ProductLabel,
+} from "@/services/productLabelsApi";
 import { useTemplateOptions, DEFAULT_TEMPLATE_VALUE } from "@/hooks/useTemplateOptions";
 import { VariantMatrix, type VariantCombination } from "@/components/products/VariantMatrix";
 import {
@@ -27,6 +32,7 @@ import {
   type SizeChart,
 } from "@/components/products/SizeChartEditor";
 import { BundleManager } from "@/components/products/BundleManager";
+import { ManageLabelsDialog } from "@/components/products/ManageLabelsDialog";
 import VariantsEditor from "@/components/products/VariantsEditor";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,11 +52,34 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, X, ImagePlus, Loader2, Save, Undo2, Layers, Hash,
-  Minus, ShoppingCart, Eye,
+  Minus, Pencil, ShoppingCart, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import { z } from "zod";
+
+// ── Product label presets (v1: fixed bilingual text, no colors/icons) ──
+const PRESET_LABELS: ProductLabel[] = [
+  { key: "new", text_en: "New", text_ar: "جديد" },
+  { key: "sale", text_en: "Sale", text_ar: "تخفيض" },
+  { key: "bestseller", text_en: "Bestseller", text_ar: "الأكثر مبيعاً" },
+  { key: "limited", text_en: "Limited", text_ar: "كمية محدودة" },
+];
+
+/** Sentinel for the "no label" select item (Radix forbids value=""). */
+const NO_LABEL_VALUE = "__no_label__";
+
+/** Slug for custom label keys — must satisfy the backend pattern
+ *  `custom:[a-z0-9][a-z0-9_-]{0,47}`. Arabic-only names fall back to a
+ *  timestamp slug so the key stays ASCII-stable. */
+function labelSlug(textEn: string): string {
+  const slug = textEn
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 40)
+    .replace(/^-+|-+$/g, "");
+  return slug || `label-${Date.now().toString(36)}`;
+}
 
 // ── Color variant helpers ──────────────────────────────────────────────
 
@@ -132,6 +161,15 @@ const ProductEditor = () => {
   const [formSlug, setFormSlug] = useState("");
   // Alternate storefront template ("template_suffix"). null = default template.
   const [formTemplateSuffix, setFormTemplateSuffix] = useState<string | null>(null);
+  // Product label — the selected label travels denormalized on the product
+  // (attributes.label); customLabels are the store's reusable definitions.
+  const [formLabel, setFormLabel] = useState<ProductLabel | null>(null);
+  const [customLabels, setCustomLabels] = useState<ProductLabel[]>([]);
+  const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [manageLabelsOpen, setManageLabelsOpen] = useState(false);
+  const [newLabelEn, setNewLabelEn] = useState("");
+  const [newLabelAr, setNewLabelAr] = useState("");
+  const [creatingLabel, setCreatingLabel] = useState(false);
   const { options: templateOptions } = useTemplateOptions("product");
   const [formVariants, setFormVariants] = useState<{
     name: string;
@@ -175,6 +213,11 @@ const ProductEditor = () => {
   }, [storeId]);
 
   useEffect(() => {
+    if (!storeId) return;
+    getProductLabels(storeId).then(setCustomLabels).catch(() => {});
+  }, [storeId]);
+
+  useEffect(() => {
     if (!storeId || !productId) return;
     setIsLoadingProduct(true);
     getProduct(storeId, productId)
@@ -210,6 +253,18 @@ const ProductEditor = () => {
         setContinueSellingOutOfStock(
           Boolean((api.attributes as Record<string, unknown>)?.continue_selling_when_out_of_stock),
         );
+        const rawLabel = (api.attributes as Record<string, unknown>)?.label as
+          | { key?: unknown; text_en?: unknown; text_ar?: unknown }
+          | undefined;
+        if (rawLabel && typeof rawLabel.key === "string" && rawLabel.key) {
+          setFormLabel({
+            key: rawLabel.key,
+            text_en: typeof rawLabel.text_en === "string" ? rawLabel.text_en : "",
+            text_ar: typeof rawLabel.text_ar === "string" ? rawLabel.text_ar : "",
+          });
+        } else {
+          setFormLabel(null);
+        }
       })
       .catch((err) => {
         showError(err, language);
@@ -355,6 +410,11 @@ const ProductEditor = () => {
         if (payload.attributes) {
           (payload.attributes as Record<string, unknown>).continue_selling_when_out_of_stock = continueSellingOutOfStock;
         }
+        // Label rides in attributes; omitting the key clears it server-side
+        // (the update replaces attributes wholesale).
+        if (formLabel && payload.attributes) {
+          (payload.attributes as Record<string, unknown>).label = formLabel;
+        }
         await apiUpdateProduct(storeId, productId, payload);
         toast.success(t("products.productUpdated"));
       } else {
@@ -385,6 +445,9 @@ const ProductEditor = () => {
         if (payload.attributes) {
           (payload.attributes as Record<string, unknown>).continue_selling_when_out_of_stock = continueSellingOutOfStock;
         }
+        if (formLabel && payload.attributes) {
+          (payload.attributes as Record<string, unknown>).label = formLabel;
+        }
         const created = await apiCreateProduct(storeId, payload);
         for (const file of pendingFiles) {
           try {
@@ -399,7 +462,57 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel]);
+
+  const allLabels = useMemo(
+    () => [...PRESET_LABELS, ...customLabels],
+    [customLabels],
+  );
+
+  const handleLabelSelect = (value: string) => {
+    if (value === NO_LABEL_VALUE) {
+      setFormLabel(null);
+      return;
+    }
+    // Denormalize the text at selection time — later renames of the
+    // definition don't back-propagate to this product (v1 trade-off).
+    const found = allLabels.find((l) => l.key === value);
+    setFormLabel(found ? { ...found } : null);
+  };
+
+  const handleCreateLabel = async () => {
+    if (!storeId || creatingLabel) return;
+    const textEn = newLabelEn.trim();
+    const textAr = newLabelAr.trim();
+    if (!textEn) {
+      toast.error(
+        language === "ar" ? "الاسم الإنجليزي مطلوب" : "English name is required",
+      );
+      return;
+    }
+    const taken = new Set(allLabels.map((l) => l.key));
+    let key = `custom:${labelSlug(textEn)}`;
+    let n = 2;
+    while (taken.has(key)) key = `custom:${labelSlug(textEn)}-${n++}`;
+    const newLabel: ProductLabel = { key, text_en: textEn, text_ar: textAr };
+    setCreatingLabel(true);
+    try {
+      const saved = await updateProductLabels(storeId, [
+        ...customLabels,
+        newLabel,
+      ]);
+      setCustomLabels(saved);
+      setFormLabel({ ...newLabel });
+      setLabelDialogOpen(false);
+      setNewLabelEn("");
+      setNewLabelAr("");
+      toast.success(language === "ar" ? "تم إنشاء الملصق" : "Label created");
+    } catch (err) {
+      showError(err, language);
+    } finally {
+      setCreatingLabel(false);
+    }
+  };
 
   if (isLoadingProduct) {
     return (
@@ -727,22 +840,121 @@ const ProductEditor = () => {
       <Card className="overflow-hidden">
         <CardHeader className="pb-4">
           <CardTitle className="text-base font-bold">{language === "ar" ? "ملصق المنتج" : "Product Label"}</CardTitle>
+          <CardDescription className="text-xs">
+            {language === "ar"
+              ? "شارة نصية تظهر على كارت المنتج في المتجر"
+              : "A text badge shown on the product card in your storefront"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2">
-            <Select>
+            <Select value={formLabel?.key ?? NO_LABEL_VALUE} onValueChange={handleLabelSelect}>
               <SelectTrigger className="h-10 rounded-lg bg-muted/30 border-transparent flex-1"><SelectValue placeholder={language === "ar" ? "اختر..." : "Choose..."} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="new">{language === "ar" ? "جديد" : "New"}</SelectItem>
-                <SelectItem value="sale">{language === "ar" ? "تخفيض" : "Sale"}</SelectItem>
-                <SelectItem value="bestseller">{language === "ar" ? "الأكثر مبيعاً" : "Bestseller"}</SelectItem>
-                <SelectItem value="limited">{language === "ar" ? "كمية محدودة" : "Limited"}</SelectItem>
+                <SelectItem value={NO_LABEL_VALUE}>{language === "ar" ? "بدون ملصق" : "None"}</SelectItem>
+                {PRESET_LABELS.map((l) => (
+                  <SelectItem key={l.key} value={l.key}>{language === "ar" ? l.text_ar : l.text_en}</SelectItem>
+                ))}
+                {customLabels.map((l) => (
+                  <SelectItem key={l.key} value={l.key}>{language === "ar" ? (l.text_ar || l.text_en) : l.text_en}</SelectItem>
+                ))}
+                {/* Orphaned label (definition deleted/renamed) — keep it
+                    selectable so reopening the product doesn't blank the UI. */}
+                {formLabel && !allLabels.some((l) => l.key === formLabel.key) && (
+                  <SelectItem value={formLabel.key}>
+                    {language === "ar" ? (formLabel.text_ar || formLabel.text_en) : formLabel.text_en}
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
-            <Button size="sm" className="h-10 rounded-lg px-4 text-xs shrink-0">{language === "ar" ? "إنشاء" : "Create"}</Button>
+            <Button
+              size="sm"
+              className="h-10 rounded-lg px-4 text-xs shrink-0"
+              onClick={() => setLabelDialogOpen(true)}
+            >
+              {language === "ar" ? "إنشاء" : "Create"}
+            </Button>
+            {customLabels.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-10 w-10 rounded-lg p-0 shrink-0"
+                onClick={() => setManageLabelsOpen(true)}
+                title={language === "ar" ? "إدارة الملصقات" : "Manage labels"}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {storeId && (
+        <ManageLabelsDialog
+          open={manageLabelsOpen}
+          onOpenChange={setManageLabelsOpen}
+          storeId={storeId}
+          labels={customLabels}
+          language={language}
+          onSaved={(saved) => {
+            setCustomLabels(saved);
+            // Keep the selected label in sync: the backend already
+            // propagated renames/deletes to products, so the form must not
+            // write stale text back on the next product save.
+            if (formLabel?.key.startsWith("custom:")) {
+              const updated = saved.find((l) => l.key === formLabel.key);
+              setFormLabel(updated ? { ...updated } : null);
+            }
+          }}
+        />
+      )}
+
+      <Dialog open={labelDialogOpen} onOpenChange={setLabelDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{language === "ar" ? "ملصق جديد" : "New label"}</DialogTitle>
+            <DialogDescription>
+              {language === "ar"
+                ? "ملصق مخصص قابل لإعادة الاستخدام يظهر على كارت المنتج."
+                : "A reusable custom label shown on product cards."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="label-name-en">{language === "ar" ? "الاسم (إنجليزي)" : "Name (EN)"}</Label>
+              <Input
+                id="label-name-en"
+                value={newLabelEn}
+                onChange={(e) => setNewLabelEn(e.target.value)}
+                maxLength={80}
+                placeholder="Eid Offer"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="label-name-ar">{language === "ar" ? "الاسم (عربي)" : "Name (AR)"}</Label>
+              <Input
+                id="label-name-ar"
+                dir="rtl"
+                value={newLabelAr}
+                onChange={(e) => setNewLabelAr(e.target.value)}
+                maxLength={80}
+                placeholder="عرض العيد"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLabelDialogOpen(false)}>
+              {language === "ar" ? "إلغاء" : "Cancel"}
+            </Button>
+            <Button onClick={handleCreateLabel} disabled={creatingLabel || !newLabelEn.trim()}>
+              {creatingLabel
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : (language === "ar" ? "حفظ" : "Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Product Display (عرض المنتج) ── */}
       <Card className="overflow-hidden">
