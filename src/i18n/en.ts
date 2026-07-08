@@ -33,6 +33,17 @@ export default {
       compareAt: "Compare-at",
       stock: "Stock",
     },
+    digest: {
+      title: "Since yesterday",
+      orders: "{{count}} order(s) worth {{revenue}} in the last 24h",
+      carts: "{{count}} abandoned cart(s) worth {{value}} still at stake",
+      lowStock: "{{count}} product(s) low on stock",
+      cta: {
+        orders: "See sales",
+        abandoned_carts: "Recover them",
+        low_stock: "View low stock",
+      },
+    },
   },
   nav: {
     dashboard: "Dashboard",

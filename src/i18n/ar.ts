@@ -33,6 +33,17 @@
       compareAt: "السعر قبل الخصم",
       stock: "المخزون",
     },
+    digest: {
+      title: "من إمبارح",
+      orders: "{{count}} أوردر بقيمة {{revenue}} في آخر ٢٤ ساعة",
+      carts: "{{count}} عربية متروكة بقيمة {{value}} لسه ممكن ترجعها",
+      lowStock: "{{count}} منتج قرب يخلص من المخزون",
+      cta: {
+        orders: "شوف المبيعات",
+        abandoned_carts: "رجّعهم",
+        low_stock: "شوف المخزون القليل",
+      },
+    },
   },
   nav: {
     dashboard: "لوحة التحكم",

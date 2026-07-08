@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+import { DigestCard } from "./DigestCard";
 import { MascotSprite, type MascotState } from "./MascotSprite";
 import { ProposalCard } from "./ProposalCard";
 import { useAgentStore } from "./store";
@@ -71,6 +72,13 @@ export function AgentPanel() {
     if (!storeId || !input.trim() || isStreaming) return;
     void sendMessage(storeId, input, locale);
     setInput("");
+  };
+
+  // A digest chip sends its follow-up prompt straight into the chat.
+  const handlePrompt = (prompt: string) => {
+    const storeId = currentStoreId();
+    if (!storeId || isStreaming) return;
+    void sendMessage(storeId, prompt, locale);
   };
 
   return (
@@ -179,10 +187,17 @@ export function AgentPanel() {
           ) : (
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-center text-sm text-muted-foreground">
-                <MascotSprite state="wave" size={96} className="mb-3" />
-                <p className="font-medium">{t("agent.emptyTitle")}</p>
-                <p className="mt-1 text-xs">{t("agent.emptyHint")}</p>
+              <div className="flex h-full flex-col">
+                <DigestCard
+                  storeId={currentStoreId()}
+                  isOpen={isOpen}
+                  onPrompt={handlePrompt}
+                />
+                <div className="flex flex-1 flex-col items-center justify-center text-center text-sm text-muted-foreground">
+                  <MascotSprite state="wave" size={96} className="mb-3" />
+                  <p className="font-medium">{t("agent.emptyTitle")}</p>
+                  <p className="mt-1 text-xs">{t("agent.emptyHint")}</p>
+                </div>
               </div>
             ) : (
               messages.map((m) => (
