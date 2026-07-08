@@ -24,6 +24,15 @@ export default {
     newChat: "New chat",
     noHistory: "No previous conversations yet",
     untitled: "Untitled conversation",
+    card: {
+      off: "off",
+      minOrder: "Min. order",
+      limit: "Usage limit",
+      unlimited: "Unlimited",
+      price: "Price",
+      compareAt: "Compare-at",
+      stock: "Stock",
+    },
   },
   nav: {
     dashboard: "Dashboard",

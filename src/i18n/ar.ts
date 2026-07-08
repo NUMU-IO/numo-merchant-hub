@@ -24,6 +24,15 @@
     newChat: "محادثة جديدة",
     noHistory: "مفيش محادثات سابقة لسه",
     untitled: "محادثة بدون عنوان",
+    card: {
+      off: "خصم",
+      minOrder: "أقل طلب",
+      limit: "حد الاستخدام",
+      unlimited: "غير محدود",
+      price: "السعر",
+      compareAt: "السعر قبل الخصم",
+      stock: "المخزون",
+    },
   },
   nav: {
     dashboard: "لوحة التحكم",
