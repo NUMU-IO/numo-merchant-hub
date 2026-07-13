@@ -321,13 +321,13 @@ const SECTIONS: SettingSection[] = [
     title: { en: "Developer", ar: "المطورون" },
     items: [
       {
-        title: { en: "API keys", ar: "مفاتيح API" },
+        title: { en: "Connect your AI (MCP)", ar: "اربط الذكاء الاصطناعي (MCP)" },
         description: {
-          en: "Generate live and test API keys",
-          ar: "أنشئ مفاتيح API للعمل الفعلي والاختبار",
+          en: "Let Claude, ChatGPT or Cursor manage your store — API keys & setup",
+          ar: "خلّي Claude أو ChatGPT أو Cursor يدير متجرك — مفاتيح API والإعداد",
         },
         icon: Key,
-        to: "/settings/preferences?section=api",
+        to: "/settings/mcp",
       },
       {
         title: { en: "Webhooks", ar: "Webhooks" },
