@@ -42,8 +42,11 @@ export function AdvisorFeed() {
     placeholderData: keepPreviousData,
   });
 
-  const invalidate = () =>
+  const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["analytics", "signals", storeId] });
+    // The executive view ranks the same signal rows — keep it in sync.
+    queryClient.invalidateQueries({ queryKey: ["analytics", "executive", storeId] });
+  };
 
   const dismissMutation = useMutation({
     mutationFn: (signalId: string) => dismissSignal(storeId!, signalId),
