@@ -11,13 +11,14 @@ import {
   Users, Search, ChevronLeft, ChevronRight, Mail, ShieldCheck, UserCheck,
   ArrowLeft, ShoppingCart, Calendar, Phone, DollarSign,
   CheckCircle2, AlertTriangle, AlertCircle, Network, Info,
-  TrendingUp, Store as StoreIcon, Truck, RotateCcw,
+  TrendingUp, Store as StoreIcon, Truck, RotateCcw, Upload, UserPlus,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { listCustomers, getCustomer, getCustomerTrustStats, getNetworkStats } from "@/services/customerApi";
 import { CustomerJourneyTimeline } from "@/components/customers/CustomerJourneyTimeline";
+import { AddCustomerDialog } from "@/components/customers/AddCustomerDialog";
 import type { Customer } from "@/services/customerApi";
 import { listOrders } from "@/services/orderApi";
 import type { OrderListItem } from "@/services/orderApi";
@@ -39,6 +40,7 @@ export default function Customers() {
   const [currentPage, setCurrentPage] = useState(1);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
 
   // Detail view
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -277,13 +279,31 @@ export default function Customers() {
   // === Customer List View ===
   return (
     <div className="space-y-5">
-      {/* Souq page head — display title + subtitle */}
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{t("nav.customers")}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {isAr ? "اعرف عملاءك وقسّمهم" : "Know and segment your shoppers"}
-        </p>
+      {/* Souq page head — display title + subtitle + actions */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{t("nav.customers")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isAr ? "اعرف عملاءك وقسّمهم" : "Know and segment your shoppers"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm" className="gap-1.5">
+            <Link to="/customers/import">
+              <Upload className="h-3.5 w-3.5" />
+              {isAr ? "استيراد" : "Import"}
+            </Link>
+          </Button>
+          <Button size="sm" className="gap-1.5" onClick={() => setAddOpen(true)}>
+            <UserPlus className="h-3.5 w-3.5" />
+            {isAr ? "إضافة عميل" : "Add customer"}
+          </Button>
+        </div>
       </div>
+
+      {storeId && (
+        <AddCustomerDialog storeId={storeId} open={addOpen} onOpenChange={setAddOpen} />
+      )}
 
       {/* Souq segment stat tiles — ichip + label + tabular number */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -328,7 +348,7 @@ export default function Customers() {
               <EmptyState
                 icon={Users}
                 title={debouncedSearch ? (isAr ? "مفيش نتائج للبحث" : "No results found") : (isAr ? "أول عميل في الطريق!" : "Your first customer is on the way!")}
-                description={debouncedSearch ? undefined : (isAr ? "شارك رابط متجرك وابدأ باستقبال الطلبات — العملاء هيظهروا هنا تلقائياً" : "Share your store link and start receiving orders — customers will appear here automatically")}
+                description={debouncedSearch ? undefined : (isAr ? "العملاء بيظهروا تلقائياً مع الطلبات — أو أضفهم يدوياً أو استوردهم من ملف CSV من الأزرار فوق" : "Customers appear automatically with orders — or add them manually / import a CSV using the buttons above")}
               />
             </div>
           ) : (
