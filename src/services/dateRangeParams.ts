@@ -9,12 +9,18 @@
  */
 
 import type { DateRange } from "@/components/filters/DateRangePicker";
+import { getActiveStoreTimezone } from "@/lib/store-timezone";
 
 export function dateRangeQuery(range: DateRange): URLSearchParams {
   const qs = new URLSearchParams();
   qs.set("start_date", range.start.toISOString());
   qs.set("end_date", range.end.toISOString());
   qs.set("granularity", range.granularity);
+  // Store wall-clock timezone: the backend projects the window onto the
+  // store's calendar days (rollup keys are store-local too) — without
+  // it, UTC bucketing shifted after-midnight orders onto the previous
+  // day's charts.
+  qs.set("tz", getActiveStoreTimezone());
   return qs;
 }
 
@@ -24,5 +30,6 @@ export function dateRangeKey(range: DateRange): string[] {
     range.start.toISOString(),
     range.end.toISOString(),
     range.granularity,
+    getActiveStoreTimezone(),
   ];
 }

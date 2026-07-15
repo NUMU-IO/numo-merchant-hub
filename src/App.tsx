@@ -58,6 +58,7 @@ const ShippingZoneEditor = lazy(() => import("@/pages/shipping/ZoneEditorPage"))
 const CODReconciliation = lazy(() => import("@/pages/CODReconciliation"));
 const SocialImport = lazy(() => import("@/pages/SocialImport"));
 const Customers = lazy(() => import("@/pages/Customers"));
+const AnalyticsExecutive = lazy(() => import("@/pages/analytics/ExecutivePage"));
 const AnalyticsOverview = lazy(() => import("@/pages/analytics/OverviewPage"));
 const AnalyticsSales = lazy(() => import("@/pages/analytics/SalesPage"));
 const AnalyticsOrders = lazy(() => import("@/pages/analytics/OrdersPage"));
@@ -317,6 +318,7 @@ const App = () => (
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/customers/:customerId" element={<Customers />} />
                     <Route path="/analytics" element={<Navigate to="/analytics/overview" replace />} />
+                    <Route path="/analytics/executive" element={<AnalyticsExecutive />} />
                     <Route path="/analytics/overview" element={<AnalyticsOverview />} />
                     <Route path="/analytics/sales" element={<AnalyticsSales />} />
                     <Route path="/analytics/orders" element={<AnalyticsOrders />} />

@@ -3,14 +3,14 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
-  Filter, ArrowDown, ShoppingCart, Clock, DollarSign, TrendingUp,
+  Filter, ArrowDown, ShoppingCart, Clock, DollarSign, TrendingUp, Search,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from "recharts";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { getFunnel } from "@/services/analyticsApi";
+import { getFunnel, getSearchTerms } from "@/services/analyticsApi";
 import { dateRangeKey } from "@/services/dateRangeParams";
 import type { DateRange } from "@/components/filters/DateRangePicker";
 
@@ -60,7 +60,15 @@ export function FunnelTab({ range, formatCurrency }: FunnelTabProps) {
     placeholderData: keepPreviousData,
   });
 
+  const searchTermsQuery = useQuery({
+    queryKey: ["analytics", "searchTerms", storeId, ...dateRangeKey(range)],
+    queryFn: () => getSearchTerms(storeId!, range),
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+  });
+
   const data = funnelQuery.data ?? null;
+  const searchData = searchTermsQuery.data ?? null;
 
   // Check if there's any meaningful funnel data (at least 1 page view)
   const hasData = data && data.steps.some((s) => s.count > 0);
@@ -342,6 +350,82 @@ export function FunnelTab({ range, formatCurrency }: FunnelTabProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Top searches — what shoppers type into the storefront search box.
+          Data flows since the tracking fix that stopped collapsing search
+          events to page_view. */}
+      <Card className="border-border/60">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+            <Search className="h-3.5 w-3.5 text-muted-foreground" />
+            {isAr ? "أكتر كلمات البحث" : "Top Searches"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {searchData && searchData.terms.length > 0 ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-3 mb-4">
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    {isAr ? "إجمالي عمليات البحث" : "Total Searches"}
+                  </p>
+                  <p className="text-xl font-bold tabular-nums">
+                    {searchData.total_searches.toLocaleString(isAr ? "ar-EG" : undefined)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    {isAr ? "جلسات بحثت" : "Search Sessions"}
+                  </p>
+                  <p className="text-xl font-bold tabular-nums">
+                    {searchData.unique_search_sessions.toLocaleString(isAr ? "ar-EG" : undefined)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    {isAr ? "بحث ← شراء" : "Search → Purchase"}
+                  </p>
+                  <p className="text-xl font-bold tabular-nums">
+                    {searchData.search_conversion_rate.toLocaleString(isAr ? "ar-EG" : undefined)}%
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-1">
+                {searchData.terms.map((t, i) => {
+                  const max = searchData.terms[0]?.searches || 1;
+                  return (
+                    <div key={t.term} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors">
+                      <span className="text-[11px] font-bold text-muted-foreground/40 w-4 tabular-nums shrink-0">{i + 1}</span>
+                      <span className="text-[13px] font-medium truncate min-w-0 flex-1" dir="auto">{t.term}</span>
+                      <div className="hidden sm:block w-32 h-1.5 rounded-full bg-muted/60 overflow-hidden shrink-0">
+                        <div
+                          className="h-full rounded-full bg-primary/70"
+                          style={{ width: `${Math.max((t.searches / max) * 100, 6)}%` }}
+                        />
+                      </div>
+                      <span className="text-[12.5px] font-semibold tabular-nums w-14 text-end shrink-0">
+                        {t.searches.toLocaleString(isAr ? "ar-EG" : undefined)}
+                      </span>
+                      <span className="text-[10.5px] text-muted-foreground w-20 text-end shrink-0">
+                        {t.sessions.toLocaleString(isAr ? "ar-EG" : undefined)} {isAr ? "جلسة" : "sessions"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <EmptyState
+              icon={Search}
+              title={isAr ? "مفيش عمليات بحث بعد" : "No searches yet"}
+              description={isAr
+                ? "هتظهر هنا كلمات البحث اللي العملاء بيكتبوها في متجرك"
+                : "Terms shoppers type into your store's search will appear here"}
+              className="py-6"
+            />
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

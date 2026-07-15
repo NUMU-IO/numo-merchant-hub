@@ -8,13 +8,13 @@ import {
   Filter,
 } from "lucide-react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
 import type {
   SalesOverview, SalesDataPoint, TopProduct,
   LocationSales, CustomerAnalytics, ConversionStats,
-  CodRejectionStats,
+  CodRejectionStats, FunnelData,
 } from "@/services/analyticsApi";
 
 interface OverviewTabProps {
@@ -25,16 +25,34 @@ interface OverviewTabProps {
   customerStats: CustomerAnalytics | null;
   conversion: ConversionStats | null;
   codRejection: CodRejectionStats | null;
+  funnel: FunnelData | null;
   formatCurrency: (cents: number) => string;
 }
 
 export function OverviewTab({
   overview, chartData, topProducts, locations,
-  customerStats, conversion, codRejection, formatCurrency,
+  customerStats, conversion, codRejection, funnel, formatCurrency,
 }: OverviewTabProps) {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const isAr = language === "ar";
+
+  // Compare mode is detected from the data itself: the chart query only
+  // attaches prev_* when the layout's Compare toggle asked for it.
+  const hasCompare = chartData.some(
+    (p) => p.prev_sales !== null && p.prev_sales !== undefined,
+  );
+
+  // AOV delta derived from the previous-window absolutes (backend sends
+  // change % for sales/orders but ratios must be derived client-side).
+  const prevAov =
+    overview?.previous_total_orders && overview.previous_total_sales !== undefined
+      ? overview.previous_total_sales / overview.previous_total_orders
+      : 0;
+  const aovChange =
+    overview && prevAov > 0
+      ? Math.round(((overview.avg_order_value - prevAov) / prevAov) * 1000) / 10
+      : undefined;
 
   const TrendBadge = ({ value }: { value: number | undefined }) => {
     if (value === undefined || value === null) return null;
@@ -53,9 +71,21 @@ export function OverviewTab({
           tabular display value. */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {[
-          { label: isAr ? "إجمالي المبيعات" : "Total Sales", value: overview ? formatCurrency(overview.total_sales) : "—", trend: overview?.sales_change_percent, icon: DollarSign, chip: "ichip-navy" },
+          // Booked vs collected split (Shopify-style gross/net): the
+          // headline stays booked revenue — in a COD market an order
+          // booked today is usually collected on delivery days later —
+          // with the actually-received money right under it so
+          // merchants see both realities.
+          {
+            label: isAr ? "المبيعات المسجلة" : "Booked Sales",
+            value: overview ? formatCurrency(overview.total_sales) : "—",
+            sub: overview?.collected_revenue !== undefined
+              ? `${isAr ? "المحصّل: " : "Collected: "}${formatCurrency(overview.collected_revenue)}`
+              : undefined,
+            trend: overview?.sales_change_percent, icon: DollarSign, chip: "ichip-navy",
+          },
           { label: isAr ? "إجمالي الطلبات" : "Total Orders", value: overview?.total_orders ?? "—", trend: overview?.orders_change_percent, icon: ShoppingCart, chip: "ichip-sage" },
-          { label: isAr ? "متوسط قيمة الطلب" : "Avg Order Value", value: overview ? formatCurrency(overview.avg_order_value) : "—", trend: undefined, icon: TrendingUp, chip: "ichip-saffron" },
+          { label: isAr ? "متوسط قيمة الطلب" : "Avg Order Value", value: overview ? formatCurrency(overview.avg_order_value) : "—", trend: aovChange, icon: TrendingUp, chip: "ichip-saffron" },
           { label: isAr ? "معدل التحويل" : "Conversion Rate", value: conversion ? `${conversion.conversion_rate.toFixed(1)}%` : "—", trend: undefined, icon: BarChart3, chip: "ichip-terra" },
         ].map((kpi) => (
           <Card key={kpi.label} className="overflow-hidden">
@@ -66,6 +96,11 @@ export function OverviewTab({
               </div>
               <p className="text-[12.5px] font-semibold text-muted-foreground mb-1">{kpi.label}</p>
               <p className="text-[23px] font-extrabold tracking-tight tabular-nums leading-none">{kpi.value}</p>
+              {"sub" in kpi && kpi.sub && (
+                <p className="text-[11.5px] font-semibold text-muted-foreground mt-1.5 tabular-nums">
+                  {kpi.sub}
+                </p>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -93,8 +128,26 @@ export function OverviewTab({
                     <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 100).toLocaleString()}`} />
                     <Tooltip
                       contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", boxShadow: "var(--shadow-pop)", fontSize: "12px" }}
-                      formatter={(value: number) => [formatCurrency(value), isAr ? "المبيعات" : "Sales"]}
+                      formatter={(value: number, name: string) => [
+                        formatCurrency(value),
+                        name === "prev_sales"
+                          ? (isAr ? "الفترة السابقة" : "Previous period")
+                          : (isAr ? "المبيعات" : "Sales"),
+                      ]}
                     />
+                    {/* Previous-period overlay (Compare toggle) — dashed,
+                        muted, no fill so the current series stays primary. */}
+                    {hasCompare && (
+                      <Line
+                        type="monotone"
+                        dataKey="prev_sales"
+                        stroke="hsl(var(--muted-foreground))"
+                        strokeWidth={1.5}
+                        strokeDasharray="5 4"
+                        dot={false}
+                        opacity={0.7}
+                      />
+                    )}
                     <Area type="monotone" dataKey="sales" stroke="hsl(var(--navy))" fill="url(#colorSalesNavy)" strokeWidth={2.5} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -122,8 +175,23 @@ export function OverviewTab({
                     <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
                     <Tooltip
                       contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", boxShadow: "var(--shadow-pop)", fontSize: "12px" }}
-                      formatter={(value: number) => [value, isAr ? "الطلبات" : "Orders"]}
+                      formatter={(value: number, name: string) => [
+                        value,
+                        name === "prev_orders"
+                          ? (isAr ? "الفترة السابقة" : "Previous period")
+                          : (isAr ? "الطلبات" : "Orders"),
+                      ]}
                     />
+                    {/* Previous-period overlay — thin muted bars beside
+                        the current ones. */}
+                    {hasCompare && (
+                      <Bar
+                        dataKey="prev_orders"
+                        radius={[4, 4, 0, 0]}
+                        fill="hsl(var(--muted-foreground))"
+                        opacity={0.35}
+                      />
+                    )}
                     {/* Souq spec: last bar saffron to highlight current, rest navy. */}
                     <Bar dataKey="orders" radius={[6, 6, 0, 0]}>
                       {chartData.map((_, i) => (
@@ -144,26 +212,24 @@ export function OverviewTab({
       </div>
 
       {/* Conversion funnel — Souq spec: navy-gradient bars with the
-          count inside + % at the end. Backend gives us total_visitors,
-          total_orders, and cart_abandonment_rate; we derive an estimated
-          cart step from that rate so the funnel still tells the
-          visits → cart → purchased story without a dedicated endpoint. */}
+          count inside + % at the end. Real event counts from the same
+          /analytics/funnel endpoint FunnelTab uses — this card used to
+          FABRICATE the cart stage from a hardcoded 25%-of-visits guess
+          when abandonment data was absent. If there's no funnel data,
+          the card hides instead of inventing numbers. */}
       {(() => {
-        const visits = conversion?.total_visitors ?? 0;
-        const purchases = conversion?.total_orders ?? overview?.total_orders ?? 0;
-        // Cart abandonment is reported as a % of carts that didn't
-        // convert; back into a cart count by dividing purchases by (1 - rate).
-        const abandonRate = (conversion?.cart_abandonment_rate ?? 0) / 100;
-        const estimatedCarts = abandonRate > 0 && abandonRate < 1
-          ? Math.round(purchases / (1 - abandonRate))
-          : Math.max(purchases, Math.round(visits * 0.25));
+        const stepCount = (name: string) =>
+          funnel?.steps.find((s) => s.step === name)?.count ?? 0;
+        const visits = stepCount("page_view");
+        const carts = stepCount("add_to_cart");
+        const purchases = stepCount("order_completed");
         const stages = [
           { label: isAr ? "زيارات" : "Visits", value: visits },
-          { label: isAr ? "ضافوا للسلة" : "Added to cart", value: estimatedCarts },
+          { label: isAr ? "ضافوا للسلة" : "Added to cart", value: carts },
           { label: isAr ? "اشتروا" : "Purchased", value: purchases },
         ];
         const top = Math.max(stages[0].value, 1);
-        if (top <= 1) return null;
+        if (!funnel || top <= 1) return null;
         return (
           <Card>
             <div className="souq-section-head px-5 pt-5 pb-2">
@@ -176,7 +242,12 @@ export function OverviewTab({
               <div className="space-y-2.5">
                 {stages.map((s, i) => {
                   const pct = (s.value / top) * 100;
-                  const conversionPct = i === 0 ? 100 : (s.value / top) * 100;
+                  // % of the PREVIOUS stage (real step-to-step
+                  // conversion), not share-of-visits — the old column
+                  // read like a conversion rate but wasn't one.
+                  const prev = i === 0 ? s.value : stages[i - 1].value;
+                  const conversionPct =
+                    i === 0 ? 100 : prev > 0 ? (s.value / prev) * 100 : 0;
                   return (
                     <div key={s.label} className="flex items-center gap-3">
                       <div className="w-28 sm:w-36 text-[12.5px] font-bold text-muted-foreground shrink-0">
