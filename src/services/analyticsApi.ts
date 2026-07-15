@@ -57,11 +57,20 @@ export interface TopProduct {
 // ── Analytics endpoints ──
 
 export interface SalesOverview {
-  total_sales: number; // cents
+  total_sales: number; // cents — BOOKED revenue (incl. unpaid COD)
   total_orders: number;
   avg_order_value: number; // cents
   sales_change_percent: number;
   orders_change_percent: number;
+  /** cents — money actually received: paid orders minus refunds.
+   * Optional so the UI degrades gracefully against an older backend. */
+  collected_revenue?: number;
+  collected_change_percent?: number;
+  /** Previous-window absolutes (same length, ending the day before the
+   * current window). Optional for older-backend compatibility. */
+  previous_total_sales?: number;
+  previous_total_orders?: number;
+  previous_collected_revenue?: number;
   currency: string;
 }
 
@@ -69,6 +78,11 @@ export interface SalesDataPoint {
   date: string;
   sales: number; // cents
   orders: number;
+  /** Present when the chart was requested with a compare mode — the
+   * same-position bucket of the previous window (already aligned). */
+  prev_date?: string | null;
+  prev_sales?: number | null; // cents
+  prev_orders?: number | null;
 }
 
 export interface LocationSales {
@@ -150,11 +164,26 @@ export async function getSalesOverview(
   return apiClient<SalesOverview>(url(storeId, "analytics/overview", range));
 }
 
+export interface SalesChartOptions {
+  /** Attach an aligned previous-window series to each point. */
+  compare?: "previous_period" | "previous_year";
+  /** Override the range's auto-granularity — the backend buckets on
+   * real store-local calendar weeks (Mon-start) / months, unlike the
+   * old client-side fixed 7/30-row chunking this replaced. */
+  granularity?: "day" | "week" | "month";
+}
+
 export async function getSalesChart(
   storeId: string,
   range: DateRange,
+  opts?: SalesChartOptions,
 ): Promise<SalesDataPoint[]> {
-  return apiClient<SalesDataPoint[]>(url(storeId, "analytics/sales-chart", range));
+  const extra: Record<string, string> = {};
+  if (opts?.compare) extra.compare = opts.compare;
+  if (opts?.granularity) extra.granularity = opts.granularity;
+  return apiClient<SalesDataPoint[]>(
+    url(storeId, "analytics/sales-chart", range, extra),
+  );
 }
 
 export async function getAnalyticsTopProducts(
@@ -326,12 +355,24 @@ export interface CouponUsageItem {
   revenue_impact: number; // cents
 }
 
+export interface TaxByRateItem {
+  rate_pct: number;
+  orders: number;
+  tax_cents: number;
+}
+
 export interface RevenueBreakdown {
   gross_revenue: number; // cents
   discounts: number; // cents
   shipping_collected: number; // cents
   refunds: number; // cents
   net_revenue: number; // cents
+  /** Tax collected (paid orders). INCLUSIVE — part of gross, not netted.
+   * Optional for older-backend compatibility. */
+  tax_collected?: number; // cents
+  tax_inclusive?: number; // cents
+  tax_added?: number; // cents
+  tax_by_rate?: TaxByRateItem[];
   coupon_usage: CouponUsageItem[];
 }
 
@@ -471,6 +512,290 @@ export async function getFunnel(
   return apiClient<FunnelData>(url(storeId, "analytics/funnel", range));
 }
 
+// ── Search analytics ──
+
+export interface SearchTermItem {
+  term: string;
+  searches: number;
+  sessions: number;
+  zero_result_searches: number; // 0 until storefront reports result counts
+}
+
+export interface SearchTermsData {
+  total_searches: number;
+  unique_search_sessions: number;
+  /** % of searching sessions that also purchased in-window (co-occurrence). */
+  search_conversion_rate: number;
+  terms: SearchTermItem[];
+}
+
+export async function getSearchTerms(
+  storeId: string,
+  range: DateRange,
+): Promise<SearchTermsData> {
+  return apiClient<SearchTermsData>(url(storeId, "analytics/search-terms", range));
+}
+
+// ── Customer health (AI-3) ──
+
+export type HealthState =
+  | "vip" | "loyal" | "active" | "growing"
+  | "high_value_prospect" | "coupon_hunter" | "at_risk" | "churned";
+
+export interface CustomerHealthItem {
+  customer_id: string;
+  name: string;
+  score: number;
+  state: HealthState;
+  orders: number;
+  total_spent_cents: number;
+  days_since_last: number;
+}
+
+export interface CustomerHealthData {
+  distribution: { state: HealthState; count: number }[];
+  median_gap_days: number;
+  customers: CustomerHealthItem[];
+}
+
+export async function getCustomerHealth(
+  storeId: string,
+  state?: HealthState,
+): Promise<CustomerHealthData> {
+  const qs = state ? `?state=${state}` : "";
+  return apiClient<CustomerHealthData>(
+    `/stores/${storeId}/analytics/customer-health${qs}`,
+  );
+}
+
+// ── Advisor signals (AI Commerce Intelligence) ──
+
+export interface AdvisorSignal {
+  id: string;
+  kind: "advice" | "opportunity" | "alert";
+  rule_id: string;
+  severity: "critical" | "warning" | "opportunity" | "info";
+  title: string;
+  action: string;
+  expected_impact_cents: number | null;
+  created_at: string;
+}
+
+export async function getSignals(
+  storeId: string,
+  lang: "en" | "ar",
+): Promise<{ signals: AdvisorSignal[] }> {
+  return apiClient<{ signals: AdvisorSignal[] }>(
+    `/stores/${storeId}/analytics/signals?lang=${lang}`,
+  );
+}
+
+export async function dismissSignal(
+  storeId: string,
+  signalId: string,
+): Promise<{ dismissed: boolean }> {
+  return apiClient<{ dismissed: boolean }>(
+    `/stores/${storeId}/analytics/signals/${signalId}/dismiss`,
+    { method: "POST" },
+  );
+}
+
+export async function refreshSignals(storeId: string): Promise<{ fired: number }> {
+  return apiClient<{ fired: number }>(
+    `/stores/${storeId}/analytics/signals/refresh`,
+    { method: "POST" },
+  );
+}
+
+// ── Custom report builder ──
+
+export type ReportDimension =
+  | "day" | "week" | "month"
+  | "payment_method" | "governorate" | "channel" | "coupon" | "product";
+
+export interface ReportBuilderRow {
+  label: string;
+  revenue_cents: number;
+  orders: number;
+  aov_cents: number;
+  units: number;
+}
+
+export interface ReportBuilderResponse {
+  dimension: ReportDimension;
+  rows: ReportBuilderRow[];
+  totals: ReportBuilderRow;
+}
+
+export async function getReportBuilder(
+  storeId: string,
+  range: DateRange,
+  dimension: ReportDimension,
+): Promise<ReportBuilderResponse> {
+  return apiClient<ReportBuilderResponse>(
+    url(storeId, "analytics/report-builder", range, { dimension }),
+  );
+}
+
+// ── Weekly digest ──
+
+export interface DigestContent {
+  headline: string;
+  highlights: string[];
+  has_sales: boolean;
+  period_start: string;
+  period_end: string;
+}
+
+export interface DigestSettings {
+  enabled: boolean;
+  channels: ("email" | "whatsapp")[];
+}
+
+export async function getDigestPreview(
+  storeId: string,
+  lang: "en" | "ar",
+): Promise<DigestContent> {
+  return apiClient<DigestContent>(
+    `/stores/${storeId}/analytics/digest/preview?lang=${lang}`,
+  );
+}
+
+export async function getDigestSettings(
+  storeId: string,
+): Promise<DigestSettings> {
+  return apiClient<DigestSettings>(`/stores/${storeId}/analytics/digest/settings`);
+}
+
+export async function putDigestSettings(
+  storeId: string,
+  settings: DigestSettings,
+): Promise<DigestSettings> {
+  return apiClient<DigestSettings>(
+    `/stores/${storeId}/analytics/digest/settings`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settings),
+    },
+  );
+}
+
+// ── Chart annotations (store events) ──
+
+export interface AnnotationItem {
+  date: string; // matches sales-chart day label ("Jul 14")
+  iso_date: string;
+  type: "product" | "coupon" | "campaign" | "theme";
+  label: string;
+}
+
+export async function getAnnotations(
+  storeId: string,
+  range: DateRange,
+): Promise<{ annotations: AnnotationItem[] }> {
+  return apiClient<{ annotations: AnnotationItem[] }>(
+    url(storeId, "analytics/annotations", range),
+  );
+}
+
+// ── Metric targets (goals + pace) ──
+
+export type TargetMetric = "revenue" | "orders" | "aov" | "conversion";
+
+export interface MetricTargetProgress {
+  metric: TargetMetric;
+  period: "month" | "quarter";
+  /** Smallest unit: cents (revenue/aov), count (orders), basis points (conversion). */
+  target_value: number;
+  actual_value: number;
+  progress_pct: number;
+  expected_pct: number;
+  pace: "ahead" | "on_track" | "behind";
+  projected_value: number;
+  days_elapsed: number;
+  days_remaining: number;
+  days_total: number;
+  period_start: string;
+  period_end: string;
+}
+
+export async function getMetricTargets(
+  storeId: string,
+): Promise<{ targets: MetricTargetProgress[] }> {
+  return apiClient<{ targets: MetricTargetProgress[] }>(
+    `/stores/${storeId}/analytics/targets`,
+  );
+}
+
+export async function putMetricTargets(
+  storeId: string,
+  targets: { metric: TargetMetric; period?: "month" | "quarter"; target_value: number }[],
+): Promise<{ updated: number }> {
+  return apiClient<{ updated: number }>(
+    `/stores/${storeId}/analytics/targets`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targets }),
+    },
+  );
+}
+
+// ── Inventory analytics ──
+
+export interface AbcClassSummary {
+  count: number;
+  revenue_cents: number;
+  revenue_share_pct: number;
+}
+
+export interface AbcProductItem {
+  product_id: string;
+  name: string;
+  abc_class: "A" | "B" | "C";
+  revenue_cents: number;
+  revenue_share_pct: number;
+  sell_through_pct: number;
+}
+
+export interface DeadStockBucket {
+  label: string;
+  products: number;
+  units: number;
+  value_cents: number;
+}
+
+export interface DeadStockProductItem {
+  product_id: string;
+  name: string;
+  quantity: number;
+  value_cents: number;
+  days_since_last_sale: number | null;
+}
+
+export interface InventoryAnalytics {
+  sell_through_pct: number;
+  units_sold: number;
+  units_in_stock: number;
+  abc: Record<"A" | "B" | "C", AbcClassSummary>;
+  abc_products: AbcProductItem[];
+  dead_stock_buckets: DeadStockBucket[];
+  dead_stock_products: DeadStockProductItem[];
+  dead_stock_value_cents: number;
+  /** false = some values fall back to sale price (no cost set). */
+  value_is_cost: boolean;
+}
+
+export async function getInventoryAnalytics(
+  storeId: string,
+  range: DateRange,
+): Promise<InventoryAnalytics> {
+  return apiClient<InventoryAnalytics>(
+    url(storeId, "analytics/inventory-analytics", range),
+  );
+}
+
 // ── Marketing Attribution ──
 
 export interface ChannelAttribution {
@@ -488,11 +813,24 @@ export interface CampaignItem {
   revenue: number; // cents
 }
 
+export interface LandingPageItem {
+  path: string;
+  sessions: number;
+}
+
+export interface ReferrerItem {
+  host: string;
+  sessions: number;
+}
+
 export interface MarketingAttribution {
   channels: ChannelAttribution[];
   campaigns: CampaignItem[];
   total_visits: number;
   attributed_visits: number;
+  /** Real acquisition detail — optional for older-backend compatibility. */
+  top_landing_pages?: LandingPageItem[];
+  top_referrers?: ReferrerItem[];
 }
 
 export async function getMarketingAttribution(
@@ -620,6 +958,22 @@ export async function getRealtimeSnapshot(
 export function getRealtimeStreamUrl(storeId: string): string {
   const base = import.meta.env.VITE_API_BASE_URL || "/api/v1";
   return `${base}/stores/${storeId}/analytics/realtime/stream`;
+}
+
+export interface GeoLocationItem {
+  location: string;
+  orders: number;
+  revenue: number; // cents
+  percentage: number;
+}
+
+export interface RealtimeGeo {
+  total_orders: number;
+  locations: GeoLocationItem[];
+}
+
+export async function getRealtimeGeo(storeId: string): Promise<RealtimeGeo> {
+  return apiClient<RealtimeGeo>(`/stores/${storeId}/analytics/realtime/geo`);
 }
 
 // ── AI Insights ──
@@ -768,5 +1122,97 @@ export async function getSessionDetail(
 ): Promise<SessionDetail> {
   return apiClient<SessionDetail>(
     `/stores/${storeId}/analytics/sessions/${fingerprint}`,
+  );
+}
+
+// ── Predictions v1 (AI Commerce Intelligence) ──
+
+export interface StockoutPrediction {
+  product_id: string;
+  name: string;
+  quantity: number;
+  velocity_per_day: number;
+  days_left: number;
+  run_out_date: string;
+  early_date: string;
+  late_date: string | null;
+  urgent: boolean;
+  confidence: "high" | "low";
+  suggested_reorder_qty: number;
+}
+
+export interface MonthRevenueBand {
+  expected_cents: number;
+  lower_cents: number;
+  upper_cents: number;
+  mtd_cents: number;
+  remaining_days: number;
+  confidence: "high" | "medium" | "low";
+}
+
+export interface CodGovernorateRate {
+  governorate: string;
+  resolved: number;
+  returned: number;
+  rate_pct: number;
+  shrunk_rate_pct: number;
+}
+
+export interface PredictionsData {
+  stockouts: StockoutPrediction[];
+  revenue_month: MonthRevenueBand | null;
+  orders_today: { predicted: number; lower: number; upper: number } | null;
+  repeat: {
+    customers: number;
+    repeat_customers: number;
+    repeat_rate_pct: number;
+    p_next_30d_pct: number;
+    median_gap_days: number | null;
+    confidence: "high" | "medium" | "low";
+  };
+  cod: {
+    store_rate_pct: number;
+    wilson_low_pct: number;
+    wilson_high_pct: number;
+    resolved_orders: number;
+    pending_orders: number;
+    pending_value_cents: number;
+    expected_loss_cents: number;
+    by_governorate: CodGovernorateRate[];
+    confidence: "high" | "medium" | "low";
+  } | null;
+  generated_at: string;
+}
+
+export async function getPredictions(storeId: string): Promise<PredictionsData> {
+  return apiClient<PredictionsData>(`/stores/${storeId}/analytics/predictions`);
+}
+
+// ── Executive dashboard (AI Commerce Intelligence) ──
+
+export interface ExecutiveGauges {
+  revenue: number | null;
+  profit: number | null;
+  store: number | null;
+  marketing: number | null;
+  inventory: number | null;
+  customer: number | null;
+}
+
+export interface ExecutiveData {
+  briefing: string;
+  problems: AdvisorSignal[];
+  opportunities: AdvisorSignal[];
+  gauges: ExecutiveGauges;
+  weekly_priorities: AdvisorSignal[];
+  generated_at: string;
+}
+
+export async function getExecutiveDashboard(
+  storeId: string,
+  lang: "en" | "ar",
+): Promise<ExecutiveData> {
+  return apiClient<ExecutiveData>(
+    `/stores/${storeId}/analytics/executive?lang=${lang}`,
   );
 }

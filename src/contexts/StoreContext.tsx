@@ -17,6 +17,7 @@ import { useAuth } from "./AuthContext";
 import { listStores } from "@/services/storeApi";
 import type { StoreData } from "@/services/storeApi";
 import { setActiveStoreCurrency } from "@/lib/format-money";
+import { setActiveStoreTimezone } from "@/lib/store-timezone";
 
 const STORE_KEY = "numu-current-store";
 
@@ -103,6 +104,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
   // currency (SAR for a Saudi store) instead of a hardcoded EGP.
   useEffect(() => {
     setActiveStoreCurrency(currentStore?.default_currency);
+    // Same pattern for the store's wall-clock timezone — analytics
+    // requests send it as `tz` so the backend buckets days on the
+    // store's calendar, not UTC. Defaults to Africa/Cairo when unset.
+    setActiveStoreTimezone(
+      (currentStore?.settings as { timezone?: string } | undefined)?.timezone
+    );
   }, [currentStore]);
 
   const switchStore = useCallback(

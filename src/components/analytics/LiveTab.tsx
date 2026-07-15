@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Eye, Users, ShoppingCart, DollarSign, Radio, Wifi, WifiOff,
-  TrendingUp, FileText,
+  TrendingUp, FileText, MapPin,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -12,10 +12,11 @@ import {
 } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import {
-  getRealtimeSnapshot, getRealtimeStreamUrl,
+  getRealtimeSnapshot, getRealtimeStreamUrl, getRealtimeGeo,
 } from "@/services/analyticsApi";
 import type { RealtimeSnapshot } from "@/services/analyticsApi";
 import { useSSE } from "@/hooks/useSSE";
+import { getActiveStoreTimezone } from "@/lib/store-timezone";
 import { useState, useEffect } from "react";
 
 interface LiveTabProps {
@@ -35,6 +36,17 @@ export function LiveTab({ formatCurrency }: LiveTabProps) {
     refetchInterval: 30000,
   });
 
+  // Geo is a DB query (today's orders by governorate) — polled on a
+  // slower cadence than the Redis snapshot so it doesn't add DB load to
+  // the 5s SSE / 30s snapshot path.
+  const geoQuery = useQuery({
+    queryKey: ["analytics", "realtime-geo", storeId],
+    queryFn: () => getRealtimeGeo(storeId!),
+    enabled: !!storeId,
+    refetchInterval: 60000,
+  });
+  const geo = geoQuery.data ?? null;
+
   const streamUrl = storeId ? getRealtimeStreamUrl(storeId) : "";
   const { data: sseData, connected } = useSSE<RealtimeSnapshot>({
     url: streamUrl,
@@ -43,20 +55,31 @@ export function LiveTab({ formatCurrency }: LiveTabProps) {
 
   const data = sseData ?? snapshotQuery.data ?? null;
 
-  // Track views history for sparkline
-  const [viewsHistory, setViewsHistory] = useState<number[]>([]);
+  // Track views history for sparkline — samples carry timestamps so the
+  // per-minute rate is a real rate. The old version reported the raw
+  // cumulative delta across the whole ~6-minute sample window labeled
+  // "/min", overstating by the window length.
+  const [viewsHistory, setViewsHistory] = useState<{ v: number; t: number }[]>([]);
   useEffect(() => {
     if (data) {
-      setViewsHistory((prev) => [...prev, data.views_today].slice(-12));
+      setViewsHistory((prev) =>
+        [...prev, { v: data.views_today, t: Date.now() }].slice(-12),
+      );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.views_today]);
 
-  const viewsPerMinute = viewsHistory.length >= 2
-    ? Math.max(0, viewsHistory[viewsHistory.length - 1] - viewsHistory[0])
-    : 0;
+  const viewsPerMinute = (() => {
+    if (viewsHistory.length < 2) return 0;
+    const first = viewsHistory[0];
+    const last = viewsHistory[viewsHistory.length - 1];
+    const minutes = (last.t - first.t) / 60_000;
+    if (minutes <= 0) return 0;
+    return Math.max(0, Math.round(((last.v - first.v) / minutes) * 10) / 10);
+  })();
 
   const sparklineData = viewsHistory.length >= 2
-    ? viewsHistory.map((v, i) => i === 0 ? 0 : v - viewsHistory[i - 1]).slice(1)
+    ? viewsHistory.map((s, i) => (i === 0 ? 0 : s.v - viewsHistory[i - 1].v)).slice(1)
     : [];
 
   // Derived KPIs
@@ -67,8 +90,16 @@ export function LiveTab({ formatCurrency }: LiveTabProps) {
     ? Math.round(data.revenue_today / data.orders_today)
     : 0;
 
-  // Hourly chart data (only show hours up to current hour)
-  const currentHour = new Date().getHours();
+  // Hourly chart data (only show hours up to current hour). The hour
+  // axis follows the STORE's wall clock — the backend keys its hourly
+  // Redis buckets the same way — not the browser's timezone.
+  const currentHour = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      hour: "numeric",
+      hour12: false,
+      timeZone: getActiveStoreTimezone(),
+    }).format(new Date()),
+  );
   const hourlyChartData = (data?.hourly_orders ?? [])
     .slice(0, currentHour + 1)
     .map((orders, h) => ({
@@ -404,6 +435,49 @@ export function LiveTab({ formatCurrency }: LiveTabProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Today's orders by governorate — the geo layer for Live View.
+          Real shipping-address data (not IP geo, which we don't store). */}
+      <Card className="border-border/60">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+            {isAr ? "طلبات النهاردة حسب المحافظة" : "Today's Orders by Governorate"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {geo && geo.locations.length > 0 ? (
+            <div className="space-y-1.5">
+              {geo.locations.slice(0, 8).map((loc) => (
+                <div key={loc.location} className="flex items-center gap-3">
+                  <span className="text-[12.5px] font-medium capitalize w-28 sm:w-36 shrink-0 truncate">
+                    {loc.location}
+                  </span>
+                  <div className="flex-1 h-2.5 rounded-full bg-muted/60 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-navy transition-all duration-500"
+                      style={{ width: `${Math.max(loc.percentage, 4)}%` }}
+                    />
+                  </div>
+                  <span className="text-[12px] font-semibold tabular-nums w-10 text-end shrink-0">
+                    {loc.orders.toLocaleString(isAr ? "ar-EG" : undefined)}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground tabular-nums w-20 text-end shrink-0 hidden sm:inline">
+                    {formatCurrency(loc.revenue)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={MapPin}
+              title={isAr ? "مفيش طلبات النهاردة" : "No orders yet today"}
+              description={isAr ? "أماكن العملاء هتظهر هنا أول ما تيجي طلبات" : "Customer locations will appear as orders come in"}
+              className="py-6"
+            />
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

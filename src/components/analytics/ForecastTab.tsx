@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { getForecast } from "@/services/analyticsApi";
+import { PredictionsCard } from "@/components/analytics/PredictionsCard";
 import { useState } from "react";
 
 interface ForecastTabProps {
@@ -80,6 +81,7 @@ export function ForecastTab({ formatCurrency }: ForecastTabProps) {
   if (meta?.status === "insufficient_data" || meta?.status === "no_revenue") {
     return (
       <div className="space-y-4">
+        <PredictionsCard formatCurrency={formatCurrency} />
         <Card className="border-border/60">
           <CardContent className="p-8">
             <EmptyState
@@ -99,6 +101,9 @@ export function ForecastTab({ formatCurrency }: ForecastTabProps) {
 
   return (
     <div className="space-y-4">
+      {/* Predictions v1 (AI-5): bands, stockout dates, repeat, COD risk */}
+      <PredictionsCard formatCurrency={formatCurrency} />
+
       {/* KPI Cards */}
       {meta && meta.status === "ok" && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
