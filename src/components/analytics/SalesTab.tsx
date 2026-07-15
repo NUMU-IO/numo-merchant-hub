@@ -4,54 +4,55 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import {
-  DollarSign, TrendingUp, Tag, ArrowDown, ShoppingCart, CreditCard, Percent,
+  DollarSign, TrendingUp, Tag, ArrowDown, ShoppingCart, CreditCard, Percent, Receipt,
 } from "lucide-react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar,
+  AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, ReferenceLine,
 } from "recharts";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
-  getSalesChart, getRevenueBreakdown, getOrdersBreakdown,
+  getSalesChart, getRevenueBreakdown, getOrdersBreakdown, getAnnotations,
 } from "@/services/analyticsApi";
-import type { SalesDataPoint } from "@/services/analyticsApi";
 import { dateRangeKey } from "@/services/dateRangeParams";
 import type { DateRange } from "@/components/filters/DateRangePicker";
+import { useAnalyticsContext } from "@/components/analytics/AnalyticsLayout";
 import { useState } from "react";
 
 type Granularity = "day" | "week" | "month";
+
+// Compact glyphs for chart-event markers, by annotation type.
+const ANNOTATION_ICON: Record<string, string> = {
+  product: "🏷️",
+  coupon: "🎟️",
+  campaign: "📣",
+  theme: "🎨",
+};
 
 interface SalesTabProps {
   range: DateRange;
   formatCurrency: (cents: number) => string;
 }
 
-function aggregateByGranularity(data: SalesDataPoint[], granularity: Granularity): SalesDataPoint[] {
-  if (granularity === "day") return data;
-  const chunkSize = granularity === "week" ? 7 : 30;
-  const result: SalesDataPoint[] = [];
-  for (let i = 0; i < data.length; i += chunkSize) {
-    const chunk = data.slice(i, i + chunkSize);
-    result.push({
-      date: chunk[0].date,
-      sales: chunk.reduce((sum, d) => sum + d.sales, 0),
-      orders: chunk.reduce((sum, d) => sum + d.orders, 0),
-    });
-  }
-  return result;
-}
-
 export function SalesTab({ range, formatCurrency }: SalesTabProps) {
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
+  const { compare } = useAnalyticsContext();
   const storeId = currentStore?.id;
   const isAr = language === "ar";
   const [granularity, setGranularity] = useState<Granularity>("day");
   const rangeKey = dateRangeKey(range);
 
+  // Week/month buckets come from the BACKEND (real store-local calendar
+  // weeks and months) — the old client-side fixed 7/30-row chunking
+  // produced rolling pseudo-periods labeled with arbitrary dates.
   const chartQuery = useQuery({
-    queryKey: ["analytics", "chart", storeId, ...rangeKey],
-    queryFn: () => getSalesChart(storeId!, range),
+    queryKey: ["analytics", "chart", storeId, granularity, compare, ...rangeKey],
+    queryFn: () =>
+      getSalesChart(storeId!, range, {
+        granularity,
+        compare: compare ? "previous_period" : undefined,
+      }),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
@@ -70,9 +71,35 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
     placeholderData: keepPreviousData,
   });
 
-  const chartData = chartQuery.data ? aggregateByGranularity(chartQuery.data, granularity) : [];
+  const annotationsQuery = useQuery({
+    queryKey: ["analytics", "annotations", storeId, ...rangeKey],
+    queryFn: () => getAnnotations(storeId!, range),
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+  });
+
+  const chartData = chartQuery.data ?? [];
+  const hasCompare = chartData.some(
+    (p) => p.prev_sales !== null && p.prev_sales !== undefined,
+  );
   const revenue = revenueQuery.data ?? null;
   const ordersBreakdown = ordersBreakdownQuery.data ?? null;
+
+  // Annotations → one marker per chart bucket that has ≥1 event, but only
+  // when the bucket label exists on the current chart (day granularity;
+  // week/month buckets don't line up with per-day event labels). Grouped
+  // so a busy launch day shows a single marker, not a wall of lines.
+  const chartLabels = new Set(chartData.map((d) => d.date));
+  const annotationsByDate = new Map<string, { type: string; label: string }[]>();
+  if (granularity === "day") {
+    for (const a of annotationsQuery.data?.annotations ?? []) {
+      if (!chartLabels.has(a.date)) continue;
+      const list = annotationsByDate.get(a.date) ?? [];
+      list.push({ type: a.type, label: a.label });
+      annotationsByDate.set(a.date, list);
+    }
+  }
+  const annotationMarkers = [...annotationsByDate.entries()];
 
   // Compute AOV trend from raw daily chart data
   const aovTrendData = (chartQuery.data ?? [])
@@ -201,15 +228,64 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
                   <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 100).toLocaleString()}`} />
                   <Tooltip
                     contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", fontSize: "12px" }}
-                    formatter={(value: number) => [formatCurrency(value), isAr ? "الإيرادات" : "Revenue"]}
+                    formatter={(value: number, name: string) => [
+                      formatCurrency(value),
+                      name === "prev_sales"
+                        ? (isAr ? "الفترة السابقة" : "Previous period")
+                        : (isAr ? "الإيرادات" : "Revenue"),
+                    ]}
                   />
+                  {/* Previous-period overlay (Compare toggle). */}
+                  {hasCompare && (
+                    <Line
+                      type="monotone"
+                      dataKey="prev_sales"
+                      stroke="hsl(var(--muted-foreground))"
+                      strokeWidth={1.5}
+                      strokeDasharray="5 4"
+                      dot={false}
+                      opacity={0.7}
+                    />
+                  )}
                   <Area type="monotone" dataKey="sales" stroke="hsl(var(--primary))" fill="url(#colorRevenue)" strokeWidth={1.5} dot={false} />
+                  {/* Store-event markers (item 13) — dashed vertical lines
+                      at the day a coupon/campaign/product/theme event
+                      happened, so a spike/dip has visible context. */}
+                  {annotationMarkers.map(([date, evs]) => (
+                    <ReferenceLine
+                      key={date}
+                      x={date}
+                      stroke="hsl(var(--saffron))"
+                      strokeDasharray="3 3"
+                      strokeOpacity={0.7}
+                      label={{
+                        value: evs.length > 1 ? `${ANNOTATION_ICON[evs[0].type]}·${evs.length}` : ANNOTATION_ICON[evs[0].type],
+                        position: "top",
+                        fontSize: 11,
+                        fill: "hsl(var(--muted-foreground))",
+                      }}
+                    />
+                  ))}
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
               <EmptyState icon={TrendingUp} title={isAr ? "مفيش بيانات" : "No data available"} />
             )}
           </div>
+          {/* Annotation legend — lists what each marker means. */}
+          {annotationMarkers.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground border-t border-border/60 pt-2">
+              {annotationMarkers.slice(0, 6).map(([date, evs]) => (
+                <span key={date} className="inline-flex items-center gap-1">
+                  <span aria-hidden>{ANNOTATION_ICON[evs[0].type]}</span>
+                  <span className="font-medium text-foreground/70">{date}</span>
+                  <span className="truncate max-w-[160px]">
+                    {evs[0].label}{evs.length > 1 ? ` +${evs.length - 1}` : ""}
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -381,6 +457,67 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Tax collected — for ETA (Egypt) / ZATCA (Saudi) filing. Egyptian
+          VAT is inclusive (already in the price), so this is what the
+          merchant owes out of collected revenue, not an addition. */}
+      {revenue && (revenue.tax_collected ?? 0) > 0 && (
+        <Card className="border-border/60">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Receipt className="h-3.5 w-3.5 text-muted-foreground" />
+                {isAr ? "الضريبة المحصّلة" : "Tax Collected"}
+              </span>
+              <span className="text-[14px] font-bold tabular-nums">
+                {formatCurrency(revenue.tax_collected ?? 0)}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-[11.5px] text-muted-foreground mb-3">
+              {isAr
+                ? "الضريبة جزء من السعر (شاملة) — دي اللي بتدفعها للمصلحة، مش إضافة على المبيعات."
+                : "Tax is included in prices — this is what you remit to the authority, not added to sales."}
+            </p>
+            {(revenue.tax_by_rate?.length ?? 0) > 0 && (
+              <div className="space-y-0.5 mb-3">
+                {revenue.tax_by_rate!.map((t) => (
+                  <div key={t.rate_pct} className="flex items-center justify-between rounded-lg p-2 -mx-2 hover:bg-muted/50 transition-colors">
+                    <span className="text-[12.5px] font-medium tabular-nums">
+                      {t.rate_pct.toLocaleString(isAr ? "ar-EG" : undefined)}% VAT
+                      <span className="text-[10.5px] text-muted-foreground ms-1.5">
+                        · {t.orders.toLocaleString(isAr ? "ar-EG" : undefined)} {isAr ? "طلب" : "orders"}
+                      </span>
+                    </span>
+                    <span className="text-[12.5px] font-semibold tabular-nums">
+                      {formatCurrency(t.tax_cents)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3 border-t border-border/60 pt-3">
+              <div>
+                <p className="text-[10.5px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {isAr ? "شاملة السعر" : "Included in price"}
+                </p>
+                <p className="text-[14px] font-bold tabular-nums">
+                  {formatCurrency(revenue.tax_inclusive ?? 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10.5px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {isAr ? "مضافة" : "Added on top"}
+                </p>
+                <p className="text-[14px] font-bold tabular-nums">
+                  {formatCurrency(revenue.tax_added ?? 0)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

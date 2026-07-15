@@ -14,7 +14,7 @@ import {
   ScatterChart, Scatter, ZAxis,
 } from "recharts";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { getProductPerformance } from "@/services/analyticsApi";
+import { getInventoryAnalytics, getProductPerformance } from "@/services/analyticsApi";
 import type { ProductPerformanceItem } from "@/services/analyticsApi";
 import { dateRangeKey } from "@/services/dateRangeParams";
 import type { DateRange } from "@/components/filters/DateRangePicker";
@@ -88,7 +88,16 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
     staleTime: 5 * 60 * 1000,
   });
 
+  const invQuery = useQuery({
+    queryKey: ["analytics", "inventory-analytics", storeId, ...dateRangeKey(range)],
+    queryFn: () => getInventoryAnalytics(storeId!, range),
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const data = perfQuery.data ?? null;
+  const inv = invQuery.data ?? null;
 
   // Drawer wiring: the open product is driven by the ?product=<id> URL param
   // so the dashboard Top Sellers widget can deep-link straight into a
@@ -754,6 +763,114 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Inventory intelligence — sell-through, ABC classes, dead stock.
+          ABC follows the standard retail rule: A = the head building 80%
+          of window revenue, B = next 15%, C = the tail. */}
+      {inv && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="border-border/60">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">
+                {isAr ? "تصنيف ABC للمنتجات" : "ABC Classification"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {(["A", "B", "C"] as const).map((cls) => (
+                  <div key={cls} className="rounded-xl bg-muted/40 p-3 text-center">
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                      {cls === "A"
+                        ? (isAr ? "أساسية" : "Core")
+                        : cls === "B"
+                          ? (isAr ? "متوسطة" : "Steady")
+                          : (isAr ? "راكدة" : "Tail")}{" "}
+                      ({cls})
+                    </p>
+                    <p className="text-xl font-bold tabular-nums">
+                      {inv.abc[cls].count.toLocaleString(isAr ? "ar-EG" : undefined)}
+                    </p>
+                    <p className="text-[10.5px] text-muted-foreground tabular-nums">
+                      {inv.abc[cls].revenue_share_pct.toLocaleString(isAr ? "ar-EG" : undefined)}%{" "}
+                      {isAr ? "من الإيرادات" : "of revenue"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                <span className="text-[12px] font-semibold text-muted-foreground">
+                  {isAr ? "معدل تصريف المخزون" : "Sell-through rate"}
+                </span>
+                <span className="text-[14px] font-bold tabular-nums">
+                  {inv.sell_through_pct.toLocaleString(isAr ? "ar-EG" : undefined)}%
+                  <span className="text-[10.5px] font-medium text-muted-foreground ms-1.5">
+                    {inv.units_sold.toLocaleString(isAr ? "ar-EG" : undefined)}{" "}
+                    {isAr ? "مباع من" : "sold of"}{" "}
+                    {(inv.units_sold + inv.units_in_stock).toLocaleString(isAr ? "ar-EG" : undefined)}
+                  </span>
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                <span>{isAr ? "مخزون راكد" : "Dead Stock"}</span>
+                <span className="text-[12px] font-bold tabular-nums text-destructive">
+                  {formatCurrency(inv.dead_stock_value_cents)}
+                  {!inv.value_is_cost && (
+                    <span className="text-[10px] font-medium text-muted-foreground ms-1">
+                      ({isAr ? "بسعر البيع" : "at sale price"})
+                    </span>
+                  )}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {inv.dead_stock_products.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    {inv.dead_stock_buckets.map((b) => (
+                      <div key={b.label} className="rounded-lg bg-muted/40 px-2 py-1.5 text-center">
+                        <p className="text-[10px] font-bold text-muted-foreground tabular-nums">
+                          {b.label} {isAr ? "يوم" : "days"}
+                        </p>
+                        <p className="text-[13px] font-bold tabular-nums">
+                          {b.products.toLocaleString(isAr ? "ar-EG" : undefined)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="space-y-1">
+                    {inv.dead_stock_products.slice(0, 6).map((p) => (
+                      <div key={p.product_id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors">
+                        <span className="text-[12.5px] font-medium truncate min-w-0 flex-1">
+                          {p.name || (isAr ? "(بدون اسم)" : "(unnamed)")}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                          {p.quantity.toLocaleString(isAr ? "ar-EG" : undefined)}{" "}
+                          {isAr ? "قطعة" : "units"}
+                        </span>
+                        <span className="text-[12.5px] font-semibold tabular-nums shrink-0">
+                          {formatCurrency(p.value_cents)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <EmptyState
+                  icon={Package}
+                  title={isAr ? "مفيش مخزون راكد" : "No dead stock"}
+                  description={isAr ? "كل منتجاتك المتوفرة اتباعت خلال آخر 30 يوم" : "Everything in stock has sold within the last 30 days"}
+                  className="py-6"
+                />
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       <ProductDetailDrawer

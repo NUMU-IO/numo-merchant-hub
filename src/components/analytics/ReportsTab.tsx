@@ -104,6 +104,26 @@ const cur = (v: number, fmt: (c: number) => string) => fmt(v);
 const pct = (v: number, _fmt: (c: number) => string, isAr: boolean) =>
   `${v.toFixed(1).toString().replace(".", isAr ? "٫" : ".")}%`;
 
+/**
+ * CSV cell for a column value. The on-screen table renders through
+ * `c.format`, but the export used to dump `r.values[c.key]` RAW — so
+ * every money column exported integer cents (100× what the screen
+ * showed) and percentages exported as unrounded fractions. Exports must
+ * stay machine-readable, so instead of the display strings (currency
+ * glyphs, Arabic decimal separators break spreadsheet math) we emit:
+ * currency in MAJOR units with 2 decimals, percentages as plain numbers,
+ * counts raw.
+ */
+function csvValue(
+  c: ColumnDef,
+  v: number | null | undefined,
+): string | number {
+  if (v === null || v === undefined) return "";
+  if (c.format === cur) return (v / 100).toFixed(2);
+  if (c.format === pct) return v.toFixed(1);
+  return v;
+}
+
 const ORDER_COL: ColumnDef = {
   key: "orders", label: { en: "Orders", ar: "عدد الطلبات" }, align: "end", format: num,
 };
@@ -132,6 +152,10 @@ export function ReportsTab({ range, formatCurrency }: ReportsTabProps) {
   const [category, setCategory] = useState<Category>("sales");
   const [reportId, setReportId] = useState<string>("periods");
   const [search, setSearch] = useState("");
+  // Honest data freshness: stamped when the report data actually arrives
+  // or changes — the previous version printed `new Date()` at render
+  // time, implying recency the data didn't have.
+  const [dataAsOf, setDataAsOf] = useState<Date | null>(null);
   const rangeKey = useMemo(() => dateRangeKey(range), [range]);
 
   const reports =
@@ -242,11 +266,13 @@ export function ReportsTab({ range, formatCurrency }: ReportsTabProps) {
     if (category === "sales") {
       if (reportId === "periods") {
         const points = salesChartQuery.data ?? [];
+        // `p.date` is a pre-formatted bucket LABEL from the backend
+        // ("Jun 15", "Wk of Jun 15", "Jun 2026") — not an ISO date.
+        // Re-parsing it with `new Date()` invented year 2001 on every
+        // row. Display it verbatim, matching the charts.
         const rows: ReportRow[] = points.map((p) => ({
           key: p.date,
-          label: new Date(p.date).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
-            year: "numeric", month: "short", day: "numeric",
-          }),
+          label: p.date,
           values: {
             orders: p.orders,
             avg_basket: p.orders > 0 ? Math.round(p.sales / p.orders) : 0,
@@ -645,11 +671,11 @@ export function ReportsTab({ range, formatCurrency }: ReportsTabProps) {
 
       if (reportId === "daily") {
         const points = salesChartQuery.data ?? [];
+        // Same as "periods": `p.date` is a pre-formatted label, not ISO —
+        // re-parsing fabricated year 2001.
         const rows: ReportRow[] = points.map((p) => ({
           key: p.date,
-          label: new Date(p.date).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
-            year: "numeric", month: "short", day: "numeric",
-          }),
+          label: p.date,
           values: {
             orders: p.orders,
             sales: p.sales,
@@ -907,6 +933,11 @@ export function ReportsTab({ range, formatCurrency }: ReportsTabProps) {
     customerStatsQuery.data, customerSegmentsQuery.data, trafficSourcesQuery.data,
   ]);
 
+  // Stamp freshness when the assembled report actually changes.
+  useEffect(() => {
+    if (reportData) setDataAsOf(new Date());
+  }, [reportData]);
+
   // Filter rows by search text
   const filteredRows = useMemo(() => {
     if (!reportData) return [];
@@ -931,7 +962,7 @@ export function ReportsTab({ range, formatCurrency }: ReportsTabProps) {
       ];
       const rows = filteredRows.map((r) => [
         r.label + (r.badge ? ` (${r.badge})` : ""),
-        ...reportData.columns.map((c) => r.values[c.key] ?? ""),
+        ...reportData.columns.map((c) => csvValue(c, r.values[c.key])),
       ]);
       downloadCsv(`${category}-${reportId}-${new Date().toISOString().slice(0, 10)}`, headers, rows);
     });
@@ -1028,13 +1059,15 @@ export function ReportsTab({ range, formatCurrency }: ReportsTabProps) {
               {category === "customers" && (isAr ? "تقارير العملاء" : "Customers Reports")}
               {category === "marketing" && (isAr ? "تقارير التسويق" : "Marketing Reports")}
             </h2>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {isAr ? "آخر تحديث: " : "Last updated: "}
-              {new Date().toLocaleString(isAr ? "ar-EG" : "en-US", {
-                year: "numeric", month: "short", day: "numeric",
-                hour: "2-digit", minute: "2-digit",
-              })}
-            </p>
+            {dataAsOf && (
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {isAr ? "آخر تحديث: " : "Last updated: "}
+                {dataAsOf.toLocaleString(isAr ? "ar-EG" : "en-US", {
+                  year: "numeric", month: "short", day: "numeric",
+                  hour: "2-digit", minute: "2-digit",
+                })}
+              </p>
+            )}
           </div>
         </div>
 

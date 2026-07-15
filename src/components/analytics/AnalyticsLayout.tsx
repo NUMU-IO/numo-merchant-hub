@@ -1,7 +1,7 @@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { formatMoney } from "@/lib/format-money";
 import { Button } from "@/components/ui/button";
-import { Download, RefreshCw } from "lucide-react";
+import { ArrowLeftRight, Download, RefreshCw } from "lucide-react";
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -20,6 +20,10 @@ interface AnalyticsContextValue {
   /** Selected date range from the Shopify-style picker. Drives every
    *  analytics query on every page that wraps in AnalyticsLayout. */
   range: DateRange;
+  /** Compare-to-previous-period toggle (header button). Pages that
+   *  support comparison overlay the previous window's series/deltas
+   *  when this is on; pages that don't simply ignore it. */
+  compare: boolean;
   formatCurrency: (cents: number) => string;
   registerExport: (handler: ExportHandler | null) => void;
 }
@@ -44,6 +48,7 @@ const fallbackRange = (): DateRange => {
 
 const AnalyticsContext = createContext<AnalyticsContextValue>({
   range: fallbackRange(),
+  compare: false,
   formatCurrency: () => "",
   registerExport: () => {},
 });
@@ -68,6 +73,27 @@ export function AnalyticsLayout({
   const queryClient = useQueryClient();
 
   const { range, setRange } = useDateRangeUrlState();
+
+  // Session-sticky so flipping between analytics tabs keeps the mode;
+  // deliberately NOT in the URL (the range already owns that surface).
+  const [compare, setCompare] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem("numu_analytics_compare") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleCompare = useCallback(() => {
+    setCompare((prev) => {
+      const next = !prev;
+      try {
+        sessionStorage.setItem("numu_analytics_compare", next ? "1" : "0");
+      } catch {
+        /* private mode */
+      }
+      return next;
+    });
+  }, []);
 
   const [isRefetching, setIsRefetching] = useState(false);
   const exportHandlerRef = useRef<ExportHandler | null>(null);
@@ -96,8 +122,8 @@ export function AnalyticsLayout({
   );
 
   const ctxValue = useMemo<AnalyticsContextValue>(
-    () => ({ range, formatCurrency, registerExport }),
-    [range, formatCurrency, registerExport],
+    () => ({ range, compare, formatCurrency, registerExport }),
+    [range, compare, formatCurrency, registerExport],
   );
 
   return (
@@ -121,6 +147,19 @@ export function AnalyticsLayout({
                 size="sm"
                 align="end"
               />
+            )}
+            {showPeriod && (
+              <Button
+                variant={compare ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 rounded-lg gap-1.5 text-[12px] px-2.5"
+                onClick={toggleCompare}
+                title={isAr ? "قارن بالفترة السابقة" : "Compare to previous period"}
+                aria-pressed={compare}
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5" />
+                {isAr ? "مقارنة" : "Compare"}
+              </Button>
             )}
             {hasExport && (
               <Button

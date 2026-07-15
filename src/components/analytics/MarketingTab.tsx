@@ -2,7 +2,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Megaphone, Globe, Eye } from "lucide-react";
+import { Megaphone, Globe, Eye, LogIn } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -236,6 +236,78 @@ export function MarketingTab({ range, formatCurrency }: MarketingTabProps) {
           </Card>
         </div>
       )}
+
+      {/* Acquisition detail — where sessions land and who sends them.
+          Real first-page-per-session / referrer-host data. */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-border/60">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+              <LogIn className="h-3.5 w-3.5 text-muted-foreground" />
+              {isAr ? "صفحات الدخول" : "Top Landing Pages"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data?.top_landing_pages?.length ? (
+              <div className="space-y-1">
+                {data.top_landing_pages.map((p, i) => (
+                  <div key={p.path} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors">
+                    <span className="text-[11px] font-bold text-muted-foreground/40 w-4 tabular-nums shrink-0">{i + 1}</span>
+                    <span className="text-[12.5px] font-medium truncate min-w-0 flex-1 ltr-nums" dir="ltr">{p.path}</span>
+                    <span className="text-[12.5px] font-semibold tabular-nums shrink-0">
+                      {p.sessions.toLocaleString(isAr ? "ar-EG" : undefined)}
+                    </span>
+                    <span className="text-[10.5px] text-muted-foreground shrink-0">
+                      {isAr ? "جلسة" : "sessions"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={LogIn}
+                title={isAr ? "مفيش بيانات دخول بعد" : "No landing data yet"}
+                description={isAr ? "هتظهر أول صفحة بيوصلها كل زائر" : "Each session's first page will appear here"}
+                className="py-6"
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+              <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+              {isAr ? "مصادر الإحالة" : "Top Referrers"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data?.top_referrers?.length ? (
+              <div className="space-y-1">
+                {data.top_referrers.map((r, i) => (
+                  <div key={r.host} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors">
+                    <span className="text-[11px] font-bold text-muted-foreground/40 w-4 tabular-nums shrink-0">{i + 1}</span>
+                    <span className="text-[12.5px] font-medium truncate min-w-0 flex-1 ltr-nums" dir="ltr">{r.host}</span>
+                    <span className="text-[12.5px] font-semibold tabular-nums shrink-0">
+                      {r.sessions.toLocaleString(isAr ? "ar-EG" : undefined)}
+                    </span>
+                    <span className="text-[10.5px] text-muted-foreground shrink-0">
+                      {isAr ? "جلسة" : "sessions"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={Globe}
+                title={isAr ? "مفيش إحالات خارجية بعد" : "No external referrers yet"}
+                description={isAr ? "المواقع اللي بتبعت زوار لمتجرك هتظهر هنا" : "Sites sending visitors to your store will appear here"}
+                className="py-6"
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

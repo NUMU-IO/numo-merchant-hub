@@ -3,17 +3,19 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   getSalesOverview, getSalesChart, getAnalyticsTopProducts,
   getSalesByLocation, getCustomerAnalytics, getConversionStats,
-  getCodRejectionStats,
+  getCodRejectionStats, getFunnel,
 } from "@/services/analyticsApi";
 import { dateRangeKey } from "@/services/dateRangeParams";
 import { AnalyticsSkeleton } from "@/components/skeletons/AnalyticsSkeleton";
 import { OverviewTab } from "@/components/analytics/OverviewTab";
+import { MetricTargetsCard } from "@/components/analytics/MetricTargetsCard";
+import { WeeklyDigestCard } from "@/components/analytics/WeeklyDigestCard";
 import { AnalyticsLayout, useAnalyticsContext } from "@/components/analytics/AnalyticsLayout";
 
 function OverviewContent() {
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
-  const { range, formatCurrency } = useAnalyticsContext();
+  const { range, compare, formatCurrency } = useAnalyticsContext();
   const rangeKey = dateRangeKey(range);
 
   const overviewQuery = useQuery({
@@ -24,8 +26,13 @@ function OverviewContent() {
   });
 
   const chartQuery = useQuery({
-    queryKey: ["analytics", "chart", storeId, ...rangeKey],
-    queryFn: () => getSalesChart(storeId!, range),
+    queryKey: ["analytics", "chart", storeId, compare, ...rangeKey],
+    queryFn: () =>
+      getSalesChart(
+        storeId!,
+        range,
+        compare ? { compare: "previous_period" } : undefined,
+      ),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
@@ -65,22 +72,41 @@ function OverviewContent() {
     placeholderData: keepPreviousData,
   });
 
+  // Real funnel counts (same endpoint FunnelTab uses) — the Overview
+  // funnel card used to fabricate its "Added to cart" stage from a
+  // hardcoded 25%-of-visits guess.
+  const funnelQuery = useQuery({
+    queryKey: ["analytics", "funnel", storeId, ...rangeKey],
+    queryFn: () => getFunnel(storeId!, range),
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+  });
+
   const overview = overviewQuery.data ?? null;
   const isLoading = overviewQuery.isLoading;
 
   if (isLoading && !overview) return <AnalyticsSkeleton />;
 
   return (
-    <OverviewTab
-      overview={overview}
-      chartData={chartQuery.data ?? []}
-      topProducts={topProductsQuery.data ?? []}
-      locations={locationsQuery.data ?? []}
-      customerStats={customerStatsQuery.data ?? null}
-      conversion={conversionQuery.data ?? null}
-      codRejection={codRejectionQuery.data ?? null}
-      formatCurrency={formatCurrency}
-    />
+    <div className="space-y-4">
+      {storeId && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <MetricTargetsCard storeId={storeId} formatCurrency={formatCurrency} />
+          <WeeklyDigestCard storeId={storeId} />
+        </div>
+      )}
+      <OverviewTab
+        overview={overview}
+        chartData={chartQuery.data ?? []}
+        topProducts={topProductsQuery.data ?? []}
+        locations={locationsQuery.data ?? []}
+        customerStats={customerStatsQuery.data ?? null}
+        conversion={conversionQuery.data ?? null}
+        codRejection={codRejectionQuery.data ?? null}
+        funnel={funnelQuery.data ?? null}
+        formatCurrency={formatCurrency}
+      />
+    </div>
   );
 }
 
