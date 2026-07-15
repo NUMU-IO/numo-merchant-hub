@@ -1124,3 +1124,95 @@ export async function getSessionDetail(
     `/stores/${storeId}/analytics/sessions/${fingerprint}`,
   );
 }
+
+// ── Predictions v1 (AI Commerce Intelligence) ──
+
+export interface StockoutPrediction {
+  product_id: string;
+  name: string;
+  quantity: number;
+  velocity_per_day: number;
+  days_left: number;
+  run_out_date: string;
+  early_date: string;
+  late_date: string | null;
+  urgent: boolean;
+  confidence: "high" | "low";
+  suggested_reorder_qty: number;
+}
+
+export interface MonthRevenueBand {
+  expected_cents: number;
+  lower_cents: number;
+  upper_cents: number;
+  mtd_cents: number;
+  remaining_days: number;
+  confidence: "high" | "medium" | "low";
+}
+
+export interface CodGovernorateRate {
+  governorate: string;
+  resolved: number;
+  returned: number;
+  rate_pct: number;
+  shrunk_rate_pct: number;
+}
+
+export interface PredictionsData {
+  stockouts: StockoutPrediction[];
+  revenue_month: MonthRevenueBand | null;
+  orders_today: { predicted: number; lower: number; upper: number } | null;
+  repeat: {
+    customers: number;
+    repeat_customers: number;
+    repeat_rate_pct: number;
+    p_next_30d_pct: number;
+    median_gap_days: number | null;
+    confidence: "high" | "medium" | "low";
+  };
+  cod: {
+    store_rate_pct: number;
+    wilson_low_pct: number;
+    wilson_high_pct: number;
+    resolved_orders: number;
+    pending_orders: number;
+    pending_value_cents: number;
+    expected_loss_cents: number;
+    by_governorate: CodGovernorateRate[];
+    confidence: "high" | "medium" | "low";
+  } | null;
+  generated_at: string;
+}
+
+export async function getPredictions(storeId: string): Promise<PredictionsData> {
+  return apiClient<PredictionsData>(`/stores/${storeId}/analytics/predictions`);
+}
+
+// ── Executive dashboard (AI Commerce Intelligence) ──
+
+export interface ExecutiveGauges {
+  revenue: number | null;
+  profit: number | null;
+  store: number | null;
+  marketing: number | null;
+  inventory: number | null;
+  customer: number | null;
+}
+
+export interface ExecutiveData {
+  briefing: string;
+  problems: AdvisorSignal[];
+  opportunities: AdvisorSignal[];
+  gauges: ExecutiveGauges;
+  weekly_priorities: AdvisorSignal[];
+  generated_at: string;
+}
+
+export async function getExecutiveDashboard(
+  storeId: string,
+  lang: "en" | "ar",
+): Promise<ExecutiveData> {
+  return apiClient<ExecutiveData>(
+    `/stores/${storeId}/analytics/executive?lang=${lang}`,
+  );
+}
