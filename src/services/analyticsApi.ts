@@ -536,6 +536,38 @@ export async function getSearchTerms(
   return apiClient<SearchTermsData>(url(storeId, "analytics/search-terms", range));
 }
 
+// ── Customer health (AI-3) ──
+
+export type HealthState =
+  | "vip" | "loyal" | "active" | "growing"
+  | "high_value_prospect" | "coupon_hunter" | "at_risk" | "churned";
+
+export interface CustomerHealthItem {
+  customer_id: string;
+  name: string;
+  score: number;
+  state: HealthState;
+  orders: number;
+  total_spent_cents: number;
+  days_since_last: number;
+}
+
+export interface CustomerHealthData {
+  distribution: { state: HealthState; count: number }[];
+  median_gap_days: number;
+  customers: CustomerHealthItem[];
+}
+
+export async function getCustomerHealth(
+  storeId: string,
+  state?: HealthState,
+): Promise<CustomerHealthData> {
+  const qs = state ? `?state=${state}` : "";
+  return apiClient<CustomerHealthData>(
+    `/stores/${storeId}/analytics/customer-health${qs}`,
+  );
+}
+
 // ── Advisor signals (AI Commerce Intelligence) ──
 
 export interface AdvisorSignal {

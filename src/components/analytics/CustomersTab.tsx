@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Users, Crown, Heart, AlertTriangle, UserX, UserPlus, Sparkles, DollarSign } from "lucide-react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { getCustomerSegments } from "@/services/analyticsApi";
+import { CustomerHealthCard } from "@/components/analytics/CustomerHealthCard";
 import { dateRangeKey } from "@/services/dateRangeParams";
 import type { DateRange } from "@/components/filters/DateRangePicker";
 
@@ -51,6 +52,11 @@ export function CustomersTab({ range, formatCurrency }: CustomersTabProps) {
 
   return (
     <div className="space-y-4">
+      {/* Customer health (AI-3): 0-100 scores + lifecycle states with a
+          store-relative recency decay — complements the RFM segments
+          below with a "who needs attention NOW" view. */}
+      <CustomerHealthCard formatCurrency={formatCurrency} />
+
       {/* RFM Segment Cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {data && data.segments.length > 0 ? (
