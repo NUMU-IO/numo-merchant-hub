@@ -56,6 +56,28 @@ export async function getCustomer(
   return apiClient<Customer>(`/stores/${storeId}/customers/${customerId}`);
 }
 
+// ─── Create customer (merchant-side "Add customer") ──────────────────────────
+
+export interface CreateCustomerInput {
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone?: string | null;
+  accepts_marketing?: boolean;
+  notes?: string | null;
+  tags?: string[];
+}
+
+export async function createCustomer(
+  storeId: string,
+  input: CreateCustomerInput
+): Promise<Customer> {
+  return apiClient<Customer>(`/stores/${storeId}/customers/`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 // ─── Customer Trust Stats (cross-merchant network reputation) ───────────────
 
 export interface CustomerTrustStats {
