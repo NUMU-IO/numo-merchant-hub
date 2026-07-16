@@ -14,6 +14,7 @@ export interface Customer {
   phone: string | null;
   accepts_marketing: boolean;
   is_verified: boolean;
+  location: string | null;
   total_orders: number;
   total_spent: number; // cents
   default_address_id: string | null;
@@ -59,10 +60,11 @@ export async function getCustomer(
 // ─── Create customer (merchant-side "Add customer") ──────────────────────────
 
 export interface CreateCustomerInput {
-  email: string;
   first_name: string;
-  last_name: string;
-  phone?: string | null;
+  last_name?: string | null;
+  phone: string;
+  location: string;
+  email?: string | null;
   accepts_marketing?: boolean;
   notes?: string | null;
   tags?: string[];

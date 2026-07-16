@@ -11,7 +11,7 @@ import {
   Users, Search, ChevronLeft, ChevronRight, Mail, ShieldCheck, UserCheck,
   ArrowLeft, ShoppingCart, Calendar, Phone, DollarSign,
   CheckCircle2, AlertTriangle, AlertCircle, Network, Info,
-  TrendingUp, Store as StoreIcon, Truck, RotateCcw, Upload, UserPlus,
+  TrendingUp, Store as StoreIcon, Truck, RotateCcw, Upload, UserPlus, MapPin,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -25,6 +25,11 @@ import type { OrderListItem } from "@/services/orderApi";
 import { CustomersSkeleton } from "@/components/skeletons/CustomersSkeleton";
 
 const PAGE_SIZE = 20;
+
+// Phone-only customers store a synthetic `import-…@….placeholder` email
+// (create dialog + CSV import). Never show it as if it were real.
+const displayEmail = (email: string) =>
+  email.endsWith(".placeholder") ? "—" : email;
 
 export default function Customers() {
   const { t } = useTranslation();
@@ -154,7 +159,7 @@ export default function Customers() {
           </Button>
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{c.full_name || `${c.first_name} ${c.last_name}`}</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{c.email}</p>
+            <p className="text-sm text-muted-foreground mt-0.5">{displayEmail(c.email)}</p>
           </div>
           <Badge variant={c.is_verified ? "success" : "secondary"} className="text-xs py-0.5">
             {c.is_verified ? (isAr ? "مُفعّل" : "Verified") : (isAr ? "غير مُفعّل" : "Unverified")}
@@ -203,7 +208,7 @@ export default function Customers() {
                 <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div className="min-w-0">
                   <p className="text-[11px] text-muted-foreground">{isAr ? "الإيميل" : "Email"}</p>
-                  <p className="text-sm font-medium truncate">{c.email}</p>
+                  <p className="text-sm font-medium truncate">{displayEmail(c.email)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -211,6 +216,13 @@ export default function Customers() {
                 <div className="min-w-0">
                   <p className="text-[11px] text-muted-foreground">{isAr ? "الموبايل" : "Phone"}</p>
                   <p className="text-sm font-medium" dir="ltr">{c.phone || "—"}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">{isAr ? "الموقع" : "Location"}</p>
+                  <p className="text-sm font-medium truncate">{c.location || "—"}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -379,7 +391,7 @@ export default function Customers() {
                           {c.full_name || `${c.first_name} ${c.last_name}`}
                         </div>
                       </TableCell>
-                      <TableCell className="text-[13px] text-muted-foreground py-3">{c.email}</TableCell>
+                      <TableCell className="text-[13px] text-muted-foreground py-3">{displayEmail(c.email)}</TableCell>
                       <TableCell className="text-[13px] text-muted-foreground py-3"><span dir="ltr">{c.phone || "—"}</span></TableCell>
                       <TableCell className="text-[13px] py-3 text-center tabular-nums font-medium">{c.total_orders}</TableCell>
                       <TableCell className="text-[13px] tabular-nums font-medium py-3"><span dir="ltr">{formatCurrency(c.total_spent)}</span></TableCell>
