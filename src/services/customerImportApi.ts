@@ -11,6 +11,7 @@ export type CustomerTargetField =
   | "last_name"
   | "email"
   | "phone"
+  | "location"
   | "accepts_marketing"
   | "notes"
   | "tags";
