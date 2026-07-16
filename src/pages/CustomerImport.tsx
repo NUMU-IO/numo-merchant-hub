@@ -36,19 +36,21 @@ const TARGET_FIELDS: CustomerTargetField[] = [
   "name",
   "first_name",
   "last_name",
-  "email",
   "phone",
+  "location",
+  "email",
   "accepts_marketing",
   "notes",
   "tags",
 ];
 
 const FIELD_LABELS: Record<CustomerTargetField, { en: string; ar: string }> = {
-  name: { en: "Full name", ar: "الاسم الكامل" },
-  first_name: { en: "First name", ar: "الاسم الأول" },
+  name: { en: "Full name *", ar: "الاسم الكامل *" },
+  first_name: { en: "First name *", ar: "الاسم الأول *" },
   last_name: { en: "Last name", ar: "اسم العائلة" },
+  phone: { en: "Phone *", ar: "رقم الموبايل *" },
+  location: { en: "Location / city", ar: "الموقع / المدينة" },
   email: { en: "Email", ar: "البريد الإلكتروني" },
-  phone: { en: "Phone", ar: "رقم الموبايل" },
   accepts_marketing: { en: "Accepts marketing", ar: "يقبل التسويق" },
   notes: { en: "Notes", ar: "ملاحظات" },
   tags: { en: "Tags (comma-separated)", ar: "وسوم (مفصولة بفواصل)" },
@@ -71,7 +73,7 @@ export default function CustomerImport() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<CustomerImportResult | null>(null);
 
-  // Server-side requirement: a name (full or first) AND a contact (email or phone).
+  // Server-side requirement: a name (full or first) AND a phone.
   const missingRequired = useMemo<string[]>(() => {
     if (phase !== "preview") return [];
     const chosen = new Set(
@@ -81,8 +83,8 @@ export default function CustomerImport() {
     if (!chosen.has("name") && !chosen.has("first_name")) {
       missing.push(isAr ? "الاسم (كامل أو أول)" : "Name (full or first)");
     }
-    if (!chosen.has("email") && !chosen.has("phone")) {
-      missing.push(isAr ? "الإيميل أو الموبايل" : "Email or phone");
+    if (!chosen.has("phone")) {
+      missing.push(isAr ? "رقم الموبايل" : "Phone");
     }
     return missing;
   }, [phase, mapping, isAr]);

@@ -29,8 +29,9 @@ interface AddCustomerDialogProps {
 const EMPTY_FORM = {
   first_name: "",
   last_name: "",
-  email: "",
   phone: "",
+  location: "",
+  email: "",
   notes: "",
   accepts_marketing: false,
 };
@@ -48,9 +49,10 @@ export function AddCustomerDialog({ storeId, open, onOpenChange }: AddCustomerDi
     mutationFn: () =>
       createCustomer(storeId, {
         first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim() || null,
+        last_name: form.last_name.trim() || null,
+        phone: form.phone.trim(),
+        location: form.location.trim(),
+        email: form.email.trim() || null,
         notes: form.notes.trim() || null,
         accepts_marketing: form.accepts_marketing,
       }),
@@ -65,10 +67,13 @@ export function AddCustomerDialog({ storeId, open, onOpenChange }: AddCustomerDi
     onError: (err) => showError(err, language),
   });
 
+  // Required: name + phone + location. Email only validated when provided.
+  const emailTrimmed = form.email.trim();
   const canSubmit =
     form.first_name.trim().length > 0 &&
-    form.last_name.trim().length > 0 &&
-    /^\S+@\S+\.\S+$/.test(form.email.trim()) &&
+    form.phone.trim().length >= 8 &&
+    form.location.trim().length > 0 &&
+    (emailTrimmed === "" || /^\S+@\S+\.\S+$/.test(emailTrimmed)) &&
     !mutation.isPending;
 
   return (
@@ -101,7 +106,7 @@ export function AddCustomerDialog({ storeId, open, onOpenChange }: AddCustomerDi
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cust-last">{isAr ? "اسم العائلة *" : "Last name *"}</Label>
+              <Label htmlFor="cust-last">{isAr ? "اسم العائلة" : "Last name"}</Label>
               <Input
                 id="cust-last"
                 value={form.last_name}
@@ -110,8 +115,33 @@ export function AddCustomerDialog({ storeId, open, onOpenChange }: AddCustomerDi
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cust-phone">{isAr ? "الموبايل *" : "Phone *"}</Label>
+              <Input
+                id="cust-phone"
+                type="tel"
+                dir="ltr"
+                placeholder="01001234567"
+                value={form.phone}
+                onChange={(e) => set("phone", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cust-location">{isAr ? "الموقع *" : "Location *"}</Label>
+              <Input
+                id="cust-location"
+                placeholder={isAr ? "القاهرة، مدينة نصر…" : "Cairo, Nasr City…"}
+                value={form.location}
+                onChange={(e) => set("location", e.target.value)}
+              />
+            </div>
+          </div>
+
           <div className="space-y-1.5">
-            <Label htmlFor="cust-email">{isAr ? "الإيميل *" : "Email *"}</Label>
+            <Label htmlFor="cust-email">
+              {isAr ? "الإيميل (اختياري)" : "Email (optional)"}
+            </Label>
             <Input
               id="cust-email"
               type="email"
@@ -119,18 +149,6 @@ export function AddCustomerDialog({ storeId, open, onOpenChange }: AddCustomerDi
               placeholder="customer@example.com"
               value={form.email}
               onChange={(e) => set("email", e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="cust-phone">{isAr ? "الموبايل" : "Phone"}</Label>
-            <Input
-              id="cust-phone"
-              type="tel"
-              dir="ltr"
-              placeholder="01001234567"
-              value={form.phone}
-              onChange={(e) => set("phone", e.target.value)}
             />
           </div>
 
