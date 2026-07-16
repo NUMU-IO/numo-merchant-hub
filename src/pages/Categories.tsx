@@ -14,8 +14,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  FolderOpen, Plus, Loader2, Pencil, Trash2, Package, ToggleLeft, ToggleRight,
-  Search, ChevronRight, ChevronDown, ImagePlus, X, GripVertical,
+  FolderOpen, Plus, Loader2, Pencil, Trash2, Package,
+  Search, ChevronRight, ChevronDown, ImagePlus, X, GripVertical, Eye, EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -151,14 +151,27 @@ function CategoryNode({
           <span>{cat.product_count}</span>
         </div>
 
-        {/* Status */}
-        <div className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${cat.is_active ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600"}`} />
+        {/* Visibility — always-visible, tappable Published/Hidden pill.
+            One tap publishes or hides the whole collection on the storefront. */}
+        <button
+          type="button"
+          onClick={() => onToggleActive(cat)}
+          title={
+            cat.is_active
+              ? (isAr ? "اضغط لإخفاء التشكيلة من المتجر" : "Click to hide this collection from the storefront")
+              : (isAr ? "اضغط لنشر التشكيلة في المتجر" : "Click to publish this collection to the storefront")
+          }
+          className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold flex-shrink-0 transition-colors
+            ${cat.is_active
+              ? "border-emerald-200/70 dark:border-emerald-800/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20"
+              : "border-border bg-muted text-muted-foreground hover:bg-muted/70"}`}
+        >
+          {cat.is_active ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+          {cat.is_active ? (isAr ? "منشورة" : "Published") : (isAr ? "مخفية" : "Hidden")}
+        </button>
 
         {/* Actions (visible on hover) */}
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => onToggleActive(cat)}>
-            {cat.is_active ? <ToggleRight className="h-3.5 w-3.5 text-emerald-600" /> : <ToggleLeft className="h-3.5 w-3.5 text-muted-foreground" />}
-          </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => onEdit(cat)}>
             <Pencil className="h-3 w-3" />
           </Button>
@@ -344,7 +357,11 @@ export default function Categories() {
     if (!storeId) return;
     try {
       await updateCategory(storeId, cat.id, { is_active: !cat.is_active });
-      toast.success(cat.is_active ? (isAr ? "تم إلغاء تفعيل الفئة" : "Category deactivated") : (isAr ? "تم تفعيل الفئة" : "Category activated"));
+      toast.success(
+        cat.is_active
+          ? (isAr ? "تم إخفاء التشكيلة من المتجر" : "Collection hidden from the storefront")
+          : (isAr ? "تم نشر التشكيلة في المتجر" : "Collection published to the storefront"),
+      );
       fetchCategories();
     } catch (err: unknown) {
       showError(err, language);
@@ -430,7 +447,7 @@ export default function Categories() {
             <div className="flex items-center gap-1.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-500/5 px-3 py-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               <span className="text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{activeCount}</span>
-              <span className="text-[11px] text-emerald-600/70 dark:text-emerald-400/70">{isAr ? "مفعّل" : "active"}</span>
+              <span className="text-[11px] text-emerald-600/70 dark:text-emerald-400/70">{isAr ? "منشورة" : "published"}</span>
             </div>
             <div className="flex items-center gap-1.5 rounded-full border border-border/80 bg-background/80 backdrop-blur-sm px-3 py-1.5">
               <Package className="h-3.5 w-3.5 text-muted-foreground" />
@@ -652,7 +669,9 @@ export default function Categories() {
                 <div className="flex items-center gap-3 h-10">
                   <Switch checked={formIsActive} onCheckedChange={setFormIsActive} />
                   <span className={`text-sm ${formIsActive ? "text-foreground" : "text-muted-foreground"}`}>
-                    {formIsActive ? (isAr ? "مفعّل — ظاهر في المتجر" : "Active — visible in store") : (isAr ? "معطّل — مخفي" : "Inactive — hidden")}
+                    {formIsActive
+                      ? (isAr ? "منشورة — ظاهرة في المتجر" : "Published — visible in store")
+                      : (isAr ? "مخفية — لا تظهر في المتجر" : "Hidden — not shown in store")}
                   </span>
                 </div>
               </div>
