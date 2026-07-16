@@ -45,6 +45,7 @@ import {
 } from "@/services/abandonedCheckoutApi";
 import { showError } from "@/lib/show-error";
 import { TrafficSourceIcon } from "@/components/orders/TrafficSourceIcon";
+import { AbandonedCheckoutDetailDialog } from "@/components/orders/AbandonedCheckoutDetailDialog";
 
 type AbandonedFilter = "abandoned" | "recovered" | "all";
 type ContactFilter = "recoverable" | "browse" | "any";
@@ -65,6 +66,12 @@ const AbandonedCheckouts = () => {
   // (still useful for analytics, not for outreach).
   const [contact, setContact] = useState<ContactFilter>("recoverable");
   const [page, setPage] = useState(1);
+  // Detail dialog. We keep the last-opened snapshot AND re-derive the live
+  // row from the current query data, so an action taken inside the dialog
+  // (email sent / recovered) is reflected immediately after the refetch —
+  // and the dialog survives the row dropping out of the active filter.
+  const [detailSnapshot, setDetailSnapshot] = useState<AbandonedCheckout | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const checkoutsQuery = useQuery({
     queryKey: ["abandoned-checkouts", storeId, filter, contact, page],
@@ -83,6 +90,10 @@ const AbandonedCheckouts = () => {
 
   const items = checkoutsQuery.data?.items ?? [];
   const total = checkoutsQuery.data?.total ?? 0;
+
+  const detailCheckout = detailSnapshot
+    ? items.find((i) => i.id === detailSnapshot.id) ?? detailSnapshot
+    : null;
 
   const invalidate = () => {
     queryClient.invalidateQueries({
@@ -280,7 +291,15 @@ const AbandonedCheckouts = () => {
               </TableHeader>
               <TableBody>
                 {items.map((c) => (
-                  <TableRow key={c.id} className="group">
+                  <TableRow
+                    key={c.id}
+                    className="group cursor-pointer"
+                    title={isAr ? "اضغط لعرض كل التفاصيل" : "Click to see full details"}
+                    onClick={() => {
+                      setDetailSnapshot(c);
+                      setDetailOpen(true);
+                    }}
+                  >
                     <TableCell>
                       <div className="text-xs font-medium truncate max-w-[220px]">
                         {contactDisplay(c)}
@@ -354,7 +373,10 @@ const AbandonedCheckouts = () => {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell
+                      className="text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className="flex items-center justify-end gap-1.5">
                         {!c.recovered_at && c.phone && (
                           <Button
@@ -433,6 +455,19 @@ const AbandonedCheckouts = () => {
           </div>
         </Card>
       )}
+
+      <AbandonedCheckoutDetailDialog
+        storeId={storeId ?? ""}
+        checkout={detailCheckout}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onWhatsApp={(id) => notifyWhatsApp.mutate(id)}
+        onSendEmail={(id) => sendEmail.mutate(id)}
+        onMarkRecovered={(id) => markRecovered.mutate(id)}
+        whatsAppPending={notifyWhatsApp.isPending}
+        emailPending={sendEmail.isPending}
+        recoverPending={markRecovered.isPending}
+      />
 
       {total > 20 && (
         <div className="flex items-center justify-center gap-2">
