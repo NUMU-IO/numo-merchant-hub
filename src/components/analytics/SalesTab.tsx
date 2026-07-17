@@ -13,6 +13,7 @@ import {
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   getSalesChart, getRevenueBreakdown, getOrdersBreakdown, getAnnotations,
+  getSalesOverview,
 } from "@/services/analyticsApi";
 import { dateRangeKey } from "@/services/dateRangeParams";
 import type { DateRange } from "@/components/filters/DateRangePicker";
@@ -64,6 +65,17 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
     placeholderData: keepPreviousData,
   });
 
+  // Booked totals for the headline KPIs. The revenue-breakdown endpoint
+  // is paid-orders-only, which reads as EGP 0 for a COD-heavy store whose
+  // orders haven't been collected yet — the overview endpoint carries the
+  // booked/collected pair so the cards can show both.
+  const overviewQuery = useQuery({
+    queryKey: ["analytics", "overview", storeId, ...rangeKey],
+    queryFn: () => getSalesOverview(storeId!, range),
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+  });
+
   const ordersBreakdownQuery = useQuery({
     queryKey: ["analytics", "orders-breakdown", storeId, ...rangeKey],
     queryFn: () => getOrdersBreakdown(storeId!, range),
@@ -83,6 +95,7 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
     (p) => p.prev_sales !== null && p.prev_sales !== undefined,
   );
   const revenue = revenueQuery.data ?? null;
+  const overview = overviewQuery.data ?? null;
   const ordersBreakdown = ordersBreakdownQuery.data ?? null;
 
   // Annotations → one marker per chart bucket that has ≥1 event, but only
@@ -109,11 +122,15 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
       aov: Math.round(d.sales / d.orders),
     }));
 
-  // Compute KPI values
+  // Compute KPI values. Headline revenue/AOV are BOOKED (all non-cancelled
+  // orders, incl. unpaid COD) so they agree with the trend charts below;
+  // collected (paid minus refunds) rides along as the secondary line.
   const totalOrders = chartData.reduce((sum, d) => sum + d.orders, 0);
-  const totalRevenue = revenue?.gross_revenue ?? 0;
-  const aov = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
-  const discountRate = totalRevenue > 0 ? ((revenue?.discounts ?? 0) / totalRevenue * 100) : 0;
+  const bookedRevenue = overview?.total_sales
+    ?? chartData.reduce((sum, d) => sum + d.sales, 0);
+  const collectedRevenue = overview?.collected_revenue;
+  const aov = totalOrders > 0 ? Math.round(bookedRevenue / totalOrders) : 0;
+  const discountRate = bookedRevenue > 0 ? ((revenue?.discounts ?? 0) / bookedRevenue * 100) : 0;
 
   const granularityLabels: Record<Granularity, string> = {
     day: isAr ? "يومي" : "Day",
@@ -138,13 +155,18 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                  {isAr ? "صافي الإيرادات" : "Net Revenue"}
+                  {isAr ? "الإيرادات" : "Revenue"}
                 </p>
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10">
                   <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 </div>
               </div>
-              <p className="text-2xl font-bold tabular-nums">{formatCurrency(revenue.net_revenue)}</p>
+              <p className="text-2xl font-bold tabular-nums">{formatCurrency(bookedRevenue)}</p>
+              {collectedRevenue !== undefined && (
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {formatCurrency(collectedRevenue)} {isAr ? "محصّلة" : "collected"}
+                </p>
+              )}
             </CardContent>
           </Card>
           <Card className="border-border/60">
@@ -380,6 +402,9 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
             <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
               <ArrowDown className="h-3.5 w-3.5 text-muted-foreground" />
               {isAr ? "تفاصيل الإيرادات" : "Revenue Breakdown"}
+              <span className="text-[10px] font-normal text-muted-foreground">
+                {isAr ? "(الطلبات المدفوعة فقط)" : "(paid orders only)"}
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
