@@ -17,6 +17,8 @@ jobs:
     # but must never run it (would push to itself).
     if: github.repository == 'NUMU-IO/numo-merchant-hub'
     runs-on: ubuntu-latest
+    env:
+      HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,3 +32,10 @@ jobs:
           git push --force \
             "https://x-access-token:${{ secrets.MIRROR_PAT }}@github.com/Yahiasherif002/numo-merchant-hub.git" \
             HEAD:prod
+      # Vercel's GitHub webhook has silently dropped push events before
+      # (2026-07-16: mirror succeeded, no deployment was created). The deploy
+      # hook makes the production build deterministic instead of hoping the
+      # push event arrives.
+      - name: Trigger Vercel production build
+        if: ${{ env.HOOK != '' }}
+        run: curl -sf -X POST "$HOOK"

@@ -39,6 +39,7 @@ jobs:
     needs: lint
     permissions:
       contents: write
+      actions: write # dispatch mirror-to-fork.yml
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,6 +61,14 @@ jobs:
           git merge --ff-only origin/dev \
             || git merge --no-edit -m "Promote dev → prod" origin/dev
           git push origin prod
+
+      # A push made with GITHUB_TOKEN (GH_PAT unset/expired fallback) does NOT
+      # trigger other workflows, so mirror-to-fork.yml's push trigger would
+      # silently never fire. Dispatch it explicitly so the mirror always runs.
+      - name: Trigger mirror-to-fork
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run mirror-to-fork.yml --ref prod
 
       - name: Summary
         run: |
