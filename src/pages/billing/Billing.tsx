@@ -22,6 +22,7 @@ interface Invoice {
 
 const PLAN_DISPLAY: Record<string, { name: string; nameAr: string; price: string }> = {
   trial: { name: "Trial", nameAr: "تجربة مجانية", price: "Free" },
+  payg: { name: "Pay as you go", nameAr: "ادفع حسب مبيعاتك", price: "0 EGP/mo + 3%/order" },
   starter: { name: "Starter", nameAr: "ستارتر", price: "99 EGP/mo" },
   pro: { name: "Pro", nameAr: "برو", price: "299 EGP/mo" },
   enterprise: { name: "Enterprise", nameAr: "إنتربرايز", price: "Custom" },
@@ -123,7 +124,18 @@ const Billing = () => {
               <p className="text-sm font-medium">
                 {isAr ? "اختار باقتك" : "Choose your plan"}
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Button
+                  onClick={() => handleSubscribe("payg")}
+                  disabled={subscribing}
+                  variant="outline"
+                  className="h-auto py-4 flex flex-col items-start"
+                >
+                  <span className="font-bold">{isAr ? "ادفع حسب مبيعاتك — 0 ج.م/شهر" : "Pay as you go — 0 EGP/mo"}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {isAr ? "بدون اشتراك — عمولة 3٪ لكل طلب مدفوع من محفظة مسبقة الشحن" : "No subscription — 3% per paid order from a prepaid wallet"}
+                  </span>
+                </Button>
                 <Button
                   onClick={() => handleSubscribe("starter")}
                   disabled={subscribing}
