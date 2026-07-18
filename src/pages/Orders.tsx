@@ -43,6 +43,8 @@ import { showError } from "@/lib/show-error";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
 import InstapayProofReview from "@/components/payments/InstapayProofReview";
 import { fetchPendingInstapayOrders } from "@/services/storeApi";
+import { listAutopilotExceptions } from "@/services/orderApi";
+import AutopilotExceptions from "@/components/orders/AutopilotExceptions";
 import {
   DateRangePicker, useDateRangeUrlState,
 } from "@/components/filters/DateRangePicker";
@@ -72,6 +74,10 @@ const Orders = () => {
   // Secondary view: InstaPay orders with an awaiting-review proof. Mutually
   // exclusive with statusFilter — clicking this chip clears statusFilter.
   const [pendingInstapay, setPendingInstapay] = useState(false);
+  // COD Autopilot "Needs attention" queue (004-cod-autopilot) — orders the
+  // Autopilot couldn't close (refused / no response). Mutually exclusive
+  // with both statusFilter and pendingInstapay.
+  const [autopilotView, setAutopilotView] = useState(false);
 
   // Shopify-style date range. URL-synced, shared with any other page
   // mounted on the same route segment.
@@ -111,7 +117,7 @@ const Orders = () => {
       if (statusFilter !== "all") params.status = statusFilter;
       return listOrders(storeId!, params);
     },
-    enabled: !!storeId && !pendingInstapay,
+    enabled: !!storeId && !pendingInstapay && !autopilotView,
     placeholderData: keepPreviousData,
   });
 
@@ -125,6 +131,15 @@ const Orders = () => {
     refetchInterval: 60_000,
   });
   const pendingInstapayCount = pendingInstapayBadgeQuery.data?.total ?? 0;
+
+  // COD Autopilot needs-attention count — same lightweight badge pattern.
+  const autopilotBadgeQuery = useQuery({
+    queryKey: ["autopilot-exceptions-count", storeId],
+    queryFn: () => listAutopilotExceptions(storeId!, { limit: 1 }),
+    enabled: !!storeId,
+    refetchInterval: 60_000,
+  });
+  const autopilotCount = autopilotBadgeQuery.data?.total ?? 0;
 
   // Actual page fetch when the chip is active.
   const pendingInstapayQuery = useQuery({
@@ -997,13 +1012,13 @@ const Orders = () => {
               { v: "delivered", l: isAr ? "مُكتمل" : "Delivered" },
               { v: "cancelled", l: isAr ? "مُلغى" : "Cancelled" },
             ] as { v: "all" | FulfillmentStatus; l: string; count?: number }[]).map(f => {
-              const active = statusFilter === f.v && !pendingInstapay;
+              const active = statusFilter === f.v && !pendingInstapay && !autopilotView;
               return (
                 <button
                   key={f.v}
                   type="button"
                   data-active={active}
-                  onClick={() => { setStatusFilter(f.v); setPendingInstapay(false); setPage(1); setSelected(new Set()); }}
+                  onClick={() => { setStatusFilter(f.v); setPendingInstapay(false); setAutopilotView(false); setPage(1); setSelected(new Set()); }}
                   className="souq-chip h-9"
                 >
                   {f.l}
@@ -1021,6 +1036,7 @@ const Orders = () => {
               type="button"
               onClick={() => {
                 setPendingInstapay(true);
+                setAutopilotView(false);
                 setPage(1);
                 setSelected(new Set());
               }}
@@ -1038,6 +1054,34 @@ const Orders = () => {
                   }`}
                 >
                   {pendingInstapayCount > 99 ? "99+" : pendingInstapayCount}
+                </span>
+              )}
+            </button>
+
+            {/* COD Autopilot "Needs attention" — orders Autopilot couldn't
+                close (customer refused / no delivery-check response). */}
+            <button
+              type="button"
+              onClick={() => {
+                setAutopilotView(true);
+                setPendingInstapay(false);
+                setPage(1);
+                setSelected(new Set());
+              }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border whitespace-nowrap cursor-pointer ${
+                autopilotView
+                  ? "border-red-500/30 bg-red-600 text-white shadow-sm"
+                  : "border-transparent bg-red-50 text-red-800 hover:bg-red-100"
+              }`}
+            >
+              {isAr ? "يحتاج تدخلك" : "Needs attention"}
+              {autopilotCount > 0 && (
+                <span
+                  className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold tabular-nums ms-1.5 ${
+                    autopilotView ? "bg-white/25 text-white" : "bg-red-600 text-white"
+                  }`}
+                >
+                  {autopilotCount > 99 ? "99+" : autopilotCount}
                 </span>
               )}
             </button>
@@ -1095,8 +1139,11 @@ const Orders = () => {
           </div>
         )}
 
-        {/* Table */}
-        {orders.length === 0 && !ordersQuery.isLoading ? (
+        {/* Table — or the Autopilot needs-attention queue when its chip
+            is active (004-cod-autopilot). */}
+        {autopilotView ? (
+          <AutopilotExceptions storeId={storeId!} isAr={isAr} language={language} />
+        ) : orders.length === 0 && !ordersQuery.isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-muted-foreground/20">
@@ -1308,8 +1355,9 @@ const Orders = () => {
           </>
         )}
 
-        {/* Pagination */}
-        {totalOrders > 20 && (
+        {/* Pagination — hidden in the Autopilot queue view (it renders
+            its own list, capped at 50). */}
+        {!autopilotView && totalOrders > 20 && (
           <div className="flex items-center justify-between px-5 py-3 border-t">
             <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
               {isAr ? "السابق" : "Previous"}
