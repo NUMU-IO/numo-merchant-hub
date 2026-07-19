@@ -22,44 +22,57 @@ interface TopupCreated {
   status: string;
   special_reference: string;
   checkout_url: string | null;
-  instapay: {
+  manual: {
+    method: string;
     reference_code: string;
-    ipa: string;
-    ipa_display_name?: string;
-    qr_payload: string;
+    destination: string;
+    destination_label?: string;
+    qr_payload: string | null;
     expires_at: string | null;
   } | null;
+}
+
+interface ProofResponse {
+  credited_balance_cents: number | null;
+  topup_status: string;
+  on_hold: boolean;
 }
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called after an InstaPay proof lands (credited or under review). */
+  /** Which methods the admin has enabled (from GET /wallet). */
+  methodsEnabled: Record<string, boolean>;
+  /** Called after a proof lands (credited or on hold). */
   onDone: () => void;
 }
 
-const TopUpDialog = ({ open, onOpenChange, onDone }: Props) => {
+const TopUpDialog = ({ open, onOpenChange, methodsEnabled, onDone }: Props) => {
   const { language } = useLanguage();
   const isAr = language === "ar";
 
   const [amountEgp, setAmountEgp] = useState<number>(250);
   const [creating, setCreating] = useState(false);
-  const [instapayTopup, setInstapayTopup] = useState<TopupCreated | null>(null);
+  const [manualTopup, setManualTopup] = useState<TopupCreated | null>(null);
   const [txRef, setTxRef] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [proofResult, setProofResult] = useState<"credited" | "under_review" | null>(null);
+  const [proofResult, setProofResult] = useState<"credited" | "on_hold" | null>(null);
 
   const amountValid = amountEgp >= MIN_EGP && amountEgp <= MAX_EGP;
+  const cardOn = methodsEnabled.card !== false;
+  const vcOn = methodsEnabled.vodafone_cash !== false;
+  const ipOn = methodsEnabled.instapay !== false;
+  const defaultTab = cardOn ? "card" : vcOn ? "vodafone_cash" : "instapay";
 
   const reset = () => {
-    setInstapayTopup(null);
+    setManualTopup(null);
     setTxRef("");
     setProofFile(null);
     setProofResult(null);
   };
 
-  const createTopup = async (method: "paymob_card" | "instapay") => {
+  const createTopup = async (method: "card" | "vodafone_cash" | "instapay") => {
     if (!amountValid) {
       toast.error(isAr ? `المبلغ يجب أن يكون بين ${MIN_EGP} و ${MAX_EGP} ج.م` : `Amount must be between ${MIN_EGP} and ${MAX_EGP} EGP`);
       return;
@@ -70,12 +83,11 @@ const TopUpDialog = ({ open, onOpenChange, onDone }: Props) => {
         method: "POST",
         body: JSON.stringify({ method, amount_cents: Math.round(amountEgp * 100) }),
       });
-      if (method === "paymob_card" && topup.checkout_url) {
-        // Card + Vodafone Cash live on the same hosted Paymob page.
+      if (method === "card" && topup.checkout_url) {
         window.location.href = topup.checkout_url;
         return;
       }
-      setInstapayTopup(topup);
+      setManualTopup(topup);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : (isAr ? "تعذر إنشاء عملية الشحن" : "Could not create top-up"));
     } finally {
@@ -84,7 +96,7 @@ const TopUpDialog = ({ open, onOpenChange, onDone }: Props) => {
   };
 
   const submitProof = async () => {
-    if (!instapayTopup || !proofFile || txRef.trim().length < 3) {
+    if (!manualTopup || !proofFile || txRef.trim().length < 3) {
       toast.error(isAr ? "أدخل رقم العملية وأرفق لقطة الشاشة" : "Enter the transaction reference and attach the receipt screenshot");
       return;
     }
@@ -93,11 +105,11 @@ const TopUpDialog = ({ open, onOpenChange, onDone }: Props) => {
       const form = new FormData();
       form.append("transaction_ref", txRef.trim());
       form.append("file", proofFile);
-      const res = await apiClientFormData<{ credited_balance_cents: number | null; topup_status: string }>(
-        `/wallet/topups/${instapayTopup.id}/proof`,
+      const res = await apiClientFormData<ProofResponse>(
+        `/wallet/topups/${manualTopup.id}/proof`,
         form,
       );
-      setProofResult(res.credited_balance_cents !== null ? "credited" : "under_review");
+      setProofResult(res.credited_balance_cents !== null ? "credited" : "on_hold");
       onDone();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : (isAr ? "تعذر رفع الإيصال" : "Could not upload the receipt"));
@@ -110,6 +122,8 @@ const TopUpDialog = ({ open, onOpenChange, onDone }: Props) => {
     navigator.clipboard.writeText(text);
     toast.success(isAr ? "تم النسخ" : "Copied");
   };
+
+  const isVC = manualTopup?.manual?.method === "vodafone_cash";
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
@@ -128,9 +142,11 @@ const TopUpDialog = ({ open, onOpenChange, onDone }: Props) => {
             ) : (
               <>
                 <Clock className="h-12 w-12 text-amber-500" />
-                <p className="font-semibold">{isAr ? "الإيصال قيد المراجعة" : "Receipt under review"}</p>
+                <p className="font-semibold">{isAr ? "تمت إضافة الرصيد — قيد التحقق" : "Credit added — on hold"}</p>
                 <p className="text-sm text-muted-foreground">
-                  {isAr ? "سيتم إضافة الرصيد بعد المراجعة (عادةً خلال ساعات قليلة)." : "Your balance will be credited after review (usually within a few hours)."}
+                  {isAr
+                    ? "يظهر المبلغ في محفظتك كرصيد معلّق حتى يكتمل التحقق (عادةً خلال ساعات قليلة). سيتم تفعيله تلقائياً بعد المراجعة."
+                    : "The amount now shows in your wallet as on hold while we verify the transfer (usually within a few hours). It activates automatically after review."}
                 </p>
               </>
             )}
@@ -138,41 +154,47 @@ const TopUpDialog = ({ open, onOpenChange, onDone }: Props) => {
               {isAr ? "تم" : "Done"}
             </Button>
           </div>
-        ) : instapayTopup ? (
-          /* ── InstaPay: pay + upload proof ─────────────────────────── */
+        ) : manualTopup?.manual ? (
+          /* ── Manual method: pay + upload proof ────────────────────── */
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
               <p className="text-sm text-muted-foreground">
-                {isAr
-                  ? "حوّل المبلغ عبر تطبيق إنستاباي أو تطبيق البنك إلى العنوان التالي، واكتب الرمز المرجعي في خانة الملاحظات:"
-                  : "Transfer the amount via InstaPay or your bank app to the address below, and include the reference code in the transfer note:"}
+                {isVC
+                  ? (isAr
+                      ? "حوّل المبلغ من محفظة فودافون كاش الخاصة بك إلى الرقم التالي، واكتب الرمز المرجعي في خانة الملاحظات إن وُجدت:"
+                      : "Transfer the amount from your Vodafone Cash wallet to the number below, and include the reference code in the note field if available:")
+                  : (isAr
+                      ? "حوّل المبلغ عبر تطبيق إنستاباي أو تطبيق البنك إلى العنوان التالي، واكتب الرمز المرجعي في خانة الملاحظات:"
+                      : "Transfer the amount via InstaPay or your bank app to the address below, and include the reference code in the transfer note:")}
               </p>
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs text-muted-foreground">{isAr ? "العنوان (IPA)" : "Address (IPA)"}</p>
-                  <p className="font-mono font-semibold">{instapayTopup.instapay?.ipa}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {isVC ? (isAr ? "رقم فودافون كاش" : "Vodafone Cash number") : (isAr ? "العنوان (IPA)" : "Address (IPA)")}
+                  </p>
+                  <p className="font-mono font-semibold" dir="ltr">{manualTopup.manual.destination}</p>
                 </div>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => copy(instapayTopup.instapay?.ipa || "")}>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => copy(manualTopup.manual?.destination || "")}>
                   <Copy className="h-3.5 w-3.5" />
                 </Button>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs text-muted-foreground">{isAr ? "الرمز المرجعي (مهم — اكتبه في الملاحظات)" : "Reference code (important — put it in the note)"}</p>
-                  <p className="font-mono font-semibold">{instapayTopup.instapay?.reference_code}</p>
+                  <p className="text-xs text-muted-foreground">{isAr ? "الرمز المرجعي (مهم)" : "Reference code (important)"}</p>
+                  <p className="font-mono font-semibold">{manualTopup.manual.reference_code}</p>
                 </div>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => copy(instapayTopup.instapay?.reference_code || "")}>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => copy(manualTopup.manual?.reference_code || "")}>
                   <Copy className="h-3.5 w-3.5" />
                 </Button>
               </div>
               <div className="flex items-center justify-between">
                 <p className="text-sm">{isAr ? "المبلغ" : "Amount"}</p>
-                <p className="font-bold tabular-nums">{(instapayTopup.amount_cents / 100).toLocaleString()} {isAr ? "ج.م" : "EGP"}</p>
+                <p className="font-bold tabular-nums">{(manualTopup.amount_cents / 100).toLocaleString()} {isAr ? "ج.م" : "EGP"}</p>
               </div>
-              {instapayTopup.instapay?.qr_payload && (
+              {manualTopup.manual.qr_payload && (
                 <div className="flex justify-center pt-1">
                   <div className="bg-white p-2 rounded-lg">
-                    <QRCodeSVG value={instapayTopup.instapay.qr_payload} size={120} />
+                    <QRCodeSVG value={manualTopup.manual.qr_payload} size={120} />
                   </div>
                 </div>
               )}
@@ -196,6 +218,11 @@ const TopUpDialog = ({ open, onOpenChange, onDone }: Props) => {
               {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               {isAr ? "رفع الإيصال" : "Upload receipt"}
             </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              {isAr
+                ? "يُضاف الرصيد فوراً بعد الرفع — إما مفعّلاً مباشرة أو معلّقاً لحين التحقق."
+                : "Your balance updates immediately after upload — either active right away or on hold pending verification."}
+            </p>
           </div>
         ) : (
           /* ── Amount + method selection ────────────────────────────── */
@@ -224,37 +251,63 @@ const TopUpDialog = ({ open, onOpenChange, onDone }: Props) => {
               />
             </div>
 
-            <Tabs defaultValue="paymob">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="paymob" className="gap-1.5">
-                  <CreditCard className="h-3.5 w-3.5" />
-                  {isAr ? "بطاقة / فودافون كاش" : "Card / Vodafone Cash"}
-                </TabsTrigger>
-                <TabsTrigger value="instapay" className="gap-1.5">
-                  <Smartphone className="h-3.5 w-3.5" />
-                  {isAr ? "إنستاباي" : "InstaPay"}
-                </TabsTrigger>
+            <Tabs defaultValue={defaultTab}>
+              <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${[cardOn, vcOn, ipOn].filter(Boolean).length}, 1fr)` }}>
+                {cardOn && (
+                  <TabsTrigger value="card" className="gap-1.5">
+                    <CreditCard className="h-3.5 w-3.5" />
+                    {isAr ? "بطاقة" : "Card"}
+                  </TabsTrigger>
+                )}
+                {vcOn && (
+                  <TabsTrigger value="vodafone_cash" className="gap-1.5">
+                    <Smartphone className="h-3.5 w-3.5" />
+                    {isAr ? "فودافون كاش" : "Vodafone Cash"}
+                  </TabsTrigger>
+                )}
+                {ipOn && (
+                  <TabsTrigger value="instapay" className="gap-1.5">
+                    <Smartphone className="h-3.5 w-3.5" />
+                    {isAr ? "إنستاباي" : "InstaPay"}
+                  </TabsTrigger>
+                )}
               </TabsList>
-              <TabsContent value="paymob" className="space-y-3 pt-3">
-                <p className="text-sm text-muted-foreground">
-                  {isAr
-                    ? "ستنتقل لصفحة دفع آمنة تدعم البطاقات ومحافظ الموبايل (فودافون كاش وغيرها). يُضاف الرصيد فور إتمام الدفع."
-                    : "You'll be redirected to a secure payment page supporting cards and mobile wallets (Vodafone Cash and others). Your balance is credited the moment payment completes."}
-                </p>
-                <Button className="w-full" onClick={() => createTopup("paymob_card")} disabled={creating || !amountValid}>
-                  {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : (isAr ? "متابعة الدفع" : "Continue to payment")}
-                </Button>
-              </TabsContent>
-              <TabsContent value="instapay" className="space-y-3 pt-3">
-                <p className="text-sm text-muted-foreground">
-                  {isAr
-                    ? "حوّل مباشرة عبر إنستاباي وارفع الإيصال — يُضاف الرصيد فوراً في الغالب بعد التحقق التلقائي."
-                    : "Transfer directly via InstaPay and upload the receipt — the balance is usually credited instantly after automatic verification."}
-                </p>
-                <Button className="w-full" onClick={() => createTopup("instapay")} disabled={creating || !amountValid}>
-                  {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : (isAr ? "إنشاء تحويل إنستاباي" : "Create InstaPay transfer")}
-                </Button>
-              </TabsContent>
+              {cardOn && (
+                <TabsContent value="card" className="space-y-3 pt-3">
+                  <p className="text-sm text-muted-foreground">
+                    {isAr
+                      ? "ستنتقل لصفحة دفع آمنة بالبطاقة. يُضاف الرصيد فور إتمام الدفع."
+                      : "You'll be redirected to a secure card payment page. Your balance is credited the moment payment completes."}
+                  </p>
+                  <Button className="w-full" onClick={() => createTopup("card")} disabled={creating || !amountValid}>
+                    {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : (isAr ? "متابعة الدفع" : "Continue to payment")}
+                  </Button>
+                </TabsContent>
+              )}
+              {vcOn && (
+                <TabsContent value="vodafone_cash" className="space-y-3 pt-3">
+                  <p className="text-sm text-muted-foreground">
+                    {isAr
+                      ? "حوّل من محفظة فودافون كاش مباشرة لرقمنا وارفع الإيصال — يظهر الرصيد فوراً بعد الرفع."
+                      : "Transfer directly from your Vodafone Cash wallet to our number and upload the receipt — your balance shows immediately after upload."}
+                  </p>
+                  <Button className="w-full" onClick={() => createTopup("vodafone_cash")} disabled={creating || !amountValid}>
+                    {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : (isAr ? "إنشاء تحويل فودافون كاش" : "Create Vodafone Cash transfer")}
+                  </Button>
+                </TabsContent>
+              )}
+              {ipOn && (
+                <TabsContent value="instapay" className="space-y-3 pt-3">
+                  <p className="text-sm text-muted-foreground">
+                    {isAr
+                      ? "حوّل مباشرة عبر إنستاباي وارفع الإيصال — يظهر الرصيد فوراً بعد الرفع."
+                      : "Transfer directly via InstaPay and upload the receipt — your balance shows immediately after upload."}
+                  </p>
+                  <Button className="w-full" onClick={() => createTopup("instapay")} disabled={creating || !amountValid}>
+                    {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : (isAr ? "إنشاء تحويل إنستاباي" : "Create InstaPay transfer")}
+                  </Button>
+                </TabsContent>
+              )}
             </Tabs>
           </div>
         )}

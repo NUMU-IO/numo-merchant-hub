@@ -17,6 +17,7 @@ const BLOCKED_RED = "hsl(0, 62%, 38%)";
 
 interface WalletData {
   balance_cents: number;
+  pending_balance_cents: number;
   currency: string;
   status: string;
   effective_commission_bps: number;
@@ -24,6 +25,8 @@ interface WalletData {
   low_balance_threshold_cents: number;
   is_blocked: boolean;
   low_balance_level: number;
+  methods_enabled: Record<string, boolean>;
+  topups_enabled: boolean;
 }
 
 interface WalletTx {
@@ -178,6 +181,14 @@ const Wallet = () => {
                 </>
               )}
             </div>
+            {(wallet?.pending_balance_cents ?? 0) > 0 && !loading && (
+              <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-3 py-1 text-xs text-amber-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse" />
+                {isAr
+                  ? `${fmt(wallet!.pending_balance_cents)} ج.م رصيد معلّق قيد التحقق`
+                  : `${fmt(wallet!.pending_balance_cents)} EGP on hold pending verification`}
+              </div>
+            )}
             {negative && !loading && (
               <p className="text-xs text-white/60 mt-2">
                 {isAr
@@ -253,7 +264,12 @@ const Wallet = () => {
         )}
       </div>
 
-      <TopUpDialog open={topupOpen} onOpenChange={setTopupOpen} onDone={refresh} />
+      <TopUpDialog
+        open={topupOpen}
+        onOpenChange={setTopupOpen}
+        methodsEnabled={wallet?.methods_enabled ?? {}}
+        onDone={refresh}
+      />
     </div>
   );
 };
