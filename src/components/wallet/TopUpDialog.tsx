@@ -140,16 +140,32 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, minTopupCents, onDone
         </DialogHeader>
 
         {proofResult ? (
-          <div className="flex flex-col items-center py-8 text-center gap-3">
+          <div className="flex flex-col items-center py-6 text-center gap-3">
             {proofResult === "credited" ? (
               <>
-                <CheckCircle2 className="h-12 w-12 text-green-500" />
-                <p className="font-semibold">{isAr ? "تم شحن محفظتك فوراً!" : "Your wallet was credited instantly!"}</p>
+                <img
+                  src="/wallet-topup-success.png"
+                  alt=""
+                  className="h-52 w-52 select-none"
+                  draggable={false}
+                />
+                <p className="text-lg font-bold flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  {isAr ? "تم شحن محفظتك فوراً!" : "Your wallet was credited instantly!"}
+                </p>
               </>
             ) : (
               <>
-                <Clock className="h-12 w-12 text-amber-500" />
-                <p className="font-semibold">{isAr ? "تمت إضافة الرصيد — قيد التحقق" : "Credit added — on hold"}</p>
+                <img
+                  src="/wallet-topup-success.png"
+                  alt=""
+                  className="h-52 w-52 select-none"
+                  draggable={false}
+                />
+                <p className="text-lg font-bold flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-amber-500" />
+                  {isAr ? "تمت إضافة الرصيد — قيد التحقق" : "Credit added — on hold"}
+                </p>
                 <p className="text-sm text-muted-foreground">
                   {isAr
                     ? "يظهر المبلغ في محفظتك كرصيد معلّق حتى يكتمل التحقق (عادةً خلال ساعات قليلة). سيتم تفعيله تلقائياً بعد المراجعة."
