@@ -58,24 +58,24 @@ const WalletHeaderChip = () => {
             : `On hold pending verification: ${(w.pending_balance_cents / 100).toLocaleString()} EGP`
           : undefined
       }
-      className={`group relative hidden sm:inline-flex items-center h-[42px] px-3.5 rounded-xl border transition-colors duration-150
-        hover:bg-primary hover:border-primary hover:text-primary-foreground
+      className={`group relative hidden sm:inline-flex items-center h-[42px] px-4 rounded-xl border transition-colors duration-150 text-white
         ${
           w.is_blocked
-            ? "bg-red-50 border-red-200 text-red-700 dark:bg-red-950/40 dark:border-red-500/30 dark:text-red-300"
-            : "bg-card border-border"
+            ? "bg-red-700 border-red-700 hover:bg-red-600"
+            : "bg-navy border-navy hover:bg-primary hover:border-primary"
         }`}
     >
-      {/* Resting: balance + wallet icon */}
+      {/* Resting: currency glyph + balance + wallet icon (solid pill) */}
       <span className="flex items-center gap-2 group-hover:hidden">
+        <span className="text-[11px] font-bold opacity-80">{currencyLabel}</span>
         <span
-          className={`tabular-nums font-extrabold text-sm ${negative && !w.is_blocked ? "text-red-600" : ""}`}
+          className={`tabular-nums font-extrabold text-sm ${negative && !w.is_blocked ? "text-red-300" : ""}`}
         >
-          {currencyLabel} {balance}
+          {balance}
         </span>
-        <Wallet className="h-[18px] w-[18px] opacity-70" />
+        <Wallet className="h-[18px] w-[18px] opacity-90" />
         {w.pending_balance_cents > 0 && (
-          <span className="absolute top-1.5 end-1.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-card" />
+          <span className="absolute top-1.5 end-1.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-navy" />
         )}
       </span>
 

@@ -22,7 +22,7 @@ interface Invoice {
 
 const PLAN_DISPLAY: Record<string, { name: string; nameAr: string; price: string }> = {
   trial: { name: "Trial", nameAr: "تجربة مجانية", price: "Free" },
-  payg: { name: "Pay as you go", nameAr: "ادفع حسب مبيعاتك", price: "0 EGP/mo + 3%/order" },
+  payg: { name: "Pay as you Grow", nameAr: "ادفع وأنت تنمو", price: "0 EGP/mo + %/order" },
   starter: { name: "Starter", nameAr: "ستارتر", price: "99 EGP/mo" },
   pro: { name: "Pro", nameAr: "برو", price: "299 EGP/mo" },
   enterprise: { name: "Enterprise", nameAr: "إنتربرايز", price: "Custom" },
@@ -131,9 +131,9 @@ const Billing = () => {
                   variant="outline"
                   className="h-auto py-4 flex flex-col items-start"
                 >
-                  <span className="font-bold">{isAr ? "ادفع حسب مبيعاتك — 0 ج.م/شهر" : "Pay as you go — 0 EGP/mo"}</span>
+                  <span className="font-bold">{isAr ? "ادفع وأنت تنمو — 0 ج.م/شهر" : "Pay as you Grow — 0 EGP/mo"}</span>
                   <span className="text-xs text-muted-foreground">
-                    {isAr ? "بدون اشتراك — عمولة 3٪ لكل طلب مدفوع من محفظة مسبقة الشحن" : "No subscription — 3% per paid order from a prepaid wallet"}
+                    {isAr ? "بدون اشتراك — عمولة على كل طلب مدفوع من محفظة مسبقة الشحن، بسعر مثبّت من يوم تفعيلك" : "No subscription — a per-paid-order commission from a prepaid wallet, locked at the rate you sign up with"}
                   </span>
                 </Button>
                 <Button
