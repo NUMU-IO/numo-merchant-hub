@@ -41,6 +41,31 @@ interface WalletTx {
   created_at: string;
 }
 
+interface TopupHistoryItem {
+  id: string;
+  method: string;
+  amount_cents: number;
+  status: string;
+  special_reference: string;
+  created_at: string;
+  rejection_reason: string | null;
+}
+
+const TOPUP_STATUS: Record<string, { en: string; ar: string; cls: string }> = {
+  succeeded: { en: "Credited", ar: "تم الشحن", cls: "border-emerald-300 text-emerald-700" },
+  under_review: { en: "On hold — reviewing", ar: "معلّق — قيد المراجعة", cls: "border-amber-300 text-amber-700" },
+  awaiting_proof: { en: "Awaiting receipt", ar: "بانتظار الإيصال", cls: "text-muted-foreground" },
+  pending: { en: "Awaiting payment", ar: "بانتظار الدفع", cls: "text-muted-foreground" },
+  expired: { en: "Expired", ar: "منتهية", cls: "text-muted-foreground/70" },
+  failed: { en: "Failed", ar: "فشلت", cls: "border-red-300 text-red-700" },
+};
+
+const METHOD_LABEL: Record<string, { en: string; ar: string }> = {
+  vodafone_cash: { en: "Vodafone Cash", ar: "فودافون كاش" },
+  instapay: { en: "InstaPay", ar: "إنستاباي" },
+  card: { en: "Card", ar: "بطاقة" },
+};
+
 const KIND_LABELS: Record<string, { en: string; ar: string }> = {
   topup: { en: "Top-up", ar: "شحن رصيد" },
   commission: { en: "Commission", ar: "عمولة" },
@@ -56,6 +81,7 @@ const Wallet = () => {
 
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [txs, setTxs] = useState<WalletTx[]>([]);
+  const [topups, setTopups] = useState<TopupHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [topupOpen, setTopupOpen] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -65,12 +91,14 @@ const Wallet = () => {
 
   const refresh = useCallback(async () => {
     try {
-      const [w, t] = await Promise.all([
+      const [w, t, tp] = await Promise.all([
         apiClient<WalletData>("/wallet"),
         apiClient<WalletTx[]>("/wallet/transactions?limit=50"),
+        apiClient<TopupHistoryItem[]>("/wallet/topups?limit=10").catch(() => [] as TopupHistoryItem[]),
       ]);
       setWallet(w);
       setTxs(t);
+      setTopups(tp);
     } catch {
       /* keep whatever we had */
     } finally {
@@ -210,6 +238,63 @@ const Wallet = () => {
           </div>
         </div>
       </div>
+
+      {/* Top-up history — includes rejected/on-hold attempts that never
+          reach the money ledger, with the admin's rejection reason. */}
+      {topups.length > 0 && (
+        <div className="rounded-xl border bg-card">
+          <div className="px-5 py-4 border-b">
+            <h2 className="text-base font-bold">{isAr ? "عمليات الشحن" : "Top-ups"}</h2>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{isAr ? "الطريقة" : "Method"}</TableHead>
+                <TableHead className="text-end">{isAr ? "المبلغ" : "Amount"}</TableHead>
+                <TableHead>{isAr ? "الحالة" : "Status"}</TableHead>
+                <TableHead className="text-end">{isAr ? "التاريخ" : "Date"}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {topups.map((t) => {
+                const rejected = !!t.rejection_reason && t.status !== "succeeded";
+                const st = TOPUP_STATUS[t.status] ?? { en: t.status, ar: t.status, cls: "text-muted-foreground" };
+                const method = METHOD_LABEL[t.method] ?? { en: t.method, ar: t.method };
+                return (
+                  <TableRow key={t.id}>
+                    <TableCell>
+                      <p className="text-sm font-medium">{isAr ? method.ar : method.en}</p>
+                      <p className="text-[11px] text-muted-foreground font-mono" dir="ltr">{t.special_reference}</p>
+                    </TableCell>
+                    <TableCell className="text-end tabular-nums font-medium">{fmt(t.amount_cents)}</TableCell>
+                    <TableCell>
+                      {rejected ? (
+                        <div>
+                          <Badge variant="outline" className="border-red-300 text-red-700 gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            {isAr ? "مرفوض" : "Rejected"}
+                          </Badge>
+                          <p className="text-[11px] text-red-600/90 mt-1 max-w-[220px]">
+                            {t.rejection_reason}
+                            {t.status === "awaiting_proof" && (
+                              <span className="text-muted-foreground"> · {isAr ? "يمكنك رفع إيصال جديد" : "you can upload a new receipt"}</span>
+                            )}
+                          </p>
+                        </div>
+                      ) : (
+                        <Badge variant="outline" className={st.cls}>{isAr ? st.ar : st.en}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-end text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(t.created_at).toLocaleDateString(isAr ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       {/* Wallet Transactions */}
       <div className="rounded-xl border bg-card">
