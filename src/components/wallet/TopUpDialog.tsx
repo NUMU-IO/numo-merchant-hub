@@ -9,11 +9,31 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Copy, CreditCard, Smartphone, Upload, CheckCircle2, Clock } from "lucide-react";
+import { Loader2, Copy, CreditCard, Smartphone, Upload, CheckCircle2, Clock, XCircle } from "lucide-react";
 
 const PRESETS_EGP = [100, 250, 500, 1000];
 const DEFAULT_MIN_EGP = 50;
 const MAX_EGP = 50000;
+
+// Backend error details are English-only — map the known ones so the
+// error screen reads naturally in Arabic. Fallback = raw message.
+const AR_ERROR_MAP: [RegExp, string][] = [
+  [/already submitted/i, "هذا الإيصال أو رقم العملية مستخدم من قبل — كل تحويل يحتاج إيصالاً ورقم عملية جديدين."],
+  [/already credited/i, "تم شحن هذه العملية بالفعل."],
+  [/window .* expired|has expired/i, "انتهت مهلة الدفع لهذه العملية — أنشئ عملية شحن جديدة."],
+  [/no longer accept/i, "لم يعد بالإمكان رفع إيصال لهذه العملية — أنشئ عملية شحن جديدة."],
+  [/could not decode/i, "تعذر قراءة الصورة — جرّب لقطة شاشة أوضح."],
+  [/not found/i, "لم يتم العثور على عملية الشحن — أنشئ عملية جديدة."],
+  [/too many open top-ups/i, "لديك عمليات شحن كثيرة مفتوحة — أكملها أو انتظر انتهاء صلاحيتها."],
+];
+
+const translateError = (message: string, isAr: boolean): string => {
+  if (!isAr) return message;
+  for (const [pattern, ar] of AR_ERROR_MAP) {
+    if (pattern.test(message)) return ar;
+  }
+  return message;
+};
 
 interface TopupCreated {
   id: string;
@@ -64,6 +84,7 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, minTopupCents, onDone
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [proofResult, setProofResult] = useState<"credited" | "on_hold" | null>(null);
+  const [proofError, setProofError] = useState<string | null>(null);
 
   const amountValid = amountEgp >= minEgp && amountEgp <= MAX_EGP;
   const cardOn = methodsEnabled.card !== false;
@@ -77,6 +98,7 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, minTopupCents, onDone
     setTxRef("");
     setProofFile(null);
     setProofResult(null);
+    setProofError(null);
   };
 
   const createTopup = async (method: "card" | "vodafone_cash" | "instapay") => {
@@ -119,7 +141,10 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, minTopupCents, onDone
       setProofResult(res.credited_balance_cents !== null ? "credited" : "on_hold");
       onDone();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : (isAr ? "تعذر رفع الإيصال" : "Could not upload the receipt"));
+      const raw = e instanceof Error && e.message
+        ? e.message
+        : (isAr ? "تعذر رفع الإيصال" : "Could not upload the receipt");
+      setProofError(translateError(raw, isAr));
     } finally {
       setUploading(false);
     }
@@ -139,7 +164,24 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, minTopupCents, onDone
           <DialogTitle>{isAr ? "شحن المحفظة" : "Top up wallet"}</DialogTitle>
         </DialogHeader>
 
-        {proofResult ? (
+        {proofError ? (
+          /* ── Upload failed: large X + translated reason ───────────── */
+          <div className="flex flex-col items-center py-8 text-center gap-3">
+            <XCircle className="h-20 w-20 text-red-500" strokeWidth={1.5} />
+            <p className="text-lg font-bold">
+              {isAr ? "لم يتم رفع الإيصال" : "Receipt not accepted"}
+            </p>
+            <p className="text-sm text-muted-foreground max-w-[340px]">{proofError}</p>
+            <div className="flex gap-2 mt-2">
+              <Button variant="outline" onClick={() => { reset(); onOpenChange(false); }}>
+                {isAr ? "إغلاق" : "Close"}
+              </Button>
+              <Button onClick={() => setProofError(null)}>
+                {isAr ? "المحاولة مرة أخرى" : "Try again"}
+              </Button>
+            </div>
+          </div>
+        ) : proofResult ? (
           <div className="flex flex-col items-center py-6 text-center gap-3">
             {proofResult === "credited" ? (
               <>

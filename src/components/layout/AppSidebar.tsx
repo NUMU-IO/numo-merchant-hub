@@ -22,7 +22,7 @@ import {
   ClipboardText as ClipboardList, ArrowsLeftRight as Navigation2,
   SlidersHorizontal, Palette, User, UserGear as UserCog, UserCheck,
   WarningCircle as AlertTriangle, ChartBar as BarChart3,
-  CreditCard, ShieldCheck, Compass,
+  CreditCard, ShieldCheck, Compass, Lightning,
 } from "@phosphor-icons/react";
 import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -103,7 +103,7 @@ const AppSidebar = () => {
     isActive("/payment-setup") ||
     isActive("/billing");
   const logisticsActive =
-    isActive("/logistics") || isActive("/shipping");
+    isActive("/logistics") || isActive("/shipping") || isActive("/cod-autopilot");
   const channelsActive = isActive("/channels") || isActive("/inbox");
 
   // ─── Sub-item lists (kept close to the parent for readability) ─────────
@@ -167,6 +167,7 @@ const AppSidebar = () => {
   ];
   const logisticsSub: NavSubItem[] = [
     { title: isRTL ? "الشحنات" : "Shipments", url: "/logistics", icon: Truck, navKey: "logistics.shipments" },
+    { title: isRTL ? "أوتوبايلوت الدفع عند الاستلام" : "COD Autopilot", url: "/cod-autopilot", icon: Lightning, navKey: "logistics.cod-autopilot" },
     { title: isRTL ? "المناطق" : "Zones", url: "/shipping/zones", icon: MapPin, navKey: "logistics.zones" },
     { title: isRTL ? "المواقع" : "Locations", url: "/locations", icon: MapPin, navKey: "logistics.locations" },
   ];
