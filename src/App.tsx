@@ -87,6 +87,7 @@ const Profile = lazy(() => import("@/pages/Profile"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const SettingsPreferences = lazy(() => import("@/pages/SettingsPreferences"));
 const SettingsTracking = lazy(() => import("@/pages/SettingsTracking"));
+const SettingsMetafields = lazy(() => import("@/pages/SettingsMetafields"));
 const McpConnect = lazy(() => import("@/pages/McpConnect"));
 const Apps = lazy(() => import("@/pages/Apps"));
 const GiftCards = lazy(() => import("@/pages/GiftCards"));
@@ -379,6 +380,7 @@ const App = () => (
                     />
                     <Route path="/settings/preferences" element={<SettingsPreferences />} />
                     <Route path="/settings/tracking" element={<SettingsTracking />} />
+                    <Route path="/settings/metafields" element={<SettingsMetafields />} />
                     <Route path="/settings/mcp" element={<McpConnect />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/whatsapp" element={<WhatsApp />} />

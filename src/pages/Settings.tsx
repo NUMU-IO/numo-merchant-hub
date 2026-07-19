@@ -10,7 +10,7 @@ import {
   Bell, Inbox, MessageSquare, Megaphone, Share2, PlugZap, Activity,
   // store & ops
   Palette, FileText, Navigation2, SlidersHorizontal, Package, FolderOpen,
-  Truck, Key, Webhook, TrendingUp, UserPlus,
+  Truck, Key, Webhook, TrendingUp, UserPlus, Tag,
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,15 @@ const SECTIONS: SettingSection[] = [
         },
         icon: Globe,
         to: "/settings/preferences?section=general",
+      },
+      {
+        title: { en: "Custom fields", ar: "الحقول المخصصة" },
+        description: {
+          en: "Define extra typed data for products, collections and pages",
+          ar: "عرّف حقول بيانات إضافية للمنتجات والمجموعات والصفحات",
+        },
+        icon: Tag,
+        to: "/settings/metafields",
       },
       {
         title: { en: "Security", ar: "الأمان" },

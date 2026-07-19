@@ -24,6 +24,11 @@ import { cn } from "@/lib/utils";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { getStoreUrl } from "@/lib/storefront";
 import { useCustomizerStore } from "../store/customizerStore";
+import { registerMetafieldSources } from "../components/inputs/DynamicSourcePicker";
+import {
+  listMetafieldDefinitions,
+  compatibleSettingTypes,
+} from "@/services/metafieldsApi";
 import { TopBar } from "../components/toolbar/TopBar";
 import { LivePreview } from "../components/preview/LivePreview";
 import {
@@ -105,6 +110,38 @@ export function ThemeCustomizerV3() {
       setLocale(lang);
     }
   }, [currentStore?.default_language, setLocale]);
+
+  // Load the store's PUBLIC metafield definitions and register them as
+  // bindable dynamic sources, so the section source picker offers custom
+  // fields alongside the built-ins (Phase 1 / ADR-2). Best-effort — the
+  // editor works without it; a store with no definitions registers [].
+  useEffect(() => {
+    if (!storeId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const defs = await listMetafieldDefinitions(storeId);
+        if (cancelled) return;
+        registerMetafieldSources(
+          defs
+            .filter((d) => d.is_public)
+            .map((d) => ({
+              owner_type: d.owner_type,
+              namespace: d.namespace,
+              key: d.key,
+              name: d.name,
+              compatible: compatibleSettingTypes(d.type),
+            })),
+        );
+      } catch {
+        // Non-fatal: leave the built-in sources only.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      registerMetafieldSources([]); // clear on store switch
+    };
+  }, [storeId]);
 
   // Initialize the customizer when the active store is known.
   useEffect(() => {
