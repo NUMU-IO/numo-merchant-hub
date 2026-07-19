@@ -27,6 +27,7 @@ interface WalletData {
   low_balance_level: number;
   methods_enabled: Record<string, boolean>;
   topups_enabled: boolean;
+  min_topup_cents?: number;
 }
 
 interface WalletTx {
@@ -268,6 +269,7 @@ const Wallet = () => {
         open={topupOpen}
         onOpenChange={setTopupOpen}
         methodsEnabled={wallet?.methods_enabled ?? {}}
+        minTopupCents={wallet?.min_topup_cents}
         onDone={refresh}
       />
     </div>

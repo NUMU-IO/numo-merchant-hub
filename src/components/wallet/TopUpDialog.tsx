@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Copy, CreditCard, Smartphone, Upload, CheckCircle2, Clock } from "lucide-react";
 
 const PRESETS_EGP = [100, 250, 500, 1000];
-const MIN_EGP = 50;
+const DEFAULT_MIN_EGP = 50;
 const MAX_EGP = 50000;
 
 interface TopupCreated {
@@ -41,17 +41,23 @@ interface ProofResponse {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Which methods the admin has enabled (from GET /wallet). */
+  /** Which methods the admin has enabled AND configured (from GET /wallet). */
   methodsEnabled: Record<string, boolean>;
+  /** Admin-controlled minimum top-up in cents (from GET /wallet). */
+  minTopupCents?: number;
   /** Called after a proof lands (credited or on hold). */
   onDone: () => void;
 }
 
-const TopUpDialog = ({ open, onOpenChange, methodsEnabled, onDone }: Props) => {
+const TopUpDialog = ({ open, onOpenChange, methodsEnabled, minTopupCents, onDone }: Props) => {
   const { language } = useLanguage();
   const isAr = language === "ar";
 
-  const [amountEgp, setAmountEgp] = useState<number>(250);
+  const minEgp = Math.max(1, Math.round((minTopupCents ?? DEFAULT_MIN_EGP * 100) / 100));
+  const presets = PRESETS_EGP.filter((v) => v >= minEgp);
+  if (presets.length === 0) presets.push(minEgp);
+
+  const [amountEgp, setAmountEgp] = useState<number>(Math.max(250, minEgp));
   const [creating, setCreating] = useState(false);
   const [manualTopup, setManualTopup] = useState<TopupCreated | null>(null);
   const [txRef, setTxRef] = useState("");
@@ -59,10 +65,11 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, onDone }: Props) => {
   const [uploading, setUploading] = useState(false);
   const [proofResult, setProofResult] = useState<"credited" | "on_hold" | null>(null);
 
-  const amountValid = amountEgp >= MIN_EGP && amountEgp <= MAX_EGP;
+  const amountValid = amountEgp >= minEgp && amountEgp <= MAX_EGP;
   const cardOn = methodsEnabled.card !== false;
   const vcOn = methodsEnabled.vodafone_cash !== false;
   const ipOn = methodsEnabled.instapay !== false;
+  const anyMethodOn = cardOn || vcOn || ipOn;
   const defaultTab = cardOn ? "card" : vcOn ? "vodafone_cash" : "instapay";
 
   const reset = () => {
@@ -74,7 +81,7 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, onDone }: Props) => {
 
   const createTopup = async (method: "card" | "vodafone_cash" | "instapay") => {
     if (!amountValid) {
-      toast.error(isAr ? `المبلغ يجب أن يكون بين ${MIN_EGP} و ${MAX_EGP} ج.م` : `Amount must be between ${MIN_EGP} and ${MAX_EGP} EGP`);
+      toast.error(isAr ? `المبلغ يجب أن يكون بين ${minEgp} و ${MAX_EGP} ج.م` : `Amount must be between ${minEgp} and ${MAX_EGP} EGP`);
       return;
     }
     setCreating(true);
@@ -224,13 +231,29 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, onDone }: Props) => {
                 : "Your balance updates immediately after upload — either active right away or on hold pending verification."}
             </p>
           </div>
+        ) : !anyMethodOn ? (
+          /* ── No configured methods: nothing to offer yet ──────────── */
+          <div className="flex flex-col items-center py-8 text-center gap-3">
+            <Clock className="h-12 w-12 text-muted-foreground/50" />
+            <p className="font-semibold">
+              {isAr ? "الشحن غير متاح حالياً" : "Top-ups aren't available yet"}
+            </p>
+            <p className="text-sm text-muted-foreground max-w-[320px]">
+              {isAr
+                ? "لم يتم تفعيل طرق دفع للشحن بعد. حاول لاحقاً أو تواصل مع الدعم."
+                : "No payment methods are set up for top-ups yet. Please try again later or contact support."}
+            </p>
+            <Button variant="outline" className="mt-2" onClick={() => onOpenChange(false)}>
+              {isAr ? "إغلاق" : "Close"}
+            </Button>
+          </div>
         ) : (
           /* ── Amount + method selection ────────────────────────────── */
           <div className="space-y-5">
             <div className="space-y-2">
               <p className="text-sm font-medium">{isAr ? "المبلغ (ج.م)" : "Amount (EGP)"}</p>
               <div className="grid grid-cols-4 gap-2">
-                {PRESETS_EGP.map((v) => (
+                {presets.map((v) => (
                   <Button
                     key={v}
                     variant={amountEgp === v ? "default" : "outline"}
@@ -244,11 +267,14 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, onDone }: Props) => {
               </div>
               <Input
                 type="number"
-                min={MIN_EGP}
+                min={minEgp}
                 max={MAX_EGP}
                 value={amountEgp}
                 onChange={(e) => setAmountEgp(Number(e.target.value))}
               />
+              <p className="text-xs text-muted-foreground">
+                {isAr ? `الحد الأدنى ${minEgp} ج.م` : `Minimum ${minEgp} EGP`}
+              </p>
             </div>
 
             <Tabs defaultValue={defaultTab}>
