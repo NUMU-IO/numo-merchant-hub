@@ -1,6 +1,8 @@
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { apiClient } from "@/services/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Rocket } from "lucide-react";
@@ -24,7 +26,19 @@ const GoLiveBanner = () => {
     ["trial", "demo", "free"].includes(tenant.plan) &&
     !tenant.feature_flags?.golive_exempt;
 
-  if (!needsPlan) return null;
+  // Deploy-order guard: only show the banner when the wallet backend
+  // (and with it the go-live gate + grandfather backfill) actually
+  // exists. If GET /wallet 404s — hub shipped ahead of the API — we
+  // must NOT tell existing merchants their store isn't live.
+  const walletQuery = useQuery({
+    queryKey: ["golive", "wallet-probe"],
+    queryFn: () => apiClient("/wallet"),
+    enabled: needsPlan,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (!needsPlan || !walletQuery.isSuccess) return null;
 
   return (
     <Alert className="mb-5 rounded-xl border-primary/30 bg-primary/5">
