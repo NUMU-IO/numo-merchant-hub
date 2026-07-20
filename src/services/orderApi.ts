@@ -393,3 +393,49 @@ export async function addOrderComment(
     },
   );
 }
+
+// ─── COD Autopilot exception queue (004-cod-autopilot) ─────────────────
+
+export interface AutopilotException {
+  order_id: string;
+  order_number: string;
+  customer_name: string | null;
+  total_cents: number;
+  currency: string;
+  /** refused | response_exhausted | late_contradiction */
+  exception_reason: string;
+  flagged_at: string;
+  age_hours: number;
+  attempts: number;
+  order_status: string;
+}
+
+export interface AutopilotExceptionList {
+  items: AutopilotException[];
+  total: number;
+}
+
+export async function listAutopilotExceptions(
+  storeId: string,
+  params: { limit?: number; offset?: number } = {},
+): Promise<AutopilotExceptionList> {
+  const qs = new URLSearchParams({
+    limit: String(params.limit ?? 50),
+    offset: String(params.offset ?? 0),
+  });
+  return apiClient<AutopilotExceptionList>(
+    `/stores/${storeId}/orders/autopilot-exceptions?${qs.toString()}`,
+  );
+}
+
+/** Dismiss the Autopilot flag without changing the order. Status changes
+ *  go through the normal order endpoints, which clear the flag too. */
+export async function resolveAutopilotException(
+  storeId: string,
+  orderId: string,
+): Promise<{ resolved: boolean }> {
+  return apiClient<{ resolved: boolean }>(
+    `/stores/${storeId}/orders/autopilot-exceptions/${orderId}/resolve`,
+    { method: "POST", body: JSON.stringify({ action: "dismiss" }) },
+  );
+}

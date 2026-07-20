@@ -530,6 +530,46 @@ export async function lookupTrustPhone(
   );
 }
 
+// ─── COD Autopilot (004-cod-autopilot) ──────────────────────────────────────
+
+export interface CodAutopilotSettings {
+  enabled: boolean;
+  /** Store-local hour (0-23, market timezone) the daily ship digest is sent. */
+  digest_hour: number;
+  /** Days after shipped before the customer delivery-check is sent. 1-7. */
+  delivery_check_delay_days: number;
+  /** Days between delivery-check retries. 1-7. */
+  delivery_check_retry_days: number;
+  /** Total delivery-check attempts (initial + retries). 1-3. */
+  delivery_check_max_attempts: number;
+  /** Days after shipped before a silent order auto-closes as delivered. 5-30. */
+  assumed_delivered_days: number;
+  /** Read-only: store has a contact phone the digest can be sent to. */
+  digest_deliverable: boolean;
+  /** Read-only: the auto-RTO window, surfaced for overlap warnings. */
+  auto_rto_days: number;
+}
+
+export async function fetchCodAutopilotSettings(
+  storeId: string
+): Promise<CodAutopilotSettings> {
+  return apiClient<CodAutopilotSettings>(
+    `/stores/${storeId}/settings/cod-autopilot`
+  );
+}
+
+export async function updateCodAutopilotSettings(
+  storeId: string,
+  data: Partial<
+    Omit<CodAutopilotSettings, "digest_deliverable" | "auto_rto_days">
+  >
+): Promise<CodAutopilotSettings> {
+  return apiClient<CodAutopilotSettings>(
+    `/stores/${storeId}/settings/cod-autopilot`,
+    { method: "PATCH", body: JSON.stringify(data) }
+  );
+}
+
 // ─── Paymob Credentials ──────────────────────────────────────────────────────
 
 export interface PaymobCredentialsResponse {

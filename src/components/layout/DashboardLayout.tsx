@@ -12,6 +12,8 @@ import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
 import MobileBottomNav from "./MobileBottomNav";
 import DemoBanner from "@/components/demo/DemoBanner";
+import GoLiveBanner from "@/components/wallet/GoLiveBanner";
+import LowBalanceBanner from "@/components/wallet/LowBalanceBanner";
 import { ImpersonationBanner } from "./ImpersonationBanner";
 import { NewOrderNotifier } from "@/components/NewOrderNotifier";
 import { AgentPanel } from "@/features/agent";
@@ -69,6 +71,11 @@ const DashboardLayout = () => {
             <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:px-8 lg:py-6">
               {/* Demo mode banner — shows countdown + "Save my work" CTA */}
               <DemoBanner />
+              {/* Go-live gate: new merchants must pick a plan (or Pay as
+                  you Grow) before the storefront accepts orders. */}
+              <GoLiveBanner />
+              {/* Pay-as-you-grow wallet warnings (low / negative / blocked) */}
+              <LowBalanceBanner />
               {/* Store status alerts */}
               {currentStore?.status === "suspended" && (
                 <Alert className="mb-5 rounded-xl border-red-200 bg-red-50/80 dark:border-red-500/30 dark:bg-red-950/40">
