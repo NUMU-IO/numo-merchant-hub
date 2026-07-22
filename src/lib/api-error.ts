@@ -16,12 +16,20 @@ export class ApiError extends Error {
    *  flat `serverDetail` string can't represent — e.g. the 409 stale-etag
    *  conflict `{ detail: { current_etag, current_draft } }`. */
   body: unknown;
+  /** Arabic message supplied BY THE SERVER, when it ships one. Several
+   *  endpoints (duplicate SKU, for one) deliberately return a bilingual
+   *  envelope `{ message, message_ar }`; without capturing it here the hub
+   *  fell through to regex-matching the English string and, on no match,
+   *  showed Arabic merchants `خطأ: <English sentence>`. A translation the API
+   *  already wrote should always beat one the client tries to infer. */
+  serverDetailAr: string | null;
 
   constructor(
     status: number,
     serverDetail: string | null,
     fieldErrors?: Record<string, string> | null,
     body?: unknown,
+    serverDetailAr?: string | null,
   ) {
     const msg = serverDetail || statusToMessage(status, "en");
     super(msg);
@@ -30,6 +38,7 @@ export class ApiError extends Error {
     this.serverDetail = serverDetail;
     this.fieldErrors = fieldErrors ?? null;
     this.body = body ?? null;
+    this.serverDetailAr = serverDetailAr ?? null;
   }
 
   /** Get a user-friendly message in the given language */
@@ -41,6 +50,13 @@ export class ApiError extends Error {
       return isAr
         ? "لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مرة أخرى."
         : "No internet connection. Check your network and try again.";
+    }
+
+    // A server-supplied Arabic message wins outright — it was written for this
+    // exact error by the code that raised it, so no client-side pattern match
+    // can do better.
+    if (isAr && this.serverDetailAr) {
+      return this.serverDetailAr;
     }
 
     // If the server gave a meaningful detail, use it (unless it's a generic code)
@@ -122,7 +138,9 @@ const SERVER_DETAIL_MAP: Array<[RegExp, string, string]> = [
 
   // Products
   [/product.*not.*found/i, "Product not found.", "المنتج غير موجود."],
-  [/sku.*already.*exists/i, "This SKU already exists.", "رمز المنتج (SKU) موجود بالفعل."],
+  // Matches both wordings the backend uses: "…already exists" and the
+  // duplicate-SKU 409's "SKU 'X' is already used in this store."
+  [/sku.*already.*(exists|used|in use)/i, "This SKU already exists.", "رمز المنتج (SKU) موجود بالفعل."],
   [/slug.*already.*exists/i, "This URL slug is already in use.", "رابط المنتج مستخدم بالفعل."],
   [/insufficient.*stock/i, "Insufficient stock for this operation.", "المخزون غير كافٍ لهذه العملية."],
 
@@ -242,7 +260,23 @@ export async function apiErrorFromResponse(res: Response): Promise<ApiError> {
             ? body.message
             : null;
 
-  return new ApiError(res.status, detailStr, null, body);
+  // Bilingual envelope, in the three shapes the backend uses. FastAPI's
+  // HTTPException nests under `detail`; the NUMU error helper uses `error`;
+  // a few handlers return it flat.
+  const detailAr =
+    (typeof detail === "object" &&
+    detail !== null &&
+    !Array.isArray(detail) &&
+    typeof (detail as { message_ar?: unknown }).message_ar === "string"
+      ? (detail as { message_ar: string }).message_ar
+      : null) ??
+    (typeof body?.error?.message_ar === "string"
+      ? body.error.message_ar
+      : typeof body?.message_ar === "string"
+        ? body.message_ar
+        : null);
+
+  return new ApiError(res.status, detailStr, null, body, detailAr);
 }
 
 // ─── Network error helper ────────────────────────────────────────────────────

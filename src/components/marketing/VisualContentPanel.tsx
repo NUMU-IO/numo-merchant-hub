@@ -118,6 +118,9 @@ export interface VisualContentState {
   cookiePolicyUrl: string;
 }
 
+/** Quick-pick glyphs for the announcement-bar icon field (stored verbatim). */
+const BAR_ICON_PRESETS = ["✨", "🎉", "🏷️", "🎁", "🚚", "🔥", "⭐", "⏰"];
+
 export const EMPTY_VISUAL_CONTENT: VisualContentState = {
   bg: "#0f172a",
   fg: "#ffffff",
@@ -471,14 +474,36 @@ export function VisualContentPanel({ surface, state, onChange, storeId }: Props)
                 <Label htmlFor="bar-icon">
                   {t("promotions.visual.bar_icon")}
                 </Label>
-                <Input
-                  id="bar-icon"
-                  value={state.icon}
-                  onChange={(e) => update("icon", e.target.value)}
-                  placeholder="🎉"
-                  maxLength={4}
-                  className="w-24 text-center text-lg"
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="bar-icon"
+                    value={state.icon}
+                    onChange={(e) => update("icon", e.target.value)}
+                    placeholder="🎉"
+                    maxLength={4}
+                    className="w-24 text-center text-lg"
+                  />
+                  {/* Emoji quick-picks — the field is a GLYPH, not an icon
+                      name; typed words like "sparkle" used to render as
+                      literal text on the storefront bar. */}
+                  <div className="flex flex-wrap gap-1">
+                    {BAR_ICON_PRESETS.map((emoji) => (
+                      <Button
+                        key={emoji}
+                        type="button"
+                        variant={state.icon === emoji ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-8 w-8 p-0 text-base"
+                        aria-pressed={state.icon === emoji}
+                        onClick={() =>
+                          update("icon", state.icon === emoji ? "" : emoji)
+                        }
+                      >
+                        {emoji}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="bar-grad">
