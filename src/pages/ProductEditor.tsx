@@ -32,9 +32,10 @@ import {
   type SizeChart,
 } from "@/components/products/SizeChartEditor";
 import { BundleManager } from "@/components/products/BundleManager";
+import { MetafieldValuesCard } from "@/components/products/MetafieldValuesCard";
 import { ManageLabelsDialog } from "@/components/products/ManageLabelsDialog";
-import VariantsEditor from "@/components/products/VariantsEditor";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -181,6 +182,17 @@ const ProductEditor = () => {
     imageValues?: string[];
   }[]>([]);
   const [variantCombinations, setVariantCombinations] = useState<VariantCombination[]>([]);
+  // Wave C — merged variant model. `hasOptions` is the Shopify-style opt-in
+  // ("This product has options, like size or color"); OFF = simple product,
+  // no variant UI at all. `variantsTouched` gates whether the save sends the
+  // canonical options/variants payload — an untouched section is OMITTED so
+  // a description-only save can never overwrite stock that changed on the
+  // server (orders, adjustments) since the page loaded.
+  const [hasOptions, setHasOptions] = useState(false);
+  const [variantsTouched, setVariantsTouched] = useState(false);
+  // Product SKU (Inventory block). Blank on create → the backend generates
+  // a stable `SKU-XXXXXXXX` code; shown read-only-ish after save.
+  const [formSku, setFormSku] = useState("");
   const [sizeChart, setSizeChart] = useState<SizeChart>({ ...EMPTY_SIZE_CHART });
   // When true, checkout ignores stock-zero and lets the order go through
   // (stock will show negative). Persisted on attributes.continue_selling_when_out_of_stock.
@@ -239,16 +251,52 @@ const ProductEditor = () => {
         setFormMetaCatalogId(api.meta_catalog_id || "");
         setFormSlug(api.slug || "");
         setFormTemplateSuffix(api.template_suffix ?? null);
-        setFormVariants(p.variants.map(v => ({
-          name: v.name, nameAr: v.nameAr,
-          options: v.options.join(", "), optionsAr: v.optionsAr.join(", "),
-          hexValues: v.hexValues,
-          imageValues: v.imageValues,
-        })));
-        const rawCombos = (api.attributes as Record<string, unknown>)?.variant_combinations;
-        if (Array.isArray(rawCombos)) {
-          setVariantCombinations(rawCombos as VariantCombination[]);
-        }
+        setFormSku(api.sku || "");
+        // Wave C — load axes + matrix from the CANONICAL model (top-level
+        // options + variant rows), not the retired attributes pipeline.
+        // Presentation decoration (Arabic names, swatch hex, per-option
+        // images) lives under attributes.variant_meta; legacy products
+        // fall back to the old attributes.variants shape for decoration
+        // only. Rows with empty option_values (the default variant of a
+        // simple product) are not options — they stay out of the matrix.
+        const attrs = api.attributes as Record<string, unknown>;
+        const metaAxes = (
+          (attrs?.variant_meta as { axes?: unknown } | undefined)?.axes ??
+          attrs?.variants
+        ) as
+          | {
+              name?: string; nameAr?: string;
+              optionsAr?: string[]; hexValues?: string[]; imageValues?: string[];
+            }[]
+          | undefined;
+        const canonicalOptions = (api.options || []).filter(o => o.name);
+        setHasOptions(canonicalOptions.length > 0);
+        setFormVariants(
+          canonicalOptions.map((o, i) => {
+            const meta = Array.isArray(metaAxes)
+              ? metaAxes.find(m => m?.name === o.name) ?? metaAxes[i]
+              : undefined;
+            return {
+              name: o.name,
+              nameAr: meta?.nameAr || "",
+              options: (o.values || []).join(", "),
+              optionsAr: Array.isArray(meta?.optionsAr) ? meta.optionsAr.join(", ") : "",
+              hexValues: Array.isArray(meta?.hexValues) ? meta.hexValues : undefined,
+              imageValues: Array.isArray(meta?.imageValues) ? meta.imageValues : undefined,
+            };
+          }),
+        );
+        setVariantCombinations(
+          (api.variants || [])
+            .filter(v => v.option_values && Object.keys(v.option_values).length > 0)
+            .map(v => ({
+              options: v.option_values,
+              price: v.price || "",
+              stock: String(v.inventory_quantity ?? 0),
+              sku: v.sku || "",
+              enabled: true,
+            })),
+        );
         setSizeChart(sizeChartFromAttributes(api.attributes));
         setContinueSellingOutOfStock(
           Boolean((api.attributes as Record<string, unknown>)?.continue_selling_when_out_of_stock),
@@ -320,14 +368,17 @@ const ProductEditor = () => {
 
   const addVariantRow = () => {
     setFormVariants(prev => [...prev, { name: "", nameAr: "", options: "", optionsAr: "" }]);
+    setVariantsTouched(true);
   };
 
   const updateVariant = (idx: number, field: string, value: string) => {
     setFormVariants(prev => prev.map((v, i) => i === idx ? { ...v, [field]: value } : v));
+    setVariantsTouched(true);
   };
 
   const removeVariant = (idx: number) => {
     setFormVariants(prev => prev.filter((_, i) => i !== idx));
+    setVariantsTouched(true);
   };
 
   const handleSave = useCallback(async () => {
@@ -354,29 +405,62 @@ const ProductEditor = () => {
     }
 
     setIsSaving(true);
-    const variants: ProductVariant[] = formVariants
-      .filter(v => v.name && v.options)
-      .map((v, i) => {
-        const parsedOptions = v.options.split(",").map(o => o.trim()).filter(Boolean);
-        const parsedOptionsAr = v.optionsAr.split(",").map(o => o.trim()).filter(Boolean);
-        const isColor = isColorVariant(v.name, v.nameAr);
-        // Align per-option metadata to parsedOptions; drop stale entries
-        // beyond the current option count, pad missing ones with defaults.
-        const hexValues = isColor
-          ? parsedOptions.map((opt, j) => v.hexValues?.[j] || defaultHexForName(opt))
-          : undefined;
-        const imageValues = isColor
-          ? parsedOptions.map((_, j) => v.imageValues?.[j] || "")
-          : undefined;
-        return {
-          id: `v-${Date.now()}-${i}`,
-          name: v.name, nameAr: v.nameAr,
-          options: parsedOptions,
-          optionsAr: parsedOptionsAr,
-          hexValues,
-          imageValues,
-        };
-      });
+    // ── Wave C: canonical variant payload ──
+    // Only when the merchant TOUCHED the variants section. Toggle ON with
+    // valid axes → axes + enabled matrix rows (blank per-row SKUs are
+    // auto-generated server-side). Toggle OFF after touching → explicit
+    // empty arrays, which removes the option variants server-side and
+    // recreates the simple default variant. Untouched → undefined (the
+    // save leaves server variant rows completely alone).
+    const parsedAxes = formVariants
+      .filter(v => v.name.trim() && v.options.trim())
+      .map((v, i) => ({
+        name: v.name.trim(),
+        position: i,
+        values: v.options.split(",").map(o => o.trim()).filter(Boolean),
+      }));
+    const wantsOptions = hasOptions && parsedAxes.length > 0;
+    const mappedComboRows = variantCombinations
+      .filter(c => c.enabled && Object.keys(c.options || {}).length > 0)
+      .map(c => ({
+        option_values: c.options,
+        price: Number(c.price) > 0 ? Number(c.price) : Number(formPrice),
+        inventory_quantity: Math.max(0, parseInt(c.stock, 10) || 0),
+        ...(c.sku.trim() ? { sku: c.sku.trim() } : {}),
+      }));
+    const canonicalOptions = variantsTouched
+      ? (wantsOptions ? parsedAxes : [])
+      : undefined;
+    const canonicalVariants = variantsTouched
+      ? (wantsOptions ? mappedComboRows : [])
+      : undefined;
+    // Presentation decoration (Arabic axis names, swatch hex, per-option
+    // images) rides attributes.variant_meta — a key the server bridge
+    // ignores. NEVER write attributes.variants / variant_combinations:
+    // those re-activate the retired legacy pipeline.
+    const variantMeta = wantsOptions
+      ? {
+          axes: formVariants
+            .filter(v => v.name.trim() && v.options.trim())
+            .map(v => {
+              const parsedOptions = v.options.split(",").map(o => o.trim()).filter(Boolean);
+              const isColor = isColorVariant(v.name, v.nameAr);
+              return {
+                name: v.name.trim(),
+                nameAr: v.nameAr,
+                optionsAr: v.optionsAr.split(",").map(o => o.trim()).filter(Boolean),
+                ...(isColor
+                  ? {
+                      hexValues: parsedOptions.map(
+                        (opt, j) => v.hexValues?.[j] || defaultHexForName(opt),
+                      ),
+                      imageValues: parsedOptions.map((_, j) => v.imageValues?.[j] || ""),
+                    }
+                  : {}),
+              };
+            }),
+        }
+      : null;
 
     const cat = apiCategories.find(c => c.id === formCategory);
 
@@ -392,7 +476,10 @@ const ProductEditor = () => {
           status: formStatus,
           categoryId: formCategory || undefined,
           category: cat?.name || "", categoryAr: cat?.name || "",
-          variants,
+          sku: formSku.trim() || undefined,
+          variants: [],
+          options: canonicalOptions,
+          serverVariants: canonicalVariants,
           images: formImages.length > 0 ? formImages : undefined,
           seoTitle: formSeoTitle || undefined,
           seoDescription: formSeoDesc || undefined,
@@ -400,8 +487,8 @@ const ProductEditor = () => {
           slug: formSlug || undefined,
           templateSuffix: formTemplateSuffix,
         });
-        if (variantCombinations.length > 0 && payload.attributes) {
-          (payload.attributes as Record<string, unknown>).variant_combinations = variantCombinations;
+        if (variantMeta && payload.attributes) {
+          (payload.attributes as Record<string, unknown>).variant_meta = variantMeta;
         }
         const cleanedChart = sanitizeChartForPersistence(sizeChart);
         if (cleanedChart && payload.attributes) {
@@ -428,15 +515,20 @@ const ProductEditor = () => {
           status: formStatus,
           categoryId: formCategory || undefined,
           category: cat?.name || "", categoryAr: cat?.name || "",
-          variants,
+          sku: formSku.trim() || undefined,
+          variants: [],
+          // Create sends the canonical model whenever the toggle is on —
+          // no dirty-gating needed (there's no server state to protect).
+          options: wantsOptions ? parsedAxes : undefined,
+          serverVariants: wantsOptions ? mappedComboRows : undefined,
           seoTitle: formSeoTitle || undefined,
           seoDescription: formSeoDesc || undefined,
           metaCatalogId: formMetaCatalogId || undefined,
           slug: formSlug || undefined,
           templateSuffix: formTemplateSuffix,
         });
-        if (variantCombinations.length > 0 && payload.attributes) {
-          (payload.attributes as Record<string, unknown>).variant_combinations = variantCombinations;
+        if (variantMeta && payload.attributes) {
+          (payload.attributes as Record<string, unknown>).variant_meta = variantMeta;
         }
         const cleanedChart = sanitizeChartForPersistence(sizeChart);
         if (cleanedChart && payload.attributes) {
@@ -462,7 +554,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched]);
 
   const allLabels = useMemo(
     () => [...PRESET_LABELS, ...customLabels],
@@ -710,6 +802,27 @@ const ProductEditor = () => {
               </div>
               {fieldErrors.stock && <p className="text-[11px] text-destructive">{fieldErrors.stock}</p>}
             </div>
+          </div>
+
+          {/* SKU (Inventory) — the code that identifies this product on
+              labels, feeds, and imports. Blank on a NEW product → the
+              platform generates a stable one at save time. */}
+          <div className="mt-3 space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">
+              {language === "ar" ? "كود التخزين (SKU)" : "SKU"}
+            </Label>
+            <Input
+              value={formSku}
+              onChange={(e) => setFormSku(e.target.value)}
+              placeholder={language === "ar" ? "اتركه فارغًا ليتم توليده تلقائيًا" : "Leave empty to auto-generate"}
+              dir="ltr"
+              className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border font-mono text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground/60">
+              {language === "ar"
+                ? "كود فريد يعرّف المنتج في المخزون والفواتير والاستيراد. لا يتغير تلقائيًا بعد إنشائه."
+                : "Unique code identifying this product in inventory, invoices, and imports. Never regenerated once set."}
+            </p>
           </div>
 
           {/* Oversell toggle */}
@@ -1037,21 +1150,46 @@ const ProductEditor = () => {
         </CardContent>
       </Card>
 
-      {/* Variants */}
+      {/* ── Variants (Wave C: single merged editor, Shopify-style opt-in) ── */}
       <Card className="overflow-hidden">
         <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-base font-bold">{language === "ar" ? "خيارات المنتج" : "Product Options"}</CardTitle>
-              <CardDescription className="text-xs">{language === "ar" ? "مثل المقاس أو اللون" : "e.g. Size, Color"}</CardDescription>
+              <CardTitle className="text-base font-bold">{language === "ar" ? "المتغيرات" : "Variants"}</CardTitle>
+              <CardDescription className="text-xs">
+                {language === "ar"
+                  ? "هذا المنتج له خيارات، مثل المقاس أو اللون"
+                  : "This product has options, like size or color"}
+              </CardDescription>
             </div>
+            <Switch
+              checked={hasOptions}
+              onCheckedChange={(on) => {
+                setHasOptions(on);
+                setVariantsTouched(true);
+                if (on && formVariants.length === 0) {
+                  addVariantRow();
+                }
+              }}
+              aria-label={language === "ar" ? "تفعيل خيارات المنتج" : "Enable product options"}
+            />
+          </div>
+        </CardHeader>
+        {hasOptions && (
+        <CardContent>
+          {isEditMode && !variantsTouched && variantCombinations.length > 0 && (
+            <p className="mb-3 text-[11px] text-muted-foreground/70">
+              {language === "ar"
+                ? "أسعار ومخزون التركيبات محمّلة من السيرفر — التعديلات هنا تُحفظ عند الضغط على حفظ."
+                : "Combination prices and stock are loaded from the server — edits here are applied when you save."}
+            </p>
+          )}
+          <div className="mb-3 flex justify-end">
             <Button type="button" variant="outline" size="sm" onClick={addVariantRow} className="gap-1 h-8 text-xs rounded-lg">
               <Plus className="h-3 w-3" />
               {t("products.addVariant")}
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
           {formVariants.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 gap-2">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted/60">
@@ -1240,55 +1378,47 @@ const ProductEditor = () => {
             </div>
           )}
 
-          {/* Variant Matrix */}
+          {/* Variant Matrix — per-combination price / stock / SKU. A blank
+              per-row SKU is auto-generated by the backend at save time.
+              Note: the matrix re-syncs missing combinations on load, so
+              what's displayed is exactly what a save persists (WYSIWYG). */}
           {formVariants.some(v => v.name.trim() && v.options.trim()) && (
             <>
               <Separator className="my-5" />
               <VariantMatrix
                 variants={formVariants}
                 combinations={variantCombinations}
-                onCombinationsChange={setVariantCombinations}
+                onCombinationsChange={(next) => {
+                  setVariantCombinations(next);
+                  setVariantsTouched(true);
+                }}
                 defaultPrice={formPrice}
               />
+              <p className="mt-2 text-[10px] text-muted-foreground/60">
+                {language === "ar"
+                  ? "اترك خانة SKU فارغة لأي تركيبة ليتم توليد كود فريد لها تلقائيًا عند الحفظ."
+                  : "Leave a combination's SKU blank to auto-generate a unique code on save."}
+              </p>
             </>
           )}
         </CardContent>
-      </Card>
-
-      {/* ── Phase 8.1 — Server-side variants matrix ── */}
-      {/*
-       * Edit mode only: variants are scoped to a productId that exists
-       * on the server. Create-mode users can still use the legacy
-       * variants section above; once the product is saved, the
-       * matrix editor becomes available for SKU-tracked variants.
-       */}
-      {isEditMode && productId && storeId && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {language === "ar" ? "متغيرات SKU (متقدم)" : "SKU-tracked variants"}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {language === "ar"
-                ? "متغيرات بأسعار ومخزون منفصل لكل تركيبة. ينطبق على متاجر التجزئة المتقدمة."
-                : "Variants with their own price, SKU, and stock per combination. For SKU-tracked retail."}
-            </CardDescription>
-          </CardHeader>
+        )}
+        {!hasOptions && isEditMode && variantsTouched && variantCombinations.length > 0 && (
           <CardContent>
-            <VariantsEditor
-              storeId={storeId}
-              productId={productId}
-              initialOptions={[]}
-              currency={(formPrice && "EGP") || "EGP"}
-              onError={(m) => toast.error(m)}
-              onSuccess={(m) => toast.success(m)}
-            />
+            <p className="text-[11px] text-amber-600">
+              {language === "ar"
+                ? "تم إيقاف الخيارات — سيتم حذف كل المتغيرات عند الحفظ ويعود المنتج منتجًا بسيطًا."
+                : "Options turned off — saving will remove all variants and return this to a simple product."}
+            </p>
           </CardContent>
-        </Card>
-      )}
+        )}
+      </Card>
 
       {/* ── Frequently Bought Together ── */}
       <BundleManager productId={productId ?? null} isEditMode={isEditMode} />
+
+      {/* ── Custom fields (metafields) ── */}
+      <MetafieldValuesCard storeId={storeId} productId={productId} isEditMode={isEditMode} />
 
       {/* ── Size Chart ── */}
       <SizeChartEditor

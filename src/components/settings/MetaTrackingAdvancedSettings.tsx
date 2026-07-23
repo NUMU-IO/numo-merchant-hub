@@ -731,7 +731,7 @@ export function MetaTrackingAdvancedSettings({
         type="button"
         onClick={() => setExpanded(!expanded)}
         className={cn(
-          "flex items-center gap-2 w-full text-left text-sm font-semibold",
+          "flex items-center gap-2 w-full text-start text-sm font-semibold",
           "py-2 px-3 rounded-md hover:bg-muted/50 transition-colors",
         )}
         data-testid="advanced-settings-toggle"
@@ -739,11 +739,13 @@ export function MetaTrackingAdvancedSettings({
         {expanded ? (
           <ChevronDown className="h-4 w-4" />
         ) : (
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4 rtl:rotate-180" />
         )}
         {lang === "ar" ? "إعدادات متقدمة" : "Advanced settings"}
-        <Badge variant="outline" className="ms-2 text-xs">
-          {lang === "ar" ? "موجة 2 + 3" : "Wave 2 + 3"}
+        <Badge variant="outline" className="ms-2 text-xs font-medium text-muted-foreground">
+          {lang === "ar"
+            ? "توقيت COD · بيكسلات إضافية · واتساب · الخصوصية"
+            : "COD timing · Multi-pixel · WhatsApp · Privacy"}
         </Badge>
       </button>
       {expanded && (

@@ -41,6 +41,11 @@ export interface ApiProductResponse {
    *  `product.wholesale` template variant; `null` = the default `product`
    *  template. */
   template_suffix?: string | null;
+  /** Canonical option axes ({name, position, values}) — hydrated on
+   *  get/create/update since Wave C so the merged editor loads in one fetch. */
+  options?: { name: string; position: number; values?: string[] }[];
+  /** Canonical variant rows (the sellable units). */
+  variants?: ApiVariantSummary[];
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +66,38 @@ export interface ListProductsParams {
   sort_by?: string;
   sort_order?: "asc" | "desc";
   category_id?: string;
+}
+
+/** One option axis for the canonical (server-side) variant model. */
+export interface ProductOptionPayload {
+  name: string;
+  position: number;
+  values: string[];
+}
+
+/** One variant row for the canonical model. Prices are EGP majors. */
+export interface VariantRowPayload {
+  option_values: Record<string, string>;
+  price: number;
+  inventory_quantity: number;
+  /** Blank/omitted → the backend auto-generates a stable SKU. */
+  sku?: string;
+  image_url?: string | null;
+}
+
+/** Variant summary the backend returns on product create/update/get. */
+export interface ApiVariantSummary {
+  id: string;
+  position: number;
+  option_values: Record<string, string>;
+  price: string;
+  price_currency: string;
+  compare_at_price: string | null;
+  sku: string | null;
+  barcode: string | null;
+  inventory_quantity: number;
+  is_in_stock: boolean;
+  image_url: string | null;
 }
 
 export interface CreateProductData {
@@ -90,6 +127,11 @@ export interface CreateProductData {
   /** Shopify-style alternate-template key (e.g. `"wholesale"` →
    *  `product.wholesale`). `null`/omitted = the default `product` template. */
   template_suffix?: string | null;
+  /** Canonical variant model (Wave C): axes + rows sent TOP-LEVEL. The
+   *  legacy `attributes.variants`/`variant_combinations` pipeline is
+   *  retired — writing those keys re-triggers the server-side bridge. */
+  options?: ProductOptionPayload[];
+  variants?: VariantRowPayload[];
 }
 
 export interface UpdateProductData extends Partial<CreateProductData> {
@@ -287,7 +329,16 @@ export interface ProductFormData {
   categoryAr: string;
   categoryId?: string;
   sku?: string;
+  /** @deprecated legacy attributes.variants decoration — no longer sent to
+   *  the API (the canonical model travels via `options`/`serverVariants`).
+   *  Kept in the type so old call sites compile until they're migrated. */
   variants: ProductVariant[];
+  /** Canonical option axes; sent top-level when the merchant enabled the
+   *  options toggle (or explicitly cleared it: empty arrays remove all
+   *  variants server-side). Omit (undefined) to leave variants untouched. */
+  options?: ProductOptionPayload[];
+  /** Canonical variant rows matching `options`. */
+  serverVariants?: VariantRowPayload[];
   images?: string[];
   seoTitle?: string;
   seoDescription?: string;
@@ -321,19 +372,16 @@ export function productToApiCreate(form: ProductFormData): CreateProductData {
     seo_description: form.seoDescription || undefined,
     meta_catalog_id: form.metaCatalogId || undefined,
     template_suffix: form.templateSuffix ?? null,
+    // Wave C: the legacy `attributes.variants` decoration is retired — the
+    // canonical model travels top-level, and writing the legacy keys would
+    // re-trigger the server-side attributes bridge.
+    ...(form.options !== undefined ? { options: form.options } : {}),
+    ...(form.serverVariants !== undefined ? { variants: form.serverVariants } : {}),
     attributes: {
       nameAr: form.nameAr,
       descriptionAr: form.descriptionAr,
       categoryName: form.category,
       categoryNameAr: form.categoryAr,
-      variants: form.variants.map((v) => ({
-        name: v.name,
-        nameAr: v.nameAr,
-        options: v.options,
-        optionsAr: v.optionsAr,
-        ...(v.hexValues ? { hexValues: v.hexValues } : {}),
-        ...(v.imageValues ? { imageValues: v.imageValues } : {}),
-      })),
     },
   };
 }
@@ -565,6 +613,14 @@ export function productToApiUpdate(
   // selects `<type>.<suffix>`. Sent whenever provided (incl. explicit null).
   if (form.templateSuffix !== undefined) data.template_suffix = form.templateSuffix;
 
+  // Wave C: canonical variant model travels top-level; the legacy
+  // `attributes.variants` write is retired (it re-triggers the server
+  // bridge). Send options/variants ONLY when the merchant touched the
+  // variants section — omitting them leaves server rows untouched, so a
+  // description-only save can never clobber stock edited elsewhere.
+  if (form.options !== undefined) data.options = form.options;
+  if (form.serverVariants !== undefined) data.variants = form.serverVariants;
+
   // Always send full attributes to avoid partial overwrites
   const attributes: Record<string, unknown> = {};
   if (form.nameAr !== undefined) attributes.nameAr = form.nameAr;
@@ -573,16 +629,6 @@ export function productToApiUpdate(
   if (form.category !== undefined) attributes.categoryName = form.category;
   if (form.categoryAr !== undefined)
     attributes.categoryNameAr = form.categoryAr;
-  if (form.variants !== undefined) {
-    attributes.variants = form.variants.map((v) => ({
-      name: v.name,
-      nameAr: v.nameAr,
-      options: v.options,
-      optionsAr: v.optionsAr,
-      ...(v.hexValues ? { hexValues: v.hexValues } : {}),
-      ...(v.imageValues ? { imageValues: v.imageValues } : {}),
-    }));
-  }
   if (Object.keys(attributes).length > 0) data.attributes = attributes;
 
   return data;

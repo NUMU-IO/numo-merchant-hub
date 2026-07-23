@@ -141,9 +141,14 @@ export async function processRefund(
   storeId: string,
   orderId: string,
   refundId: string,
+  /** Shopify-style "restock items": replay the order's checkout stock
+   *  debit (all lines, once — idempotent) when the refund completes.
+   *  Default false — refunds don't auto-restock. */
+  restockItems = false,
 ): Promise<Refund> {
+  const qs = restockItems ? "?restock_items=true" : "";
   return apiClient<Refund>(
-    `/stores/${storeId}/orders/${orderId}/refunds/${refundId}/process`,
+    `/stores/${storeId}/orders/${orderId}/refunds/${refundId}/process${qs}`,
     { method: "POST" },
   );
 }

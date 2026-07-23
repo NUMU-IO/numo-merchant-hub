@@ -32,6 +32,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { getStoreUrl } from "@/lib/storefront";
 import { SearchPalette } from "@/components/layout/SearchPalette";
+import WalletHeaderChip from "@/components/wallet/WalletHeaderChip";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
 import { getRealtimeSnapshot } from "@/services/analyticsApi";
 
@@ -175,6 +176,11 @@ const AppHeader = () => {
               {language === "ar" ? "زائر دلوقتي" : "live now"}
             </span>
           </div>
+
+          {/* Wallet chip — payg tenants only. Balance at rest, morphs
+              into a primary "Manage wallet" action on hover (Salla-style);
+              amber dot = on-hold credit, red = blocked/negative. */}
+          <WalletHeaderChip />
 
           {/* Dark Mode */}
           <Button

@@ -1211,5 +1211,76 @@
     border-radius: 999px;
     transition: width 320ms cubic-bezier(0.16, 1, 0.3, 1);
   }
+
+  /* ── Tracking & Pixels — signal-path schematic ───────────────────
+     Two delivery rails (browser Pixel / server API) between the
+     storefront node and the ad-platform node. Rails reflect the
+     selected activation mode: solid navy when on (with a flowing
+     saffron dot), dashed faint when off. `inset-inline-start` keeps
+     the flow direction correct in RTL without extra rules. */
+  .sigpath-line {
+    display: block;
+    position: relative;
+    height: 2.5px;
+    border-radius: 999px;
+  }
+  .sigpath-line[data-on="false"] {
+    background: repeating-linear-gradient(
+      90deg,
+      hsl(var(--border-strong)) 0 5px,
+      transparent 5px 11px
+    );
+  }
+  .sigpath-line[data-on="true"] {
+    background: linear-gradient(90deg, hsl(var(--navy) / 0.35), hsl(var(--navy)));
+  }
+  [dir="rtl"] .sigpath-line[data-on="true"] {
+    background: linear-gradient(-90deg, hsl(var(--navy) / 0.35), hsl(var(--navy)));
+  }
+  .sigpath-dot {
+    position: absolute;
+    top: 50%;
+    margin-top: -3.5px;
+    inset-inline-start: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: hsl(var(--saffron));
+    box-shadow: 0 0 0 3px hsl(var(--saffron) / 0.22);
+    animation: sigpath-flow 2.4s linear infinite;
+  }
+  @keyframes sigpath-flow {
+    from { inset-inline-start: 0; }
+    to { inset-inline-start: calc(100% - 7px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sigpath-dot {
+      animation: none;
+      inset-inline-start: calc(100% - 7px);
+    }
+  }
+
+  /* Floating save pill must clear the mobile bottom tab bar. */
+  @media (max-width: 768px) {
+    .settings-save-bar {
+      bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    }
+  }
+}
+
+/* ── RTL typography guards (unlayered so they beat the utilities layer) ──
+   Letter-spacing breaks Arabic letter joining — connected glyphs get
+   visible gaps mid-word — so tracking utilities become no-ops in RTL.
+   Latin-only strings rendered inside AR pages lose a touch of tracking,
+   which is the acceptable side of the trade. The mono eyebrow also swaps
+   to the Arabic UI face (JetBrains Mono ships no Arabic glyphs). */
+[dir="rtl"] .tracking-wide,
+[dir="rtl"] .tracking-wider,
+[dir="rtl"] .tracking-widest,
+[dir="rtl"] .souq-eyebrow {
+  letter-spacing: 0;
+}
+[dir="rtl"] .souq-eyebrow {
+  font-family: "IBM Plex Sans Arabic", "Tajawal", system-ui, sans-serif;
 }
 

@@ -52,6 +52,7 @@ const WalletPage = lazy(() => import("@/pages/Wallet"));
 const StoreBalancePage = lazy(() => import("@/pages/StoreBalance"));
 const PaymentSetup = lazy(() => import("@/pages/PaymentSetup"));
 const TrustNetwork = lazy(() => import("@/pages/TrustNetwork"));
+const CodAutopilot = lazy(() => import("@/pages/CodAutopilot"));
 const Logistics = lazy(() => import("@/pages/Logistics"));
 const ShippingZones = lazy(() => import("@/pages/shipping/ZonesPage"));
 const ShippingZoneEditor = lazy(() => import("@/pages/shipping/ZoneEditorPage"));
@@ -87,6 +88,7 @@ const Profile = lazy(() => import("@/pages/Profile"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const SettingsPreferences = lazy(() => import("@/pages/SettingsPreferences"));
 const SettingsTracking = lazy(() => import("@/pages/SettingsTracking"));
+const SettingsMetafields = lazy(() => import("@/pages/SettingsMetafields"));
 const McpConnect = lazy(() => import("@/pages/McpConnect"));
 const Apps = lazy(() => import("@/pages/Apps"));
 const GiftCards = lazy(() => import("@/pages/GiftCards"));
@@ -295,6 +297,7 @@ const App = () => (
                     <Route path="/store-balance" element={<StoreBalancePage />} />
                     <Route path="/payment-setup" element={<PaymentSetup />} />
                     <Route path="/trust-network" element={<TrustNetwork />} />
+                    <Route path="/cod-autopilot" element={<CodAutopilot />} />
                     <Route path="/logistics" element={<Logistics />} />
                     <Route path="/shipping/zones" element={<ShippingZones />} />
                     <Route path="/shipping/zones/new" element={<ShippingZoneEditor />} />
@@ -379,6 +382,7 @@ const App = () => (
                     />
                     <Route path="/settings/preferences" element={<SettingsPreferences />} />
                     <Route path="/settings/tracking" element={<SettingsTracking />} />
+                    <Route path="/settings/metafields" element={<SettingsMetafields />} />
                     <Route path="/settings/mcp" element={<McpConnect />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/whatsapp" element={<WhatsApp />} />

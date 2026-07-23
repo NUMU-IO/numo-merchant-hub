@@ -46,6 +46,9 @@ export function RefundsCard({ storeId, order, refunds }: Props) {
   const [refundReason, setRefundReason] = useState<RefundReason>("customer_request");
   const [refundNote, setRefundNote] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
+  // Shopify-style "restock items" — merchant opt-in per refund. Restocks
+  // ALL of the order's debited lines exactly once (idempotent server-side).
+  const [restockOnProcess, setRestockOnProcess] = useState(false);
 
   const invalidate = () => {
     queryClient.invalidateQueries({
@@ -94,7 +97,8 @@ export function RefundsCard({ storeId, order, refunds }: Props) {
   });
 
   const process = useMutation({
-    mutationFn: (refundId: string) => processRefund(storeId, order.id, refundId),
+    mutationFn: (refundId: string) =>
+      processRefund(storeId, order.id, refundId, restockOnProcess),
     onSuccess: (result) => {
       if (result.status === "completed") {
         toast.success(
@@ -297,14 +301,29 @@ export function RefundsCard({ storeId, order, refunds }: Props) {
                   </div>
                 )}
                 {r.status === "approved" && (
-                  <Button
-                    size="sm"
-                    className="h-6 text-[10px] w-full"
-                    onClick={() => process.mutate(r.id)}
-                  >
-                    <RotateCcw className="h-3 w-3 me-1" />
-                    {t("refunds.process")}
-                  </Button>
+                  <div className="space-y-1.5 pt-1">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={restockOnProcess}
+                        onChange={(e) => setRestockOnProcess(e.target.checked)}
+                        className="mt-0.5 h-3.5 w-3.5 rounded accent-primary"
+                      />
+                      <span className="text-[10px] text-muted-foreground leading-snug">
+                        {language === "ar"
+                          ? "إرجاع كل كميات الطلب للمخزون (مرة واحدة فقط)"
+                          : "Restock all order items (applies once)"}
+                      </span>
+                    </label>
+                    <Button
+                      size="sm"
+                      className="h-6 text-[10px] w-full"
+                      onClick={() => process.mutate(r.id)}
+                    >
+                      <RotateCcw className="h-3 w-3 me-1" />
+                      {t("refunds.process")}
+                    </Button>
+                  </div>
                 )}
                 {r.status === "failed" && (
                   <Button

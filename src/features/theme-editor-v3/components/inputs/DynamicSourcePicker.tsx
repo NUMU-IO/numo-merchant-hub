@@ -208,6 +208,70 @@ const GROUP_LABELS: Record<SourceDef["group"], { en: string; ar: string }> = {
   store: { en: "Store", ar: "المتجر" },
 };
 
+// ─── Merchant-defined metafield sources (data-driven) ────────────────────────
+//
+// Built-in SOURCES above is a fixed catalog. Metafields are per-store, so they
+// can't be a literal — the editor fetches the store's PUBLIC definitions once
+// and registers them here. Path shape mirrors the host/SDK resolver:
+//   product.metafield:{namespace}.{key}  →  { __numu_source: "..." }
+// Registering here (module scope) instead of prop-threading keeps the existing
+// picker call sites untouched; the setter re-renders consumers via the version
+// counter below.
+
+let METAFIELD_SOURCES: SourceDef[] = [];
+let metafieldSourcesVersion = 0;
+const metafieldSourceListeners = new Set<() => void>();
+
+/** Called by the editor when the store's public metafield definitions load.
+ *  Only owner types product/collection map to picker groups (page isn't a
+ *  bindable template context in v1). */
+export function registerMetafieldSources(
+  defs: {
+    owner_type: string;
+    namespace: string;
+    key: string;
+    name: string;
+    compatible: readonly string[];
+  }[],
+): void {
+  METAFIELD_SOURCES = defs
+    .filter((d) => d.owner_type === "product" || d.owner_type === "collection")
+    .map((d) => ({
+      path: `${d.owner_type}.metafield:${d.namespace}.${d.key}`,
+      group: d.owner_type as SourceDef["group"],
+      label: {
+        en: `${d.owner_type === "product" ? "Product" : "Collection"} → ${d.name}`,
+        ar: `${d.owner_type === "product" ? "المنتج" : "المجموعة"} ← ${d.name}`,
+      },
+      description: {
+        en: `Custom field ${d.namespace}.${d.key}`,
+        ar: `حقل مخصص ${d.namespace}.${d.key}`,
+      },
+      compatible: d.compatible,
+    }));
+  metafieldSourcesVersion += 1;
+  metafieldSourceListeners.forEach((fn) => fn());
+}
+
+/** All sources (built-in + registered metafields). */
+function allSources(): ReadonlyArray<SourceDef> {
+  return METAFIELD_SOURCES.length ? [...SOURCES, ...METAFIELD_SOURCES] : SOURCES;
+}
+
+/** Subscribe a component to metafield-source registration so the toggle
+ *  appears the moment definitions load (React 18 useSyncExternalStore). */
+function useMetafieldSourcesVersion(): number {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const fn = () => force((n) => n + 1);
+    metafieldSourceListeners.add(fn);
+    return () => {
+      metafieldSourceListeners.delete(fn);
+    };
+  }, []);
+  return metafieldSourcesVersion;
+}
+
 // ─── Template → available groups ────────────────────────────────────────────
 
 /**
@@ -234,7 +298,7 @@ function availableGroups(activePage: string | undefined): Set<SourceDef["group"]
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 export function findSourceByPath(path: string): SourceDef | undefined {
-  return SOURCES.find((s) => s.path === path);
+  return allSources().find((s) => s.path === path);
 }
 
 /**
@@ -247,7 +311,7 @@ export function hasBindableSources(
   activePage: string | undefined,
 ): boolean {
   const groups = availableGroups(activePage);
-  return SOURCES.some(
+  return allSources().some(
     (s) => s.compatible.includes(settingType) && groups.has(s.group),
   );
 }
@@ -292,6 +356,8 @@ export function DynamicSourceToggle({
   const isAr = locale === "ar";
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  // Re-evaluate bindability when metafield sources register after mount.
+  useMetafieldSourcesVersion();
 
   const isBound = isDynamicSourceValue(value);
   const boundSource = isBound ? findSourceByPath((value as { __numu_source: string }).__numu_source) : undefined;
@@ -393,7 +459,7 @@ function DynamicSourceMenu({
       collection: [],
       store: [],
     };
-    for (const s of SOURCES) {
+    for (const s of allSources()) {
       if (!s.compatible.includes(setting.type)) continue;
       if (!groups.has(s.group)) continue;
       out[s.group].push(s);
