@@ -163,6 +163,58 @@ const Products = () => {
     fetchProducts();
   }, [fetchProducts]);
 
+  /**
+   * Real per-status counts for the filter chips.
+   *
+   * These CANNOT be derived from `productsList`, which is one 20-item page of
+   * whatever filter is currently applied. Doing that made the chips contradict
+   * themselves: selecting "Draft" set `totalProducts` to the draft total (so
+   * the "All" chip showed the draft count) while Active/Archived computed 0
+   * from a page that by definition contained only drafts. Every chip except
+   * the selected one read zero, which looks like an empty catalog.
+   *
+   * So: ask the server for each status with `limit=1` and read `total` off the
+   * pagination envelope — four tiny requests, correct regardless of which chip
+   * is active or which page you are on. Deliberately NOT keyed on
+   * `statusFilter`; the whole point is that the counts don't move when you
+   * change chips. Search and category DO apply, because a count that ignored
+   * the active search would contradict the list next to it.
+   */
+  const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    if (!storeId) return;
+    let cancelled = false;
+    const common = {
+      page: 1,
+      limit: 1,
+      search: debouncedSearch || undefined,
+      category_id: categoryFilter !== "all" ? categoryFilter : undefined,
+    } as const;
+    Promise.all([
+      listProducts(storeId, { ...common }),
+      listProducts(storeId, { ...common, status: "active" }),
+      listProducts(storeId, { ...common, status: "draft" }),
+      listProducts(storeId, { ...common, status: "archived" }),
+    ])
+      .then(([all, active, draft, archived]) => {
+        if (cancelled) return;
+        setStatusCounts({
+          all: all.total,
+          published: active.total,
+          draft: draft.total,
+          archived: archived.total,
+        });
+      })
+      // Counts are a nicety; a failure here must not blank the page. The
+      // chips fall back to hiding their badge rather than showing a wrong 0.
+      .catch(() => {
+        if (!cancelled) setStatusCounts(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId, debouncedSearch, categoryFilter]);
+
   // Category filter is now server-side (was previously a client-side filter
   // over `productsList` which only ever saw the current 20-item page, so
   // products in matching categories on later pages were invisible).
@@ -193,24 +245,56 @@ const Products = () => {
     }
   };
 
-  const publishedCount = productsList.filter(p => p.status === "published").length;
-  const lowStockCount = productsList.filter(p => p.stock < 20 && p.stock > 0).length;
+  // Both of these counted over `productsList` — one page of the CURRENT
+  // filter — so neither ever described the catalog. `publishedCount` fed the
+  // status chips and is replaced by the server-side `statusCounts` above;
+  // `lowStockCount` was computed and never rendered anywhere.
 
   const isAr = language === "ar";
 
-  const statusTabs: { label: string; labelEn: string; value: "all" | ProductStatus }[] = [
-    { label: "الكل", labelEn: "All", value: "all" },
-    { label: "المنتجات الفردية", labelEn: "Individual", value: "published" },
-    { label: "مسودة", labelEn: "Draft", value: "draft" },
-    { label: "مؤرشف", labelEn: "Archived", value: "archived" },
+  /**
+   * The chips are a STATUS filter, so every label has to name a status.
+   * "Individual" / "المنتجات الفردية" named nothing — it mapped to
+   * `published`, which the API calls `active`, and told the merchant nothing
+   * about what they were about to see. Each chip now says what it filters to
+   * and carries a one-line explanation on hover.
+   */
+  const statusTabs: {
+    label: string;
+    labelEn: string;
+    hint: string;
+    hintEn: string;
+    value: "all" | ProductStatus;
+  }[] = [
+    {
+      label: "الكل", labelEn: "All",
+      hint: "كل المنتجات مهما كانت حالتها",
+      hintEn: "Every product, whatever its status",
+      value: "all",
+    },
+    {
+      label: "نشط", labelEn: "Active",
+      hint: "منشور وظاهر للعملاء في المتجر",
+      hintEn: "Published and visible to shoppers in your store",
+      value: "published",
+    },
+    {
+      label: "مسودة", labelEn: "Draft",
+      hint: "لسه بتشتغل عليه — مش ظاهر للعملاء",
+      hintEn: "Still being worked on — not visible to shoppers",
+      value: "draft",
+    },
+    {
+      label: "مؤرشف", labelEn: "Archived",
+      hint: "متشال من المتجر بس متمسحش",
+      hintEn: "Removed from the store but not deleted",
+      value: "archived",
+    },
   ];
 
-  const tabCounts: Record<string, number> = {
-    all: totalProducts,
-    published: publishedCount,
-    draft: productsList.filter(p => p.status === "draft").length,
-    archived: productsList.filter(p => p.status === "archived").length,
-  };
+  // `null` while the counts are still loading (or if they failed) — the chip
+  // renders without a badge rather than claiming zero.
+  const tabCounts: Record<string, number> | null = statusCounts;
 
   return (
     <div className="space-y-5">
@@ -259,25 +343,78 @@ const Products = () => {
       </div>
 
       {/* Souq filter chips — navy when active, count in saffron */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div
+        className="flex items-center gap-2 flex-wrap"
+        role="tablist"
+        aria-label={isAr ? "تصفية حسب الحالة" : "Filter by status"}
+      >
         {statusTabs.map(tab => {
           const isActive = statusFilter === tab.value;
+          const count = tabCounts?.[tab.value];
+          const name = isAr ? tab.label : tab.labelEn;
+          const hint = isAr ? tab.hint : tab.hintEn;
           return (
             <button
               key={tab.value}
               type="button"
+              role="tab"
+              aria-selected={isActive}
               data-active={isActive}
               onClick={() => setStatusFilter(tab.value)}
+              title={hint}
+              // The count belongs in the accessible name — a screen reader
+              // otherwise hears "Draft" whether there are none or ninety.
+              aria-label={
+                count === undefined
+                  ? `${name} — ${hint}`
+                  : `${name} (${count}) — ${hint}`
+              }
               className="souq-chip"
             >
-              {isAr ? tab.label : tab.labelEn}
-              <span className="inline-flex items-center justify-center rounded-full text-[10px] tabular-nums font-extrabold min-w-[20px] h-5 px-1.5 bg-saffron text-navy-900">
-                {tabCounts[tab.value] ?? 0}
-              </span>
+              {name}
+              {count !== undefined && (
+                <span
+                  aria-hidden="true"
+                  className="inline-flex items-center justify-center rounded-full text-[10px] tabular-nums font-extrabold min-w-[20px] h-5 px-1.5 bg-saffron text-navy-900"
+                >
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
+
+      {/* What the current filter is actually showing. Without this the merchant
+          has to infer it from which chip looks darker — and when a status has
+          no products the table just reads "no products", which is easy to
+          misread as "my catalog is gone" rather than "nothing is archived". */}
+      {statusFilter !== "all" && !isLoading && (
+        <p className="text-xs text-muted-foreground -mt-2">
+          {(() => {
+            const tab = statusTabs.find(x => x.value === statusFilter);
+            if (!tab) return null;
+            const n = tabCounts?.[statusFilter];
+            const label = isAr ? tab.label : tab.labelEn;
+            if (n === 0) {
+              return isAr
+                ? `مفيش منتجات في "${label}". ${tab.hint}.`
+                : `No products in "${label}". ${tab.hintEn}.`;
+            }
+            return isAr
+              ? `بتشوف منتجات "${label}" بس. ${tab.hint}.`
+              : `Showing "${label}" products only. ${tab.hintEn}.`;
+          })()}
+          {" "}
+          <button
+            type="button"
+            onClick={() => setStatusFilter("all")}
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            {isAr ? "اعرض الكل" : "Show all"}
+          </button>
+        </p>
+      )}
 
       {/* ─── Search + filter bar ─── */}
       <div className="flex items-center gap-2">
