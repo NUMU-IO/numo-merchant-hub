@@ -22,7 +22,7 @@ import {
   ClipboardText as ClipboardList, ArrowsLeftRight as Navigation2,
   SlidersHorizontal, Palette, User, UserGear as UserCog, UserCheck,
   WarningCircle as AlertTriangle, ChartBar as BarChart3,
-  CreditCard, ShieldCheck, Compass, Lightning,
+  CreditCard, ShieldCheck, Compass, Lightning, Article,
 } from "@phosphor-icons/react";
 import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -159,6 +159,7 @@ const AppSidebar = () => {
     { title: isRTL ? "نظرة عامة" : "Overview", url: "/online-store", icon: Storefront, navKey: "online-store.overview" },
     { title: isRTL ? "الثيمات" : "Themes", url: "/online-store/themes", icon: Palette, navKey: "online-store.themes" },
     { title: isRTL ? "الصفحات" : "Pages", url: "/online-store/pages", icon: FileText, navKey: "online-store.pages" },
+    { title: isRTL ? "المدونة" : "Blog", url: "/online-store/blog", icon: Article, navKey: "online-store.blog" },
     { title: isRTL ? "الملفات" : "Files", url: "/online-store/files", icon: FolderOpen, navKey: "online-store.files" },
     { title: isRTL ? "التنقل" : "Navigation", url: "/online-store/navigation", icon: Navigation2, navKey: "online-store.navigation" },
     { title: isRTL ? "التفضيلات" : "Preferences", url: "/online-store/preferences", icon: SlidersHorizontal, navKey: "online-store.preferences" },

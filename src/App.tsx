@@ -31,6 +31,7 @@ const StoreSettings = lazy(() => import("@/pages/StoreSettings"));
 const OnlineStoreLanding = lazy(() => import("@/pages/online-store/Landing"));
 const OnlineStoreThemes = lazy(() => import("@/pages/online-store/Themes"));
 const OnlineStorePages = lazy(() => import("@/pages/online-store/Pages"));
+const OnlineStoreBlog = lazy(() => import("@/pages/online-store/Blog"));
 const OnlineStoreFiles = lazy(() => import("@/pages/online-store/Files"));
 const OnlineStoreNavigation = lazy(() => import("@/pages/online-store/Navigation"));
 const OnlineStorePreferences = lazy(() => import("@/pages/online-store/Preferences"));
@@ -313,6 +314,7 @@ const App = () => (
                       element={<MarketplaceThemeDetail />}
                     />
                     <Route path="/online-store/pages" element={<OnlineStorePages />} />
+                    <Route path="/online-store/blog" element={<OnlineStoreBlog />} />
                     <Route path="/online-store/files" element={<OnlineStoreFiles />} />
                     <Route path="/online-store/navigation" element={<OnlineStoreNavigation />} />
                     <Route path="/online-store/preferences" element={<OnlineStorePreferences />} />
