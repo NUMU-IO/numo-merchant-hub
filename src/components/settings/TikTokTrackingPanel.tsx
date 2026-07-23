@@ -1,24 +1,24 @@
 /**
- * TikTok Pixel + Events API settings panel.
+ * TikTok Pixel + Events API settings panel — Souq redesign.
  *
- * Sibling of `MetaTrackingPanel`. Status badge, Pixel Code input, three
- * activation-mode cards (Pixel only / Events API only / Both), conditional
- * Events API token field, test-event code + debug toggle, consent toggle,
- * COD-aware CompletePayment timing, and a recent-events table.
+ * Mirrors MetaTrackingPanel's two-column layout so the two platforms read
+ * as one product: configuration column (connect → identity → delivery mode
+ * → behaviour → multi-pixel), live rail (signal path + health + test
+ * sender), then ad performance and the unified events log full-width.
  *
- * The mode card is the primary control — behind the scenes it flips the two
- * booleans (`pixel_enabled`, `api_enabled`); no mode enum is persisted.
+ * Behaviour is unchanged: mode cards flip the two persisted booleans
+ * (`pixel_enabled`, `api_enabled`), the Events API token stays write-only,
+ * multi-pixel extras persist primary-first sharing the primary's flags.
+ * New: dirty-state floating save bar, disconnect confirmation, debug
+ * countdown, `/status` health metrics, expandable event log rows.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  AlertCircle,
   BarChart3,
-  Check,
-  ChevronDown,
-  ChevronRight,
+  ExternalLink,
   Eye,
   EyeOff,
   Globe2,
@@ -28,8 +28,6 @@ import {
   ServerCog,
   Sparkles,
   Trash2,
-  Wifi,
-  WifiOff,
   X,
 } from "lucide-react";
 
@@ -37,32 +35,22 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 import {
   type OrderStatusTrigger,
   type SaveTikTokTrackingPayload,
-  type TikTokEventLogEntry,
   type TikTokPixelEntry,
   type TikTokTrackingMode,
   type TikTokTrackingSettings,
@@ -73,102 +61,53 @@ import {
   fetchRecentTikTokEvents,
   fetchTikTokReport,
   fetchTikTokTracking,
+  fetchTikTokTrackingStatus,
   flagsForMode,
   saveTikTokTracking,
   sendTikTokTestEvent,
   tiktokOAuthStartUrl,
 } from "@/services/tiktokTrackingApi";
+import { TikTokGlyph } from "./tracking/PlatformGlyphs";
+import {
+  DisconnectDialog,
+  EventsLog,
+  EventsWeSend,
+  FloatingSaveBar,
+  HelpLink,
+  ModeCardGrid,
+  SettingSection,
+  SignalPath,
+  StatTrio,
+  StatusPill,
+  useCountdownMinutes,
+  type ModeCardSpec,
+  type UnifiedEventRow,
+} from "./tracking/TrackingShared";
 
 const PIXEL_ID_REGEX = /^[A-Za-z0-9]{6,40}$/;
 const TEST_EVENT_REGEX = /^[A-Za-z0-9_-]{1,64}$/;
 const MIN_API_TOKEN_LENGTH = 10;
 const MAX_EXTRA_PIXELS = 4; // + the primary = 5 total (backend allows 10)
 
-// ─── Status badge helpers ─────────────────────────────────────────────────
-
-interface StatusBadgeMeta {
-  label: { en: string; ar: string };
-  className: string;
-  Icon: typeof Wifi;
-}
-
-const STATUS_BADGES: Record<TikTokTrackingStatus, StatusBadgeMeta> = {
-  connected: {
-    label: { en: "Connected", ar: "متصل" },
-    className:
-      "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30",
-    Icon: Wifi,
-  },
-  configured_no_events: {
-    label: {
-      en: "Configured · awaiting traffic",
-      ar: "مُعدّ · في انتظار الزيارات",
-    },
-    className:
-      "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30",
-    Icon: Sparkles,
-  },
-  failing: {
-    label: { en: "Failing", ar: "بيفشل" },
-    className: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30",
-    Icon: AlertCircle,
-  },
-  disabled: {
-    label: { en: "Disabled", ar: "متوقف" },
-    className: "bg-muted text-muted-foreground border-border",
-    Icon: WifiOff,
-  },
-};
-
-// ─── Mode-card spec ────────────────────────────────────────────────────────
-
-interface ModeCardSpec {
-  mode: Exclude<TikTokTrackingMode, "off">;
-  Icon: typeof Globe2;
-  title: { en: string; ar: string };
-  desc: { en: string; ar: string };
-  recommended?: boolean;
-}
-
-const MODE_CARDS: ModeCardSpec[] = [
-  {
-    mode: "pixel_only",
-    Icon: Globe2,
-    title: { en: "Pixel only", ar: "Pixel فقط" },
-    desc: {
-      en: "Browser-side tracking. Simple, but misses ~30% of conversions.",
-      ar: "تتبع من المتصفح. بسيط، لكن بيفوته ٣٠٪ من التحويلات.",
-    },
-  },
-  {
-    mode: "capi_only",
-    Icon: ServerCog,
-    title: { en: "Events API only", ar: "Events API فقط" },
-    desc: {
-      en: "Server-side only. Resilient to ad-blockers; no browser script.",
-      ar: "من السيرفر فقط. مقاوم لمانع الإعلانات؛ بدون سكربت في المتصفح.",
-    },
-  },
-  {
-    mode: "both",
-    Icon: Sparkles,
-    title: { en: "Both", ar: "الاثنين" },
-    desc: {
-      en: "Pixel + Events API, deduplicated. Best match quality.",
-      ar: "Pixel + Events API مع إزالة التكرار. أفضل جودة مطابقة.",
-    },
-    recommended: true,
-  },
+/** Events the storefront + webhooks fire automatically (mirrors the
+ * funnel-step map in tiktok_capi.py — TikTok's purchase event is
+ * CompletePayment, and page views ride the ViewContent server rail). */
+const TIKTOK_AUTO_EVENTS = [
+  "ViewContent",
+  "AddToCart",
+  "InitiateCheckout",
+  "CompletePayment",
 ];
 
-const PURCHASE_TRIGGERS: Array<{ value: OrderStatusTrigger; label: { en: string; ar: string } }> = [
+const PURCHASE_TRIGGERS: Array<{
+  value: OrderStatusTrigger;
+  label: { en: string; ar: string };
+}> = [
   { value: "confirmed", label: { en: "Confirmed", ar: "مؤكد" } },
   { value: "processing", label: { en: "Processing", ar: "قيد التجهيز" } },
   { value: "shipped", label: { en: "Shipped", ar: "تم الشحن" } },
   { value: "delivered", label: { en: "Delivered", ar: "تم التسليم" } },
 ];
-
-// ─── Component ──────────────────────────────────────────────────────────────
 
 export function TikTokTrackingPanel() {
   const { currentStore } = useDashboardStore();
@@ -198,6 +137,14 @@ export function TikTokTrackingPanel() {
     retry: false,
   });
 
+  const statusQuery = useQuery({
+    queryKey: ["tiktok-tracking-status", storeId],
+    queryFn: () => fetchTikTokTrackingStatus(storeId as string),
+    enabled: !!storeId,
+    retry: false,
+    staleTime: 60_000,
+  });
+
   // ── Form state ────────────────────────────────────────────────────────
   const [pixelId, setPixelId] = useState("");
   const [mode, setMode] = useState<Exclude<TikTokTrackingMode, "off">>("both");
@@ -212,8 +159,28 @@ export function TikTokTrackingPanel() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testCodeInput, setTestCodeInput] = useState("");
+
+  const settings = settingsQuery.data ?? null;
+
+  // Saved form values — what "Discard" reverts to and dirty compares against.
+  const baseline = useMemo(() => {
+    const derived = settings
+      ? deriveModeFromFlags(settings.pixel_enabled, settings.api_enabled)
+      : "off";
+    return {
+      pixelId: settings?.pixel_id ?? "",
+      mode: (derived === "off" ? "both" : derived) as Exclude<TikTokTrackingMode, "off">,
+      testEventCode: settings?.test_event_code ?? "",
+      consentRequired: !!settings?.consent_required,
+      debugMode: !!settings?.debug_mode,
+      purchaseTrigger: ((settings?.purchase_trigger as OrderStatusTrigger | null) ??
+        "") as OrderStatusTrigger | "",
+      extras: (settings?.pixels ?? []).filter((p) => p.pixel_id !== settings?.pixel_id),
+    };
+  }, [settings]);
 
   // Sync form from server on load / refetch.
   useEffect(() => {
@@ -226,16 +193,15 @@ export function TikTokTrackingPanel() {
     setConsentRequired(!!s.consent_required);
     setDebugMode(!!s.debug_mode);
     setPurchaseTrigger((s.purchase_trigger as OrderStatusTrigger | null) ?? "");
+    setApiToken("");
     // Advanced multi-pixel: everything except the primary (the Pixel ID field).
     const extras = (s.pixels ?? []).filter((p) => p.pixel_id !== s.pixel_id);
     setExtraPixels(extras);
     if (extras.length > 0) setShowAdvanced(true);
   }, [settingsQuery.data]);
 
-  const settings = settingsQuery.data ?? null;
   const hasTokenOnFile = !!settings?.api_access_token_masked;
   const status: TikTokTrackingStatus = settings?.status ?? "disabled";
-  const badge = STATUS_BADGES[status];
 
   const pixelValid = PIXEL_ID_REGEX.test(pixelId);
   const testCodeValid = !testEventCode || TEST_EVENT_REGEX.test(testEventCode);
@@ -248,6 +214,40 @@ export function TikTokTrackingPanel() {
     () => pixelValid && testCodeValid && !needsToken && tokenLongEnough && !saving,
     [pixelValid, testCodeValid, needsToken, tokenLongEnough, saving],
   );
+
+  const dirty =
+    pixelId !== baseline.pixelId ||
+    mode !== baseline.mode ||
+    apiToken.trim().length > 0 ||
+    testEventCode !== baseline.testEventCode ||
+    consentRequired !== baseline.consentRequired ||
+    debugMode !== baseline.debugMode ||
+    purchaseTrigger !== baseline.purchaseTrigger ||
+    JSON.stringify(extraPixels) !== JSON.stringify(baseline.extras);
+
+  const blockedHint = !dirty
+    ? null
+    : pixelId.trim().length === 0
+      ? isAr
+        ? "اكتب معرّف الـ Pixel الأول"
+        : "Enter your Pixel Code first"
+      : !pixelValid
+        ? isAr
+          ? "المعرّف لازم يكون ٦–٤٠ حرف/رقم"
+          : "Pixel Code must be 6-40 alphanumeric characters"
+        : !testCodeValid
+          ? isAr
+            ? "كود الاختبار غير صحيح"
+            : "Test-event code looks invalid"
+          : needsToken
+            ? isAr
+              ? "التوكن مطلوب لتفعيل Events API"
+              : "A token is required to enable the Events API"
+            : !tokenLongEnough
+              ? isAr
+                ? "التوكن قصير جدًا"
+                : "Token looks too short"
+              : null;
 
   async function handleSave() {
     if (!storeId || !canSave) return;
@@ -268,9 +268,7 @@ export function TikTokTrackingPanel() {
       // Multi-pixel: when the merchant added extras, persist the full list
       // (primary first, sharing the primary's mode flags) so the storefront
       // + backend fan out to every pixel. Empty → null = legacy single-pixel.
-      const validExtras = extraPixels.filter((p) =>
-        PIXEL_ID_REGEX.test(p.pixel_id.trim()),
-      );
+      const validExtras = extraPixels.filter((p) => PIXEL_ID_REGEX.test(p.pixel_id.trim()));
       if (validExtras.length > 0) {
         payload.pixels = [
           {
@@ -294,15 +292,27 @@ export function TikTokTrackingPanel() {
 
       await saveTikTokTracking(storeId, payload);
       setApiToken("");
+      setShowToken(false);
       toast.success(isAr ? "تم حفظ إعدادات TikTok" : "TikTok settings saved");
-      queryClient.invalidateQueries({
-        queryKey: ["tiktok-tracking-settings", storeId],
-      });
+      queryClient.invalidateQueries({ queryKey: ["tiktok-tracking-settings", storeId] });
+      queryClient.invalidateQueries({ queryKey: ["tiktok-tracking-status", storeId] });
     } catch (err) {
       showError(err, language);
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleDiscard() {
+    setPixelId(baseline.pixelId);
+    setMode(baseline.mode);
+    setTestEventCode(baseline.testEventCode);
+    setConsentRequired(baseline.consentRequired);
+    setDebugMode(baseline.debugMode);
+    setPurchaseTrigger(baseline.purchaseTrigger);
+    setExtraPixels(baseline.extras);
+    setApiToken("");
+    setShowToken(false);
   }
 
   async function handleDisconnect() {
@@ -311,12 +321,10 @@ export function TikTokTrackingPanel() {
     try {
       await disconnectTikTok(storeId);
       toast.success(isAr ? "تم فصل TikTok" : "TikTok disconnected");
-      queryClient.invalidateQueries({
-        queryKey: ["tiktok-tracking-settings", storeId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["tiktok-tracking-events", storeId],
-      });
+      setConfirmDisconnect(false);
+      queryClient.invalidateQueries({ queryKey: ["tiktok-tracking-settings", storeId] });
+      queryClient.invalidateQueries({ queryKey: ["tiktok-tracking-events", storeId] });
+      queryClient.invalidateQueries({ queryKey: ["tiktok-tracking-status", storeId] });
     } catch (err) {
       showError(err, language);
     } finally {
@@ -327,9 +335,7 @@ export function TikTokTrackingPanel() {
   async function handleSendTest() {
     if (!storeId) return;
     if (!TEST_EVENT_REGEX.test(testCodeInput.trim())) {
-      toast.error(
-        isAr ? "أدخل كود اختبار صحيح" : "Enter a valid test-event code",
-      );
+      toast.error(isAr ? "أدخل كود اختبار صحيح" : "Enter a valid test-event code");
       return;
     }
     setTesting(true);
@@ -340,9 +346,7 @@ export function TikTokTrackingPanel() {
           ? "تم إرسال الحدث التجريبي — افحصه في Events Manager"
           : "Test event sent — check Events Manager",
       );
-      queryClient.invalidateQueries({
-        queryKey: ["tiktok-tracking-events", storeId],
-      });
+      queryClient.invalidateQueries({ queryKey: ["tiktok-tracking-events", storeId] });
     } catch (err) {
       showError(err, language);
     } finally {
@@ -350,79 +354,131 @@ export function TikTokTrackingPanel() {
     }
   }
 
+  const debugMinutesLeft = useCountdownMinutes(settings?.debug_mode_expires_at);
+
   if (!storeId) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          {isAr ? "اختر متجرًا أولًا" : "Select a store first"}
-        </CardContent>
-      </Card>
+      <div className="souq-section p-6 text-sm text-muted-foreground">
+        {isAr ? "اختار متجر الأول" : "Select a store first."}
+      </div>
     );
   }
 
+  if (settingsQuery.isLoading) {
+    return (
+      <div className="souq-section flex items-center justify-center p-12">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const modeCards: ModeCardSpec[] = [
+    {
+      mode: "pixel_only",
+      Icon: Globe2,
+      title: isAr ? "Pixel فقط" : "Pixel only",
+      desc: isAr
+        ? "تتبع من المتصفح. بسيط، لكن بيفوته ~٣٠٪ من التحويلات."
+        : "Browser-side tracking. Simple, but misses ~30% of conversions.",
+      requirement: isAr ? "محتاج معرّف Pixel فقط." : "Requires Pixel Code only.",
+    },
+    {
+      mode: "capi_only",
+      Icon: ServerCog,
+      title: isAr ? "Events API فقط" : "Events API only",
+      desc: isAr
+        ? "من السيرفر فقط. مقاوم لمانع الإعلانات؛ بدون سكربت في المتصفح."
+        : "Server-side only. Resilient to ad-blockers; no browser script.",
+      requirement: isAr ? "محتاج معرّف + توكن." : "Requires Pixel Code + token.",
+    },
+    {
+      mode: "both",
+      Icon: Sparkles,
+      title: isAr ? "الاثنين" : "Both",
+      desc: isAr
+        ? "Pixel + Events API مع إزالة التكرار. أفضل جودة مطابقة."
+        : "Pixel + Events API, deduplicated. Best match quality.",
+      requirement: isAr ? "محتاج معرّف + توكن." : "Requires Pixel Code + token.",
+      recommended: true,
+    },
+  ];
+
+  const eventRows: UnifiedEventRow[] = (eventsQuery.data ?? []).map((e) => ({
+    id: e.id,
+    eventId: e.event_id,
+    name: e.event_name,
+    channel: e.channel,
+    httpStatus: e.response_status,
+    bizCode: e.response_code,
+    traceId: e.request_id,
+    attempts: e.attempt_count,
+    lastError: e.last_error,
+    createdAt: e.created_at,
+    sentAt: e.sent_at,
+    payload: e.request_payload_redacted,
+  }));
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              {/* TikTok wordmark stand-in — the hub ships no brand SVG here. */}
-              <span className="font-black tracking-tight">TikTok</span>
-              <span className="text-muted-foreground font-normal">
-                {isAr ? "Pixel و Events API" : "Pixel & Events API"}
-              </span>
-            </CardTitle>
-            <CardDescription>
-              {isAr
-                ? "قِس مشاهدات المنتجات والإضافة للسلة والشراء من متجرك على TikTok"
-                : "Measure product views, add-to-cart, and purchases from your store on TikTok"}
-            </CardDescription>
-          </div>
-          <Badge
-            variant="outline"
-            className={cn("gap-1.5 whitespace-nowrap", badge.className)}
-          >
-            <badge.Icon className="h-3.5 w-3.5" />
-            {isAr ? badge.label.ar : badge.label.en}
-          </Badge>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-6">
-        {settingsQuery.isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <>
-            {/* One-click connect (OAuth). Dormant until the NUMU TikTok App
-                is configured — the backend returns 503 and merchants use the
-                manual paste flow below. Navigates the top window so the CSRF
-                cookie + redirect chain work. */}
-            <div className="rounded-lg border border-dashed p-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm">
-                <div className="font-medium">
-                  {isAr ? "الربط بنقرة واحدة" : "One-click connect"}
+    <div>
+      <div className="settings-section-enter space-y-5">
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
+          {/* ══ Config column ══ */}
+          <div className="min-w-0 space-y-5">
+            {/* Identity */}
+            <SettingSection
+              title={isAr ? "هوية الـ Pixel" : "Pixel identity"}
+              desc={
+                isAr
+                  ? "الـ Pixel Code من TikTok Events Manager → Web Events"
+                  : "The Pixel Code from TikTok Events Manager → Web Events"
+              }
+              aside={
+                <a
+                  href="https://ads.tiktok.com/i18n/events_manager/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex shrink-0 items-center gap-1 text-[11.5px] font-bold text-navy hover:underline dark:text-primary"
+                >
+                  {isAr ? "فين ألاقيه؟" : "Where do I find this?"}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              }
+            >
+              {/* One-click connect (OAuth). Dormant until the NUMU TikTok App
+                  is configured — the backend returns 503 and merchants use the
+                  manual paste flow below. Navigates the top window so the CSRF
+                  cookie + redirect chain work. */}
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface-2/60 p-3.5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="ichip bg-[#0f0f0f] text-white dark:bg-white dark:text-[#0f0f0f]">
+                    <TikTokGlyph size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-[13px] font-extrabold">
+                      {isAr ? "الربط بنقرة واحدة" : "One-click connect"}
+                      <span className="souq-pill bg-saffron-100 text-saffron-600 dark:text-saffron">
+                        {isAr ? "تجريبي" : "Beta"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {isAr
+                        ? "اربط حساب TikTok Business لجلب الـ Pixel تلقائيًا"
+                        : "Connect your TikTok Business account to auto-fill your pixel"}
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {isAr
-                    ? "اربط حساب TikTok Business لجلب الـ Pixel تلقائيًا (تجريبي)"
-                    : "Connect your TikTok Business account to auto-fill your pixel (beta)"}
-                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    window.location.href = tiktokOAuthStartUrl(storeId);
+                  }}
+                >
+                  {isAr ? "الربط مع TikTok" : "Connect with TikTok"}
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  window.location.href = tiktokOAuthStartUrl(storeId);
-                }}
-              >
-                {isAr ? "الربط مع TikTok" : "Connect with TikTok"}
-              </Button>
-            </div>
 
-            {/* Pixel ID */}
-            <div className="space-y-1.5">
-              <Label htmlFor="tt-pixel-id">
+              <Label htmlFor="tt-pixel-id" className="sr-only">
                 {isAr ? "معرّف Pixel (Pixel Code)" : "Pixel ID (Pixel Code)"}
               </Label>
               <Input
@@ -431,234 +487,249 @@ export function TikTokTrackingPanel() {
                 onChange={(e) => setPixelId(e.target.value.trim())}
                 placeholder="C4A2B1D3E4F5G6H7I8J9"
                 dir="ltr"
-                className={cn(
-                  pixelId && !pixelValid && "border-red-500 focus-visible:ring-red-500",
-                )}
+                aria-invalid={!!pixelId && !pixelValid}
+                className="font-mono"
               />
               {pixelId && !pixelValid && (
-                <p className="text-xs text-red-600">
-                  {isAr
-                    ? "المعرّف لازم يكون ٦–٤٠ حرف/رقم"
-                    : "Must be 6-40 alphanumeric characters"}
+                <p className="mt-1.5 text-xs text-destructive">
+                  {isAr ? "المعرّف لازم يكون ٦–٤٠ حرف/رقم" : "Must be 6-40 alphanumeric characters"}
                 </p>
               )}
-            </div>
+            </SettingSection>
 
-            {/* Mode cards */}
-            <div className="space-y-2">
-              <Label>{isAr ? "طريقة التفعيل" : "Activation mode"}</Label>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {MODE_CARDS.map((card) => {
-                  const active = mode === card.mode;
-                  return (
-                    <button
-                      key={card.mode}
-                      type="button"
-                      onClick={() => setMode(card.mode)}
-                      className={cn(
-                        "relative rounded-lg border p-3 text-start transition",
-                        active
-                          ? "border-primary ring-2 ring-primary/30 bg-primary/5"
-                          : "border-border hover:border-primary/50",
-                      )}
-                    >
-                      {card.recommended && (
-                        <Badge className="absolute -top-2 end-2 text-[10px]">
-                          {isAr ? "موصى به" : "Recommended"}
-                        </Badge>
-                      )}
-                      <card.Icon className="h-5 w-5 mb-1.5 text-primary" />
-                      <div className="font-semibold text-sm">
-                        {isAr ? card.title.ar : card.title.en}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {isAr ? card.desc.ar : card.desc.en}
-                      </p>
-                      {active && (
-                        <Check className="absolute top-2 end-2 h-4 w-4 text-primary" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {/* Delivery mode */}
+            <SettingSection
+              title={isAr ? "إزاي الأحداث توصل لـ TikTok" : "How events reach TikTok"}
+              desc={
+                isAr
+                  ? "حدد هل الأحداث تتبعت من المتصفح، من السيرفر، أو الاثنين"
+                  : "Decide whether events go through the browser, the server, or both"
+              }
+            >
+              <ModeCardGrid value={mode} onChange={setMode} cards={modeCards} isAr={isAr} />
 
-            {/* Events API token — only when a server mode is selected */}
-            {wantsApi && (
-              <div className="space-y-1.5">
-                <Label htmlFor="tt-api-token">
-                  {isAr ? "توكن Events API" : "Events API access token"}
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="tt-api-token"
-                    type={showToken ? "text" : "password"}
-                    value={apiToken}
-                    onChange={(e) => setApiToken(e.target.value)}
-                    placeholder={
-                      hasTokenOnFile
-                        ? settings?.api_access_token_masked ?? "••••••••"
-                        : isAr
-                          ? "الصق التوكن من TikTok Events Manager"
-                          : "Paste the token from TikTok Events Manager"
-                    }
-                    dir="ltr"
-                    className="pe-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowToken((v) => !v)}
-                    className="absolute inset-y-0 end-0 flex items-center pe-3 text-muted-foreground"
-                    tabIndex={-1}
-                  >
-                    {showToken ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {hasTokenOnFile
-                    ? isAr
-                      ? "توكن محفوظ بالفعل — اتركه فارغًا للإبقاء عليه"
-                      : "A token is on file — leave blank to keep it"
-                    : isAr
-                      ? "التوكن مكتوب فقط ولا يظهر بعد الحفظ"
-                      : "The token is write-only and never shown again after saving"}
-                </p>
-                {needsToken && (
-                  <p className="text-xs text-red-600">
-                    {isAr
-                      ? "التوكن مطلوب لتفعيل Events API"
-                      : "A token is required to enable the Events API"}
+              {/* Events API token — only when a server mode is selected */}
+              {wantsApi && (
+                <div className="mt-4 border-t border-border pt-4">
+                  <Label htmlFor="tt-api-token" className="text-[12.5px] font-extrabold">
+                    {isAr ? "توكن Events API" : "Events API access token"}
+                  </Label>
+                  <p className="mb-2 mt-0.5 text-[11.5px] leading-relaxed text-muted-foreground">
+                    {hasTokenOnFile
+                      ? isAr
+                        ? "توكن محفوظ بالفعل — اتركه فارغًا للإبقاء عليه"
+                        : "A token is on file — leave blank to keep it"
+                      : isAr
+                        ? "من Events Manager → إعدادات الـ Pixel → Generate Access Token. مكتوب فقط ولا يظهر بعد الحفظ."
+                        : "From Events Manager → your pixel's settings → Generate Access Token. Write-only; never shown again after saving."}
                   </p>
-                )}
-              </div>
-            )}
-
-            {/* Test event code + debug + consent */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="tt-test-code">
-                  {isAr ? "كود الحدث التجريبي (اختياري)" : "Test event code (optional)"}
-                </Label>
-                <Input
-                  id="tt-test-code"
-                  value={testEventCode}
-                  onChange={(e) => setTestEventCode(e.target.value.trim())}
-                  placeholder="TEST12345"
-                  dir="ltr"
-                  className={cn(
-                    !testCodeValid && "border-red-500 focus-visible:ring-red-500",
+                  <div className="relative">
+                    <Input
+                      id="tt-api-token"
+                      type={showToken ? "text" : "password"}
+                      value={apiToken}
+                      onChange={(e) => setApiToken(e.target.value)}
+                      placeholder={
+                        hasTokenOnFile
+                          ? settings?.api_access_token_masked ?? "••••••••"
+                          : isAr
+                            ? "الصق التوكن من TikTok Events Manager"
+                            : "Paste the token from TikTok Events Manager"
+                      }
+                      // auto: Arabic placeholder renders RTL, typed token LTR
+                      dir="auto"
+                      autoComplete="off"
+                      className="pe-10 font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken((v) => !v)}
+                      aria-label={
+                        showToken
+                          ? isAr
+                            ? "إخفاء التوكن"
+                            : "Hide token"
+                          : isAr
+                            ? "إظهار التوكن"
+                            : "Show token"
+                      }
+                      className="absolute end-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                    >
+                      {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {needsToken && (
+                    <p className="mt-1.5 text-xs text-destructive">
+                      {isAr
+                        ? "التوكن مطلوب لتفعيل Events API"
+                        : "A token is required to enable the Events API"}
+                    </p>
                   )}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tt-purchase-trigger">
-                  {isAr ? "توقيت حدث الشراء (COD)" : "Purchase timing (COD)"}
-                </Label>
-                <select
-                  id="tt-purchase-trigger"
-                  aria-label={isAr ? "توقيت حدث الشراء" : "Purchase timing"}
-                  value={purchaseTrigger}
-                  onChange={(e) =>
-                    setPurchaseTrigger(e.target.value as OrderStatusTrigger | "")
-                  }
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">
-                    {isAr ? "عند تأكيد الدفع (افتراضي)" : "On payment (default)"}
-                  </option>
-                  {PURCHASE_TRIGGERS.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {isAr ? t.label.ar : t.label.en}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <div className="text-sm font-medium">
-                  {isAr ? "وضع التصحيح (Debug)" : "Debug mode"}
+                  {!tokenLongEnough && (
+                    <p className="mt-1.5 text-xs text-destructive">
+                      {isAr ? "التوكن قصير جدًا" : "Token looks too short"}
+                    </p>
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {isAr
-                    ? "يرفق كود الاختبار بكل حدث لمدة ٦٠ دقيقة"
-                    : "Attaches the test code to every event for 60 minutes"}
-                </p>
-              </div>
-              <Switch checked={debugMode} onCheckedChange={setDebugMode} />
-            </div>
+              )}
+            </SettingSection>
 
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <div className="text-sm font-medium">
-                  {isAr ? "اشتراط الموافقة (Consent)" : "Require consent"}
+            {/* Behaviour */}
+            <SettingSection title={isAr ? "السلوك" : "Behaviour"}>
+              <div className="divide-y divide-border">
+                {/* Debug mode */}
+                <div className="flex items-start justify-between gap-4 pb-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Label className="text-[13px] font-bold">
+                        {isAr ? "وضع التصحيح (Debug)" : "Debug mode (60 min)"}
+                      </Label>
+                      {settings?.debug_mode && debugMinutesLeft !== null && (
+                        <span className="souq-pill bg-saffron-100 text-saffron-600 dark:text-saffron">
+                          <span className="dot animate-pulse" />
+                          {isAr
+                            ? `فاضل ${debugMinutesLeft.toLocaleString("ar-EG")} دقيقة`
+                            : `${debugMinutesLeft} min left`}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      {isAr
+                        ? "يرفق كود الاختبار بكل حدث لمدة ٦٠ دقيقة علشان تتحقق في Events Manager"
+                        : "Attaches your test code to every event for 60 minutes so you can verify in Events Manager"}
+                    </p>
+                  </div>
+                  <Switch checked={debugMode} onCheckedChange={setDebugMode} />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {isAr
-                    ? "لا يعمل Pixel في المتصفح إلا بعد موافقة الزائر"
-                    : "Browser Pixel only fires after the visitor accepts the banner"}
-                </p>
-              </div>
-              <Switch checked={consentRequired} onCheckedChange={setConsentRequired} />
-            </div>
 
-            {/* Advanced — multiple pixels */}
-            <div className="rounded-lg border">
+                {/* Consent required */}
+                <div className="flex items-start justify-between gap-4 py-4">
+                  <div>
+                    <Label className="text-[13px] font-bold">
+                      {isAr ? "اشتراط الموافقة (Consent)" : "Require consent banner"}
+                    </Label>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      {isAr
+                        ? "لا يعمل Pixel في المتصفح إلا بعد موافقة الزائر"
+                        : "The browser Pixel only fires after the visitor accepts the banner"}
+                    </p>
+                  </div>
+                  <Switch checked={consentRequired} onCheckedChange={setConsentRequired} />
+                </div>
+
+                {/* Test event code + COD purchase timing */}
+                <div className="grid gap-4 pt-4 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="tt-test-code" className="text-[13px] font-bold">
+                      {isAr ? "كود الحدث التجريبي (اختياري)" : "Test event code (optional)"}
+                    </Label>
+                    <Input
+                      id="tt-test-code"
+                      value={testEventCode}
+                      onChange={(e) => setTestEventCode(e.target.value.trim())}
+                      placeholder="TEST12345"
+                      dir="ltr"
+                      aria-invalid={!testCodeValid}
+                      className="mt-1.5 font-mono"
+                    />
+                    {!testCodeValid && (
+                      <p className="mt-1.5 text-xs text-destructive">
+                        {isAr ? "كود الاختبار غير صحيح" : "Test-event code looks invalid"}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label htmlFor="tt-purchase-trigger" className="text-[13px] font-bold">
+                      {isAr ? "توقيت حدث الشراء (COD)" : "Purchase timing (COD)"}
+                    </Label>
+                    <Select
+                      value={purchaseTrigger || "__default"}
+                      onValueChange={(v) =>
+                        setPurchaseTrigger(v === "__default" ? "" : (v as OrderStatusTrigger))
+                      }
+                    >
+                      <SelectTrigger id="tt-purchase-trigger" className="mt-1.5">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__default">
+                          {isAr ? "عند تأكيد الدفع (افتراضي)" : "On payment (default)"}
+                        </SelectItem>
+                        {PURCHASE_TRIGGERS.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>
+                            {isAr ? t.label.ar : t.label.en}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-ink-faint">
+                      {isAr
+                        ? "للدفع عند الاستلام: إرسال CompletePayment عند التسليم يخلّي ROAS مظبوط على الإيراد الحقيقي."
+                        : "For COD: firing CompletePayment on delivery keeps ROAS aligned with real revenue."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </SettingSection>
+
+            {/* Multiple pixels (advanced) */}
+            <section className="souq-section overflow-hidden">
               <button
                 type="button"
                 onClick={() => setShowAdvanced((v) => !v)}
-                className="flex w-full items-center justify-between p-3 text-sm font-medium"
+                aria-expanded={showAdvanced}
+                className="flex w-full items-center justify-between gap-3 px-5 py-4 text-start"
               >
+                <div>
+                  <span className="text-[15px] font-extrabold tracking-tight">
+                    {isAr ? "بيكسلات متعددة" : "Multiple pixels"}
+                  </span>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {isAr
+                      ? "لوكالة إعلانات أو بكسل إعادة استهداف — كل حدث يتبعت لكل بيكسل مفعّل"
+                      : "For an agency or a retargeting pixel — every event fires to each enabled pixel"}
+                  </p>
+                </div>
                 <span className="flex items-center gap-2">
-                  {showAdvanced ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
+                  {extraPixels.length > 0 && (
+                    <span className="souq-pill bg-muted text-ink-soft tabular-nums">
+                      {extraPixels.length + 1}
+                    </span>
                   )}
-                  {isAr ? "بيكسلات متعددة (متقدم)" : "Multiple pixels (advanced)"}
+                  <Plus
+                    className={cn(
+                      "h-4 w-4 text-ink-faint transition-transform",
+                      showAdvanced && "rotate-45",
+                    )}
+                    strokeWidth={2.4}
+                  />
                 </span>
-                {extraPixels.length > 0 && (
-                  <Badge variant="secondary">{extraPixels.length + 1}</Badge>
-                )}
               </button>
 
               {showAdvanced && (
-                <div className="space-y-3 border-t p-3">
-                  <p className="text-xs text-muted-foreground">
-                    {isAr
-                      ? "أضف بيكسلات إضافية (مثلًا لوكالة أو لإعادة الاستهداف). كل حدث يُرسَل لكل بيكسل مُفعّل بنفس المعرّف."
-                      : "Add extra pixels (e.g. an agency's or a retargeting pixel). Every event fires to each enabled pixel with the same event_id."}
-                  </p>
-
+                <div className="space-y-3 border-t border-border px-5 py-4">
                   {/* Primary (read-only reference from the Pixel ID field above) */}
-                  <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs">
-                    <Badge className="text-[10px]">
+                  <div className="flex items-center gap-2 rounded-xl bg-surface-2/60 px-3.5 py-2.5 text-xs">
+                    <span className="souq-pill bg-navy/10 text-navy dark:bg-primary/15 dark:text-primary">
                       {isAr ? "أساسي" : "Primary"}
-                    </Badge>
-                    <span dir="ltr" className="font-mono">
-                      {pixelId || (isAr ? "—" : "—")}
+                    </span>
+                    <span dir="ltr" className="font-mono font-semibold">
+                      {pixelId || "—"}
                     </span>
                   </div>
 
                   {extraPixels.map((p, i) => (
                     <div
                       key={i}
-                      className="grid gap-2 rounded-md border p-2 sm:grid-cols-[1fr_auto]"
+                      className="grid gap-2.5 rounded-xl border border-border p-3.5 sm:grid-cols-[1fr_auto]"
                     >
-                      <div className="space-y-2">
+                      <div className="min-w-0 space-y-2.5">
                         <Input
                           value={p.pixel_id}
                           onChange={(e) =>
                             setExtraPixels((list) =>
                               list.map((x, j) =>
-                                j === i
-                                  ? { ...x, pixel_id: e.target.value.trim() }
-                                  : x,
+                                j === i ? { ...x, pixel_id: e.target.value.trim() } : x,
                               ),
                             )
                           }
@@ -668,22 +739,20 @@ export function TikTokTrackingPanel() {
                             "font-mono text-xs",
                             p.pixel_id &&
                               !PIXEL_ID_REGEX.test(p.pixel_id) &&
-                              "border-red-500 focus-visible:ring-red-500",
+                              "border-destructive focus-visible:ring-destructive",
                           )}
                         />
                         <Input
                           value={p.label ?? ""}
                           onChange={(e) =>
                             setExtraPixels((list) =>
-                              list.map((x, j) =>
-                                j === i ? { ...x, label: e.target.value } : x,
-                              ),
+                              list.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)),
                             )
                           }
                           placeholder={isAr ? "تسمية (اختياري)" : "Label (optional)"}
                           className="text-xs"
                         />
-                        <div className="flex flex-wrap items-center gap-4 text-xs">
+                        <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
                           <label className="flex items-center gap-1.5">
                             <Switch
                               checked={p.pixel_enabled}
@@ -695,20 +764,18 @@ export function TikTokTrackingPanel() {
                                 )
                               }
                             />
-                            {isAr ? "Pixel" : "Pixel"}
+                            Pixel
                           </label>
                           <label className="flex items-center gap-1.5">
                             <Switch
                               checked={p.api_enabled}
                               onCheckedChange={(v) =>
                                 setExtraPixels((list) =>
-                                  list.map((x, j) =>
-                                    j === i ? { ...x, api_enabled: v } : x,
-                                  ),
+                                  list.map((x, j) => (j === i ? { ...x, api_enabled: v } : x)),
                                 )
                               }
                             />
-                            {isAr ? "Events API" : "Events API"}
+                            Events API
                           </label>
                         </div>
                       </div>
@@ -742,92 +809,174 @@ export function TikTokTrackingPanel() {
                         ])
                       }
                     >
-                      <Plus className="h-4 w-4 me-1.5" />
+                      <Plus className="h-4 w-4" />
                       {isAr ? "إضافة بيكسل" : "Add pixel"}
                     </Button>
                   )}
                 </div>
               )}
-            </div>
+            </section>
+          </div>
 
-            {/* Actions */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={handleSave} disabled={!canSave}>
-                {saving && <Loader2 className="h-4 w-4 animate-spin me-1.5" />}
-                {isAr ? "حفظ" : "Save"}
-              </Button>
-              {(settings?.pixel_enabled || settings?.api_enabled) && (
-                <Button
-                  variant="outline"
-                  onClick={handleDisconnect}
-                  disabled={disconnecting}
-                >
-                  {disconnecting ? (
-                    <Loader2 className="h-4 w-4 animate-spin me-1.5" />
-                  ) : (
-                    <Trash2 className="h-4 w-4 me-1.5" />
-                  )}
-                  {isAr ? "فصل" : "Disconnect"}
-                </Button>
-              )}
-            </div>
-
-            {/* Test event sender */}
-            <div className="rounded-lg border p-3 space-y-2">
-              <div className="text-sm font-medium">
-                {isAr ? "أرسل حدثًا تجريبيًا" : "Send a test event"}
+          {/* ══ Live rail ══ */}
+          <div className="space-y-5">
+            <section className="souq-section space-y-4 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-[15px] font-extrabold tracking-tight">
+                  {isAr ? "الإشارة الحية" : "Live signal"}
+                </h3>
+                <StatusPill status={status} isAr={isAr} />
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+
+              <SignalPath
+                pixelOn={mode === "pixel_only" || mode === "both"}
+                serverOn={wantsApi}
+                serverLabel="Events API"
+                platformName="TikTok"
+                platformNode={
+                  <div className="ichip bg-[#0f0f0f] text-white dark:bg-white dark:text-[#0f0f0f]">
+                    <TikTokGlyph size={22} />
+                  </div>
+                }
+                isAr={isAr}
+              />
+
+              <StatTrio
+                lastEventAt={
+                  statusQuery.data?.last_validated_at ?? settings?.last_validated_at ?? null
+                }
+                failureRate={statusQuery.data?.recent_failure_rate ?? null}
+                eventCount={statusQuery.data?.recent_event_count ?? null}
+                isAr={isAr}
+              />
+
+              {/* Test event sender */}
+              <div className="space-y-2 rounded-xl border border-border p-3.5">
+                <div className="text-[12.5px] font-extrabold">
+                  {isAr ? "أرسل حدثًا تجريبيًا" : "Send a test event"}
+                </div>
+                <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                  {isAr
+                    ? "يتطلب Events API. يظهر في Events Manager → Test Events."
+                    : "Requires the Events API. Shows in Events Manager → Test Events."}
+                </p>
                 <Input
                   value={testCodeInput}
                   onChange={(e) => setTestCodeInput(e.target.value.trim())}
                   placeholder="TEST12345"
                   dir="ltr"
-                  className="max-w-[200px]"
+                  className="font-mono"
                 />
                 <Button
-                  variant="secondary"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
                   onClick={handleSendTest}
                   disabled={testing || !testCodeInput.trim()}
                 >
                   {testing ? (
-                    <Loader2 className="h-4 w-4 animate-spin me-1.5" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Send className="h-4 w-4 me-1.5" />
+                    <Send className="h-4 w-4" />
                   )}
                   {isAr ? "إرسال" : "Send"}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {isAr
-                  ? "يتطلب تفعيل Events API. يظهر في TikTok Events Manager → Test Events."
-                  : "Requires the Events API. Appears in TikTok Events Manager → Test Events."}
-              </p>
-            </div>
 
-            {/* Ad performance (Marketing API) */}
-            <AdReport
-              report={reportQuery.data}
-              loading={reportQuery.isLoading}
-              isAr={isAr}
-            />
+              {(settings?.pixel_enabled || settings?.api_enabled) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setConfirmDisconnect(true)}
+                  disabled={disconnecting}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {isAr ? "فصل TikTok" : "Disconnect TikTok"}
+                </Button>
+              )}
+            </section>
 
-            {/* Recent events */}
-            <RecentEvents
-              rows={eventsQuery.data ?? []}
-              loading={eventsQuery.isLoading}
-              isAr={isAr}
-            />
-          </>
-        )}
-      </CardContent>
-    </Card>
+            {/* Resources */}
+            <SettingSection title={isAr ? "روابط TikTok" : "TikTok resources"}>
+              <div className="-mx-2.5 space-y-0.5">
+                <HelpLink href="https://ads.tiktok.com/i18n/events_manager/">
+                  {isAr ? "افتح Events Manager" : "Open Events Manager"}
+                </HelpLink>
+                <HelpLink href="https://ads.tiktok.com/help/article/events-api">
+                  {isAr ? "إزاي تجيب توكن Events API" : "How to get an Events API token"}
+                </HelpLink>
+              </div>
+              <div className="mt-4 border-t border-border pt-4">
+                <EventsWeSend
+                  events={TIKTOK_AUTO_EVENTS}
+                  isAr={isAr}
+                  note={
+                    isAr
+                      ? "حدث الشراء عند TikTok اسمه CompletePayment — بيتبعت حسب توقيت الشراء اللي اخترته."
+                      : "TikTok's purchase event is CompletePayment — it fires per the purchase timing you chose."
+                  }
+                />
+              </div>
+            </SettingSection>
+          </div>
+        </div>
+
+        {/* ══ Ad performance (Marketing API) ══ */}
+        <AdReportSection report={reportQuery.data} loading={reportQuery.isLoading} isAr={isAr} />
+
+        {/* ══ Events log — full width ══ */}
+        <EventsLog
+          rows={eventRows}
+          loading={eventsQuery.isLoading}
+          isAr={isAr}
+          traceHeader={isAr ? "معرّف الطلب" : "request id"}
+          title={isAr ? "أحدث الأحداث" : "Recent events"}
+          subtitle={
+            isAr
+              ? "آخر ٢٠ حدث اتبعتوا لـ TikTok. اضغط على أي صف لعرض التفاصيل."
+              : "Last 20 events sent to TikTok. Click a row to expand the details."
+          }
+          emptyTitle={isAr ? "لا توجد أحداث بعد" : "No events yet"}
+          emptyHint={
+            isAr
+              ? "ابعت حدث تجريبي أو افتح متجرك في تبويب تاني — أول حدث هيظهر هنا."
+              : "Send a test event or open your storefront in another tab — the first event lands here."
+          }
+        />
+      </div>
+
+      {/* Floating save pill + disconnect confirm (outside the staggered
+          container — the entrance transform would break their positioning) */}
+      <FloatingSaveBar
+        visible={dirty}
+        canSave={canSave}
+        saving={saving}
+        onSave={handleSave}
+        onDiscard={handleDiscard}
+        isAr={isAr}
+        blockedHint={blockedHint}
+      />
+      <DisconnectDialog
+        open={confirmDisconnect}
+        onOpenChange={setConfirmDisconnect}
+        onConfirm={handleDisconnect}
+        disconnecting={disconnecting}
+        isAr={isAr}
+        platformName="TikTok"
+        description={
+          isAr
+            ? "هيتوقف إرسال الأحداث لـ TikTok. إعلاناتك هتفقد إشارات التحويل لحد ما تعيد الربط."
+            : "Event delivery to TikTok stops. Your ads lose conversion signals until you reconnect."
+        }
+      />
+    </div>
   );
 }
 
-// ─── Recent events table ────────────────────────────────────────────────────
+// ─── Ad performance (Marketing API report) ─────────────────────────────────
 
-function AdReport({
+function AdReportSection({
   report,
   loading,
   isAr,
@@ -837,123 +986,55 @@ function AdReport({
   isAr: boolean;
 }) {
   const nf = new Intl.NumberFormat(isAr ? "ar-EG" : "en-US");
-  const label = isAr ? "أداء إعلانات TikTok (آخر ٣٠ يوم)" : "TikTok ad performance (last 30 days)";
 
   return (
-    <div className="space-y-2">
-      <Label className="flex items-center gap-1.5">
-        <BarChart3 className="h-4 w-4" />
-        {label}
-      </Label>
+    <SettingSection
+      title={isAr ? "أداء إعلانات TikTok" : "TikTok ad performance"}
+      desc={isAr ? "آخر ٣٠ يوم من الحساب الإعلاني المربوط" : "Last 30 days from your connected ad account"}
+      aside={
+        <span className="souq-pill bg-muted text-ink-soft">
+          <BarChart3 className="h-3.5 w-3.5" />
+          {isAr ? "٣٠ يوم" : "30d"}
+        </span>
+      }
+    >
       {loading ? (
         <div className="flex items-center justify-center py-6">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       ) : !report || !report.connected ? (
-        <p className="text-sm text-muted-foreground py-3 text-center rounded-lg border border-dashed">
+        <p className="rounded-xl border border-dashed border-border py-4 text-center text-sm text-muted-foreground">
           {isAr
-            ? "اربط حساب TikTok Business (بنقرة واحدة بالأعلى) لعرض الإنفاق والتحويلات."
-            : "Connect your TikTok Business account (one-click above) to see spend and conversions."}
+            ? "اربط حساب TikTok Business (الربط بنقرة واحدة فوق) لعرض الإنفاق والتحويلات."
+            : "Connect your TikTok Business account (one-click connect above) to see spend and conversions."}
         </p>
       ) : report.error ? (
-        <p className="text-sm text-amber-600 py-3 text-center rounded-lg border border-amber-500/30">
+        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 py-4 text-center text-sm font-semibold text-amber-700 dark:text-amber-400">
           {isAr
             ? "تعذّر جلب التقرير — تأكد أن التوكن يملك صلاحية إعداد التقارير."
             : "Couldn't load the report — make sure the token has reporting scope."}
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             { label: isAr ? "الإنفاق" : "Spend", value: nf.format(report.spend) },
             { label: isAr ? "الظهور" : "Impressions", value: nf.format(report.impressions) },
             { label: isAr ? "النقرات" : "Clicks", value: nf.format(report.clicks) },
             { label: isAr ? "التحويلات" : "Conversions", value: nf.format(report.conversions) },
           ].map((m) => (
-            <div key={m.label} className="rounded-lg border p-3">
-              <div className="text-xs text-muted-foreground">{m.label}</div>
-              <div className="text-lg font-bold" dir="ltr">
+            <div key={m.label} className="rounded-xl bg-surface-2/60 px-4 py-3">
+              <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-faint">
+                {m.label}
+              </div>
+              <div className="mt-0.5 text-[19px] font-extrabold tabular-nums leading-tight" dir="ltr">
                 {m.value}
               </div>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </SettingSection>
   );
 }
 
-function RecentEvents({
-  rows,
-  loading,
-  isAr,
-}: {
-  rows: TikTokEventLogEntry[];
-  loading: boolean;
-  isAr: boolean;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label>{isAr ? "أحدث الأحداث" : "Recent events"}</Label>
-      {loading ? (
-        <div className="flex items-center justify-center py-6">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        </div>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-4 text-center">
-          {isAr ? "لا توجد أحداث بعد" : "No events yet"}
-        </p>
-      ) : (
-        <div className="rounded-lg border overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{isAr ? "الحدث" : "Event"}</TableHead>
-                <TableHead>{isAr ? "الحالة" : "Status"}</TableHead>
-                <TableHead>{isAr ? "الوقت" : "Time"}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((r) => {
-                const ok = r.response_status
-                  ? r.response_status >= 200 &&
-                    r.response_status < 300 &&
-                    (r.response_code === 0 || r.response_code === null)
-                  : false;
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-medium">{r.event_name}</TableCell>
-                    <TableCell>
-                      {r.response_status === null ? (
-                        <span className="text-xs text-muted-foreground">
-                          {isAr ? "قيد الإرسال" : "Pending"}
-                        </span>
-                      ) : ok ? (
-                        <span className="text-xs text-green-600 flex items-center gap-1">
-                          <Check className="h-3.5 w-3.5" />
-                          {r.response_status}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-3.5 w-3.5" />
-                          {r.response_status}
-                          {r.response_code != null && r.response_code !== 0
-                            ? ` · ${r.response_code}`
-                            : ""}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground" dir="ltr">
-                      {new Date(r.created_at).toLocaleString(
-                        isAr ? "ar-EG" : "en-US",
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-    </div>
-  );
-}
+export default TikTokTrackingPanel;
