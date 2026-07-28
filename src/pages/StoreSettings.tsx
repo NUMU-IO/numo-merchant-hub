@@ -1,5 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+
+const KNOWN_SECTIONS = new Set([
+  "profile",
+  "domain",
+  "policies",
+  "pages",
+  "seo",
+  "status",
+  "payment",
+  "shipping",
+  "customization",
+  "themes",
+]);
 import { useLanguage } from "@/contexts/LanguageContext";
 import { SettingsBreadcrumb } from "@/components/layout/SettingsBreadcrumb";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -1401,7 +1415,11 @@ const StoreSettings = () => {
 
   // ─── Tab config ─────────────────────────────────────────────────────────
 
-  const [activeSection, setActiveSection] = useState("profile");
+  const [searchParams] = useSearchParams();
+  const requestedSection = searchParams.get("section") ?? "";
+  const [activeSection, setActiveSection] = useState(
+    KNOWN_SECTIONS.has(requestedSection) ? requestedSection : "profile",
+  );
 
   const navGroups = [
     {

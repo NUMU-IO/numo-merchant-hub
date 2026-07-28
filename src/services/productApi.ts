@@ -32,6 +32,7 @@ export interface ApiProductResponse {
   category_id: string | null;
   tags: string[];
   attributes: Record<string, unknown>;
+  brand?: string | null;
   seo_title?: string | null;
   seo_description?: string | null;
   /** Meta Commerce Catalog product ID — surfaced in ProductEditor's
@@ -118,6 +119,7 @@ export interface CreateProductData {
   category_id?: string;
   tags?: string[];
   attributes?: Record<string, unknown>;
+  brand?: string;
   seo_title?: string;
   seo_description?: string;
   /** Meta Commerce Catalog product ID — wired through to the storefront's
@@ -285,9 +287,14 @@ export function apiToProduct(api: ApiProductResponse): Product {
   return {
     id: api.id,
     name: api.name,
-    nameAr: attrs.nameAr || api.name,
+    // Never fall back to the English value. The editor writes whatever it
+    // renders straight back on save, so `|| api.name` meant opening any
+    // product with no Arabic and saving an unrelated edit persisted English
+    // AS Arabic — the storefront then serves it as the ar-EG copy. The editor
+    // shows the English as a placeholder hint instead.
+    nameAr: attrs.nameAr || "",
     description: api.description || "",
-    descriptionAr: attrs.descriptionAr || api.description || "",
+    descriptionAr: attrs.descriptionAr || "",
     price: parsePrice(api.price),
     compareAtPrice: api.compare_at_price
       ? parsePrice(api.compare_at_price)
@@ -340,6 +347,7 @@ export interface ProductFormData {
   /** Canonical variant rows matching `options`. */
   serverVariants?: VariantRowPayload[];
   images?: string[];
+  brand?: string;
   seoTitle?: string;
   seoDescription?: string;
   slug?: string;
@@ -368,6 +376,7 @@ export function productToApiCreate(form: ProductFormData): CreateProductData {
     category_id: form.categoryId || undefined,
     tags: [],
     images: form.images,
+    brand: form.brand || undefined,
     seo_title: form.seoTitle || undefined,
     seo_description: form.seoDescription || undefined,
     meta_catalog_id: form.metaCatalogId || undefined,
@@ -606,6 +615,7 @@ export function productToApiUpdate(
   if (form.images !== undefined) data.images = form.images;
   if (form.categoryId !== undefined) data.category_id = form.categoryId || undefined;
   if (form.slug !== undefined) data.slug = form.slug || undefined;
+  if (form.brand !== undefined) data.brand = form.brand || undefined;
   if (form.seoTitle !== undefined) data.seo_title = form.seoTitle || undefined;
   if (form.seoDescription !== undefined) data.seo_description = form.seoDescription || undefined;
   if (form.metaCatalogId !== undefined) data.meta_catalog_id = form.metaCatalogId || undefined;
