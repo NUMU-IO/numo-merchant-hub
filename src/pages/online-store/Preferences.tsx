@@ -7,35 +7,23 @@ import { getStore, updateStore, uploadStoreAsset } from "@/services/storeApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import {
-  Search, Share2, BarChart3, Save, Loader2, Info,
+  Search, BarChart3, Save, Loader2, Info,
   Eye, EyeOff, ShieldCheck, ShieldOff, Upload, Image as ImageIcon, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
 import { ImageCropDialog, fileFromCropBlob } from "@/components/ImageCropDialog";
 interface PrefsState {
-  seo_title: string;
-  seo_description: string;
-  social_image_url: string;
   favicon_url: string;
   password_enabled: boolean;
   password: string;
   ga_tracking_id: string;
   meta_pixel_id: string;
-}
-
-// Character count indicator colour
-function charColor(len: number, max: number) {
-  const pct = len / max;
-  if (pct < 0.7) return "bg-emerald-500";
-  if (pct < 0.9) return "bg-amber-400";
-  return "bg-red-500";
 }
 
 // Simple password strength (0-4)
@@ -65,11 +53,10 @@ export default function OnlineStorePreferences() {
   const initializedRef = useRef(false);
 
   const [form, setForm] = useState<PrefsState>({
-    seo_title: "", seo_description: "", social_image_url: "", favicon_url: "",
+    favicon_url: "",
     password_enabled: false, password: "",
     ga_tracking_id: "", meta_pixel_id: "",
   });
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
@@ -85,9 +72,6 @@ export default function OnlineStorePreferences() {
     initializedRef.current = true;
     const s = (storeData.settings ?? {}) as Record<string, unknown>;
     setForm({
-      seo_title:        (s.seo_title          as string)  ?? storeData.name        ?? "",
-      seo_description:  (s.seo_description    as string)  ?? storeData.description ?? "",
-      social_image_url: (s.social_image_url   as string)  ?? "",
       favicon_url:      (s.favicon_url        as string)  ?? "",
       password_enabled: Boolean(s.password_enabled),
       password:         (s.storefront_password as string) ?? "",
@@ -105,9 +89,6 @@ export default function OnlineStorePreferences() {
     mutationFn: () =>
       updateStore(storeId, {
         settings: {
-          seo_title:           form.seo_title,
-          seo_description:     form.seo_description,
-          social_image_url:    form.social_image_url,
           favicon_url:         form.favicon_url,
           password_enabled:    form.password_enabled,
           // When password protection is disabled, clear the stored password
@@ -126,8 +107,6 @@ export default function OnlineStorePreferences() {
     onError: (err) => showError(err),
   });
 
-  const seoTitle       = form.seo_title || currentStore?.name || "My Store";
-  const storeUrl       = currentStore?.store_url ?? "https://yourstore.numueg.app";
   const pwStrength     = passwordStrength(form.password);
   const pwMeta         = STRENGTH_LABEL[pwStrength];
 
@@ -185,8 +164,7 @@ export default function OnlineStorePreferences() {
       {/* Help tip */}
       <HelpTip title={isRTL ? "كيف تستخدم التفضيلات؟" : "How to use Preferences"}>
         <ul className="list-disc list-inside space-y-1">
-          <li>{isRTL ? "عنوان الصفحة الرئيسية ووصف الميتا يظهران في نتائج بحث Google — اجعلهما واضحين ومختصرين." : "Homepage title and meta description appear in Google search results — keep them clear and concise."}</li>
-          <li>{isRTL ? "صورة المشاركة الاجتماعية تظهر عند مشاركة رابط متجرك على فيسبوك وواتساب — يُفضل صورة بحجم 1200×630 بكسل." : "Social sharing image appears when your store link is shared on Facebook/WhatsApp — recommended size is 1200×630px."}</li>
+          <li>{isRTL ? "عنوان الصفحة ووصف الميتا وصورة المشاركة اتنقلوا لصفحة SEO في إعدادات المتجر." : "Homepage title, meta description and social sharing image now live on the SEO page in Store settings."}</li>
           <li>{isRTL ? "أضف Google Analytics و Meta Pixel لتتبع زيارات وتحويلات متجرك." : "Add Google Analytics and Meta Pixel to track your store visits and conversions."}</li>
           <li>{isRTL ? "حماية المتجر بكلمة مرور تمنع الوصول حتى يُدخل الزائر كلمة المرور — مفيدة قبل الإطلاق الرسمي." : "Password protection blocks access until visitors enter the password — useful before your official launch."}</li>
           <li>{isRTL ? "اضغط «حفظ» بعد أي تغيير لحفظه نهائيًا." : "Click Save after any change to persist it."}</li>
@@ -195,84 +173,18 @@ export default function OnlineStorePreferences() {
 
       {/* ── SEO ─────────────────────────────────────────────────────────────── */}
       <Section icon={<Search className="h-4 w-4" />} title={isRTL ? "تحسين محركات البحث" : "Search engine optimization"}>
-        <div className="space-y-4">
-          {/* Title */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-medium">{isRTL ? "عنوان الصفحة الرئيسية" : "Homepage title"}</Label>
-              <CharBar len={form.seo_title.length} max={70} />
-            </div>
-            <Input
-              value={form.seo_title}
-              onChange={(e) => set("seo_title", e.target.value)}
-              placeholder={currentStore?.name ?? "My Store"}
-              maxLength={70}
-              dir="auto"
-            />
-          </div>
-
-          {/* Description */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-medium">{isRTL ? "وصف الميتا" : "Meta description"}</Label>
-              <CharBar len={form.seo_description.length} max={160} />
-            </div>
-            <Textarea
-              value={form.seo_description}
-              onChange={(e) => set("seo_description", e.target.value)}
-              placeholder={isRTL ? "وصف مختصر لمتجرك يظهر في نتائج البحث..." : "A short description of your store shown in search results..."}
-              rows={3}
-              maxLength={160}
-              dir="auto"
-            />
-          </div>
-
-          {/* Google SERP preview */}
-          <div className="rounded-xl border bg-white dark:bg-zinc-950 p-4 space-y-1 select-none">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-2">
-              {isRTL ? "معاينة نتيجة البحث" : "Search result preview"}
-            </p>
-            {/* Favicon + URL bar */}
-            <div className="flex items-center gap-2 mb-1" dir={form.seo_title.match(/^[a-zA-Z]/) ? "ltr" : "auto"}>
-              <div className="h-4 w-4 rounded-full bg-muted/60 flex items-center justify-center shrink-0">
-                <span className="text-[7px] font-bold text-muted-foreground">N</span>
-              </div>
-              <div className="flex flex-col items-start w-full overflow-hidden">
-                <p className="text-[11px] text-foreground/80 leading-none" dir="auto">
-                  {currentStore?.name ?? "My Store"}
-                </p>
-                <p className="text-[10px] text-emerald-700 dark:text-emerald-500 truncate leading-none mt-0.5" dir="ltr">
-                  {storeUrl}
-                </p>
-              </div>
-            </div>
-            <p className="text-[15px] font-normal text-[#1a0dab] dark:text-[#8ab4f8] leading-snug hover:underline cursor-pointer truncate" dir="auto">
-              {seoTitle}
-            </p>
-            {form.seo_description ? (
-              <p className="text-[13px] text-[#4d5156] dark:text-zinc-400 leading-snug line-clamp-2" dir="auto">
-                {form.seo_description}
-              </p>
-            ) : (
-              <p className="text-[13px] text-muted-foreground/40 italic leading-snug" dir="auto">
-                {isRTL ? "أضف وصفًا ليظهر هنا..." : "Add a description to see it here..."}
-              </p>
-            )}
-          </div>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {isRTL
+              ? "عنوان الصفحة ووصف الميتا وصورة المشاركة كلها في صفحة SEO — مع نوع النشاط وتوثيق Google والتحكم في الفهرسة."
+              : "Homepage title, meta description and social sharing image live on the SEO page — along with business type, Google verification and indexing control."}
+          </p>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/store?section=seo">
+              {isRTL ? "افتح إعدادات SEO" : "Open SEO settings"}
+            </Link>
+          </Button>
         </div>
-      </Section>
-
-      {/* ── Social sharing ───────────────────────────────────────────────────── */}
-      <Section icon={<Share2 className="h-4 w-4" />} title={isRTL ? "صورة المشاركة الاجتماعية" : "Social sharing image"}>
-        <SocialImageField
-          value={form.social_image_url}
-          onChange={(url) => set("social_image_url", url)}
-          storeUrl={storeUrl}
-          seoTitle={seoTitle}
-          seoDescription={form.seo_description}
-          isRTL={isRTL}
-        />
-
       </Section>
 
       {/* ── Favicon ──────────────────────────────────────────────────────────── */}
@@ -475,191 +387,6 @@ function Section({
   );
 }
 
-// ─── Social (Open Graph) image uploader ───────────────────────────────────────
-// OG standard aspect is 1.91:1 (1200×630). We crop to that before upload.
-const OG_ASPECT = 1200 / 630;
-const MAX_OG_BYTES = 5 * 1024 * 1024; // 5 MB
-
-function SocialImageField({
-  value,
-  onChange,
-  storeUrl,
-  seoTitle,
-  seoDescription,
-  isRTL,
-}: {
-  value: string;
-  onChange: (url: string) => void;
-  storeUrl: string;
-  seoTitle: string;
-  seoDescription: string;
-  isRTL: boolean;
-}) {
-  const { currentStore } = useDashboardStore();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [cropSrc, setCropSrc] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [previewError, setPreviewError] = useState(false);
-
-  useEffect(() => {
-    setPreviewError(false);
-  }, [value]);
-
-  const onPickFile = (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      toast.error(isRTL ? "يجب أن يكون الملف صورة" : "File must be an image");
-      return;
-    }
-    if (file.size > MAX_OG_BYTES) {
-      toast.error(isRTL ? "الحد الأقصى لحجم الصورة 5 ميجا" : "Image must be under 5 MB");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setCropSrc(reader.result as string);
-    reader.readAsDataURL(file);
-  };
-
-  const onCropDone = async (blob: Blob) => {
-    if (!currentStore?.id) return;
-    setUploading(true);
-    try {
-      const file = fileFromCropBlob(blob, "social_image");
-      const result = await uploadStoreAsset(currentStore.id, file, "social_image");
-      onChange(result.url);
-      setCropSrc(null);
-      toast.success(isRTL ? "تم رفع الصورة" : "Image uploaded");
-    } catch (err) {
-      showError(err);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const hasImage = !!value && !previewError;
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        {isRTL
-          ? "تظهر هذه الصورة عند مشاركة رابط متجرك على Facebook أو Twitter أو WhatsApp. الحجم الموصى به 1200×630 بكسل."
-          : "Shown when your store link is shared on Facebook, Twitter, or WhatsApp. Recommended size: 1200×630 px."}
-      </p>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        className="hidden"
-        data-testid="social-image-file-input"
-        aria-label={isRTL ? "رفع صورة المشاركة الاجتماعية" : "Upload social sharing image"}
-        title={isRTL ? "اختر صورة" : "Choose an image"}
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onPickFile(f);
-          e.target.value = "";
-        }}
-      />
-
-      {/* Preview card — matches the social-share card layout */}
-      {hasImage ? (
-        <div className="rounded-xl border overflow-hidden bg-muted/20">
-          <div className="relative">
-            <img
-              src={value}
-              alt="OG preview"
-              className="w-full aspect-[1.91/1] object-cover bg-muted"
-              onError={() => setPreviewError(true)}
-            />
-            <button
-              type="button"
-              onClick={() => onChange("")}
-              className="absolute top-2 end-2 h-7 w-7 rounded-full bg-background/90 backdrop-blur-sm border shadow-sm flex items-center justify-center hover:bg-background text-muted-foreground hover:text-destructive transition-colors"
-              aria-label={isRTL ? "إزالة" : "Remove"}
-              data-testid="social-image-remove-btn"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <div className="px-3 py-2 border-t bg-muted/30">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground/50 truncate">
-              {storeUrl.replace(/^https?:\/\//, "")}
-            </p>
-            <p className="text-sm font-semibold leading-tight mt-0.5 line-clamp-1">{seoTitle}</p>
-            {seoDescription && (
-              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{seoDescription}</p>
-            )}
-          </div>
-          <div className="px-3 py-2 border-t flex items-center justify-between gap-2">
-            <p className="text-[11px] text-muted-foreground truncate">
-              {isRTL ? "معاينة بطاقة المشاركة" : "Share card preview"}
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 gap-1.5 text-[11px]"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading || !currentStore?.id}
-              data-testid="social-image-replace-btn"
-            >
-              {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-              {isRTL ? "استبدال" : "Replace"}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading || !currentStore?.id}
-          className="group w-full rounded-xl border-2 border-dashed bg-muted/10 hover:bg-muted/20 hover:border-primary/40 transition-colors aspect-[1.91/1] flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-          data-testid="social-image-upload-btn"
-        >
-          {uploading ? (
-            <>
-              <Loader2 className="h-6 w-6 animate-spin" />
-              <p className="text-xs">{isRTL ? "جاري الرفع..." : "Uploading..."}</p>
-            </>
-          ) : (
-            <>
-              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                <ImageIcon className="h-5 w-5" />
-              </div>
-              <div className="text-center px-4">
-                <p className="text-xs font-medium">
-                  {isRTL ? "اضغط لرفع صورة" : "Click to upload an image"}
-                </p>
-                <p className="text-[11px] text-muted-foreground/70 mt-0.5">
-                  {isRTL ? "JPG, PNG, WebP · حتى 5MB" : "JPG, PNG, WebP · up to 5 MB"}
-                </p>
-              </div>
-            </>
-          )}
-        </button>
-      )}
-
-      {previewError && value && (
-        <p className="text-[11px] text-destructive">
-          {isRTL ? "تعذّر تحميل الصورة السابقة. ارفع واحدة جديدة." : "Couldn't load the previous image. Upload a new one."}
-        </p>
-      )}
-
-      {cropSrc && (
-        <ImageCropDialog
-          open={!!cropSrc}
-          onClose={() => setCropSrc(null)}
-          imageSrc={cropSrc}
-          cropShape="rect"
-          aspect={OG_ASPECT}
-          title={isRTL ? "تعديل صورة المشاركة (1200×630)" : "Edit share image (1200×630)"}
-          loading={uploading}
-          onCropComplete={onCropDone}
-        />
-      )}
-    </div>
-  );
-}
-
 // ─── Favicon uploader ─────────────────────────────────────────────────────────
 // The little square icon shown in browser tabs / bookmarks. Square (1:1),
 // small file. Writes `settings.favicon_url`; the storefront layout reads it as
@@ -786,20 +513,3 @@ function FaviconField({
   );
 }
 
-// ─── Character count bar ──────────────────────────────────────────────────────
-function CharBar({ len, max }: { len: number; max: number }) {
-  const pct = Math.min((len / max) * 100, 100);
-  return (
-    <div className="flex items-center gap-2">
-      <div className="w-16 h-1 rounded-full bg-muted overflow-hidden">
-        <div
-          className={cn("h-full rounded-full transition-all duration-200", charColor(len, max))}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className={cn("text-[11px] tabular-nums", len > max * 0.9 ? "text-red-500" : "text-muted-foreground")}>
-        {len}/{max}
-      </span>
-    </div>
-  );
-}

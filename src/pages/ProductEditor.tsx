@@ -156,6 +156,7 @@ const ProductEditor = () => {
   const [formStock, setFormStock] = useState("");
   const [formStatus, setFormStatus] = useState<ProductStatus>("draft");
   const [formCategory, setFormCategory] = useState("");
+  const [formBrand, setFormBrand] = useState("");
   const [formSeoTitle, setFormSeoTitle] = useState("");
   const [formSeoDesc, setFormSeoDesc] = useState("");
   const [formMetaCatalogId, setFormMetaCatalogId] = useState("");
@@ -246,6 +247,7 @@ const ProductEditor = () => {
         setFormStatus(p.status);
         setFormCategory(p.categoryId || "");
         setFormImages(p.images.filter(img => img !== "📦"));
+        setFormBrand(api.brand || "");
         setFormSeoTitle(api.seo_title || "");
         setFormSeoDesc(api.seo_description || "");
         setFormMetaCatalogId(api.meta_catalog_id || "");
@@ -467,8 +469,12 @@ const ProductEditor = () => {
     try {
       if (isEditMode && productId) {
         const payload = productToApiUpdate({
-          name: formName, nameAr: formNameAr,
-          description: formDesc, descriptionAr: formDescAr,
+          name: formName,
+          // Omit rather than send "" — attributes are replaced wholesale, so a
+          // blank field must not overwrite Arabic written elsewhere (CSV import).
+          nameAr: formNameAr.trim() || undefined,
+          description: formDesc,
+          descriptionAr: formDescAr.trim() || undefined,
           price: Number(formPrice),
           compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
           costPrice: formCostPrice ? Number(formCostPrice) : undefined,
@@ -481,6 +487,7 @@ const ProductEditor = () => {
           options: canonicalOptions,
           serverVariants: canonicalVariants,
           images: formImages.length > 0 ? formImages : undefined,
+          brand: formBrand.trim() || undefined,
           seoTitle: formSeoTitle || undefined,
           seoDescription: formSeoDesc || undefined,
           metaCatalogId: formMetaCatalogId || undefined,
@@ -506,8 +513,12 @@ const ProductEditor = () => {
         toast.success(t("products.productUpdated"));
       } else {
         const payload = productToApiCreate({
-          name: formName, nameAr: formNameAr,
-          description: formDesc, descriptionAr: formDescAr,
+          name: formName,
+          // Omit rather than send "" — attributes are replaced wholesale, so a
+          // blank field must not overwrite Arabic written elsewhere (CSV import).
+          nameAr: formNameAr.trim() || undefined,
+          description: formDesc,
+          descriptionAr: formDescAr.trim() || undefined,
           price: Number(formPrice),
           compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
           costPrice: formCostPrice ? Number(formCostPrice) : undefined,
@@ -521,6 +532,7 @@ const ProductEditor = () => {
           // no dirty-gating needed (there's no server state to protect).
           options: wantsOptions ? parsedAxes : undefined,
           serverVariants: wantsOptions ? mappedComboRows : undefined,
+          brand: formBrand.trim() || undefined,
           seoTitle: formSeoTitle || undefined,
           seoDescription: formSeoDesc || undefined,
           metaCatalogId: formMetaCatalogId || undefined,
@@ -554,7 +566,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formBrand, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched]);
 
   const allLabels = useMemo(
     () => [...PRESET_LABELS, ...customLabels],
@@ -667,7 +679,7 @@ const ProductEditor = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.productName")} (AR)</Label>
-              <Input value={formNameAr} onChange={e => setFormNameAr(e.target.value)} placeholder="اسم المنتج" dir="rtl" className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+              <Input value={formNameAr} onChange={e => setFormNameAr(e.target.value)} placeholder={formName.trim() || "اسم المنتج"} dir="rtl" className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -678,7 +690,7 @@ const ProductEditor = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.description")} (AR)</Label>
-              <Textarea value={formDescAr} onChange={e => setFormDescAr(e.target.value)} placeholder="وصف المنتج..." rows={4} dir="rtl" className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+              <Textarea value={formDescAr} onChange={e => setFormDescAr(e.target.value)} placeholder={formDesc.trim() || "وصف المنتج..."} rows={4} dir="rtl" className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
             </div>
           </div>
         </CardContent>
@@ -1113,6 +1125,11 @@ const ProductEditor = () => {
           <CardDescription className="text-xs">{language === "ar" ? "سيساعد هذا منتجاتك في الوصول إلى المزيد من العملاء عبر محركات البحث المختلفة والذكاء الاصطناعي." : "Help your products reach more customers through search engines and AI."}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "الماركة" : "Brand"}</Label>
+            <Input value={formBrand} onChange={(e) => setFormBrand(e.target.value)} placeholder={language === "ar" ? "الشركة المصنّعة" : "Manufacturer"} className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+            <p className="text-[11px] text-muted-foreground">{language === "ar" ? "يظهر في نتائج البحث وكتالوج الإعلانات. لو فاضي، هيتحسب باسم المتجر." : "Used in search results and your ads catalog. Left empty, your store name is assumed."}</p>
+          </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "عنوان الصفحة" : "Page Title"}</Label>
             <Input value={formSeoTitle} onChange={(e) => setFormSeoTitle(e.target.value)} placeholder={formName || (language === "ar" ? "عنوان المنتج" : "Product title")} className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
