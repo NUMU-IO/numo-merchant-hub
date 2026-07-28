@@ -285,9 +285,14 @@ export function apiToProduct(api: ApiProductResponse): Product {
   return {
     id: api.id,
     name: api.name,
-    nameAr: attrs.nameAr || api.name,
+    // Never fall back to the English value. The editor writes whatever it
+    // renders straight back on save, so `|| api.name` meant opening any
+    // product with no Arabic and saving an unrelated edit persisted English
+    // AS Arabic — the storefront then serves it as the ar-EG copy. The editor
+    // shows the English as a placeholder hint instead.
+    nameAr: attrs.nameAr || "",
     description: api.description || "",
-    descriptionAr: attrs.descriptionAr || api.description || "",
+    descriptionAr: attrs.descriptionAr || "",
     price: parsePrice(api.price),
     compareAtPrice: api.compare_at_price
       ? parsePrice(api.compare_at_price)

@@ -467,8 +467,12 @@ const ProductEditor = () => {
     try {
       if (isEditMode && productId) {
         const payload = productToApiUpdate({
-          name: formName, nameAr: formNameAr,
-          description: formDesc, descriptionAr: formDescAr,
+          name: formName,
+          // Omit rather than send "" — attributes are replaced wholesale, so a
+          // blank field must not overwrite Arabic written elsewhere (CSV import).
+          nameAr: formNameAr.trim() || undefined,
+          description: formDesc,
+          descriptionAr: formDescAr.trim() || undefined,
           price: Number(formPrice),
           compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
           costPrice: formCostPrice ? Number(formCostPrice) : undefined,
@@ -506,8 +510,12 @@ const ProductEditor = () => {
         toast.success(t("products.productUpdated"));
       } else {
         const payload = productToApiCreate({
-          name: formName, nameAr: formNameAr,
-          description: formDesc, descriptionAr: formDescAr,
+          name: formName,
+          // Omit rather than send "" — attributes are replaced wholesale, so a
+          // blank field must not overwrite Arabic written elsewhere (CSV import).
+          nameAr: formNameAr.trim() || undefined,
+          description: formDesc,
+          descriptionAr: formDescAr.trim() || undefined,
           price: Number(formPrice),
           compareAtPrice: formComparePrice ? Number(formComparePrice) : undefined,
           costPrice: formCostPrice ? Number(formCostPrice) : undefined,
@@ -667,7 +675,7 @@ const ProductEditor = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.productName")} (AR)</Label>
-              <Input value={formNameAr} onChange={e => setFormNameAr(e.target.value)} placeholder="اسم المنتج" dir="rtl" className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+              <Input value={formNameAr} onChange={e => setFormNameAr(e.target.value)} placeholder={formName.trim() || "اسم المنتج"} dir="rtl" className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -678,7 +686,7 @@ const ProductEditor = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.description")} (AR)</Label>
-              <Textarea value={formDescAr} onChange={e => setFormDescAr(e.target.value)} placeholder="وصف المنتج..." rows={4} dir="rtl" className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+              <Textarea value={formDescAr} onChange={e => setFormDescAr(e.target.value)} placeholder={formDesc.trim() || "وصف المنتج..."} rows={4} dir="rtl" className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
             </div>
           </div>
         </CardContent>
