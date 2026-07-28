@@ -156,6 +156,7 @@ const ProductEditor = () => {
   const [formStock, setFormStock] = useState("");
   const [formStatus, setFormStatus] = useState<ProductStatus>("draft");
   const [formCategory, setFormCategory] = useState("");
+  const [formBrand, setFormBrand] = useState("");
   const [formSeoTitle, setFormSeoTitle] = useState("");
   const [formSeoDesc, setFormSeoDesc] = useState("");
   const [formMetaCatalogId, setFormMetaCatalogId] = useState("");
@@ -246,6 +247,7 @@ const ProductEditor = () => {
         setFormStatus(p.status);
         setFormCategory(p.categoryId || "");
         setFormImages(p.images.filter(img => img !== "📦"));
+        setFormBrand(api.brand || "");
         setFormSeoTitle(api.seo_title || "");
         setFormSeoDesc(api.seo_description || "");
         setFormMetaCatalogId(api.meta_catalog_id || "");
@@ -485,6 +487,7 @@ const ProductEditor = () => {
           options: canonicalOptions,
           serverVariants: canonicalVariants,
           images: formImages.length > 0 ? formImages : undefined,
+          brand: formBrand.trim() || undefined,
           seoTitle: formSeoTitle || undefined,
           seoDescription: formSeoDesc || undefined,
           metaCatalogId: formMetaCatalogId || undefined,
@@ -529,6 +532,7 @@ const ProductEditor = () => {
           // no dirty-gating needed (there's no server state to protect).
           options: wantsOptions ? parsedAxes : undefined,
           serverVariants: wantsOptions ? mappedComboRows : undefined,
+          brand: formBrand.trim() || undefined,
           seoTitle: formSeoTitle || undefined,
           seoDescription: formSeoDesc || undefined,
           metaCatalogId: formMetaCatalogId || undefined,
@@ -562,7 +566,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formBrand, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched]);
 
   const allLabels = useMemo(
     () => [...PRESET_LABELS, ...customLabels],
@@ -1121,6 +1125,11 @@ const ProductEditor = () => {
           <CardDescription className="text-xs">{language === "ar" ? "سيساعد هذا منتجاتك في الوصول إلى المزيد من العملاء عبر محركات البحث المختلفة والذكاء الاصطناعي." : "Help your products reach more customers through search engines and AI."}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "الماركة" : "Brand"}</Label>
+            <Input value={formBrand} onChange={(e) => setFormBrand(e.target.value)} placeholder={language === "ar" ? "الشركة المصنّعة" : "Manufacturer"} className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+            <p className="text-[11px] text-muted-foreground">{language === "ar" ? "يظهر في نتائج البحث وكتالوج الإعلانات. لو فاضي، هيتحسب باسم المتجر." : "Used in search results and your ads catalog. Left empty, your store name is assumed."}</p>
+          </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "عنوان الصفحة" : "Page Title"}</Label>
             <Input value={formSeoTitle} onChange={(e) => setFormSeoTitle(e.target.value)} placeholder={formName || (language === "ar" ? "عنوان المنتج" : "Product title")} className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
