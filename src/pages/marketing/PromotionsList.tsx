@@ -205,6 +205,14 @@ export default function PromotionsList() {
         return t("promotions.list.discount_bogo") as string;
       case "tiered":
         return t("promotions.list.discount_tiered") as string;
+      case "multibuy":
+        // The value IS the offer here ("3 for EGP 650"), so show it rather
+        // than a generic kind label — this column is how a merchant spots
+        // the right promotion in a long list.
+        return t("promotions.list.discount_multibuy", {
+          quantity: rule.multibuy_quantity ?? 0,
+          price: ((rule.multibuy_price_cents ?? 0) / 100).toLocaleString(),
+        }) as string;
       default:
         return t("promotions.list.discount_none") as string;
     }

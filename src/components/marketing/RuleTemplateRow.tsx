@@ -31,6 +31,8 @@ export interface RuleTemplate {
   valuePercent?: string;
   valueCents?: string;
   tiers?: { threshold_cents: string; percent: string }[];
+  multibuyQuantity?: string;
+  multibuyPriceCents?: string;
 }
 
 export const RULE_TEMPLATES: RuleTemplate[] = [
@@ -54,6 +56,20 @@ export const RULE_TEMPLATES: RuleTemplate[] = [
     buyQuantity: "2",
     getQuantity: "1",
     getDiscountPercent: "50",
+  },
+  {
+    // The "Ultimate Trio" shape: a fixed price for a group, repeating per
+    // group. Cents, so 65000 = EGP 650 for the whole trio.
+    id: "multibuy_3_for_650",
+    ruleKind: "multibuy",
+    multibuyQuantity: "3",
+    multibuyPriceCents: "65000",
+  },
+  {
+    id: "multibuy_2_for_500",
+    ruleKind: "multibuy",
+    multibuyQuantity: "2",
+    multibuyPriceCents: "50000",
   },
   {
     id: "spend_1000_off_10",

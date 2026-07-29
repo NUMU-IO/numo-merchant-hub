@@ -123,17 +123,26 @@ interface FormState {
   buyQuantity: string;
   getQuantity: string;
   getDiscountPercent: string;
-  // BOGO targeting (Phase B) — "Customer buys" + "Customer gets" sets.
-  // The mode picks how the set is defined; product/category IDs only
-  // matter for the corresponding mode. v1 supports a single product
-  // OR a single category per role (covers >90% of BOGO campaigns);
-  // multi-select is a follow-up.
+  // BOGO targeting — "Customer buys" + "Customer gets" sets. The mode picks
+  // how the set is defined; only the matching id list is sent. Multi-select:
+  // the engine unions every id across a role's targets, so several products
+  // or several categories per role all work.
   bogoBuyMode: BogoSetMode;
-  bogoBuyProductId: string;
-  bogoBuyCategoryId: string;
+  bogoBuyProductIds: string[];
+  bogoBuyCategoryIds: string[];
   bogoGetMode: BogoSetMode;
-  bogoGetProductId: string;
-  bogoGetCategoryId: string;
+  bogoGetProductIds: string[];
+  bogoGetCategoryIds: string[];
+  // MULTIBUY fields — "any N eligible items for a fixed total P".
+  // `multibuyPriceCents` is the price of the WHOLE group, not per item.
+  multibuyQuantity: string;
+  multibuyPriceCents: string;
+  // Which products/categories can form a group. Reuses the BOGO set picker,
+  // but multibuy has only one set (there's no separate give-away side), sent
+  // with role "buy_set". Mode "any" = the whole catalogue is eligible.
+  multibuyEligibleMode: BogoSetMode;
+  multibuyEligibleProductIds: string[];
+  multibuyEligibleCategoryIds: string[];
   // TIERED fields — at least one row required when ruleKind === "tiered".
   tiers: TierFormRow[];
   // Per-promotion usage caps (Phase B). Strings so a blank input
@@ -160,11 +169,16 @@ const EMPTY_FORM: FormState = {
   getQuantity: "",
   getDiscountPercent: "100",
   bogoBuyMode: "any",
-  bogoBuyProductId: "",
-  bogoBuyCategoryId: "",
+  bogoBuyProductIds: [],
+  bogoBuyCategoryIds: [],
   bogoGetMode: "any",
-  bogoGetProductId: "",
-  bogoGetCategoryId: "",
+  bogoGetProductIds: [],
+  bogoGetCategoryIds: [],
+  multibuyQuantity: "",
+  multibuyPriceCents: "",
+  multibuyEligibleMode: "any",
+  multibuyEligibleProductIds: [],
+  multibuyEligibleCategoryIds: [],
   tiers: [{ threshold_cents: "", percent: "" }],
   usageLimitTotal: "",
   usageLimitPerCustomer: "",
@@ -248,32 +262,28 @@ export default function PromotionForm() {
     const arLabel = promo.translations?.ar?.label?.ar ?? "";
     const savedTiers = promo.discount_rule?.tiers ?? [];
     // Decompose role-tagged BOGO targets back into the form shape.
-    // We only support a single product/category per role in the v1
-    // UI, so we read the first ID we find for each role.
+    // Every id per role — the picker is multi-select, and the engine unions
+    // all ids in a role's target when it builds the line filter.
     const buyTarget = promo.targets.find((t) => t.role === "buy_set");
     const getTarget = promo.targets.find((t) => t.role === "get_set");
+    // Read EVERY id, not just the first. Reading `ids[0]` meant a promotion
+    // scoped to several categories (only creatable via the API before the
+    // picker went multi-select) silently lost all but one the next time a
+    // merchant pressed Save here — the offer's reach quietly shrank.
     const decomposeBogoTarget = (
       target: typeof buyTarget,
-    ): { mode: BogoSetMode; productId: string; categoryId: string } => {
-      if (!target) return { mode: "any", productId: "", categoryId: "" };
+    ): { mode: BogoSetMode; productIds: string[]; categoryIds: string[] } => {
+      if (!target) return { mode: "any", productIds: [], categoryIds: [] };
       if (target.target_kind === "product") {
         const ids = (target.target_value as { product_ids?: string[] }).product_ids;
-        return {
-          mode: "product",
-          productId: ids?.[0] ?? "",
-          categoryId: "",
-        };
+        return { mode: "product", productIds: ids ?? [], categoryIds: [] };
       }
       if (target.target_kind === "category") {
         const ids = (target.target_value as { category_ids?: string[] })
           .category_ids;
-        return {
-          mode: "category",
-          productId: "",
-          categoryId: ids?.[0] ?? "",
-        };
+        return { mode: "category", productIds: [], categoryIds: ids ?? [] };
       }
-      return { mode: "any", productId: "", categoryId: "" };
+      return { mode: "any", productIds: [], categoryIds: [] };
     };
     const buyHydrated = decomposeBogoTarget(buyTarget);
     const getHydrated = decomposeBogoTarget(getTarget);
@@ -290,11 +300,19 @@ export default function PromotionForm() {
       getDiscountPercent:
         promo.discount_rule?.get_discount_percent?.toString() ?? "100",
       bogoBuyMode: buyHydrated.mode,
-      bogoBuyProductId: buyHydrated.productId,
-      bogoBuyCategoryId: buyHydrated.categoryId,
+      bogoBuyProductIds: buyHydrated.productIds,
+      bogoBuyCategoryIds: buyHydrated.categoryIds,
       bogoGetMode: getHydrated.mode,
-      bogoGetProductId: getHydrated.productId,
-      bogoGetCategoryId: getHydrated.categoryId,
+      bogoGetProductIds: getHydrated.productIds,
+      bogoGetCategoryIds: getHydrated.categoryIds,
+      multibuyQuantity: promo.discount_rule?.multibuy_quantity?.toString() ?? "",
+      multibuyPriceCents:
+        promo.discount_rule?.multibuy_price_cents?.toString() ?? "",
+      // Multibuy scopes with the same `buy_set` role BOGO uses, so the saved
+      // target decomposes identically — reuse the hydrated buy set.
+      multibuyEligibleMode: buyHydrated.mode,
+      multibuyEligibleProductIds: buyHydrated.productIds,
+      multibuyEligibleCategoryIds: buyHydrated.categoryIds,
       tiers:
         savedTiers.length > 0
           ? savedTiers.map((t) => ({
@@ -423,6 +441,12 @@ export default function PromotionForm() {
       rule.buy_quantity = Number(form.buyQuantity) || 1;
       rule.get_quantity = Number(form.getQuantity) || 1;
       rule.get_discount_percent = Number(form.getDiscountPercent || "100");
+    } else if (form.ruleKind === "multibuy") {
+      // Both are required by the domain validator (N >= 2, P > 0); the form
+      // validator blocks bad values before we get here, but parse defensively
+      // so a stale state can't ship a rule the API will reject.
+      rule.multibuy_quantity = Number(form.multibuyQuantity) || 0;
+      rule.multibuy_price_cents = Number(form.multibuyPriceCents) || 0;
     } else if (form.ruleKind === "tiered") {
       rule.tiers = form.tiers
         .map((row) => ({
@@ -448,40 +472,57 @@ export default function PromotionForm() {
         inclusion: true,
       });
     }
-    // BOGO buy/get-set targets (Phase B). Only emitted for the bogo
-    // rule kind — other kinds ignore them. v1 ships single-product /
-    // single-category per role; multi-select is a follow-up.
+    // One target row per role, carrying EVERY selected id — the engine unions
+    // them when it builds the line filter.
+    const pushSet = (
+      mode: BogoSetMode,
+      productIds: string[],
+      categoryIds: string[],
+      role: "buy_set" | "get_set",
+    ) => {
+      if (mode === "product" && productIds.length > 0) {
+        targets!.push({
+          target_kind: "product",
+          target_value: { product_ids: productIds },
+          inclusion: true,
+          role,
+        });
+      } else if (mode === "category" && categoryIds.length > 0) {
+        targets!.push({
+          target_kind: "category",
+          target_value: { category_ids: categoryIds },
+          inclusion: true,
+          role,
+        });
+      }
+    };
+
     if (form.ruleKind === "bogo") {
-      if (form.bogoBuyMode === "product" && form.bogoBuyProductId) {
-        targets!.push({
-          target_kind: "product",
-          target_value: { product_ids: [form.bogoBuyProductId] },
-          inclusion: true,
-          role: "buy_set",
-        });
-      } else if (form.bogoBuyMode === "category" && form.bogoBuyCategoryId) {
-        targets!.push({
-          target_kind: "category",
-          target_value: { category_ids: [form.bogoBuyCategoryId] },
-          inclusion: true,
-          role: "buy_set",
-        });
-      }
-      if (form.bogoGetMode === "product" && form.bogoGetProductId) {
-        targets!.push({
-          target_kind: "product",
-          target_value: { product_ids: [form.bogoGetProductId] },
-          inclusion: true,
-          role: "get_set",
-        });
-      } else if (form.bogoGetMode === "category" && form.bogoGetCategoryId) {
-        targets!.push({
-          target_kind: "category",
-          target_value: { category_ids: [form.bogoGetCategoryId] },
-          inclusion: true,
-          role: "get_set",
-        });
-      }
+      pushSet(
+        form.bogoBuyMode,
+        form.bogoBuyProductIds,
+        form.bogoBuyCategoryIds,
+        "buy_set",
+      );
+      pushSet(
+        form.bogoGetMode,
+        form.bogoGetProductIds,
+        form.bogoGetCategoryIds,
+        "get_set",
+      );
+    }
+    // Multibuy's eligible set. One set only — there's no give-away side —
+    // and it MUST carry role "buy_set": an untagged catalog target is an
+    // eligibility GATE, which would let the offer apply to the whole cart
+    // whenever one eligible item is present. Mode "any" emits nothing, which
+    // the engine reads as "every product qualifies".
+    if (form.ruleKind === "multibuy") {
+      pushSet(
+        form.multibuyEligibleMode,
+        form.multibuyEligibleProductIds,
+        form.multibuyEligibleCategoryIds,
+        "buy_set",
+      );
     }
     return targets;
   };
@@ -498,6 +539,8 @@ export default function PromotionForm() {
       getDiscountPercent: tpl.getDiscountPercent ?? "100",
       valuePercent: tpl.valuePercent ?? "",
       valueCents: tpl.valueCents ?? "",
+      multibuyQuantity: tpl.multibuyQuantity ?? "",
+      multibuyPriceCents: tpl.multibuyPriceCents ?? "",
       tiers:
         tpl.tiers && tpl.tiers.length > 0
           ? tpl.tiers
@@ -545,6 +588,20 @@ export default function PromotionForm() {
         const pct = Number(form.getDiscountPercent);
         if (Number.isNaN(pct) || pct < 0 || pct > 100)
           return t("promotions.errors.get_discount_percent_range") as string;
+      }
+      if (form.ruleKind === "multibuy") {
+        const n = Number(form.multibuyQuantity);
+        const p = Number(form.multibuyPriceCents);
+        // N >= 2: a group of one is a per-unit price, not a bundle — and the
+        // API's domain validator rejects it, so catch it here with a message
+        // the merchant can act on. Integer check included because the API
+        // takes `int`, so a pasted "3.5" 422s server-side with a raw pydantic
+        // message ("Input should be a valid integer") after the preview has
+        // already quoted the merchant a discount for it.
+        if (!n || n < 2 || !Number.isInteger(n))
+          return t("promotions.errors.multibuy_quantity_required") as string;
+        if (!p || p <= 0 || !Number.isInteger(p))
+          return t("promotions.errors.multibuy_price_required") as string;
       }
       if (form.ruleKind === "tiered") {
         const realRows = form.tiers.filter(
@@ -710,7 +767,7 @@ export default function PromotionForm() {
   // (the legacy `Coupon.calculate_discount` only handles the simple
   // three, but it's bypassed when the linked promotion has a rule).
   const ruleKindOptions = useMemo<DiscountRuleKind[]>(
-    () => ["percentage", "fixed", "free_shipping", "bogo", "tiered"],
+    () => ["percentage", "fixed", "free_shipping", "bogo", "tiered", "multibuy"],
     [],
   );
 
@@ -922,6 +979,50 @@ export default function PromotionForm() {
               </p>
             </div>
           )}
+          {form.ruleKind === "multibuy" && (
+            <div className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="rule-multibuy-qty">
+                    {t("promotions.form.multibuy_quantity")}
+                  </Label>
+                  <Input
+                    id="rule-multibuy-qty"
+                    type="number"
+                    min={2}
+                    step={1}
+                    value={form.multibuyQuantity}
+                    onChange={(e) =>
+                      updateField("multibuyQuantity", e.target.value)
+                    }
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="rule-multibuy-price">
+                    {t("promotions.form.multibuy_price")}
+                  </Label>
+                  <Input
+                    id="rule-multibuy-price"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={form.multibuyPriceCents}
+                    onChange={(e) =>
+                      updateField("multibuyPriceCents", e.target.value)
+                    }
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("promotions.form.cents_help")}
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("promotions.form.multibuy_help")}
+              </p>
+            </div>
+          )}
           {form.ruleKind === "tiered" && (
             <div className="space-y-3">
               <Label>{t("promotions.form.tiered_label")}</Label>
@@ -1058,12 +1159,12 @@ export default function PromotionForm() {
                 storeId={storeId}
                 side="buy"
                 mode={form.bogoBuyMode}
-                productId={form.bogoBuyProductId}
-                categoryId={form.bogoBuyCategoryId}
+                productIds={form.bogoBuyProductIds}
+                categoryIds={form.bogoBuyCategoryIds}
                 onChange={(next) => {
                   updateField("bogoBuyMode", next.mode);
-                  updateField("bogoBuyProductId", next.productId);
-                  updateField("bogoBuyCategoryId", next.categoryId);
+                  updateField("bogoBuyProductIds", next.productIds);
+                  updateField("bogoBuyCategoryIds", next.categoryIds);
                 }}
               />
             </div>
@@ -1075,14 +1176,49 @@ export default function PromotionForm() {
                 storeId={storeId}
                 side="get"
                 mode={form.bogoGetMode}
-                productId={form.bogoGetProductId}
-                categoryId={form.bogoGetCategoryId}
+                productIds={form.bogoGetProductIds}
+                categoryIds={form.bogoGetCategoryIds}
                 onChange={(next) => {
                   updateField("bogoGetMode", next.mode);
-                  updateField("bogoGetProductId", next.productId);
-                  updateField("bogoGetCategoryId", next.categoryId);
+                  updateField("bogoGetProductIds", next.productIds);
+                  updateField("bogoGetCategoryIds", next.categoryIds);
                 }}
               />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {showDiscountSection && form.ruleKind === "multibuy" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {t("promotions.form.multibuy_targeting_title")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <Label className="text-base">
+                {t("promotions.form.multibuy_eligible_set")}
+              </Label>
+              {/* Same picker as BOGO's buy side — the target is emitted with
+                  role "buy_set", which the engine reads as multibuy's
+                  eligible set. */}
+              <BogoSetPicker
+                storeId={storeId}
+                side="eligible"
+                mode={form.multibuyEligibleMode}
+                productIds={form.multibuyEligibleProductIds}
+                categoryIds={form.multibuyEligibleCategoryIds}
+                onChange={(next) => {
+                  updateField("multibuyEligibleMode", next.mode);
+                  updateField("multibuyEligibleProductIds", next.productIds);
+                  updateField("multibuyEligibleCategoryIds", next.categoryIds);
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("promotions.form.multibuy_eligible_help")}
+              </p>
             </div>
           </CardContent>
         </Card>

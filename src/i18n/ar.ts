@@ -627,6 +627,7 @@
       discount_free_shipping: "شحن مجاني",
       discount_bogo: "اشترِ X واحصل على Y",
       discount_tiered: "متدرّج",
+      discount_multibuy: "{{quantity}} قطع بـ {{price}} ج.م",
       discount_none: "—",
       empty_title: "لسه مفيش خصومات",
       empty_body: "أنشئ أول خصم ليك علشان تبدأ تشغّل عروض في متجرك.",
@@ -695,6 +696,7 @@
         free_shipping: "شحن مجاني",
         bogo: "اشتري X واحصل على Y",
         tiered: "خصم متدرج (اشتري أكتر، وفّر أكتر)",
+        multibuy: "سعر الباقة (أي عدد N بسعر ثابت)",
       },
       percent_label: "النسبة (1-100)",
       fixed_label: "المبلغ (بالقروش)",
@@ -708,6 +710,15 @@
       bogo_get_set: "العميل يحصل (الخصم)",
       bogo_buy_any_hint: "أي منتج في السلة يحتسب للوصول لعتبة الشراء.",
       bogo_get_any_hint: "الخصم بيتطبّق على أرخص الوحدات في السلة.",
+      multibuy_quantity: "عدد القطع في الباقة",
+      multibuy_price: "سعر الباقة (بالقروش)",
+      multibuy_help:
+        "مثال: 3 قطع بـ 65000 قرش = \"3 قطع بـ 650 ج.م\". الباقة بتتكرر — 6 قطع مؤهلة بتتحسب باقتين. أغلى 3 قطع مؤهلة هي اللي بتكوّن كل باقة، فالعميل دايمًا بياخد أكبر توفير. ولو الباقة هتطلع أغلى من السعر العادي، العرض ببساطة مش هيتطبّق.",
+      multibuy_targeting_title: "المنتجات المؤهلة للعرض",
+      multibuy_eligible_set: "المنتجات أو التصنيف المؤهل",
+      multibuy_any_hint: "كل منتجات المتجر بتتحسب في الباقة.",
+      multibuy_eligible_help:
+        "سيبها \"أي منتج\" علشان العرض يشتغل على المتجر كله. اختار تصنيف علشان تحدّده — مثلًا عرض \"3 بـ 650\" على الإيشاربات بس.",
       usage_limits_title: "حدود الاستخدام",
       usage_limit_total: "إجمالي مرات الاستخدام (لكل العملاء)",
       usage_limit_per_customer: "مرات الاستخدام لكل عميل",
@@ -718,12 +729,37 @@
         bogo_2_1_free: "اشتري 2 خد 1 مجاني",
         bogo_3_1_free: "اشتري 3 خد 1 مجاني",
         bogo_2_1_half: "اشتري 2 خد 1 بنصف السعر",
+        multibuy_3_for_650: "3 قطع بـ 650 ج.م",
+        multibuy_2_for_500: "قطعتين بـ 500 ج.م",
         spend_1000_off_10: "اصرف 1,000 ج.م → خصم 10%",
         spend_2000_off_20: "اصرف 2,000 ج.م → خصم 20%",
         tiered_3_step: "3 شرائح (5/10/15% خصم)",
       },
       preview_title: "معاينة مباشرة",
-      preview_sample_label: "سلة تجريبية من 4 منتجات",
+      // نسخ مترجمة من شرح المحرك نفسه. المفاتيح جاية من
+      // `previewDiscount().explanation_key`.
+      preview_explain: {
+        below_minimum: "إجمالي السلة أقل من الحد الأدنى ({{cents}} قرش).",
+        free_shipping: "شحن مجاني",
+        percent_off: "خصم {{percent}}%",
+        fixed_off: "خصم {{cents}} قرش",
+        bogo_not_configured: "اكتب كمية الشراء وكمية الهدية.",
+        bogo_not_met: "سلة المعاينة مش واصلة لكمية الشراء المطلوبة.",
+        bogo_applied:
+          "اشتري {{buy}} وخد {{get}} بخصم {{percent}}% — {{bundles}} باقة",
+        multibuy_not_configured: "اكتب عدد القطع وسعر الباقة.",
+        multibuy_needs:
+          "محتاج {{quantity}} قطع مؤهلة — سلة المعاينة فيها {{have}}.",
+        multibuy_not_below:
+          "مفيش خصم: {{quantity}} قطع بالأسعار دي أصلًا أرخص من سعر الباقة. الباقة بتشتغل بس على القطع اللي سعرها أعلى من {{breakEven}} ج.م للقطعة.",
+        multibuy_applied: "{{quantity}} قطع بـ {{cents}} قرش — {{groups}} باقة",
+        tiered_none: "سلة المعاينة مش واصلة لأي شريحة.",
+        tiered_applied: "خصم {{percent}}% (شريحة {{cents}} قرش فأكتر)",
+        unknown: "نوع خصم غير معروف.",
+      },
+      preview_break_even:
+        "بيتطبّق على القطع اللي سعرها أعلى من {{price}} ج.م للقطعة — أرخص من كده هتبقى أوفر من غير الباقة.",
+      preview_sample_label: "سلة تجريبية من {{count}} منتجات",
       preview_subtotal: "الإجمالي",
       preview_discount: "الخصم",
       preview_free_shipping: "شحن مجاني",
@@ -783,6 +819,9 @@
       get_discount_percent_range: "نسبة الخصم على الـ get لازم تكون من 0 لـ 100.",
       tiers_required: "أضف شريحة واحدة على الأقل بقيمة عتبة ونسبة.",
       tiers_percent_range: "نسبة كل شريحة لازم تكون من 0 لـ 100.",
+      multibuy_quantity_required:
+        "الباقة لازم تكون قطعتين على الأقل — لو عايز سعر لقطعة واحدة استخدم خصم ثابت أو نسبة.",
+      multibuy_price_required: "اكتب سعر الباقة الإجمالي بالقروش.",
       end_before_start: "تاريخ النهاية لازم يكون بعد تاريخ البداية.",
     },
     visual: {
