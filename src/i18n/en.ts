@@ -627,6 +627,7 @@ export default {
       discount_free_shipping: "Free shipping",
       discount_bogo: "Buy X get Y",
       discount_tiered: "Tiered",
+      discount_multibuy: "{{quantity}} for EGP {{price}}",
       discount_none: "—",
       empty_title: "No discounts yet",
       empty_body: "Create your first discount to start running offers in your store.",
@@ -695,6 +696,7 @@ export default {
         free_shipping: "Free shipping",
         bogo: "Buy X get Y",
         tiered: "Tiered (spend more, save more)",
+        multibuy: "Bundle price (any N for a fixed price)",
       },
       percent_label: "Percent off (1-100)",
       fixed_label: "Amount off (in cents)",
@@ -708,6 +710,16 @@ export default {
       bogo_get_set: "Customer gets (the discount)",
       bogo_buy_any_hint: "Any product in the cart counts toward the buy threshold.",
       bogo_get_any_hint: "The discount is applied to the cheapest unit(s) in the cart.",
+      multibuy_quantity: "Items per bundle",
+      multibuy_price: "Bundle price (in cents)",
+      multibuy_help:
+        "Example: 3 items for 65000 cents = \"3 for EGP 650\". The bundle repeats — 6 eligible items are charged as two bundles. The 3 most expensive eligible items form each bundle, so the customer always gets the biggest saving. If a bundle would cost more than the regular price, it simply doesn't apply.",
+      multibuy_targeting_title: "Which items qualify",
+      multibuy_eligible_set: "Eligible products or collection",
+      multibuy_any_hint:
+        "Every product in the store counts toward the bundle.",
+      multibuy_eligible_help:
+        "Leave as \"Any product\" to run the bundle across the whole store. Pick a collection to limit it — e.g. a \"3 for EGP 650\" offer on scarves only.",
       usage_limits_title: "Usage limits",
       usage_limit_total: "Total uses (across all customers)",
       usage_limit_per_customer: "Uses per customer",
@@ -718,12 +730,40 @@ export default {
         bogo_2_1_free: "Buy 2 Get 1 Free",
         bogo_3_1_free: "Buy 3 Get 1 Free",
         bogo_2_1_half: "Buy 2 Get 1 50% Off",
+        multibuy_3_for_650: "3 for EGP 650",
+        multibuy_2_for_500: "2 for EGP 500",
         spend_1000_off_10: "Spend EGP 1,000 → 10% off",
         spend_2000_off_20: "Spend EGP 2,000 → 20% off",
         tiered_3_step: "3 tier (5/10/15% off)",
       },
       preview_title: "Live preview",
-      preview_sample_label: "sample 4-item cart",
+      // Localized mirrors of the engine's own rule explanations. Keys come
+      // from `previewDiscount().explanation_key`; the English sentence the
+      // Python rule returns is the fallback.
+      preview_explain: {
+        below_minimum: "Cart subtotal is below the {{cents}}-cent minimum.",
+        free_shipping: "Free shipping",
+        percent_off: "{{percent}}% off",
+        fixed_off: "{{cents}} cents off",
+        bogo_not_configured: "Enter the buy and get quantities.",
+        bogo_not_met: "The sample cart doesn't reach the buy quantity.",
+        bogo_applied:
+          "Buy {{buy}}, get {{get}} at {{percent}}% off — {{bundles}} bundle(s)",
+        multibuy_not_configured: "Enter the bundle size and price.",
+        multibuy_needs:
+          "Needs {{quantity}} eligible items — the sample cart has {{have}}.",
+        multibuy_not_below:
+          "No discount: {{quantity}} items at these prices already cost less than the bundle price. The bundle only applies to items above EGP {{breakEven}} each.",
+        multibuy_applied:
+          "{{quantity}} for {{cents}} cents — {{groups}} bundle(s)",
+        tiered_none: "The sample cart doesn't reach any tier threshold.",
+        tiered_applied:
+          "{{percent}}% off (tier at {{cents}} cents and above)",
+        unknown: "Unrecognised discount type.",
+      },
+      preview_break_even:
+        "Applies to items priced above EGP {{price}} each — cheaper items would already beat the bundle.",
+      preview_sample_label: "sample {{count}}-item cart",
       preview_subtotal: "Subtotal",
       preview_discount: "Discount",
       preview_free_shipping: "Free shipping",
@@ -783,6 +823,9 @@ export default {
       get_discount_percent_range: "Discount on the get items must be between 0 and 100.",
       tiers_required: "Add at least one tier with a threshold and a percentage.",
       tiers_percent_range: "Each tier's percentage must be between 0 and 100.",
+      multibuy_quantity_required:
+        "A bundle needs at least 2 items — for a single-item price, use a fixed or percentage discount instead.",
+      multibuy_price_required: "Enter the bundle's total price in cents.",
       end_before_start: "End date must be after the start date.",
     },
     visual: {
