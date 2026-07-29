@@ -55,7 +55,8 @@ export type DiscountRuleKind =
   | "fixed"
   | "free_shipping"
   | "bogo"
-  | "tiered";
+  | "tiered"
+  | "multibuy";
 
 // --------------------------------------------------------------------------
 // Value-object shapes
@@ -76,6 +77,15 @@ export interface DiscountRule {
   get_quantity?: number | null;
   get_discount_percent?: number | null;
   tiers?: DiscountTier[];
+  /**
+   * MULTIBUY — "any N eligible items for a fixed total of P".
+   * `multibuy_quantity` is N (>= 2); `multibuy_price_cents` is P, the whole
+   * group's price in cents (65000 = "3 for EGP 650", not 650 each).
+   * Scope it with a `role: "buy_set"` target; without one the offer applies
+   * to the entire catalogue.
+   */
+  multibuy_quantity?: number | null;
+  multibuy_price_cents?: number | null;
 }
 
 /**
