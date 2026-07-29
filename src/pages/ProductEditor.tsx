@@ -158,6 +158,9 @@ const ProductEditor = () => {
   const [formCategory, setFormCategory] = useState("");
   const [formBrand, setFormBrand] = useState("");
   const [formSeoTitle, setFormSeoTitle] = useState("");
+  const [formNoindex, setFormNoindex] = useState(false);
+  const [formCanonical, setFormCanonical] = useState("");
+  const [formSitemapExclude, setFormSitemapExclude] = useState(false);
   const [formSeoDesc, setFormSeoDesc] = useState("");
   const [formMetaCatalogId, setFormMetaCatalogId] = useState("");
   const [formSlug, setFormSlug] = useState("");
@@ -249,6 +252,9 @@ const ProductEditor = () => {
         setFormImages(p.images.filter(img => img !== "📦"));
         setFormBrand(api.brand || "");
         setFormSeoTitle(api.seo_title || "");
+        setFormNoindex(Boolean(api.robots_noindex));
+        setFormCanonical(api.canonical_url || "");
+        setFormSitemapExclude(Boolean(api.sitemap_exclude));
         setFormSeoDesc(api.seo_description || "");
         setFormMetaCatalogId(api.meta_catalog_id || "");
         setFormSlug(api.slug || "");
@@ -489,6 +495,9 @@ const ProductEditor = () => {
           images: formImages.length > 0 ? formImages : undefined,
           brand: formBrand.trim() || undefined,
           seoTitle: formSeoTitle || undefined,
+          robotsNoindex: formNoindex,
+          canonicalUrl: formCanonical.trim() || undefined,
+          sitemapExclude: formSitemapExclude,
           seoDescription: formSeoDesc || undefined,
           metaCatalogId: formMetaCatalogId || undefined,
           slug: formSlug || undefined,
@@ -534,6 +543,9 @@ const ProductEditor = () => {
           serverVariants: wantsOptions ? mappedComboRows : undefined,
           brand: formBrand.trim() || undefined,
           seoTitle: formSeoTitle || undefined,
+          robotsNoindex: formNoindex,
+          canonicalUrl: formCanonical.trim() || undefined,
+          sitemapExclude: formSitemapExclude,
           seoDescription: formSeoDesc || undefined,
           metaCatalogId: formMetaCatalogId || undefined,
           slug: formSlug || undefined,
@@ -566,7 +578,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formBrand, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formBrand, formSeoTitle, formSeoDesc, formNoindex, formCanonical, formSitemapExclude, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched]);
 
   const allLabels = useMemo(
     () => [...PRESET_LABELS, ...customLabels],
@@ -1137,6 +1149,25 @@ const ProductEditor = () => {
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "وصف الصفحة" : "Meta Description"}</Label>
             <Textarea value={formSeoDesc} onChange={(e) => setFormSeoDesc(e.target.value)} placeholder={language === "ar" ? "وصف قصير يظهر في نتائج البحث" : "Short description for search results"} rows={2} className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+          </div>
+          <div className="space-y-1.5 pt-1">
+            <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "الرابط الأساسي (Canonical)" : "Canonical URL"}</Label>
+            <Input value={formCanonical} onChange={(e) => setFormCanonical(e.target.value)} placeholder="https://…" dir="ltr" className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+            <p className="text-[11px] text-muted-foreground">{language === "ar" ? "سيبها فاضية غير لو الصفحة دي نسخة من صفحة تانية." : "Leave empty unless this page duplicates another one."}</p>
+          </div>
+          <div className="flex items-center justify-between gap-4 pt-1">
+            <div>
+              <p className="text-xs font-medium">{language === "ar" ? "إخفاء من نتائج البحث" : "Hide from search results"}</p>
+              <p className="text-[11px] text-muted-foreground">{language === "ar" ? "الصفحة هتفضل شغالة، بس مش هتظهر في جوجل." : "The page still works — it just won't appear in Google."}</p>
+            </div>
+            <Switch checked={formNoindex} onCheckedChange={setFormNoindex} />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium">{language === "ar" ? "استبعاد من خريطة الموقع" : "Leave out of sitemap"}</p>
+              <p className="text-[11px] text-muted-foreground">{language === "ar" ? "بيحصل تلقائيًا لو أخفيت الصفحة من نتائج البحث." : "Happens automatically when the page is hidden from search."}</p>
+            </div>
+            <Switch checked={formSitemapExclude || formNoindex} disabled={formNoindex} onCheckedChange={setFormSitemapExclude} />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "رابط المنتج" : "URL Slug"}</Label>

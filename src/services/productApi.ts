@@ -120,6 +120,9 @@ export interface CreateProductData {
   tags?: string[];
   attributes?: Record<string, unknown>;
   brand?: string;
+  robots_noindex?: boolean;
+  canonical_url?: string;
+  sitemap_exclude?: boolean;
   seo_title?: string;
   seo_description?: string;
   /** Meta Commerce Catalog product ID — wired through to the storefront's
@@ -348,6 +351,9 @@ export interface ProductFormData {
   serverVariants?: VariantRowPayload[];
   images?: string[];
   brand?: string;
+  robotsNoindex?: boolean;
+  canonicalUrl?: string;
+  sitemapExclude?: boolean;
   seoTitle?: string;
   seoDescription?: string;
   slug?: string;
@@ -377,6 +383,9 @@ export function productToApiCreate(form: ProductFormData): CreateProductData {
     tags: [],
     images: form.images,
     brand: form.brand || undefined,
+    robots_noindex: form.robotsNoindex,
+    canonical_url: form.canonicalUrl || undefined,
+    sitemap_exclude: form.sitemapExclude,
     seo_title: form.seoTitle || undefined,
     seo_description: form.seoDescription || undefined,
     meta_catalog_id: form.metaCatalogId || undefined,
@@ -616,6 +625,9 @@ export function productToApiUpdate(
   if (form.categoryId !== undefined) data.category_id = form.categoryId || undefined;
   if (form.slug !== undefined) data.slug = form.slug || undefined;
   if (form.brand !== undefined) data.brand = form.brand || undefined;
+  if (form.robotsNoindex !== undefined) data.robots_noindex = form.robotsNoindex;
+  if (form.canonicalUrl !== undefined) data.canonical_url = form.canonicalUrl || undefined;
+  if (form.sitemapExclude !== undefined) data.sitemap_exclude = form.sitemapExclude;
   if (form.seoTitle !== undefined) data.seo_title = form.seoTitle || undefined;
   if (form.seoDescription !== undefined) data.seo_description = form.seoDescription || undefined;
   if (form.metaCatalogId !== undefined) data.meta_catalog_id = form.metaCatalogId || undefined;
