@@ -11,6 +11,7 @@ import {
   updateProduct as apiUpdateProduct,
   uploadProductImage,
   deleteProductImage,
+  setProductImageAlt,
   apiToProduct,
   productToApiCreate,
   productToApiUpdate,
@@ -157,6 +158,7 @@ const ProductEditor = () => {
   const [formStatus, setFormStatus] = useState<ProductStatus>("draft");
   const [formCategory, setFormCategory] = useState("");
   const [formBrand, setFormBrand] = useState("");
+  const [imageAlts, setImageAlts] = useState<Record<string, string>>({});
   const [formSeoTitle, setFormSeoTitle] = useState("");
   const [formSeoDesc, setFormSeoDesc] = useState("");
   const [formMetaCatalogId, setFormMetaCatalogId] = useState("");
@@ -248,6 +250,7 @@ const ProductEditor = () => {
         setFormCategory(p.categoryId || "");
         setFormImages(p.images.filter(img => img !== "📦"));
         setFormBrand(api.brand || "");
+        setImageAlts((api.image_alts as Record<string, string>) || {});
         setFormSeoTitle(api.seo_title || "");
         setFormSeoDesc(api.seo_description || "");
         setFormMetaCatalogId(api.meta_catalog_id || "");
@@ -711,16 +714,31 @@ const ProductEditor = () => {
         <CardContent>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
             {formImages.map((url) => (
-              <div key={url} className="relative group aspect-square">
-                <img src={url} alt="" className="h-full w-full rounded-xl object-cover bg-muted ring-1 ring-border/20" />
-                {isEditMode && (
-                  <button
-                    type="button"
-                    onClick={() => handleImageDelete(url)}
-                    className="absolute top-1.5 right-1.5 h-6 w-6 rounded-lg bg-black/60 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-black/80"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+              <div key={url} className="space-y-1.5">
+                <div className="relative group aspect-square">
+                  <img src={url} alt={imageAlts[url] || ""} className="h-full w-full rounded-xl object-cover bg-muted ring-1 ring-border/20" />
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      onClick={() => handleImageDelete(url)}
+                      className="absolute top-1.5 right-1.5 h-6 w-6 rounded-lg bg-black/60 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-black/80"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+                {isEditMode && productId && (
+                  <Input
+                    value={imageAlts[url] ?? ""}
+                    onChange={(e) => setImageAlts(prev => ({ ...prev, [url]: e.target.value }))}
+                    onBlur={(e) => {
+                      void setProductImageAlt(storeId, productId, url, e.target.value)
+                        .catch(err => showError(err, language));
+                    }}
+                    placeholder={language === "ar" ? "وصف الصورة" : "Describe this image"}
+                    maxLength={250}
+                    className="h-7 text-[11px] rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border"
+                  />
                 )}
               </div>
             ))}

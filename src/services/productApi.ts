@@ -33,6 +33,7 @@ export interface ApiProductResponse {
   tags: string[];
   attributes: Record<string, unknown>;
   brand?: string | null;
+  image_alts?: Record<string, string> | null;
   seo_title?: string | null;
   seo_description?: string | null;
   /** Meta Commerce Catalog product ID — surfaced in ProductEditor's
@@ -220,6 +221,20 @@ export async function uploadProductImage(
     `/stores/${storeId}/products/${productId}/images`,
     formData,
   );
+}
+
+/** Describe one product image. Alt lives in the media_urls sidecar, so it
+ *  survives the wholesale `attributes` replace a product update performs. */
+export async function setProductImageAlt(
+  storeId: string,
+  productId: string,
+  imageUrl: string,
+  alt: string,
+): Promise<void> {
+  await apiClient(`/stores/${storeId}/products/${productId}/images/alt`, {
+    method: "PATCH",
+    body: JSON.stringify({ image_url: imageUrl, alt: alt.trim() || null }),
+  });
 }
 
 export async function deleteProductImage(
