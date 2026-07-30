@@ -15,6 +15,12 @@
  */
 
 import { apiClient } from "./api";
+// One shared shape for both platforms' verify results — declared with the
+// Meta client since that landed first; re-exported below so TikTok callers
+// don't have to import across platform modules.
+import type { VerifyConnectionResult } from "./metaTrackingApi";
+
+export type { VerifyConnectionResult };
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -194,6 +200,20 @@ export async function fetchTikTokTrackingStatus(
 ): Promise<TikTokTrackingStatusResponse> {
   return apiClient<TikTokTrackingStatusResponse>(
     `/stores/${storeId}/settings/tracking/tiktok/status`,
+  );
+}
+
+/**
+ * Ask TikTok to confirm the saved Pixel Code exists on the configured
+ * advertiser. Same contract as `verifyMetaConnection`: a "no" resolves with
+ * `verified: false` and TikTok's own message rather than throwing.
+ */
+export async function verifyTikTokConnection(
+  storeId: string,
+): Promise<VerifyConnectionResult> {
+  return apiClient<VerifyConnectionResult>(
+    `/stores/${storeId}/settings/tracking/tiktok/verify`,
+    { method: "POST" },
   );
 }
 

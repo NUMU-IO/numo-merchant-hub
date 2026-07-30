@@ -52,6 +52,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { DEFAULT_TRACKING_CONTRACT } from "@/lib/tracking-validation";
 
 import type {
   ConsentRegionMode,
@@ -146,7 +147,7 @@ const COPY: Record<Lang, SectionCopy> = {
       add_button: "Add another pixel",
       max_reached: "Maximum 3 pixels per store in v1.",
       pixel_id_label: "Pixel ID",
-      pixel_id_placeholder: "15-16 digit ID",
+      pixel_id_placeholder: "Numeric Pixel ID",
       label_label: "Label",
       label_placeholder: "e.g. Retargeting Pixel",
       role_label: "Role",
@@ -157,7 +158,7 @@ const COPY: Record<Lang, SectionCopy> = {
       capi_enabled: "CAPI server fires",
       remove: "Remove",
       save: "Save pixel list",
-      invalid_pixel_id: "Pixel ID must be 15-16 digits",
+      invalid_pixel_id: "Pixel ID must be numeric (up to 20 digits)",
       duplicate_pixel_id: "Duplicate pixel ID",
       saved: "Multi-pixel config saved",
     },
@@ -208,7 +209,7 @@ const COPY: Record<Lang, SectionCopy> = {
       add_button: "أضف بكسل آخر",
       max_reached: "الحد الأقصى 3 بكسلات لكل متجر في الإصدار الأول.",
       pixel_id_label: "معرف البكسل",
-      pixel_id_placeholder: "15-16 رقمًا",
+      pixel_id_placeholder: "معرّف رقمي",
       label_label: "تسمية",
       label_placeholder: "مثال: بكسل إعادة الاستهداف",
       role_label: "الدور",
@@ -219,7 +220,7 @@ const COPY: Record<Lang, SectionCopy> = {
       capi_enabled: "إطلاق CAPI من السيرفر",
       remove: "حذف",
       save: "حفظ قائمة البكسل",
-      invalid_pixel_id: "معرف البكسل يجب أن يكون 15-16 رقم",
+      invalid_pixel_id: "معرّف البكسل لازم يكون أرقام بس (٢٠ رقم كحد أقصى)",
       duplicate_pixel_id: "معرف البكسل مكرر",
       saved: "تم حفظ إعدادات البكسل",
     },
@@ -361,7 +362,10 @@ function CodTimingSection({ settings, onSave, copy, lang, saving }: CodTimingSec
 
 // ─── Section: Multi-pixel (Phase 13) ─────────────────────────────────
 
-const PIXEL_ID_REGEX = /^\d{15,16}$/;
+// Rule owner is the API's validation contract — see
+// `lib/tracking-validation.ts`. Anything narrower here re-creates the drift
+// that rejected real 17-digit 2026 dataset IDs.
+const PIXEL_ID_REGEX = new RegExp(DEFAULT_TRACKING_CONTRACT.meta.pixel_id);
 const MAX_PIXELS = 3;
 
 interface MultiPixelSectionProps {
