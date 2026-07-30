@@ -913,9 +913,8 @@
     subtitle:
       "تتبع أحداث المتجر من المتصفح (Pixel) ومن السيرفر (CAPI) معاً. الإرسال من السيرفر يحدث من webhook الطلب علشان يتفادى ad-blockers و iOS ATT.",
     pixelIdLabel: "معرّف البكسل",
-    pixelIdHelp:
-      "رقم من 15-16 رقم من Meta Events Manager. لو مش عارف فين تلاقيه؟",
-    pixelIdInvalid: "معرّف البكسل لازم يكون 15-16 رقم",
+    pixelIdHelp: "معرّف رقمي من Meta Events Manager. لو مش عارف فين تلاقيه؟",
+    pixelIdInvalid: "معرّف البكسل لازم يكون أرقام بس (٢٠ رقم كحد أقصى)",
     modeTitle: "وضع التفعيل",
     modeSubtitle:
       "اختار هل المتجر يبعت الأحداث من المتصفح، من السيرفر، أو الاتنين.",
@@ -959,8 +958,8 @@
       "بيمنع Pixel من إرسال أي حدث لحد ما الزائر يقبل الكوكيز. CAPI من السيرفر يفضل يبعت تحت بند المصلحة المشروعة.",
     testEventLabel: "Test event code",
     testEventHelp:
-      "بالشكل: TEST متبوع بأرقام، مثلاً TEST12345. من تبويب Events Manager ← Test Events.",
-    testEventInvalid: "Test event code لازم يكون TEST متبوع بأرقام",
+      "انسخه من تبويب Events Manager ← Test Events، مثلاً TEST12345.",
+    testEventInvalid: "Test event code لازم يكون حروف أو أرقام أو - أو _",
     save: "حفظ",
     saved: "تم الحفظ",
     sendTestEvent: "إرسال حدث تجريبي",

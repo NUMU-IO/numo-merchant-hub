@@ -918,8 +918,8 @@ export default {
       "Track storefront events both client-side (Pixel) and server-side (CAPI). Server-side fires from the order webhook to survive ad-blockers + iOS ATT.",
     pixelIdLabel: "Pixel ID",
     pixelIdHelp:
-      "15-16 digit identifier from Meta Events Manager. Where do I find this?",
-    pixelIdInvalid: "Pixel ID must be 15-16 digits",
+      "Numeric identifier from Meta Events Manager. Where do I find this?",
+    pixelIdInvalid: "Pixel ID must be numeric (up to 20 digits)",
     modeTitle: "Activation mode",
     modeSubtitle:
       "Decide whether the storefront sends events through the browser, the server, or both.",
@@ -964,8 +964,9 @@ export default {
       "Gate the browser Pixel on the visitor accepting cookies. Server-side CAPI continues firing under legitimate interest.",
     testEventLabel: "Test event code",
     testEventHelp:
-      "Format: TEST followed by digits, e.g. TEST12345. From Events Manager → Test Events tab.",
-    testEventInvalid: "Test event code must match TEST followed by digits",
+      "Copy it from Events Manager → Test Events, e.g. TEST12345.",
+    testEventInvalid:
+      "Test event code must be letters, digits, dashes or underscores",
     save: "Save",
     saved: "Settings saved",
     sendTestEvent: "Send test event",

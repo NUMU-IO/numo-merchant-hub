@@ -28,6 +28,7 @@ import {
   ExternalLink,
   Loader2,
   Radio,
+  ShieldCheck,
   Store,
 } from "lucide-react";
 
@@ -772,5 +773,97 @@ export function DisconnectDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+// ─── Verify connection ─────────────────────────────────────────────────────
+
+/**
+ * "Verify connection" — ask the provider whether the saved pixel is real.
+ *
+ * The point of this control is that our own validation can only ever catch
+ * paste errors. Whether a well-formed ID actually exists, is active, and is
+ * writable by the saved token is a question only Meta / TikTok can answer —
+ * and a typo'd-but-valid-looking ID used to save cleanly and then silently
+ * never deliver. Pressing this turns an unverifiable text box into a
+ * confirmed connection.
+ *
+ * Three outcomes, rendered distinctly on purpose:
+ *   * verified → the dataset's real name, straight from the provider
+ *   * refused  → the provider's verbatim message (expired token, wrong
+ *                business, no permission — they name it better than we could)
+ *   * blocked  → what we still need before we can even ask
+ */
+export function VerifyConnectionRow({
+  onVerify,
+  result,
+  verifying,
+  disabled,
+  disabledHint,
+  isAr,
+}: {
+  onVerify: () => void;
+  result: { verified: boolean; name?: string | null; error?: string | null } | null;
+  verifying: boolean;
+  disabled?: boolean;
+  disabledHint?: string | null;
+  isAr: boolean;
+}) {
+  return (
+    <div className="space-y-2 rounded-xl border border-border p-3.5">
+      <div className="text-[12.5px] font-extrabold">
+        {isAr ? "تأكيد الاتصال" : "Verify connection"}
+      </div>
+      <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+        {isAr
+          ? "بنسأل المنصة نفسها إذا كان الـ Pixel موجود وشغّال — أدق من أي تحقق عندنا."
+          : "Asks the platform itself whether this pixel exists and is active — more reliable than any check we can do."}
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full"
+        onClick={onVerify}
+        disabled={verifying || disabled}
+      >
+        {verifying ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <ShieldCheck className="h-4 w-4" />
+        )}
+        {isAr ? "تأكيد الاتصال" : "Verify connection"}
+      </Button>
+      {disabled && disabledHint && (
+        <p className="text-[11px] leading-relaxed text-ink-faint">{disabledHint}</p>
+      )}
+      {result && (
+        <p
+          className={cn(
+            "flex items-start gap-1.5 text-[11.5px] font-semibold leading-relaxed",
+            result.verified
+              ? "text-emerald-700 dark:text-emerald-400"
+              : "text-amber-700 dark:text-amber-400",
+          )}
+        >
+          {result.verified ? (
+            <Check className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+          ) : (
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+          )}
+          <span>
+            {result.verified
+              ? result.name
+                ? isAr
+                  ? `متصل بـ "${result.name}"`
+                  : `Connected to "${result.name}"`
+                : isAr
+                  ? "الاتصال سليم"
+                  : "Connection confirmed"
+              : result.error ||
+                (isAr ? "تعذّر تأكيد الاتصال" : "Couldn't verify the connection")}
+          </span>
+        </p>
+      )}
+    </div>
   );
 }

@@ -66,6 +66,8 @@ import {
   saveTikTokTracking,
   sendTikTokTestEvent,
   tiktokOAuthStartUrl,
+  verifyTikTokConnection,
+  type VerifyConnectionResult,
 } from "@/services/tiktokTrackingApi";
 import { TikTokGlyph } from "./tracking/PlatformGlyphs";
 import {
@@ -79,6 +81,7 @@ import {
   SignalPath,
   StatTrio,
   StatusPill,
+  VerifyConnectionRow,
   useCountdownMinutes,
   type ModeCardSpec,
   type UnifiedEventRow,
@@ -162,6 +165,10 @@ export function TikTokTrackingPanel() {
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testCodeInput, setTestCodeInput] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<VerifyConnectionResult | null>(
+    null,
+  );
 
   const settings = settingsQuery.data ?? null;
 
@@ -313,6 +320,21 @@ export function TikTokTrackingPanel() {
     setExtraPixels(baseline.extras);
     setApiToken("");
     setShowToken(false);
+  }
+
+  async function handleVerify() {
+    if (!storeId) return;
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      // TikTok saying "no" resolves with `verified: false`; only transport or
+      // auth failures throw. Both get surfaced, neither is fatal.
+      setVerifyResult(await verifyTikTokConnection(storeId));
+    } catch (err) {
+      showError(err, language);
+    } finally {
+      setVerifying(false);
+    }
   }
 
   async function handleDisconnect() {
@@ -847,6 +869,26 @@ export function TikTokTrackingPanel() {
                 }
                 failureRate={statusQuery.data?.recent_failure_rate ?? null}
                 eventCount={statusQuery.data?.recent_event_count ?? null}
+                isAr={isAr}
+              />
+
+              <VerifyConnectionRow
+                onVerify={handleVerify}
+                result={verifyResult}
+                verifying={verifying}
+                // TikTok can only look a pixel up inside an advertiser
+                // account, so both the code and the advertiser id are
+                // prerequisites — say which one is missing.
+                disabled={!settings?.pixel_id || !settings?.advertiser_id}
+                disabledHint={
+                  !settings?.pixel_id
+                    ? isAr
+                      ? "احفظ كود الـ Pixel الأول."
+                      : "Save your Pixel Code first."
+                    : isAr
+                      ? "محتاج معرّف المعلن (advertiser ID) — تيك توك بتبحث عن الـ Pixel جوّا حساب المعلن."
+                      : "Needs your advertiser ID — TikTok looks a Pixel up inside an advertiser account."
+                }
                 isAr={isAr}
               />
 
