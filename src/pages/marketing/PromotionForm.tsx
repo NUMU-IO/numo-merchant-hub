@@ -62,6 +62,11 @@ import type {
 } from "@/services/promotionApi";
 import { showError } from "@/lib/show-error";
 import {
+  currencyLabel,
+  majorToMinor,
+  minorToMajorInput,
+} from "@/lib/format-money";
+import {
   buildVisualContent,
   buildVisualTranslations,
   EMPTY_VISUAL_CONTENT,
@@ -96,12 +101,13 @@ function isVisual(surface: PromotionSurface): boolean {
 }
 
 /**
- * One row of a tiered discount: "spend X cents, get Y% off". The form
- * stores them as strings so the user can clear an input mid-edit
- * without committing NaN; we coerce to ints in `buildDiscountRule`.
+ * One row of a tiered discount: "spend X, get Y% off". `threshold` is in the
+ * store's MAJOR units, like every money input on this form — `buildDiscountRule`
+ * converts it to the API's `threshold_cents`. Both are strings so the user can
+ * clear an input mid-edit without committing NaN.
  */
 interface TierFormRow {
-  threshold_cents: string;
+  threshold: string;
   percent: string;
 }
 
@@ -113,9 +119,9 @@ interface FormState {
   code: string;
   ruleKind: DiscountRuleKind;
   valuePercent: string;
-  valueCents: string;
-  minSubtotalCents: string;
-  maxDiscountCents: string;
+  valueAmount: string;
+  minSubtotalAmount: string;
+  maxDiscountAmount: string;
   // BOGO fields — only sent when ruleKind === "bogo".
   // `getDiscountPercent` defaults to 100 (= "free") on first paint
   // because that's the most common BOGO shape; merchant can lower it
@@ -134,9 +140,9 @@ interface FormState {
   bogoGetProductIds: string[];
   bogoGetCategoryIds: string[];
   // MULTIBUY fields — "any N eligible items for a fixed total P".
-  // `multibuyPriceCents` is the price of the WHOLE group, not per item.
+  // `multibuyPrice` is the price of the WHOLE group, not per item.
   multibuyQuantity: string;
-  multibuyPriceCents: string;
+  multibuyPrice: string;
   // Which products/categories can form a group. Reuses the BOGO set picker,
   // but multibuy has only one set (there's no separate give-away side), sent
   // with role "buy_set". Mode "any" = the whole catalogue is eligible.
@@ -162,9 +168,9 @@ const EMPTY_FORM: FormState = {
   code: "",
   ruleKind: "percentage",
   valuePercent: "",
-  valueCents: "",
-  minSubtotalCents: "",
-  maxDiscountCents: "",
+  valueAmount: "",
+  minSubtotalAmount: "",
+  maxDiscountAmount: "",
   buyQuantity: "",
   getQuantity: "",
   getDiscountPercent: "100",
@@ -175,11 +181,11 @@ const EMPTY_FORM: FormState = {
   bogoGetProductIds: [],
   bogoGetCategoryIds: [],
   multibuyQuantity: "",
-  multibuyPriceCents: "",
+  multibuyPrice: "",
   multibuyEligibleMode: "any",
   multibuyEligibleProductIds: [],
   multibuyEligibleCategoryIds: [],
-  tiers: [{ threshold_cents: "", percent: "" }],
+  tiers: [{ threshold: "", percent: "" }],
   usageLimitTotal: "",
   usageLimitPerCustomer: "",
   startsAt: "",
@@ -220,13 +226,22 @@ function fromIso(iso: string | null): string {
 }
 
 export default function PromotionForm() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { id: editingId } = useParams<{ id: string }>();
   const isEdit = !!editingId;
+
+  // Every money label on this form names the store's OWN currency — inherited
+  // from the platform's single source (StoreProvider pushes the active store's
+  // `default_currency` into format-money), never hardcoded. A Saudi merchant
+  // must not be asked to price a bundle in EGP.
+  const currency = currencyLabel(
+    currentStore?.default_currency,
+    i18n.language === "ar" ? "ar" : "en",
+  );
 
   // Determine surface either from query (create) or loaded record (edit).
   const surfaceParam = searchParams.get("surface") as PromotionSurface | null;
@@ -292,9 +307,15 @@ export default function PromotionForm() {
       code: "",
       ruleKind: (promo.discount_rule?.kind ?? "percentage") as DiscountRuleKind,
       valuePercent: promo.discount_rule?.value_percent?.toString() ?? "",
-      valueCents: promo.discount_rule?.value_cents?.toString() ?? "",
-      minSubtotalCents: promo.discount_rule?.min_subtotal_cents?.toString() ?? "",
-      maxDiscountCents: promo.discount_rule?.max_discount_cents?.toString() ?? "",
+      // Money: minor units on the wire → major units in the inputs. This and
+      // `buildDiscountRule` are the ONLY two places the conversion happens.
+      valueAmount: minorToMajorInput(promo.discount_rule?.value_cents),
+      minSubtotalAmount: minorToMajorInput(
+        promo.discount_rule?.min_subtotal_cents,
+      ),
+      maxDiscountAmount: minorToMajorInput(
+        promo.discount_rule?.max_discount_cents,
+      ),
       buyQuantity: promo.discount_rule?.buy_quantity?.toString() ?? "",
       getQuantity: promo.discount_rule?.get_quantity?.toString() ?? "",
       getDiscountPercent:
@@ -306,8 +327,9 @@ export default function PromotionForm() {
       bogoGetProductIds: getHydrated.productIds,
       bogoGetCategoryIds: getHydrated.categoryIds,
       multibuyQuantity: promo.discount_rule?.multibuy_quantity?.toString() ?? "",
-      multibuyPriceCents:
-        promo.discount_rule?.multibuy_price_cents?.toString() ?? "",
+      multibuyPrice: minorToMajorInput(
+        promo.discount_rule?.multibuy_price_cents,
+      ),
       // Multibuy scopes with the same `buy_set` role BOGO uses, so the saved
       // target decomposes identically — reuse the hydrated buy set.
       multibuyEligibleMode: buyHydrated.mode,
@@ -315,11 +337,11 @@ export default function PromotionForm() {
       multibuyEligibleCategoryIds: buyHydrated.categoryIds,
       tiers:
         savedTiers.length > 0
-          ? savedTiers.map((t) => ({
-              threshold_cents: t.threshold_cents.toString(),
-              percent: t.percent.toString(),
+          ? savedTiers.map((row) => ({
+              threshold: minorToMajorInput(row.threshold_cents),
+              percent: row.percent.toString(),
             }))
-          : [{ threshold_cents: "", percent: "" }],
+          : [{ threshold: "", percent: "" }],
       usageLimitTotal: promo.usage_limit_total?.toString() ?? "",
       usageLimitPerCustomer: promo.usage_limit_per_customer?.toString() ?? "",
       startsAt: fromIso(promo.starts_at),
@@ -427,12 +449,18 @@ export default function PromotionForm() {
   const createMutation = useCreatePromotion(storeId);
   const updateMutation = useUpdatePromotion(storeId, editingId);
 
+  /**
+   * The form's ONE money boundary: every input below holds major units
+   * (650), the API takes minor units (65000). Nothing between the two
+   * multiplies or divides — a second conversion site is how a 100x
+   * mispricing gets in.
+   */
   const buildDiscountRule = (): DiscountRule => {
     const rule: DiscountRule = { kind: form.ruleKind };
     if (form.ruleKind === "percentage") {
       rule.value_percent = Number(form.valuePercent) || 0;
     } else if (form.ruleKind === "fixed") {
-      rule.value_cents = Number(form.valueCents) || 0;
+      rule.value_cents = majorToMinor(form.valueAmount) ?? 0;
     } else if (form.ruleKind === "bogo") {
       // The API's domain validator requires both quantities; the form
       // validator catches missing values before we get here, but we
@@ -446,20 +474,20 @@ export default function PromotionForm() {
       // validator blocks bad values before we get here, but parse defensively
       // so a stale state can't ship a rule the API will reject.
       rule.multibuy_quantity = Number(form.multibuyQuantity) || 0;
-      rule.multibuy_price_cents = Number(form.multibuyPriceCents) || 0;
+      rule.multibuy_price_cents = majorToMinor(form.multibuyPrice) ?? 0;
     } else if (form.ruleKind === "tiered") {
       rule.tiers = form.tiers
         .map((row) => ({
-          threshold_cents: Number(row.threshold_cents) || 0,
+          threshold_cents: majorToMinor(row.threshold) ?? 0,
           percent: Number(row.percent) || 0,
         }))
         // Drop any tier the merchant left blank.
         .filter((t) => t.threshold_cents > 0 || t.percent > 0);
     }
-    if (form.minSubtotalCents)
-      rule.min_subtotal_cents = Number(form.minSubtotalCents);
-    if (form.maxDiscountCents)
-      rule.max_discount_cents = Number(form.maxDiscountCents);
+    if (form.minSubtotalAmount)
+      rule.min_subtotal_cents = majorToMinor(form.minSubtotalAmount) ?? 0;
+    if (form.maxDiscountAmount)
+      rule.max_discount_cents = majorToMinor(form.maxDiscountAmount) ?? 0;
     return rule;
   };
 
@@ -538,13 +566,13 @@ export default function PromotionForm() {
       getQuantity: tpl.getQuantity ?? "",
       getDiscountPercent: tpl.getDiscountPercent ?? "100",
       valuePercent: tpl.valuePercent ?? "",
-      valueCents: tpl.valueCents ?? "",
+      valueAmount: tpl.valueAmount ?? "",
       multibuyQuantity: tpl.multibuyQuantity ?? "",
-      multibuyPriceCents: tpl.multibuyPriceCents ?? "",
+      multibuyPrice: tpl.multibuyPrice ?? "",
       tiers:
         tpl.tiers && tpl.tiers.length > 0
           ? tpl.tiers
-          : [{ threshold_cents: "", percent: "" }],
+          : [{ threshold: "", percent: "" }],
     }));
   };
 
@@ -577,8 +605,13 @@ export default function PromotionForm() {
         if (!v || v <= 0 || v > 100)
           return t("promotions.errors.percent_range") as string;
       }
-      if (form.ruleKind === "fixed" && !Number(form.valueCents)) {
-        return t("promotions.errors.fixed_required") as string;
+      if (form.ruleKind === "fixed") {
+        // `!Number("-5")` is false, so a negative amount used to pass this
+        // gate and ship `value_cents: -500` — a discount that ADDS money.
+        // Check the converted value, positive, explicitly.
+        const v = majorToMinor(form.valueAmount);
+        if (v == null || v <= 0)
+          return t("promotions.errors.fixed_required") as string;
       }
       if (form.ruleKind === "bogo") {
         const b = Number(form.buyQuantity);
@@ -591,21 +624,24 @@ export default function PromotionForm() {
       }
       if (form.ruleKind === "multibuy") {
         const n = Number(form.multibuyQuantity);
-        const p = Number(form.multibuyPriceCents);
         // N >= 2: a group of one is a per-unit price, not a bundle — and the
         // API's domain validator rejects it, so catch it here with a message
-        // the merchant can act on. Integer check included because the API
-        // takes `int`, so a pasted "3.5" 422s server-side with a raw pydantic
-        // message ("Input should be a valid integer") after the preview has
-        // already quoted the merchant a discount for it.
+        // the merchant can act on. Integer check because the API takes `int`,
+        // so a pasted "3.5" 422s server-side with a raw pydantic message
+        // ("Input should be a valid integer") after the preview has already
+        // quoted the merchant a discount for it.
         if (!n || n < 2 || !Number.isInteger(n))
           return t("promotions.errors.multibuy_quantity_required") as string;
-        if (!p || p <= 0 || !Number.isInteger(p))
+        // The price is typed in major units, so "650.50" is legitimate — it is
+        // the CONVERTED value that has to be a positive integer, and
+        // `majorToMinor` rounds to make it one. Only blank/zero/garbage fails.
+        const p = majorToMinor(form.multibuyPrice);
+        if (p == null || p <= 0)
           return t("promotions.errors.multibuy_price_required") as string;
       }
       if (form.ruleKind === "tiered") {
         const realRows = form.tiers.filter(
-          (r) => r.threshold_cents.trim() !== "" && r.percent.trim() !== "",
+          (r) => r.threshold.trim() !== "" && r.percent.trim() !== "",
         );
         if (realRows.length === 0)
           return t("promotions.errors.tiers_required") as string;
@@ -684,7 +720,12 @@ export default function PromotionForm() {
         let couponValue: number;
         if (form.ruleKind === "fixed") {
           couponType = "fixed";
-          couponValue = Number(form.valueCents) / 100;
+          // The Coupon API speaks MAJOR units (`value` is a decimal string),
+          // and so does this form's input — so the value passes straight
+          // through. It used to be divided by 100 because the input held
+          // cents; keeping that divide after the major-unit switch would
+          // have turned an "EGP 100 off" code into "EGP 1 off".
+          couponValue = Number(form.valueAmount);
         } else if (form.ruleKind === "free_shipping") {
           couponType = "free_shipping";
           couponValue = 0;
@@ -705,19 +746,24 @@ export default function PromotionForm() {
         // (truthy in JS), which previously slipped through the `? :`
         // check and sent zero. Treat empty *or* zero as null (uncapped /
         // no minimum).
-        const minSubtotal = Number(form.minSubtotalCents);
-        const maxDiscount = Number(form.maxDiscountCents);
+        //
+        // Both figures are MAJOR units on this API too (decimal strings), and
+        // the inputs now hold major units — so no conversion. The promotion's
+        // own `discount_rule` is the one that carries minor units, and that
+        // conversion lives in `buildDiscountRule` alone.
+        const minSubtotal = Number(form.minSubtotalAmount);
+        const maxDiscount = Number(form.maxDiscountAmount);
         const couponData: CreateCouponData = {
           code: form.code.toUpperCase(),
           coupon_type: couponType,
           value: couponValue,
           min_order_amount:
-            form.minSubtotalCents.trim() && minSubtotal > 0
-              ? minSubtotal / 100
+            form.minSubtotalAmount.trim() && minSubtotal > 0
+              ? minSubtotal
               : null,
           max_discount_amount:
-            form.maxDiscountCents.trim() && maxDiscount > 0
-              ? maxDiscount / 100
+            form.maxDiscountAmount.trim() && maxDiscount > 0
+              ? maxDiscount
               : null,
         };
         const coupon = await createCoupon(storeId, couponData);
@@ -909,21 +955,18 @@ export default function PromotionForm() {
           )}
           {form.ruleKind === "fixed" && (
             <div className="grid gap-2">
-              <Label htmlFor="rule-cents">
-                {t("promotions.form.fixed_label")}
+              <Label htmlFor="rule-amount">
+                {t("promotions.form.fixed_label", { currency })}
               </Label>
               <Input
-                id="rule-cents"
+                id="rule-amount"
                 type="number"
                 min={0}
-                step={1}
-                value={form.valueCents}
-                onChange={(e) => updateField("valueCents", e.target.value)}
+                step="0.01"
+                value={form.valueAmount}
+                onChange={(e) => updateField("valueAmount", e.target.value)}
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                {t("promotions.form.cents_help")}
-              </p>
             </div>
           )}
           {form.ruleKind === "bogo" && (
@@ -1000,26 +1043,23 @@ export default function PromotionForm() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="rule-multibuy-price">
-                    {t("promotions.form.multibuy_price")}
+                    {t("promotions.form.multibuy_price", { currency })}
                   </Label>
                   <Input
                     id="rule-multibuy-price"
                     type="number"
-                    min={1}
-                    step={1}
-                    value={form.multibuyPriceCents}
+                    min={0}
+                    step="0.01"
+                    value={form.multibuyPrice}
                     onChange={(e) =>
-                      updateField("multibuyPriceCents", e.target.value)
+                      updateField("multibuyPrice", e.target.value)
                     }
                     required
                   />
-                  <p className="text-xs text-muted-foreground">
-                    {t("promotions.form.cents_help")}
-                  </p>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                {t("promotions.form.multibuy_help")}
+                {t("promotions.form.multibuy_help", { currency })}
               </p>
             </div>
           )}
@@ -1037,19 +1077,19 @@ export default function PromotionForm() {
                         htmlFor={`tier-thresh-${idx}`}
                         className="text-xs text-muted-foreground"
                       >
-                        {t("promotions.form.tier_threshold")}
+                        {t("promotions.form.tier_threshold", { currency })}
                       </Label>
                       <Input
                         id={`tier-thresh-${idx}`}
                         type="number"
                         min={0}
-                        step={1}
-                        value={row.threshold_cents}
+                        step="0.01"
+                        value={row.threshold}
                         onChange={(e) => {
                           const next = [...form.tiers];
                           next[idx] = {
                             ...next[idx],
-                            threshold_cents: e.target.value,
+                            threshold: e.target.value,
                           };
                           updateField("tiers", next);
                         }}
@@ -1099,7 +1139,7 @@ export default function PromotionForm() {
                 onClick={() =>
                   updateField("tiers", [
                     ...form.tiers,
-                    { threshold_cents: "", percent: "" },
+                    { threshold: "", percent: "" },
                   ])
                 }
               >
@@ -1113,29 +1153,31 @@ export default function PromotionForm() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="rule-min">
-                {t("promotions.form.min_subtotal")}
+                {t("promotions.form.min_subtotal", { currency })}
               </Label>
               <Input
                 id="rule-min"
                 type="number"
                 min={0}
-                value={form.minSubtotalCents}
+                step="0.01"
+                value={form.minSubtotalAmount}
                 onChange={(e) =>
-                  updateField("minSubtotalCents", e.target.value)
+                  updateField("minSubtotalAmount", e.target.value)
                 }
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="rule-max">
-                {t("promotions.form.max_discount")}
+                {t("promotions.form.max_discount", { currency })}
               </Label>
               <Input
                 id="rule-max"
                 type="number"
                 min={0}
-                value={form.maxDiscountCents}
+                step="0.01"
+                value={form.maxDiscountAmount}
                 onChange={(e) =>
-                  updateField("maxDiscountCents", e.target.value)
+                  updateField("maxDiscountAmount", e.target.value)
                 }
               />
             </div>

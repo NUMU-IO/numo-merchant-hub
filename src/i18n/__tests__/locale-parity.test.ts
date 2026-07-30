@@ -16,11 +16,16 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createElement } from "react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { RuleTemplateRow } from "@/components/marketing/RuleTemplateRow";
+import { formatMoney } from "@/lib/format-money";
 import { previewDiscount } from "@/lib/preview-discount";
 import type { DiscountRule } from "@/services/promotionApi";
 
+import i18n from "..";
 import ar from "../ar";
 import en from "../en";
 
@@ -151,14 +156,79 @@ describe("multibuy strings", () => {
     );
   });
 
-  it("the template chip labels name the offer, not the mechanic", () => {
-    // The chip is the merchant's entry point — "3 for EGP 650" must read as
-    // the offer itself in both locales.
-    expect(EN["promotions.form.template.multibuy_3_for_650"]).toContain("650");
-    expect(AR["promotions.form.template.multibuy_3_for_650"]).toContain("650");
-    expect(EN["promotions.form.template.multibuy_2_for_500"]).toContain("500");
-    expect(AR["promotions.form.template.multibuy_2_for_500"]).toContain("500");
+  it("the template chip labels name the offer via a {{price}} placeholder", () => {
+    // The chip is the merchant's entry point — it must read as the offer
+    // itself ("3 for EGP 650"), not as the mechanic ("bundle price rule").
+    //
+    // The money is no longer a literal in the copy: it can't be, or a Saudi
+    // store's chip would advertise Egyptian pounds. `RuleTemplateRow` supplies
+    // it from the template's own value, formatted in the store's currency —
+    // so what the string must guarantee is the PLACEHOLDER, in both locales,
+    // and that no currency is baked in. The rendered chip is asserted below,
+    // because a placeholder nobody fills renders as "3 for {{price}}".
+    for (const key of [
+      "promotions.form.template.multibuy_3_for_650",
+      "promotions.form.template.multibuy_2_for_500",
+    ]) {
+      expect(placeholders(EN[key]), key).toEqual(["price"]);
+      expect(placeholders(AR[key]), key).toEqual(["price"]);
+      for (const locale of [EN, AR]) {
+        expect(locale[key], key).not.toMatch(/EGP|ج\.م/);
+      }
+    }
+    // The tiered chips name a threshold the same way.
+    for (const key of [
+      "promotions.form.template.spend_1000_off_10",
+      "promotions.form.template.spend_2000_off_20",
+    ]) {
+      expect(placeholders(EN[key]), key).toEqual(["threshold"]);
+      expect(placeholders(AR[key]), key).toEqual(["threshold"]);
+      for (const locale of [EN, AR]) {
+        expect(locale[key], key).not.toMatch(/EGP|ج\.م/);
+      }
+    }
   });
+
+  it.each(["en", "ar"] as const)(
+    "the RENDERED chip shows the money in %s, with no unfilled placeholder",
+    async (lang) => {
+      // The honest replacement for the old literal-"650" check: drive the real
+      // component and read what a merchant would see. This is what proves the
+      // placeholder is actually supplied — and, because `formatMoney` reads the
+      // active store currency, that the chip inherits it rather than hardcoding.
+      await i18n.changeLanguage(lang);
+      const strings = (lang === "ar" ? ar : en).promotions.form.template;
+      const money = (major: number) => formatMoney(major, { locale: lang });
+
+      render(createElement(RuleTemplateRow, { onApply: () => {} }));
+
+      const trio = screen.getByTestId("rule-template-multibuy_3_for_650");
+      expect(trio.textContent).toBe(
+        strings.multibuy_3_for_650.replace("{{price}}", money(650)),
+      );
+      // The number itself is on screen, in that locale's digits.
+      expect(trio.textContent).toContain(money(650));
+
+      const duo = screen.getByTestId("rule-template-multibuy_2_for_500");
+      expect(duo.textContent).toBe(
+        strings.multibuy_2_for_500.replace("{{price}}", money(500)),
+      );
+
+      const spend = screen.getByTestId("rule-template-spend_1000_off_10");
+      expect(spend.textContent).toBe(
+        strings.spend_1000_off_10.replace("{{threshold}}", money(1000)),
+      );
+
+      // No chip may leak a raw placeholder or a raw minor-unit figure.
+      for (const chip of screen.getAllByTestId(/^rule-template-/)) {
+        expect(chip.textContent, chip.dataset.testid).not.toMatch(/\{\{|\}\}/);
+        expect(chip.textContent, chip.dataset.testid).not.toContain("65000");
+        expect(chip.textContent, chip.dataset.testid).not.toContain("50000");
+      }
+
+      await i18n.changeLanguage("en");
+    },
+  );
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -204,6 +274,26 @@ const BRANCHES = BRANCH_RULES.map((rule) => {
     params: Object.keys(r.explanation_params ?? {}),
   };
 });
+
+/**
+ * The render layer's money mapping, mirrored from `PromotionRulePreview`.
+ *
+ * `previewDiscount` names money params `*_cents` (integer minor units); the
+ * component formats each one in the store's currency and re-keys it to the
+ * name the copy interpolates. So a placeholder is "supplied" if the engine
+ * emits it directly OR emits its `_cents` source.
+ *
+ * The `_cents` suffix is the contract, and this map is the other half of it:
+ * a NEW money param added to the engine without an entry here would print raw
+ * minor units to the merchant — a 100x figure on screen.
+ */
+const CENTS_ALIASES: Record<string, string> = {
+  amount_cents: "amount",
+  break_even_cents: "breakEven",
+};
+
+const suppliedNames = (params: string[]) =>
+  params.map((p) => CENTS_ALIASES[p] ?? p);
 
 describe("preview_explain (nested block)", () => {
   it("the parity walker actually RECURSES into it", () => {
@@ -261,19 +351,66 @@ describe("preview_explain (nested block)", () => {
   it("every placeholder used is one the engine actually supplies", () => {
     const unsupplied: string[] = [];
     for (const { key, params } of BRANCHES) {
+      const supplied = suppliedNames(params);
       for (const locale of [EN, AR]) {
         for (const ph of placeholders(locale[`${EXPLAIN}.${key}`])) {
-          if (!params.includes(ph)) unsupplied.push(`${key} → {{${ph}}}`);
+          if (!supplied.includes(ph)) unsupplied.push(`${key} → {{${ph}}}`);
         }
       }
     }
     expect(unsupplied).toEqual([]);
   });
 
+  it("every money param the engine emits has a formatting alias", () => {
+    // The other direction of the same contract. A `*_cents` param with no
+    // alias is not a missing translation — it is a raw minor-unit number
+    // rendered to a merchant, i.e. a 100x price on screen.
+    const unaliased = new Set<string>();
+    for (const { params } of BRANCHES) {
+      for (const p of params) {
+        if (p.endsWith("_cents") && !(p in CENTS_ALIASES)) unaliased.add(p);
+      }
+    }
+    expect([...unaliased]).toEqual([]);
+    // And the map is live, not vestigial: at least one branch uses each alias.
+    const emitted = new Set(BRANCHES.flatMap((b) => b.params));
+    for (const source of Object.keys(CENTS_ALIASES)) {
+      expect(emitted.has(source), `${source} unreachable`).toBe(true);
+    }
+  });
+
+  it("no copy in the block names a currency or a minor unit itself", () => {
+    // The platform rule, executed on the strings: currency is inherited from
+    // the store at render time, so it cannot appear in the source copy — and
+    // no merchant-facing sentence may be denominated in piasters/cents.
+    for (const key of Object.keys(EN).filter((k) => k.startsWith(`${EXPLAIN}.`))) {
+      expect(EN[key], key).not.toMatch(/\bEGP\b|\bcents?\b/i);
+      expect(AR[key], key).not.toMatch(/ج\.م|قرش|قروش/);
+    }
+    for (const key of [
+      "promotions.form.preview_break_even",
+      "promotions.form.multibuy_price",
+      "promotions.form.min_subtotal",
+      "promotions.form.max_discount",
+      "promotions.form.tier_threshold",
+      "promotions.form.fixed_label",
+      "promotions.list.discount_fixed",
+      "promotions.list.discount_multibuy",
+      "promotions.errors.multibuy_price_required",
+    ]) {
+      expect(EN[key], key).not.toMatch(/\bEGP\b|\bcents?\b/i);
+      expect(AR[key], key).not.toMatch(/ج\.م|قرش|قروش/);
+    }
+  });
+
   it("the union of placeholders is the documented set", () => {
     // Regression anchor for WS3: these are the interpolations the preview
     // contract promises. A new one appearing here without both locales
     // updated is caught by the per-key check above; this pins the roster.
+    //
+    // `cents` is gone by design: every money interpolation is now a formatted
+    // amount in the store's currency (`amount` / `breakEven`), never a raw
+    // minor-unit figure the copy has to label "cents".
     const used = new Set<string>();
     for (const key of Object.keys(EN).filter((k) =>
       k.startsWith(`${EXPLAIN}.`),
@@ -281,16 +418,17 @@ describe("preview_explain (nested block)", () => {
       for (const ph of placeholders(EN[key])) used.add(ph);
     }
     expect([...used].sort()).toEqual([
+      "amount",
       "breakEven",
       "bundles",
       "buy",
-      "cents",
       "get",
       "groups",
       "have",
       "percent",
       "quantity",
     ]);
+    expect(used.has("cents")).toBe(false);
   });
 });
 

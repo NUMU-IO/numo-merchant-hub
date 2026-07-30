@@ -484,14 +484,43 @@ describe("break-even boundary — 'applies to items priced above EGP X each'", (
     expect(above, `N=${n} P=${p} priced 1c ABOVE break-even`).toBeGreaterThan(0);
   });
 
-  it("the EGP figure the pane prints is the exact threshold, not a rounded one", () => {
-    // The component renders `(breakEvenCents / 100).toFixed(2)`. Because
-    // the break-even is whole cents, that string is exact — an item priced
-    // at the printed figure is genuinely the last one that does NOT fire.
+  it("the figure the pane prints is the exact threshold, not a rounded one", () => {
+    // The break-even is whole cents, so its major-unit value is exact — an
+    // item priced at the printed figure is genuinely the last one that does
+    // NOT fire. The component formats this exact value (`moneyExact`); the
+    // rendered string is pinned in PromotionForm.multibuy.test.tsx.
     const be = multibuyBreakEvenCents(TRIO)!;
-    expect((be / 100).toFixed(2)).toBe("216.66");
-    expect(previewDiscount(TRIO, units(21666, 3)).discount_cents).toBe(0);
-    expect(previewDiscount(TRIO, units(21667, 3)).discount_cents).toBe(1);
+    expect(be).toBe(21666);
+    expect(be / 100).toBe(216.66);
+    expect(previewDiscount(TRIO, units(be, 3)).discount_cents).toBe(0);
+    expect(previewDiscount(TRIO, units(be + 1, 3)).discount_cents).toBe(1);
+  });
+
+  it("WHY the printed figure may not be rounded to whole major units", () => {
+    // Executes the reason the pane formats the threshold exactly. Rounding to
+    // whole units breaks the copy's promise in BOTH directions, so neither
+    // `Math.round` nor `toFixed(0)` is an acceptable formatter here.
+    //
+    // (a) Rounding UP excludes prices that DO qualify.
+    const upBe = multibuyBreakEvenCents(TRIO)!; // 21666 → "217" if rounded
+    expect(Math.round(upBe / 100)).toBe(217);
+    // 216.67 is above the true threshold and fires, yet a "above EGP 217"
+    // sentence tells the merchant it would not.
+    expect(previewDiscount(TRIO, units(21667, 3)).discount_cents).toBeGreaterThan(0);
+
+    // (b) Rounding DOWN is worse: it NAMES a price that does not qualify —
+    // the exact F24 failure mode.
+    const downRule = multibuy(3, 64890); // break-even 21630 → "216" if rounded
+    const downBe = multibuyBreakEvenCents(downRule)!;
+    expect(downBe).toBe(21630);
+    expect(Math.round(downBe / 100)).toBe(216);
+    // An item at EGP 216.10 is "above EGP 216" but buys nothing.
+    expect(previewDiscount(downRule, units(21610, 3)).discount_cents).toBe(0);
+    // Whereas the exact figure never lies: at it 0, one cent above it > 0.
+    expect(previewDiscount(downRule, units(downBe, 3)).discount_cents).toBe(0);
+    expect(
+      previewDiscount(downRule, units(downBe + 1, 3)).discount_cents,
+    ).toBeGreaterThan(0);
   });
 
   it("the guard is per GROUP, so a below-threshold group is skipped whole", () => {
@@ -934,16 +963,52 @@ describe("previewDiscount — the cheap guard on an explicitly cheap cart", () =
 
   it("the guard's params carry the break-even the merchant needs", () => {
     // The AR/EN copy interpolates {{breakEven}} to answer "so what price
-    // WOULD work?" — in EGP, because the sentence is merchant-facing.
+    // WOULD work?". The engine hands the render layer integer MINOR units
+    // under a `_cents` name; `PromotionRulePreview` formats them in the
+    // store's own currency (see its `moneyExact`). Nothing here is
+    // pre-formatted, and nothing here is denominated in a currency.
     const result = previewDiscount(TRIO, SAMPLE_PREVIEW_CART);
     expect(result.explanation_params).toEqual({
-      cents: 65000,
+      amount_cents: 65000,
       quantity: 3,
-      breakEven: "216.66", // FLOORED — see REGRESSION F24 below
+      break_even_cents: 21666, // FLOORED — see REGRESSION F24 below
     });
   });
 
-  it("REGRESSION F24: {{breakEven}} is FLOORED, so it never names a qualifying price", () => {
+  it("every money param is integer minor units under a _cents name", () => {
+    // The `_cents` suffix IS the contract with the render layer: it is what
+    // makes an unmapped param a loud bug (a raw "65000" on screen) instead of
+    // a quiet 100x one. Asserted across every branch that carries money.
+    const moneyBranches: [string, DiscountRule, PreviewLine[]][] = [
+      ["below_minimum", { ...TRIO, min_subtotal_cents: 999999 }, units(25000, 3)],
+      ["fixed_off", { kind: "fixed", value_cents: 5000 }, SAMPLE_PREVIEW_CART],
+      ["multibuy_not_below", TRIO, SAMPLE_PREVIEW_CART],
+      ["multibuy_applied", TRIO, units(25000, 3)],
+      [
+        "tiered_applied",
+        { kind: "tiered", tiers: [{ threshold_cents: 20000, percent: 10 }] },
+        SAMPLE_PREVIEW_CART,
+      ],
+    ];
+    for (const [key, rule, lines] of moneyBranches) {
+      const r = previewDiscount(rule, lines);
+      expect(r.explanation_key, `${key} reachable`).toBe(key);
+      const params = r.explanation_params!;
+      const moneyKeys = Object.keys(params).filter((k) => k.endsWith("_cents"));
+      expect(moneyKeys.length, `${key} carries money`).toBeGreaterThan(0);
+      for (const k of moneyKeys) {
+        expect(typeof params[k], `${key}.${k}`).toBe("number");
+        expect(Number.isInteger(params[k] as number), `${key}.${k}`).toBe(true);
+      }
+      // No param may arrive pre-formatted — that would hardcode a currency
+      // inside the engine, which is exactly what the render layer owns.
+      for (const v of Object.values(params)) {
+        expect(String(v)).not.toMatch(/EGP|ج\.م/);
+      }
+    }
+  });
+
+  it("REGRESSION F24: break_even_cents is FLOORED, so it never names a qualifying price", () => {
     // WAS a defect: `multibuy_not_below` computed `((P / N) / 100).toFixed(2)`
     // — round to nearest — while `multibuyBreakEvenCents` (and the pane's own
     // `preview_break_even` line) floor to whole cents. For the flagship rule
@@ -951,24 +1016,38 @@ describe("previewDiscount — the cheap guard on an explicitly cheap cart", () =
     // directly beneath it, and 216.67 is a price that actually DOES qualify
     // (3 × 21667 = 65001 > 65000) — so the copy excluded a working price.
     // FIXED by flooring in the params too.
+    //
+    // Post-refactor the param is the integer `break_even_cents` rather than a
+    // pre-formatted "216.66" string, which makes the guarantee STRONGER: the
+    // two figures are now the same number from the same helper, not two
+    // strings that happen to match.
     const params = previewDiscount(TRIO, SAMPLE_PREVIEW_CART)
-      .explanation_params as Record<string, string>;
-    const flooredEgp = (multibuyBreakEvenCents(TRIO)! / 100).toFixed(2);
+      .explanation_params as Record<string, number>;
 
-    expect(params.breakEven).toBe("216.66");
-    expect(params.breakEven).toBe(flooredEgp);
+    expect(params.break_even_cents).toBe(21666);
+    expect(params.break_even_cents).toBe(multibuyBreakEvenCents(TRIO));
+    expect(Number.isInteger(params.break_even_cents)).toBe(true);
+    // Explicitly NOT the rounded value the old bug produced.
+    expect(params.break_even_cents).not.toBe(Math.round(65000 / 3)); // 21667
 
     // And the figure it names is the true last non-qualifying price: at it,
     // nothing fires; one cent above it, something does.
-    expect(previewDiscount(TRIO, units(21666, 3)).discount_cents).toBe(0);
-    expect(previewDiscount(TRIO, units(21667, 3)).discount_cents).toBe(1);
+    expect(previewDiscount(TRIO, units(params.break_even_cents, 3)).discount_cents)
+      .toBe(0);
+    expect(
+      previewDiscount(TRIO, units(params.break_even_cents + 1, 3)).discount_cents,
+    ).toBe(1);
   });
 
   it("REGRESSION F24 (cont): the two printed figures agree UNCONDITIONALLY", () => {
     // The old bug only showed up when P/N had a fractional cent ≥ 0.5, so a
     // spot check on a divisible P would have missed it entirely. Sweep the
-    // whole neighbourhood instead: the guard sentence and the break-even
-    // line must never disagree, for any (N, P) that can reach the guard.
+    // whole neighbourhood instead: the guard sentence's break-even and the
+    // break-even LINE beneath it must never disagree, for any (N, P) that can
+    // reach the guard. Both are formatted by one helper in the component, so
+    // agreement at the source (integer identity) is agreement on screen — the
+    // component test "the printed break-even is the exact threshold" pins the
+    // rendered half.
     const disagreements: string[] = [];
     for (const n of [2, 3, 5, 7, 11, 13, 100]) {
       for (let p = 1; p <= 20000; p++) {
@@ -977,9 +1056,9 @@ describe("previewDiscount — the cheap guard on an explicitly cheap cart", () =
         // reliably lands on the guard branch.
         const r = previewDiscount(rule, units(1, n));
         if (r.explanation_key !== "multibuy_not_below") continue;
-        const sentence = (r.explanation_params as Record<string, string>)
-          .breakEven;
-        const line = (multibuyBreakEvenCents(rule)! / 100).toFixed(2);
+        const sentence = (r.explanation_params as Record<string, number>)
+          .break_even_cents;
+        const line = multibuyBreakEvenCents(rule);
         if (sentence !== line) {
           disagreements.push(`N=${n} P=${p}: sentence=${sentence} line=${line}`);
         }
@@ -994,10 +1073,11 @@ describe("previewDiscount — the cheap guard on an explicitly cheap cart", () =
     // the case that always agreed, before and after the fix.
     const divisible = multibuy(3, 65001); // 21667 exactly
     const r = previewDiscount(divisible, units(1, 3));
-    expect((r.explanation_params as Record<string, string>).breakEven).toBe(
-      "216.67",
-    );
+    expect((r.explanation_params as Record<string, number>).break_even_cents)
+      .toBe(21667);
     expect(multibuyBreakEvenCents(divisible)).toBe(21667);
+    // Floor and round agree here — the case that hid the defect.
+    expect(Math.round(65001 / 3)).toBe(21667);
   });
 
   it("the guard fires for any cart under the break-even, derived or not", () => {
