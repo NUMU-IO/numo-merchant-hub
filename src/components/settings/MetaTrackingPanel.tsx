@@ -56,6 +56,8 @@ import {
   flagsForMode,
   saveMetaTracking,
   sendMetaTestEvent,
+  verifyMetaConnection,
+  type VerifyConnectionResult,
 } from "@/services/metaTrackingApi";
 import { MetaTrackingAdvancedSettings } from "./MetaTrackingAdvancedSettings";
 import { MetaGlyph } from "./tracking/PlatformGlyphs";
@@ -70,14 +72,16 @@ import {
   SignalPath,
   StatTrio,
   StatusPill,
+  VerifyConnectionRow,
   useCountdownMinutes,
   type ModeCardSpec,
   type UnifiedEventRow,
 } from "./tracking/TrackingShared";
-
-const PIXEL_ID_REGEX = /^\d{15,16}$/;
-const TEST_EVENT_REGEX = /^TEST\d+$/;
-const MIN_CAPI_TOKEN_LENGTH = 50;
+import {
+  compilePattern,
+  DEFAULT_TRACKING_CONTRACT,
+  useTrackingContract,
+} from "@/lib/tracking-validation";
 
 /** Standard events the storefront + webhooks fire automatically (mirrors
  * FUNNEL_STEP_TO_META_EVENT + the Phase-2 standard events in meta_capi.py). */
@@ -148,6 +152,10 @@ export function MetaTrackingPanel() {
   const [sendingTest, setSendingTest] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<VerifyConnectionResult | null>(
+    null,
+  );
 
   // The saved form values — what "Discard" reverts to, and what dirty-state
   // compares against. Mirrors the hydration mapping below exactly.
@@ -189,20 +197,43 @@ export function MetaTrackingPanel() {
   }, [settings]);
 
   // ─── Validation ──────────────────────────────────────────────────────────
-  const pixelIdValid = useMemo(() => PIXEL_ID_REGEX.test(pixelId.trim()), [pixelId]);
+  // Rules come from the API (`/settings/tracking/validation-contract`) rather
+  // than local literals. The literals drifted: this panel enforced
+  // `/^\d{15,16}$/` on the Pixel ID — folklore, not a Meta-published bound —
+  // and rejected real 17-digit 2026 dataset IDs, and it required a 50-char
+  // CAPI token while the API it posts to accepts 20.
+  const rules = useTrackingContract(storeId).meta;
+  const pixelIdRegex = useMemo(
+    () => compilePattern(rules.pixel_id, DEFAULT_TRACKING_CONTRACT.meta.pixel_id),
+    [rules.pixel_id],
+  );
+  const testEventRegex = useMemo(
+    () =>
+      compilePattern(
+        rules.test_event_code,
+        DEFAULT_TRACKING_CONTRACT.meta.test_event_code,
+      ),
+    [rules.test_event_code],
+  );
+  const minTokenLength = rules.min_token_length;
+
+  const pixelIdValid = useMemo(
+    () => pixelIdRegex.test(pixelId.trim()),
+    [pixelId, pixelIdRegex],
+  );
   const testEventCodeValid = useMemo(
-    () => testEventCode.trim() === "" || TEST_EVENT_REGEX.test(testEventCode.trim()),
-    [testEventCode],
+    () => testEventCode.trim() === "" || testEventRegex.test(testEventCode.trim()),
+    [testEventCode, testEventRegex],
   );
 
   // CAPI token requirement: when the chosen mode includes CAPI, we either
-  // need a freshly typed token (length ≥ 50) or one already on file.
+  // need a freshly typed token (long enough per the contract) or one on file.
   const modeIncludesCapi = mode === "capi_only" || mode === "both";
   const tokenOnFile = !!settings?.capi_access_token_masked;
   const tokenInputValid =
-    capiToken.trim().length === 0 || capiToken.trim().length >= MIN_CAPI_TOKEN_LENGTH;
+    capiToken.trim().length === 0 || capiToken.trim().length >= minTokenLength;
   const capiTokenSatisfied =
-    !modeIncludesCapi || tokenOnFile || capiToken.trim().length >= MIN_CAPI_TOKEN_LENGTH;
+    !modeIncludesCapi || tokenOnFile || capiToken.trim().length >= minTokenLength;
 
   const canSave =
     !!storeId &&
@@ -355,6 +386,21 @@ export function MetaTrackingPanel() {
     }
   }, [isAr, language, queryClient, storeId, testEventCode]);
 
+  const handleVerify = useCallback(async () => {
+    if (!storeId) return;
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      // A "no" from Meta resolves normally with `verified: false` — only a
+      // transport/auth failure throws. Both are surfaced; neither is fatal.
+      setVerifyResult(await verifyMetaConnection(storeId));
+    } catch (err) {
+      showError(err, language);
+    } finally {
+      setVerifying(false);
+    }
+  }, [language, storeId]);
+
   const handleDisconnect = useCallback(async () => {
     if (!storeId) return;
     setDisconnecting(true);
@@ -445,8 +491,8 @@ export function MetaTrackingPanel() {
               title={isAr ? "هوية الـ Pixel" : "Pixel identity"}
               desc={
                 isAr
-                  ? "المعرّف المكوّن من ١٥-١٦ رقم من Meta Events Manager → Data sources"
-                  : "The 15-16 digit ID from Meta Events Manager → Data sources"
+                  ? "المعرّف الرقمي من Meta Events Manager → Data sources"
+                  : "The numeric ID from Meta Events Manager → Data sources"
               }
               aside={
                 <a
@@ -777,6 +823,19 @@ export function MetaTrackingPanel() {
                 }
                 failureRate={statusQuery.data?.recent_failure_rate ?? null}
                 eventCount={statusQuery.data?.recent_event_count ?? null}
+                isAr={isAr}
+              />
+
+              <VerifyConnectionRow
+                onVerify={handleVerify}
+                result={verifyResult}
+                verifying={verifying}
+                // Meta needs a saved Pixel ID; the endpoint also needs a token
+                // but it reports that itself rather than us pre-guessing.
+                disabled={!settings?.pixel_id}
+                disabledHint={
+                  isAr ? "احفظ معرّف الـ Pixel الأول." : "Save your Pixel ID first."
+                }
                 isAr={isAr}
               />
 

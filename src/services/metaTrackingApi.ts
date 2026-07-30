@@ -250,6 +250,36 @@ export async function fetchMetaTrackingStatus(
   );
 }
 
+/**
+ * Result of asking Meta/TikTok whether the saved pixel is real and reachable.
+ * Shared shape across both platforms so one UI component renders either.
+ */
+export interface VerifyConnectionResult {
+  verified: boolean;
+  /** The dataset/pixel name as the provider knows it. */
+  name: string | null;
+  is_active: boolean | null;
+  /** The provider's own message when it said no, or what we still need. */
+  error: string | null;
+  platform: "meta" | "tiktok";
+}
+
+/**
+ * Ask Meta to confirm the saved Pixel ID.
+ *
+ * A "no" answer comes back as a resolved `{verified: false, error}` — not a
+ * thrown ApiError — because the merchant needs to read Meta's message. Only
+ * transport/auth failures reject.
+ */
+export async function verifyMetaConnection(
+  storeId: string,
+): Promise<VerifyConnectionResult> {
+  return apiClient<VerifyConnectionResult>(
+    `/stores/${storeId}/settings/tracking/meta/verify`,
+    { method: "POST" },
+  );
+}
+
 // ─── Activation mode helpers ───────────────────────────────────────────────
 
 /**
