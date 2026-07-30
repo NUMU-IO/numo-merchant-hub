@@ -27,7 +27,7 @@
 import type { DiscountRule } from "@/services/promotionApi";
 
 export interface PreviewLine {
-  /** Cents per unit. Whole-EGP UI multiplies by 100 before calling. */
+  /** Minor units per unit. Callers convert with `majorToMinor` first. */
   unit_price_cents: number;
   quantity: number;
 }
@@ -45,7 +45,16 @@ export interface PreviewResult {
   explanation: string;
   /** i18n key under `promotions.preview.*` for the same sentence. */
   explanation_key: string;
-  /** Interpolation values for `explanation_key`. */
+  /**
+   * Interpolation values for `explanation_key`.
+   *
+   * Any key ending in `_cents` holds integer MINOR units and must be run
+   * through the store's money formatter before it reaches a merchant — the
+   * render layer (`PromotionRulePreview`) maps `amount_cents` → `amount` and
+   * `break_even_cents` → `breakEven`, both formatted in the store's own
+   * currency. The `_cents` suffix is the contract: an unmapped raw number
+   * reaching the UI reads as a 100x price.
+   */
   explanation_params?: Record<string, string | number>;
 }
 
@@ -125,7 +134,7 @@ export function previewDiscount(
       free_shipping: false,
       explanation: `subtotal below minimum (${rule.min_subtotal_cents} cents)`,
       explanation_key: "below_minimum",
-      explanation_params: { cents: rule.min_subtotal_cents },
+      explanation_params: { amount_cents: rule.min_subtotal_cents },
     };
   }
 
@@ -161,7 +170,7 @@ export function previewDiscount(
         free_shipping: false,
         explanation: `${v} cents off`,
         explanation_key: "fixed_off",
-        explanation_params: { cents: v },
+        explanation_params: { amount_cents: v },
       };
     }
     case "bogo": {
@@ -253,13 +262,13 @@ export function previewDiscount(
           explanation: `multibuy price (${groupPrice} cents) is not below the regular price of ${n} items`,
           explanation_key: "multibuy_not_below",
           explanation_params: {
-            cents: groupPrice,
+            amount_cents: groupPrice,
             quantity: n,
             // Must FLOOR, matching `multibuyBreakEvenCents` — rounding here
             // made the pane print two different figures two lines apart
             // (216.67 vs 216.66) and, worse, named a price that actually
             // qualifies as one that doesn't.
-            breakEven: (Math.floor(groupPrice / n) / 100).toFixed(2),
+            break_even_cents: Math.floor(groupPrice / n),
           },
         };
       }
@@ -268,7 +277,7 @@ export function previewDiscount(
         free_shipping: false,
         explanation: `${n} for ${groupPrice} cents — ${complete} group(s)`,
         explanation_key: "multibuy_applied",
-        explanation_params: { quantity: n, cents: groupPrice, groups: complete },
+        explanation_params: { quantity: n, amount_cents: groupPrice, groups: complete },
       };
     }
     case "tiered": {
@@ -292,7 +301,10 @@ export function previewDiscount(
         free_shipping: false,
         explanation: `${winner.percent}% off (tier ≥ ${winner.threshold_cents} cents)`,
         explanation_key: "tiered_applied",
-        explanation_params: { percent: winner.percent, cents: winner.threshold_cents },
+        explanation_params: {
+          percent: winner.percent,
+          amount_cents: winner.threshold_cents,
+        },
       };
     }
     default:

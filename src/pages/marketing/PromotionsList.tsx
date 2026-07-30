@@ -81,6 +81,7 @@ import {
   type PromotionSurface,
 } from "@/services/promotionApi";
 import { showError } from "@/lib/show-error";
+import { formatMoney } from "@/lib/format-money";
 
 const PAGE_SIZE = 25;
 
@@ -105,6 +106,7 @@ const STATUS_OPTIONS: PromotionStatus[] = [
 export default function PromotionsList() {
   const { t } = useTranslation();
   const { language } = useLanguage();
+  const moneyLocale = language === "ar" ? "ar" : "en";
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const navigate = useNavigate();
@@ -196,8 +198,13 @@ export default function PromotionsList() {
           value: rule.value_percent ?? 0,
         }) as string;
       case "fixed":
+        // Currency comes from the platform's active-store value, never a
+        // literal in the copy — a Saudi store's list must not read "EGP".
         return t("promotions.list.discount_fixed", {
-          value: ((rule.value_cents ?? 0) / 100).toLocaleString(),
+          value: formatMoney(rule.value_cents ?? 0, {
+            fromCents: true,
+            locale: moneyLocale,
+          }),
         }) as string;
       case "free_shipping":
         return t("promotions.list.discount_free_shipping") as string;
@@ -211,7 +218,10 @@ export default function PromotionsList() {
         // the right promotion in a long list.
         return t("promotions.list.discount_multibuy", {
           quantity: rule.multibuy_quantity ?? 0,
-          price: ((rule.multibuy_price_cents ?? 0) / 100).toLocaleString(),
+          price: formatMoney(rule.multibuy_price_cents ?? 0, {
+            fromCents: true,
+            locale: moneyLocale,
+          }),
         }) as string;
       default:
         return t("promotions.list.discount_none") as string;

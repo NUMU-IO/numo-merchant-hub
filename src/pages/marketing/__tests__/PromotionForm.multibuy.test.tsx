@@ -29,12 +29,22 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import i18n from "@/i18n";
 import ar from "@/i18n/ar";
 import en from "@/i18n/en";
+import {
+  formatMoney,
+  setActiveStoreCurrency,
+} from "@/lib/format-money";
 import type {
   CreatePromotionRequest,
   Promotion,
@@ -56,26 +66,38 @@ const H = vi.hoisted(() => {
     "66666666-6666-4666-8666-666666666666",
     "77777777-7777-4777-8777-777777777777",
   ];
+  const STORE_ID = "11111111-1111-4111-8111-111111111111";
   return {
-    STORE_ID: "11111111-1111-4111-8111-111111111111",
+    STORE_ID,
     CATEGORY_IDS,
     PRODUCT_IDS,
     CATEGORY_ID: CATEGORY_IDS[0],
     PRODUCT_ID: PRODUCT_IDS[0],
     createMutateAsync: vi.fn(),
     updateMutateAsync: vi.fn(),
+    createCoupon: vi.fn(),
     promotionData: { current: undefined as Promotion | undefined },
+    /** The signed-in store — mutable, so a test can put the merchant in a
+     *  non-Egyptian market and check the money labels follow. */
+    store: {
+      current: { id: STORE_ID } as { id: string; default_currency?: string },
+    },
     toastError: vi.fn(),
     toastSuccess: vi.fn(),
   };
 });
 
 vi.mock("@/contexts/StoreContext", () => ({
-  useDashboardStore: () => ({ currentStore: { id: H.STORE_ID } }),
+  useDashboardStore: () => ({ currentStore: H.store.current }),
 }));
 
 vi.mock("sonner", () => ({
   toast: { error: H.toastError, success: H.toastSuccess },
+}));
+
+// Only the create path touches this, and only for the `discount_code` surface.
+vi.mock("@/services/couponApi", () => ({
+  createCoupon: H.createCoupon,
 }));
 
 vi.mock("@/hooks/usePromotions", () => ({
@@ -284,10 +306,20 @@ const SAVED_MULTIBUY: Promotion = {
 beforeEach(async () => {
   vi.clearAllMocks();
   H.promotionData.current = undefined;
+  H.store.current = { id: H.STORE_ID };
   H.createMutateAsync.mockResolvedValue({ id: "new-promo" });
   H.updateMutateAsync.mockResolvedValue({ id: "promo-multibuy-1" });
+  H.createCoupon.mockResolvedValue({ id: "new-coupon" });
+  // `formatMoney` reads a module-level active-store currency (StoreProvider
+  // pushes it in real usage); reset it so one market's test can't recolour
+  // the next one's money assertions.
+  setActiveStoreCurrency("EGP");
   await i18n.changeLanguage("en");
 });
+
+/** Money as the pane/labels render it, in the store's currency. */
+const money = (major: number, locale: "ar" | "en" = "en") =>
+  formatMoney(major, { locale });
 
 // ─────────────────────────────────────────────────────────────────────────
 // B. buildDiscountRule / buildTargets — payload shape
@@ -454,15 +486,21 @@ describe("B. multibuy payload shape", () => {
     });
   });
 
-  it("carries min_subtotal_cents / max_discount_cents through unchanged", async () => {
+  it("carries min_subtotal / max_discount through as CENTS (x100)", async () => {
+    // The merchant types MAJOR units — the API field names still say `_cents`,
+    // and that x100 relationship is the whole risk surface, so it is spelled
+    // out rather than left implicit in a literal.
     renderForm();
     setInput("promo-name", "Ultimate Trio");
     applyTemplate("multibuy_3_for_650");
-    setInput("rule-min", "50000");
-    setInput("rule-max", "15000");
+    setInput("rule-min", "500");
+    setInput("rule-max", "150");
     submit();
 
-    expect((await createPayload()).discount_rule).toEqual({
+    const rule = (await createPayload()).discount_rule!;
+    expect(rule.min_subtotal_cents).toBe(500 * 100);
+    expect(rule.max_discount_cents).toBe(150 * 100);
+    expect(rule).toEqual({
       kind: "multibuy",
       multibuy_quantity: 3,
       multibuy_price_cents: 65000,
@@ -476,14 +514,18 @@ describe("B. multibuy payload shape", () => {
     setInput("promo-name", "Custom bundle");
     applyTemplate("multibuy_3_for_650");
     setInput("rule-multibuy-qty", "4");
-    setInput("rule-multibuy-price", "80000");
+    setInput("rule-multibuy-price", "800"); // EGP 800 → 80000 cents
     submit();
 
-    expect((await createPayload()).discount_rule).toEqual({
+    const rule = (await createPayload()).discount_rule!;
+    expect(rule.multibuy_price_cents).toBe(800 * 100);
+    expect(rule).toEqual({
       kind: "multibuy",
       multibuy_quantity: 4,
       multibuy_price_cents: 80000,
     });
+    // A quantity is NOT money — it must not be multiplied by 100.
+    expect(rule.multibuy_quantity).toBe(4);
   });
 });
 
@@ -1068,31 +1110,135 @@ describe("C. multibuy validation", () => {
     expectBlocked(QTY_ERROR);
   });
 
-  it("FRACTIONAL P = 650.5 → multibuy_price_required", () => {
-    // Same class on the price field: cents are integers end-to-end, and
-    // `multibuy_price_cents: int` rejects the fractional part too.
+  it("RE-AIMED: a fractional price is now LEGITIMATE — 650.5 → 65050 cents", async () => {
+    // WAS "FRACTIONAL P = 650.5 → multibuy_price_required", because the field
+    // held CENTS and half a piaster is not a thing. The field now holds MAJOR
+    // units, so 650.5 means EGP 650.50 — a real price, and an integer number
+    // of piasters. Blocking it would refuse a legal offer.
     renderForm();
     setInput("promo-name", "Six fifty and a half");
     applyTemplate("multibuy_3_for_650");
     setInput("rule-multibuy-price", "650.5");
     submit();
-    expectBlocked(PRICE_ERROR);
+
+    expect(H.toastError).not.toHaveBeenCalled();
+    expect((await createPayload()).discount_rule!.multibuy_price_cents).toBe(
+      65050,
+    );
   });
 
-  it.each(MULTIBUY_PYTHON_TYPE_REJECTS.map((r) => [r.id, r] as const))(
-    "every shape the Python validator type-rejects is blocked here: %s",
+  it("a third decimal ROUNDS up, never truncates (650.505 → 65051)", async () => {
+    // Truncating would silently under-price the bundle by a piaster on every
+    // sale. Pinned here as well as in the format-money unit tests because this
+    // is the path a merchant's paste actually takes.
+    renderForm();
+    setInput("promo-name", "Three decimals");
+    applyTemplate("multibuy_3_for_650");
+    setInput("rule-multibuy-price", "650.505");
+    submit();
+
+    const cents = (await createPayload()).discount_rule!.multibuy_price_cents!;
+    expect(cents).toBe(65051);
+    expect(cents).not.toBe(65050); // the truncating answer
+    expect(Number.isInteger(cents)).toBe(true);
+  });
+
+  it("what must STILL be rejected on the price field", () => {
+    // The rejections that survive the unit change: nothing (blank), nothing of
+    // value (zero / negative), garbage, and an amount too small to be one
+    // minor unit — which converts to 0 and would ship a free bundle.
+    for (const [label, typed] of [
+      ["blank", ""],
+      ["zero", "0"],
+      ["explicit zero decimals", "0.00"],
+      ["negative", "-1"],
+      ["negative fraction", "-0.5"],
+      ["non-numeric", "abc"],
+      ["rounds to 0 minor units", "0.004"],
+    ] as const) {
+      vi.clearAllMocks();
+      const { unmount } = renderForm();
+      setInput("promo-name", "Trio");
+      applyTemplate("multibuy_3_for_650");
+      setInput("rule-multibuy-price", typed);
+      submit();
+      expect(H.createMutateAsync, label).not.toHaveBeenCalled();
+      expect(H.toastError, label).toHaveBeenCalledWith(PRICE_ERROR);
+      unmount();
+    }
+  });
+
+  it("BOUNDARY: the smallest shippable price is one minor unit (0.01 → 1)", () => {
+    // Directly above the "rounds to 0" rejection: 0.005 rounds UP to 1 cent
+    // and must therefore be accepted, or the boundary would have a gap.
+    for (const typed of ["0.01", "0.005"]) {
+      vi.clearAllMocks();
+      H.createMutateAsync.mockResolvedValue({ id: "new-promo" });
+      const { unmount } = renderForm();
+      setInput("promo-name", "One piaster");
+      applyTemplate("multibuy_3_for_650");
+      setInput("rule-multibuy-price", typed);
+      submit();
+      expect(H.toastError, typed).not.toHaveBeenCalled();
+      unmount();
+    }
+  });
+
+  it.each(
+    MULTIBUY_PYTHON_TYPE_REJECTS.filter((r) => r.field === "quantity").map(
+      (r) => [r.id, r] as const,
+    ),
+  )(
+    "every QUANTITY shape the Python validator type-rejects is blocked here: %s",
     (_id, reject) => {
       // Data-driven off the live validator's own answers, so the hub's
       // guard is provably a mirror of the API's and not an approximation.
+      // Quantity is not money, so it is still typed 1:1 into the form.
       expect(reject.rejectedByPython).toBe(true);
       expect(reject.pythonError).toContain("valid integer");
       renderForm();
       setInput("promo-name", "Fractional");
       applyTemplate("multibuy_3_for_650");
       setInput("rule-multibuy-qty", reject.typed.quantity);
-      setInput("rule-multibuy-price", reject.typed.price);
       submit();
-      expectBlocked(reject.field === "quantity" ? QTY_ERROR : PRICE_ERROR);
+      expectBlocked(QTY_ERROR);
+    },
+  );
+
+  it.each(
+    MULTIBUY_PYTHON_TYPE_REJECTS.filter((r) => r.field === "price").map(
+      (r) => [r.id, r] as const,
+    ),
+  )(
+    "a fractional-CENTS price can no longer be SENT at all: %s",
+    async (_id, reject) => {
+      // RE-AIMED. These vectors are API-level: `multibuy_price_cents: 650.5`
+      // 422s with "valid integer". The hub used to guard that by rejecting a
+      // fractional input, because the input WAS the cents field. Now the input
+      // is major units, so the guard moved: `majorToMinor` rounds, and the
+      // rejected shape is unreachable by construction.
+      //
+      // The property is unchanged — the API can never receive a shape it
+      // rejects — so that is what is asserted, at its new boundary. Typing the
+      // major-unit equivalent of the rejected cents value must yield an
+      // INTEGER cents payload, never the fractional one.
+      expect(reject.rejectedByPython).toBe(true);
+      expect(reject.pythonError).toContain("valid integer");
+      const fractionalCents = reject.kwargs.multibuy_price_cents;
+      const typedMajor = String(fractionalCents / 100);
+
+      vi.clearAllMocks();
+      H.createMutateAsync.mockResolvedValue({ id: "new-promo" });
+      renderForm();
+      setInput("promo-name", "Fractional cents");
+      applyTemplate("multibuy_3_for_650");
+      setInput("rule-multibuy-price", typedMajor);
+      submit();
+
+      const sent = (await createPayload()).discount_rule!.multibuy_price_cents!;
+      expect(Number.isInteger(sent), `sent ${sent}`).toBe(true);
+      expect(sent).not.toBe(fractionalCents);
+      expect(sent).toBe(Math.round(fractionalCents));
     },
   );
 
@@ -1101,11 +1247,16 @@ describe("C. multibuy validation", () => {
     async (_id, accept) => {
       // pydantic coerces an integral float; `Number.isInteger` agrees.
       // A regex-based fix (/^\d+$/) would have diverged the other way.
+      // Restated in major units: the price the vector expresses in cents is
+      // typed as the same amount in the units the input now holds.
       renderForm();
       setInput("promo-name", "Integral float");
       applyTemplate("multibuy_3_for_650");
       setInput("rule-multibuy-qty", accept.typed.quantity);
-      setInput("rule-multibuy-price", accept.typed.price);
+      setInput(
+        "rule-multibuy-price",
+        String(accept.coercedTo.multibuy_price_cents / 100),
+      );
       submit();
       expect(H.toastError).not.toHaveBeenCalled();
       expect((await createPayload()).discount_rule).toEqual({
@@ -1115,36 +1266,50 @@ describe("C. multibuy validation", () => {
     },
   );
 
-  it("plain integers across the range still pass", async () => {
-    for (const [n, p] of [
-      ["2", "1"],
-      ["3", "65000"],
-      ["10", "999999"],
+  it("and the hub is not STRICTER than the API: an integral float PRICE submits", () => {
+    // The price half of the property, kept explicit: "650.0" is the same
+    // number as "650", and a stricter integer-string check on the raw input
+    // would have rejected it.
+    renderForm();
+    setInput("promo-name", "Integral float price");
+    applyTemplate("multibuy_3_for_650");
+    setInput("rule-multibuy-price", "650.0");
+    submit();
+    expect(H.toastError).not.toHaveBeenCalled();
+  });
+
+  it("plain amounts across the range still pass", async () => {
+    // Same three cents targets as before the unit change — typed in major
+    // units, asserted in cents, so the x100 is visible on every row.
+    for (const [n, typed, cents] of [
+      ["2", "0.01", 1],
+      ["3", "650", 65000],
+      ["10", "9999.99", 999999],
     ] as const) {
       vi.clearAllMocks();
       H.createMutateAsync.mockResolvedValue({ id: "new-promo" });
       const { unmount } = renderForm();
-      setInput("promo-name", "Integers");
+      setInput("promo-name", "Amounts");
       applyTemplate("multibuy_3_for_650");
       setInput("rule-multibuy-qty", n);
-      setInput("rule-multibuy-price", p);
+      setInput("rule-multibuy-price", typed);
       submit();
       expect((await createPayload()).discount_rule).toEqual({
         kind: "multibuy",
         multibuy_quantity: Number(n),
-        multibuy_price_cents: Number(p),
+        multibuy_price_cents: cents,
       });
       expect(H.toastError).not.toHaveBeenCalled();
       unmount();
     }
   });
 
-  it("BOUNDARY N = 2, P = 1 (the API's ge=2 / gt=0 edges) passes", async () => {
+  it("BOUNDARY N = 2, P = 1 cent (the API's ge=2 / gt=0 edges) passes", async () => {
     renderForm();
     setInput("promo-name", "Two for a piaster");
     applyTemplate("multibuy_3_for_650");
     setInput("rule-multibuy-qty", "2");
-    setInput("rule-multibuy-price", "1");
+    setInput("rule-multibuy-price", "0.01"); // the gt=0 edge, in major units
     submit();
 
     expect(await createPayload()).toBeTruthy();
@@ -1166,21 +1331,38 @@ describe("C. multibuy validation", () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe("D. templates and edit round-trip", () => {
-  it('the "3 for EGP 650" chip prefills kind + N=3 + P=65000', () => {
+  it('the "3 for 650" chip prefills N=3 and the price in MAJOR units', async () => {
+    // The input shows 650, the API gets 65000. Both halves asserted in one
+    // test so a future edit can't quietly change the units on one side.
     renderForm();
+    setInput("promo-name", "Ultimate Trio");
     applyTemplate("multibuy_3_for_650");
     expect(inputValue("rule-multibuy-qty")).toBe("3");
-    expect(inputValue("rule-multibuy-price")).toBe("65000");
+    expect(inputValue("rule-multibuy-price")).toBe("650");
+    expect(inputValue("rule-multibuy-price")).not.toBe("65000"); // the old unit
     // The multibuy fields only render for the multibuy kind, so their
     // presence is itself proof the kind switched.
     expect(document.getElementById("rule-multibuy-qty")).toBeTruthy();
+
+    // Read before submitting — a successful save navigates away.
+    const shown = inputValue("rule-multibuy-price");
+    submit();
+    expect((await createPayload()).discount_rule!.multibuy_price_cents).toBe(
+      Number(shown) * 100,
+    );
   });
 
-  it('the "2 for EGP 500" chip prefills N=2 + P=50000', () => {
+  it('the "2 for 500" chip prefills N=2 + 500 major (= 50000 cents)', async () => {
     renderForm();
+    setInput("promo-name", "Duo");
     applyTemplate("multibuy_2_for_500");
     expect(inputValue("rule-multibuy-qty")).toBe("2");
-    expect(inputValue("rule-multibuy-price")).toBe("50000");
+    expect(inputValue("rule-multibuy-price")).toBe("500");
+
+    submit();
+    expect((await createPayload()).discount_rule!.multibuy_price_cents).toBe(
+      50000,
+    );
   });
 
   it("a multibuy chip clears any leftover bogo/tiered prefill", () => {
@@ -1192,14 +1374,18 @@ describe("D. templates and edit round-trip", () => {
     expect(inputValue("rule-multibuy-qty")).toBe("3");
   });
 
-  it("editing a saved multibuy promotion hydrates both numbers", async () => {
+  it("editing a saved multibuy promotion hydrates the price as MAJOR units", async () => {
+    // The saved row holds 65000 cents; the merchant must be shown 650. Showing
+    // 65000 is the readable half of the 100x defect — it looks like a price
+    // they never set.
     H.promotionData.current = SAVED_MULTIBUY;
     renderForm("/marketing/promotions/promo-multibuy-1/edit");
     await waitFor(() =>
       expect(document.getElementById("rule-multibuy-qty")).toBeTruthy(),
     );
     expect(inputValue("rule-multibuy-qty")).toBe("3");
-    expect(inputValue("rule-multibuy-price")).toBe("65000");
+    expect(inputValue("rule-multibuy-price")).toBe("650");
+    expect(inputValue("rule-multibuy-price")).not.toBe("65000");
     expect(inputValue("promo-name")).toBe("Ultimate Trio");
   });
 
@@ -1319,8 +1505,18 @@ describe("E. multibuy in Arabic", () => {
 
     const M = ar.promotions.form;
     expect(screen.getByText(M.multibuy_quantity)).toBeInTheDocument();
-    expect(screen.getByText(M.multibuy_price)).toBeInTheDocument();
-    expect(screen.getByText(M.multibuy_help)).toBeInTheDocument();
+    // The money label names the store's currency, interpolated — and in AR it
+    // is the Arabic mark, not a stray Latin "EGP" on an otherwise Arabic form.
+    expect(
+      screen.getByText(M.multibuy_price.replace("{{currency}}", "ج.م")),
+    ).toBeInTheDocument();
+    expect(form().textContent).not.toContain("{{currency}}");
+    expect(form().textContent).not.toContain("EGP");
+    // The worked example names the currency too, so the "650" in it reads as
+    // money rather than as a bare number.
+    expect(
+      screen.getByText(M.multibuy_help.replace("{{currency}}", "ج.م")),
+    ).toBeInTheDocument();
     expect(screen.getByText(M.multibuy_targeting_title)).toBeInTheDocument();
     expect(screen.getByText(M.multibuy_eligible_set)).toBeInTheDocument();
     expect(screen.getByText(M.multibuy_eligible_help)).toBeInTheDocument();
@@ -1357,13 +1553,17 @@ describe("E. multibuy in Arabic", () => {
     // screen — interpolated, in masri.
     const expected = ar.promotions.form.preview_explain.multibuy_applied
       .replace("{{quantity}}", "3")
-      .replace("{{cents}}", "65000")
+      // The bundle price is now a formatted amount in the store's currency,
+      // not a raw minor-unit figure with the word "قرش" beside it.
+      .replace("{{amount}}", money(650, "ar"))
       .replace("{{groups}}", "1");
     expect(preview.textContent).toContain(expected);
     expect(preview.textContent).toContain("باقة"); // written in Arabic, not transliterated
+    expect(preview.textContent).toContain("٦٥٠ ج.م"); // AR digits + AR currency mark
+    expect(preview.textContent).not.toContain("65000");
 
     // The English fallback must NOT be what rendered…
-    expect(preview.textContent).not.toContain("3 for 65000 cents");
+    expect(preview.textContent).not.toContain("3 for ");
     expect(preview.textContent).not.toContain("group(s)");
     expect(preview.textContent).not.toContain("bundle(s)");
     // …and no raw i18n key leaked through a missing translation.
@@ -1391,10 +1591,14 @@ describe("E. multibuy in Arabic", () => {
       ar.promotions.form.preview_explain.multibuy_not_configured,
     );
     expect(preview.textContent).not.toContain("multibuy not configured");
-    expect(preview.textContent).toContain("−0 EGP");
+    // A zero discount, printed in the store's currency and AR digits — the
+    // pane must never fall back to a hardcoded "EGP" here.
+    const zeroAr = `−${money(0, "ar")}`;
+    expect(within(preview).getByText(zeroAr)).toBeInTheDocument();
+    expect(preview.textContent).not.toContain("EGP");
 
     setInput("rule-multibuy-qty", "3"); // …and back to a firing rule
-    expect(preview.textContent).not.toContain("−0 EGP");
+    expect(within(preview).queryByText(zeroAr)).not.toBeInTheDocument();
   });
 
   it("GAP CLOSED: the OTHER kinds' zero-discount explanations are Arabic too", async () => {
@@ -1412,7 +1616,7 @@ describe("E. multibuy in Arabic", () => {
       ar.promotions.form.preview_explain.bogo_not_met,
     );
     expect(preview.textContent).not.toContain("bogo not met");
-    expect(preview.textContent).toContain("−0 EGP");
+    expect(within(preview).getByText(`−${money(0, "ar")}`)).toBeInTheDocument();
     bogo.unmount();
 
     // (b) tiered whose lowest threshold (EGP 1000) is above the fixed
@@ -1424,7 +1628,7 @@ describe("E. multibuy in Arabic", () => {
       ar.promotions.form.preview_explain.tiered_none,
     );
     expect(preview.textContent).not.toContain("no tier threshold met");
-    expect(preview.textContent).toContain("−0 EGP");
+    expect(within(preview).getByText(`−${money(0, "ar")}`)).toBeInTheDocument();
   });
 
   it("INVARIANT: the multibuy pane never renders a bundle-failure state (AR + EN)", async () => {
@@ -1474,19 +1678,23 @@ describe("E. multibuy in Arabic", () => {
     renderForm();
     applyTemplate("multibuy_3_for_650");
     setInput("rule-multibuy-qty", "3");
-    setInput("rule-multibuy-price", "330");
-    const text = screen.getByTestId("promotion-rule-preview").textContent!;
+    // EGP 3.30 — the same 330-cent bundle as before the unit change.
+    setInput("rule-multibuy-price", "3.30");
+    const preview = screen.getByTestId("promotion-rule-preview");
+    const text = preview.textContent!;
 
     // It fired…
     expect(text).toContain(
       en.promotions.form.preview_explain.multibuy_applied
         .replace("{{quantity}}", "3")
-        .replace("{{cents}}", "330")
+        .replace("{{amount}}", money(3.3))
         .replace("{{groups}}", "1"),
     );
-    // …and now says so: 3 × 111 − 330 = 3 cents.
-    expect(text).toContain("−0.03 EGP");
-    expect(text).not.toContain("−0 EGP");
+    // …and now says so: 3 × 111 − 330 = 3 cents. `getByText` on the discount
+    // cell is an EXACT match, so it also proves the cell isn't "−EGP 0" (which
+    // would be a prefix of "−EGP 0.03" and slip past `toContain`).
+    expect(within(preview).getByText(`−${money(0.03)}`)).toBeInTheDocument();
+    expect(within(preview).queryByText(`−${money(0)}`)).not.toBeInTheDocument();
   });
 
   it("REGRESSION F26 (cont): whole-pound figures keep their clean formatting", () => {
@@ -1495,13 +1703,18 @@ describe("E. multibuy in Arabic", () => {
     renderForm();
     applyTemplate("multibuy_3_for_650");
     const text = screen.getByTestId("promotion-rule-preview").textContent!;
-    // Derived cart: 4 × EGP 271, subtotal 1084, discount 163, total 921.
-    expect(text).toContain("271 EGP");
-    expect(text).toContain("1084 EGP");
-    expect(text).toContain("−163 EGP");
-    expect(text).toContain("921 EGP");
+    // Derived cart: 4 × EGP 271, subtotal 1,084, discount 163, total 921.
+    // Note the currency now leads in EN ("EGP 271") and thousands are grouped
+    // — pinned against `formatMoney` rather than a hand-written literal.
+    expect(text).toContain(money(271));
+    expect(text).toContain(money(1084));
+    expect(text).toContain(`−${money(163)}`);
+    expect(text).toContain(money(921));
     expect(text).not.toContain("271.00");
     expect(text).not.toContain("163.00");
+    // …and no raw minor units anywhere in the pane.
+    expect(text).not.toContain("27100");
+    expect(text).not.toContain("65000");
   });
 
   it("the break-even line renders in Arabic with the interpolated price", async () => {
@@ -1509,12 +1722,16 @@ describe("E. multibuy in Arabic", () => {
     renderForm();
     applyTemplate("multibuy_3_for_650");
     const preview = screen.getByTestId("promotion-rule-preview");
-    // floor(65000 / 3) = 21666 cents → EGP 216.66
-    expect(preview.textContent).toContain("216.66");
+    // floor(65000 / 3) = 21666 cents → EGP 216.66, in AR digits + AR mark.
+    expect(preview.textContent).toContain(money(216.66, "ar"));
     expect(preview.textContent).toContain(
-      ar.promotions.form.preview_break_even.split("{{price}}")[0],
+      ar.promotions.form.preview_break_even.replace(
+        "{{price}}",
+        money(216.66, "ar"),
+      ),
     );
     expect(preview.textContent).not.toContain("Applies to items priced above");
+    expect(preview.textContent).not.toContain("EGP");
   });
 
   it("the sample-cart label counts the DERIVED cart, in Arabic", async () => {
@@ -1558,14 +1775,18 @@ describe("live preview pane", () => {
     // break-even floor(65000/3) = 21666c → 25% up, rounded to a whole
     // pound = EGP 271 × 4 units. One trio = 81300c, minus 65000 = 16300c.
     expect(preview.textContent).toContain("sample 4-item cart");
-    expect(preview.textContent).toContain("1084 EGP"); // subtotal, 4 × 271
-    expect(preview.textContent).toContain("−163 EGP"); // the saving
-    expect(preview.textContent).toContain("921 EGP"); // total = 650 + 271
-    expect(preview.textContent).not.toContain("−0 EGP");
+    expect(preview.textContent).toContain(money(1084)); // subtotal, 4 × 271
+    expect(preview.textContent).toContain(`−${money(163)}`); // the saving
+    expect(preview.textContent).toContain(money(921)); // total = 650 + 271
+    expect(
+      within(preview).queryByText(`−${money(0)}`),
+    ).not.toBeInTheDocument();
     expect(preview.textContent).toContain(
       en.promotions.form.preview_explain.multibuy_applied
         .replace("{{quantity}}", "3")
-        .replace("{{cents}}", "65000")
+        // The bundle price prints as money in the store's currency now, not
+        // as "65000 cents".
+        .replace("{{amount}}", money(650))
         .replace("{{groups}}", "1"),
     );
   });
@@ -1575,7 +1796,37 @@ describe("live preview pane", () => {
     applyTemplate("multibuy_3_for_650");
     const preview = screen.getByTestId("promotion-rule-preview");
     expect(preview.textContent).toContain(
-      en.promotions.form.preview_break_even.replace("{{price}}", "216.66"),
+      en.promotions.form.preview_break_even.replace(
+        "{{price}}",
+        money(216.66),
+      ),
+    );
+  });
+
+  it("REGRESSION F24 (rendered): the printed break-even is the EXACT threshold", () => {
+    // The component half of F24, and the reason the pane formats thresholds
+    // exactly instead of rounding them to whole units like the cart figures.
+    //
+    // N=3 / P=648.90 has a break-even of 21630c = EGP 216.30, which rounds
+    // DOWN to "EGP 216" — and an item priced at EGP 216.10 is "above EGP 216"
+    // yet buys nothing (3 × 21610 = 64830 < 64890). A rounded figure therefore
+    // NAMES A NON-QUALIFYING PRICE, which is exactly the defect F24 fixed.
+    renderForm();
+    applyTemplate("multibuy_3_for_650");
+    setInput("rule-multibuy-price", "648.90");
+    const preview = screen.getByTestId("promotion-rule-preview");
+    const copy = en.promotions.form.preview_break_even;
+
+    expect(preview.textContent).toContain(
+      copy.replace("{{price}}", money(216.3)),
+    );
+    // The rounded sentence must NOT be on screen. Compared as the whole
+    // sentence, because "EGP 216" is a substring of "EGP 216.3".
+    expect(preview.textContent).not.toContain(
+      copy.replace("{{price}}", money(216)),
+    );
+    expect(preview.textContent).not.toContain(
+      copy.replace("{{price}}", money(217)),
     );
   });
 
@@ -1583,13 +1834,13 @@ describe("live preview pane", () => {
     renderForm();
     applyTemplate("multibuy_3_for_650");
     setInput("rule-multibuy-qty", "5");
-    setInput("rule-multibuy-price", "150000");
+    setInput("rule-multibuy-price", "1500"); // EGP 1,500 = 150000 cents
     const preview = screen.getByTestId("promotion-rule-preview");
-    // break-even 30000c → 25% up = EGP 375 × 6 units = 2250 EGP subtotal;
+    // break-even 30000c → 25% up = EGP 375 × 6 units = EGP 2,250 subtotal;
     // one group of 5 = 187500c, minus 150000 = 37500c saving.
     expect(preview.textContent).toContain("sample 6-item cart");
-    expect(preview.textContent).toContain("2250 EGP");
-    expect(preview.textContent).toContain("−375 EGP");
+    expect(preview.textContent).toContain(money(2250));
+    expect(preview.textContent).toContain(`−${money(375)}`);
     expect(preview.textContent).not.toContain("sample 4-item cart");
   });
 
@@ -1600,8 +1851,8 @@ describe("live preview pane", () => {
     applyTemplate("bogo_2_1_free");
     const preview = screen.getByTestId("promotion-rule-preview");
     expect(preview.textContent).toContain("sample 4-item cart");
-    expect(preview.textContent).toContain("280 EGP"); // 100+80+60+40 subtotal
-    expect(preview.textContent).toContain("−40 EGP"); // cheapest unit free
+    expect(preview.textContent).toContain(money(280)); // 100+80+60+40 subtotal
+    expect(preview.textContent).toContain(`−${money(40)}`); // cheapest unit free
     // …and no break-even line, which only makes sense for a bundle.
     expect(preview.textContent).not.toContain(
       en.promotions.form.preview_break_even.split("{{price}}")[0],
@@ -1614,12 +1865,241 @@ describe("live preview pane", () => {
     renderForm();
     applyTemplate("multibuy_3_for_650");
     setInput("rule-multibuy-qty", "3");
-    setInput("rule-multibuy-price", "20000");
+    setInput("rule-multibuy-price", "200"); // EGP 200 = 20000 cents
     const preview = screen.getByTestId("promotion-rule-preview");
-    expect(preview.textContent).toContain("3 for 20000 cents — 1 bundle(s)");
+    expect(preview.textContent).toContain(
+      en.promotions.form.preview_explain.multibuy_applied
+        .replace("{{quantity}}", "3")
+        .replace("{{amount}}", money(200))
+        .replace("{{groups}}", "1"),
+    );
+    expect(preview.textContent).toContain("bundle(s)");
     expect(preview.textContent).not.toContain("group(s)");
     // break-even floor(20000/3) = 6666c → 25% up, rounded = EGP 83 × 4.
-    expect(preview.textContent).toContain("−49 EGP"); // 3×8300 − 20000
-    expect(preview.textContent).toContain("332 EGP"); // subtotal
+    expect(preview.textContent).toContain(`−${money(49)}`); // 3×8300 − 20000
+    expect(preview.textContent).toContain(money(332)); // subtotal
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// F. THE MONEY BOUNDARY — major units in the form, minor units on the wire
+//
+// The form converts in exactly two places: the hydrate effect
+// (`minorToMajorInput`) and `buildDiscountRule` (`majorToMinor`). A second
+// conversion — or a missing one — anywhere between them multiplies or divides
+// a live merchant's price by 100. These tests are that boundary, driven end to
+// end: what the API stored → what the merchant sees → what the API gets back.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("F. money boundary: no drift on a no-edit re-save", () => {
+  /** A saved promotion carrying money in every field the form can hold. */
+  const savedWithMoney = (rule: Record<string, unknown>): Promotion => ({
+    ...SAVED_MULTIBUY,
+    discount_rule: { kind: "multibuy", ...rule } as Promotion["discount_rule"],
+    targets: [],
+  });
+
+  it("REGRESSION F28: hydrate → Save with NO edits sends back the IDENTICAL cents", async () => {
+    // The silent-100x path. A merchant opens a live "3 for EGP 650" bundle to
+    // change its end date, presses Save, and the price must come back as
+    // 65000 — not 650 (a divide that survived the unit switch) and not
+    // 6500000 (a multiply applied twice). Nothing is typed in this test on
+    // purpose: the drift, if any, is entirely the form's.
+    const saved = savedWithMoney({
+      multibuy_quantity: 3,
+      multibuy_price_cents: 65000,
+      min_subtotal_cents: 50000,
+      max_discount_cents: 15000,
+    });
+    const payload = await saveUntouched(saved);
+
+    expect(payload.discount_rule).toEqual(saved.discount_rule);
+    // Spelled out, because a `toEqual` on the whole rule can read as a
+    // formatting quibble when it is actually a pricing defect.
+    const rule = payload.discount_rule!;
+    expect(rule.multibuy_price_cents).toBe(65000);
+    expect(rule.min_subtotal_cents).toBe(50000);
+    expect(rule.max_discount_cents).toBe(15000);
+  });
+
+  it("REGRESSION F28: a price with PIASTERS survives the round trip exactly", async () => {
+    // 65050 is the case a whole-unit renderer would silently round: hydrating
+    // it as "650" and saving would drop 50 piasters from a live offer.
+    const saved = savedWithMoney({
+      multibuy_quantity: 3,
+      multibuy_price_cents: 65050,
+      min_subtotal_cents: 1,
+      max_discount_cents: 999999,
+    });
+    H.promotionData.current = saved;
+    renderForm("/marketing/promotions/promo-multibuy-1/edit");
+    await waitFor(() =>
+      expect(document.getElementById("rule-multibuy-price")).toBeTruthy(),
+    );
+    // Shown in major units, with the piasters intact…
+    expect(inputValue("rule-multibuy-price")).toBe("650.50");
+    expect(inputValue("rule-min")).toBe("0.01");
+    expect(inputValue("rule-max")).toBe("9999.99");
+
+    submit();
+    // …and returned byte-for-byte in minor units.
+    expect((await updatePayload()).discount_rule).toEqual(saved.discount_rule);
+  });
+
+  it("REGRESSION F28: re-saving TWICE does not compound a conversion", async () => {
+    // A one-off divide shows up on the first save; a compounding one only on
+    // the second. Cheap to check, and it is the shape of the worst version of
+    // this defect.
+    const saved = savedWithMoney({
+      multibuy_quantity: 3,
+      multibuy_price_cents: 65000,
+    });
+    const first = await saveUntouched(saved);
+    expect(first.discount_rule!.multibuy_price_cents).toBe(65000);
+
+    // Feed the payload we just produced back in as the stored row.
+    const second = await saveUntouched({
+      ...saved,
+      discount_rule: first.discount_rule!,
+    });
+    expect(second.discount_rule!.multibuy_price_cents).toBe(65000);
+  });
+
+  it("REGRESSION F28: tiered thresholds round-trip in cents too", async () => {
+    // Same boundary, different field shape (an array of rows) — and the one
+    // most likely to be missed, because the conversion has to happen per row.
+    const saved: Promotion = {
+      ...SAVED_MULTIBUY,
+      discount_rule: {
+        kind: "tiered",
+        tiers: [
+          { threshold_cents: 50000, percent: 5 },
+          { threshold_cents: 100000, percent: 10 },
+          { threshold_cents: 200050, percent: 15 },
+        ],
+      },
+      targets: [],
+    };
+    H.promotionData.current = saved;
+    renderForm("/marketing/promotions/promo-multibuy-1/edit");
+    await waitFor(() =>
+      expect(document.getElementById("tier-thresh-0")).toBeTruthy(),
+    );
+    expect(inputValue("tier-thresh-0")).toBe("500");
+    expect(inputValue("tier-thresh-1")).toBe("1000");
+    expect(inputValue("tier-thresh-2")).toBe("2000.50");
+
+    submit();
+    expect((await updatePayload()).discount_rule).toEqual(saved.discount_rule);
+  });
+
+  it("an empty cap stays ABSENT rather than becoming a zero cap", async () => {
+    // `majorToMinor("")` returns null precisely so this distinction survives:
+    // a 0 cap would zero every discount the promotion ever gives.
+    const saved = savedWithMoney({
+      multibuy_quantity: 3,
+      multibuy_price_cents: 65000,
+    });
+    const payload = await saveUntouched(saved);
+    expect(payload.discount_rule).not.toHaveProperty("max_discount_cents");
+    expect(payload.discount_rule).not.toHaveProperty("min_subtotal_cents");
+  });
+});
+
+describe("F2. money boundary: the coupon record uses MAJOR units", () => {
+  it("REGRESSION F29: min/max are NOT divided by 100 on the way to the coupon", async () => {
+    // The Coupon API takes decimals ("50.00"), and the form's inputs now hold
+    // major units — so the value passes straight through. The pre-refactor code
+    // divided by 100 because the input held cents; keeping that divide turned
+    // an EGP 500 minimum into EGP 5 and a EGP 150 cap into EGP 1.50, silently
+    // over-discounting every order the code was used on.
+    renderForm("/marketing/promotions/new?surface=discount_code");
+    setInput("promo-name", "Code bundle");
+    setInput("promo-code", "TRIO650");
+    applyTemplate("multibuy_3_for_650");
+    setInput("rule-min", "500");
+    setInput("rule-max", "150");
+    submit();
+
+    await waitFor(() => expect(H.createCoupon).toHaveBeenCalled());
+    const [, couponData] = H.createCoupon.mock.calls.at(-1)!;
+    expect(couponData.min_order_amount).toBe(500);
+    expect(couponData.max_discount_amount).toBe(150);
+    // …while the PROMOTION's own rule still carries minor units. Both units
+    // coexisting in one submit is exactly why this needs pinning.
+    const rule = (await createPayload()).discount_rule!;
+    expect(rule.min_subtotal_cents).toBe(50000);
+    expect(rule.max_discount_cents).toBe(15000);
+  });
+
+  it("a blank or zero min/max is sent as null, not 0", async () => {
+    // Pre-existing behaviour (the backend rejects <= 0) — re-pinned because the
+    // `/100` removal touched these exact expressions.
+    renderForm("/marketing/promotions/new?surface=discount_code");
+    setInput("promo-name", "Code bundle");
+    setInput("promo-code", "TRIO651");
+    applyTemplate("multibuy_3_for_650");
+    setInput("rule-min", "0");
+    submit();
+
+    await waitFor(() => expect(H.createCoupon).toHaveBeenCalled());
+    const [, couponData] = H.createCoupon.mock.calls.at(-1)!;
+    expect(couponData.min_order_amount).toBeNull();
+    expect(couponData.max_discount_amount).toBeNull();
+  });
+});
+
+describe("F3. money labels name the STORE's currency", () => {
+  it("EN labels interpolate the ISO code, with no leftover placeholder", () => {
+    renderForm();
+    applyTemplate("multibuy_3_for_650");
+    const text = form().textContent!;
+    expect(text).toContain(
+      en.promotions.form.multibuy_price.replace("{{currency}}", "EGP"),
+    );
+    expect(text).toContain(
+      en.promotions.form.min_subtotal.replace("{{currency}}", "EGP"),
+    );
+    expect(text).toContain(
+      en.promotions.form.max_discount.replace("{{currency}}", "EGP"),
+    );
+    expect(text).not.toContain("{{currency}}");
+    // The old copy asked for piasters; no label may say so again.
+    expect(text).not.toMatch(/\bcents?\b/i);
+    expect(text).not.toContain("قرش");
+  });
+
+  it("a NON-EGP store renders its own currency and never EGP", async () => {
+    // The platform rule, executed: currency is inherited from the active store.
+    // Both sources are set the way production sets them — the form reads
+    // `currentStore.default_currency` for labels, and StoreProvider pushes the
+    // same value into `format-money` for every rendered amount.
+    H.store.current = { id: H.STORE_ID, default_currency: "SAR" };
+    setActiveStoreCurrency("SAR");
+    const riyal = "⃁";
+
+    for (const lang of ["en", "ar"] as const) {
+      await i18n.changeLanguage(lang);
+      const { unmount } = renderForm();
+      applyTemplate("multibuy_3_for_650");
+      const formText = form().textContent!;
+      const preview = screen.getByTestId("promotion-rule-preview");
+
+      // Labels carry the riyal mark…
+      expect(formText, lang).toContain(riyal);
+      expect(formText, lang).not.toContain("{{currency}}");
+      // …and nothing anywhere claims Egyptian pounds.
+      expect(formText, lang).not.toContain("EGP");
+      expect(formText, lang).not.toContain("ج.م");
+      expect(preview.textContent!, lang).not.toContain("EGP");
+      expect(preview.textContent!, lang).not.toContain("ج.م");
+      // The pane's figures are riyal-denominated (subtotal 4 × 271).
+      expect(preview.textContent!, lang).toContain(
+        formatMoney(1084, { locale: lang, currency: "SAR" }),
+      );
+      unmount();
+    }
+
+    await i18n.changeLanguage("en");
   });
 });

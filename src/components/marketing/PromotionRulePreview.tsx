@@ -18,6 +18,8 @@
 import { useTranslation } from "react-i18next";
 
 import type { DiscountRule } from "@/services/promotionApi";
+import { useDashboardStore } from "@/contexts/StoreContext";
+import { formatMoney } from "@/lib/format-money";
 import {
   multibuyBreakEvenCents,
   previewDiscount,
@@ -26,23 +28,49 @@ import {
   type PreviewLine,
 } from "@/lib/preview-discount";
 
-/**
- * Whole pounds for readability, but never round a real amount away to zero.
- * A small discount (a few piasters) rendered as "−0 EGP" tells the merchant
- * their offer saves nothing when it actually saves something — the exact lie
- * the preview pane exists to prevent. Show piasters only when we'd otherwise
- * print a misleading 0.
- */
-function egp(cents: number): string {
-  const major = cents / 100;
-  return cents !== 0 && Math.abs(major) < 1
-    ? major.toFixed(2)
-    : major.toFixed(0);
-}
-
 export function PromotionRulePreview({ rule }: { rule: DiscountRule }) {
   const { t, i18n } = useTranslation();
+  const { currentStore } = useDashboardStore();
   const isAr = i18n.language === "ar";
+  const locale = isAr ? "ar" : "en";
+  // ONE currency source for the whole promotions surface: the loaded store.
+  // `formatMoney`'s module-level fallback is a frame behind on a store switch
+  // (StoreProvider pushes it from an effect), so a SAR store would paint EGP
+  // once before correcting. Read the store directly and there is no window.
+  const currency = currentStore?.default_currency;
+
+  /**
+   * Every figure in this pane, in the STORE's currency — never a hardcoded
+   * "EGP", never raw minor units. Whole units for readability, but a real
+   * amount is never rounded away to zero: "−EGP 0" tells the merchant their
+   * offer saves nothing when it saves a few piasters, which is the exact lie
+   * this pane exists to prevent.
+   */
+  const money = (cents: number): string => {
+    const major = cents / 100;
+    const shown =
+      cents !== 0 && Math.abs(major) < 1
+        ? Number(major.toFixed(2))
+        : Math.round(major);
+    return formatMoney(shown, { locale, currency });
+  };
+
+  /**
+   * Money the COPY makes a precise, checkable claim about — a break-even
+   * threshold, a minimum-subtotal gate, the bundle price the merchant typed.
+   * These print exactly; `money()`'s whole-unit rounding is for the sample
+   * cart's own figures, where readability wins and nothing is promised.
+   *
+   * Rounding a threshold makes the sentence name a price that behaves
+   * differently from the price it names — regression F24 in a different coat.
+   * Both directions bite: floor(65000/3) = 216.66 rounds UP to "above EGP 217",
+   * excluding 216.67–216.99, which genuinely qualify; a break-even of 216.30
+   * rounds DOWN to "above EGP 216", naming 216.10 as qualifying when it does
+   * not. The guard sentence and the break-even line share this formatter, so
+   * the two figures the pane prints can never disagree either.
+   */
+  const moneyExact = (cents: number): string =>
+    formatMoney(Number((cents / 100).toFixed(2)), { locale, currency });
 
   // Multibuy gets a cart derived from its own rule — the fixed sample cart
   // is too cheap to ever trigger a realistic bundle, so the flagship
@@ -56,6 +84,23 @@ export function PromotionRulePreview({ rule }: { rule: DiscountRule }) {
     0,
   );
   const total = Math.max(0, subtotal - result.discount_cents);
+
+  // Format the explanation's money params. `previewDiscount` names them with a
+  // `_cents` suffix precisely so this mapping can't be forgotten silently — an
+  // unmapped one would print "65000" where the merchant expects "EGP 650".
+  const explainParams: Record<string, string | number> = {
+    ...(result.explanation_params ?? {}),
+  };
+  for (const [from, to] of [
+    ["amount_cents", "amount"],
+    ["break_even_cents", "breakEven"],
+  ] as const) {
+    const raw = explainParams[from];
+    if (typeof raw === "number") {
+      explainParams[to] = moneyExact(raw);
+      delete explainParams[from];
+    }
+  }
 
   return (
     <div
@@ -79,7 +124,7 @@ export function PromotionRulePreview({ rule }: { rule: DiscountRule }) {
             <span>
               {isAr ? "وحدة" : "Item"} {i + 1} × {li.quantity}
             </span>
-            <span>{egp(li.unit_price_cents)} EGP</span>
+            <span>{money(li.unit_price_cents)}</span>
           </li>
         ))}
       </ul>
@@ -89,9 +134,7 @@ export function PromotionRulePreview({ rule }: { rule: DiscountRule }) {
           <span className="text-muted-foreground">
             {t("promotions.form.preview_subtotal")}
           </span>
-          <span className="font-medium">
-            {egp(subtotal)} EGP
-          </span>
+          <span className="font-medium">{money(subtotal)}</span>
         </div>
         <div
           className={
@@ -102,7 +145,7 @@ export function PromotionRulePreview({ rule }: { rule: DiscountRule }) {
         >
           <span>{t("promotions.form.preview_discount")}</span>
           <span className="font-medium">
-            −{egp(result.discount_cents)} EGP
+            −{money(result.discount_cents)}
           </span>
         </div>
         {result.free_shipping && (
@@ -113,22 +156,25 @@ export function PromotionRulePreview({ rule }: { rule: DiscountRule }) {
         )}
         <div className="flex justify-between font-bold text-sm pt-1">
           <span>{t("promotions.form.preview_total")}</span>
-          <span>{egp(total)} EGP</span>
+          <span>{money(total)}</span>
         </div>
       </div>
 
       {/* Localized, with the engine's English sentence as the fallback so a
-          missing key degrades to something true rather than to a raw key. */}
+          missing key degrades to something true rather than to a raw key.
+          Money params arrive as minor units under a `*_cents` name and are
+          formatted here — the copy interpolates `{{amount}}`/`{{breakEven}}`,
+          never a raw figure. */}
       <p className="text-[11px] text-muted-foreground italic">
         {t(`promotions.form.preview_explain.${result.explanation_key}`, {
-          ...(result.explanation_params ?? {}),
+          ...explainParams,
           defaultValue: result.explanation,
         })}
       </p>
       {breakEvenCents != null && (
         <p className="text-[11px] text-muted-foreground">
           {t("promotions.form.preview_break_even", {
-            price: (breakEvenCents / 100).toFixed(2),
+            price: moneyExact(breakEvenCents),
           })}
         </p>
       )}
