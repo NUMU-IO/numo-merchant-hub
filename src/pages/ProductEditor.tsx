@@ -11,6 +11,7 @@ import {
   updateProduct as apiUpdateProduct,
   uploadProductImage,
   deleteProductImage,
+  setProductImageAlt,
   apiToProduct,
   productToApiCreate,
   productToApiUpdate,
@@ -157,7 +158,11 @@ const ProductEditor = () => {
   const [formStatus, setFormStatus] = useState<ProductStatus>("draft");
   const [formCategory, setFormCategory] = useState("");
   const [formBrand, setFormBrand] = useState("");
+  const [imageAlts, setImageAlts] = useState<Record<string, string>>({});
   const [formSeoTitle, setFormSeoTitle] = useState("");
+  const [formNoindex, setFormNoindex] = useState(false);
+  const [formCanonical, setFormCanonical] = useState("");
+  const [formSitemapExclude, setFormSitemapExclude] = useState(false);
   const [formSeoDesc, setFormSeoDesc] = useState("");
   const [formMetaCatalogId, setFormMetaCatalogId] = useState("");
   const [formSlug, setFormSlug] = useState("");
@@ -248,7 +253,11 @@ const ProductEditor = () => {
         setFormCategory(p.categoryId || "");
         setFormImages(p.images.filter(img => img !== "📦"));
         setFormBrand(api.brand || "");
+        setImageAlts((api.image_alts as Record<string, string>) || {});
         setFormSeoTitle(api.seo_title || "");
+        setFormNoindex(Boolean(api.robots_noindex));
+        setFormCanonical(api.canonical_url || "");
+        setFormSitemapExclude(Boolean(api.sitemap_exclude));
         setFormSeoDesc(api.seo_description || "");
         setFormMetaCatalogId(api.meta_catalog_id || "");
         setFormSlug(api.slug || "");
@@ -489,6 +498,9 @@ const ProductEditor = () => {
           images: formImages.length > 0 ? formImages : undefined,
           brand: formBrand.trim() || undefined,
           seoTitle: formSeoTitle || undefined,
+          robotsNoindex: formNoindex,
+          canonicalUrl: formCanonical.trim() || undefined,
+          sitemapExclude: formSitemapExclude,
           seoDescription: formSeoDesc || undefined,
           metaCatalogId: formMetaCatalogId || undefined,
           slug: formSlug || undefined,
@@ -534,6 +546,9 @@ const ProductEditor = () => {
           serverVariants: wantsOptions ? mappedComboRows : undefined,
           brand: formBrand.trim() || undefined,
           seoTitle: formSeoTitle || undefined,
+          robotsNoindex: formNoindex,
+          canonicalUrl: formCanonical.trim() || undefined,
+          sitemapExclude: formSitemapExclude,
           seoDescription: formSeoDesc || undefined,
           metaCatalogId: formMetaCatalogId || undefined,
           slug: formSlug || undefined,
@@ -566,7 +581,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formBrand, formSeoTitle, formSeoDesc, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formBrand, formSeoTitle, formSeoDesc, formNoindex, formCanonical, formSitemapExclude, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched]);
 
   const allLabels = useMemo(
     () => [...PRESET_LABELS, ...customLabels],
@@ -711,16 +726,31 @@ const ProductEditor = () => {
         <CardContent>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
             {formImages.map((url) => (
-              <div key={url} className="relative group aspect-square">
-                <img src={url} alt="" className="h-full w-full rounded-xl object-cover bg-muted ring-1 ring-border/20" />
-                {isEditMode && (
-                  <button
-                    type="button"
-                    onClick={() => handleImageDelete(url)}
-                    className="absolute top-1.5 right-1.5 h-6 w-6 rounded-lg bg-black/60 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-black/80"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+              <div key={url} className="space-y-1.5">
+                <div className="relative group aspect-square">
+                  <img src={url} alt={imageAlts[url] || ""} className="h-full w-full rounded-xl object-cover bg-muted ring-1 ring-border/20" />
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      onClick={() => handleImageDelete(url)}
+                      className="absolute top-1.5 right-1.5 h-6 w-6 rounded-lg bg-black/60 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-black/80"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+                {isEditMode && productId && (
+                  <Input
+                    value={imageAlts[url] ?? ""}
+                    onChange={(e) => setImageAlts(prev => ({ ...prev, [url]: e.target.value }))}
+                    onBlur={(e) => {
+                      void setProductImageAlt(storeId, productId, url, e.target.value)
+                        .catch(err => showError(err, language));
+                    }}
+                    placeholder={language === "ar" ? "وصف الصورة" : "Describe this image"}
+                    maxLength={250}
+                    className="h-7 text-[11px] rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border"
+                  />
                 )}
               </div>
             ))}
@@ -1137,6 +1167,25 @@ const ProductEditor = () => {
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "وصف الصفحة" : "Meta Description"}</Label>
             <Textarea value={formSeoDesc} onChange={(e) => setFormSeoDesc(e.target.value)} placeholder={language === "ar" ? "وصف قصير يظهر في نتائج البحث" : "Short description for search results"} rows={2} className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+          </div>
+          <div className="space-y-1.5 pt-1">
+            <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "الرابط الأساسي (Canonical)" : "Canonical URL"}</Label>
+            <Input value={formCanonical} onChange={(e) => setFormCanonical(e.target.value)} placeholder="https://…" dir="ltr" className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+            <p className="text-[11px] text-muted-foreground">{language === "ar" ? "سيبها فاضية غير لو الصفحة دي نسخة من صفحة تانية." : "Leave empty unless this page duplicates another one."}</p>
+          </div>
+          <div className="flex items-center justify-between gap-4 pt-1">
+            <div>
+              <p className="text-xs font-medium">{language === "ar" ? "إخفاء من نتائج البحث" : "Hide from search results"}</p>
+              <p className="text-[11px] text-muted-foreground">{language === "ar" ? "الصفحة هتفضل شغالة، بس مش هتظهر في جوجل." : "The page still works — it just won't appear in Google."}</p>
+            </div>
+            <Switch checked={formNoindex} onCheckedChange={setFormNoindex} />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium">{language === "ar" ? "استبعاد من خريطة الموقع" : "Leave out of sitemap"}</p>
+              <p className="text-[11px] text-muted-foreground">{language === "ar" ? "بيحصل تلقائيًا لو أخفيت الصفحة من نتائج البحث." : "Happens automatically when the page is hidden from search."}</p>
+            </div>
+            <Switch checked={formSitemapExclude || formNoindex} disabled={formNoindex} onCheckedChange={setFormSitemapExclude} />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "رابط المنتج" : "URL Slug"}</Label>

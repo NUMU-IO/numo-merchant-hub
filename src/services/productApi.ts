@@ -33,6 +33,7 @@ export interface ApiProductResponse {
   tags: string[];
   attributes: Record<string, unknown>;
   brand?: string | null;
+  image_alts?: Record<string, string> | null;
   seo_title?: string | null;
   seo_description?: string | null;
   /** Meta Commerce Catalog product ID — surfaced in ProductEditor's
@@ -120,6 +121,9 @@ export interface CreateProductData {
   tags?: string[];
   attributes?: Record<string, unknown>;
   brand?: string;
+  robots_noindex?: boolean;
+  canonical_url?: string;
+  sitemap_exclude?: boolean;
   seo_title?: string;
   seo_description?: string;
   /** Meta Commerce Catalog product ID — wired through to the storefront's
@@ -220,6 +224,20 @@ export async function uploadProductImage(
     `/stores/${storeId}/products/${productId}/images`,
     formData,
   );
+}
+
+/** Describe one product image. Alt lives in the media_urls sidecar, so it
+ *  survives the wholesale `attributes` replace a product update performs. */
+export async function setProductImageAlt(
+  storeId: string,
+  productId: string,
+  imageUrl: string,
+  alt: string,
+): Promise<void> {
+  await apiClient(`/stores/${storeId}/products/${productId}/images/alt`, {
+    method: "PATCH",
+    body: JSON.stringify({ image_url: imageUrl, alt: alt.trim() || null }),
+  });
 }
 
 export async function deleteProductImage(
@@ -348,6 +366,9 @@ export interface ProductFormData {
   serverVariants?: VariantRowPayload[];
   images?: string[];
   brand?: string;
+  robotsNoindex?: boolean;
+  canonicalUrl?: string;
+  sitemapExclude?: boolean;
   seoTitle?: string;
   seoDescription?: string;
   slug?: string;
@@ -377,6 +398,9 @@ export function productToApiCreate(form: ProductFormData): CreateProductData {
     tags: [],
     images: form.images,
     brand: form.brand || undefined,
+    robots_noindex: form.robotsNoindex,
+    canonical_url: form.canonicalUrl || undefined,
+    sitemap_exclude: form.sitemapExclude,
     seo_title: form.seoTitle || undefined,
     seo_description: form.seoDescription || undefined,
     meta_catalog_id: form.metaCatalogId || undefined,
@@ -616,6 +640,9 @@ export function productToApiUpdate(
   if (form.categoryId !== undefined) data.category_id = form.categoryId || undefined;
   if (form.slug !== undefined) data.slug = form.slug || undefined;
   if (form.brand !== undefined) data.brand = form.brand || undefined;
+  if (form.robotsNoindex !== undefined) data.robots_noindex = form.robotsNoindex;
+  if (form.canonicalUrl !== undefined) data.canonical_url = form.canonicalUrl || undefined;
+  if (form.sitemapExclude !== undefined) data.sitemap_exclude = form.sitemapExclude;
   if (form.seoTitle !== undefined) data.seo_title = form.seoTitle || undefined;
   if (form.seoDescription !== undefined) data.seo_description = form.seoDescription || undefined;
   if (form.metaCatalogId !== undefined) data.meta_catalog_id = form.metaCatalogId || undefined;
