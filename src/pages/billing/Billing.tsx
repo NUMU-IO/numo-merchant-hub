@@ -42,11 +42,17 @@ const PLAN_DISPLAY: Record<string, { name: string; nameAr: string }> = {
   trial: { name: "Trial", nameAr: "تجربة مجانية" },
   demo: { name: "Trial", nameAr: "تجربة مجانية" },
   free: { name: "Free", nameAr: "مجانية" },
+  // Legacy/manual tier — without this entry a beta tenant fell through
+  // to the `trial` default and the hero claimed "Trial · Free".
+  beta: { name: "Beta", nameAr: "بيتا" },
   payg: { name: "Pay as you Grow", nameAr: "ادفع وأنت تنمو" },
   starter: { name: "Starter", nameAr: "ستارتر" },
   pro: { name: "Pro", nameAr: "برو" },
   enterprise: { name: "Enterprise", nameAr: "إنتربرايز" },
 };
+
+// Self-serve paid tiers — the only plans payable via InstaPay.
+const PAID_SELF_SERVE = ["starter", "pro"];
 
 const OPEN_INTENT_STATUSES = new Set(["awaiting_proof", "under_review"]);
 
@@ -71,7 +77,13 @@ const Billing = () => {
 
   const planKey = tenant?.plan || "trial";
   const isPayg = planKey === "payg";
-  const isActivePaid = ["starter", "pro"].includes(planKey) && !isTrialMode && !isReadOnly;
+  const isActivePaid = PAID_SELF_SERVE.includes(planKey) && !isTrialMode && !isReadOnly;
+  // Anyone NOT already on a self-serve paid plan can subscribe: trial,
+  // demo, free, beta (legacy manual tier), payg. Enterprise is excluded —
+  // it's a bespoke contract and self-serve cards would be a downgrade
+  // trap. Gating this on isTrialMode||isReadOnly (the old rule) left
+  // beta/free/payg merchants with a Billing page that offered nothing.
+  const canSubscribe = !PAID_SELF_SERVE.includes(planKey) && planKey !== "enterprise";
 
   const refresh = useCallback(() => {
     apiClient<Invoice[]>("/billing/invoices").then(setInvoices).catch(() => {});
@@ -418,8 +430,8 @@ const Billing = () => {
         </Card>
       )}
 
-      {/* ── Plan picker (trial / read-only) ───────────────────────────── */}
-      {(isTrialMode || isReadOnly) && (
+      {/* ── Plan picker (anyone not already on a self-serve paid plan) ── */}
+      {canSubscribe && (
         <Card>
           <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
             <CardTitle className="text-base">{isAr ? "اختار باقتك" : "Choose your plan"}</CardTitle>
@@ -429,12 +441,14 @@ const Billing = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
                 onClick={() => handleSubscribe("payg")}
-                disabled={subscribing}
+                disabled={subscribing || isPayg}
                 className="group text-start rounded-xl border-2 border-primary/60 p-4 hover:border-primary transition-colors disabled:opacity-60"
               >
                 <div className="flex items-center gap-1.5 text-primary text-xs font-semibold mb-2">
                   <Sparkle className="h-3.5 w-3.5" />
-                  {isAr ? "الأنسب للبداية" : "Best to start"}
+                  {isPayg
+                    ? (isAr ? "باقتك الحالية" : "Current plan")
+                    : (isAr ? "الأنسب للبداية" : "Best to start")}
                 </div>
                 <p className="font-bold">{isAr ? "ادفع وأنت تنمو" : "Pay as you Grow"}</p>
                 <p className="text-lg font-extrabold mt-0.5">{isAr ? "٠ ج.م/شهر" : "0 EGP/mo"}</p>
