@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { toast } from "sonner";
 import { apiClient } from "@/services/api";
 import {
-  getBillingPlans, listInstapayIntents,
+  getBillingPlans, listInstapayIntents, updateReminderSettings,
   type BillingPlansResponse, type InstapayIntent,
 } from "@/services/billingApi";
 import SubscribeInstapayDialog from "@/components/billing/SubscribeInstapayDialog";
@@ -12,9 +13,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   CreditCard, Receipt, Tag, Wallet as WalletIcon, ArrowUpRight,
-  CheckCircle2, Sparkle, Clock, Hourglass,
+  CheckCircle2, Sparkle, Clock, Hourglass, BellRing, History,
 } from "lucide-react";
 
 const NUMU_PRIMARY = "hsl(222.2, 47.4%, 11.2%)";
@@ -62,9 +64,14 @@ const Billing = () => {
   const [discountMsg, setDiscountMsg] = useState("");
   const [subscribing, setSubscribing] = useState(false);
   const [payDialog, setPayDialog] = useState<{ plan: string } | null>(null);
+  const [reminderDays, setReminderDays] = useState<string>("");
+  const [reminderEmails, setReminderEmails] = useState(true);
+  const [reminderLoaded, setReminderLoaded] = useState(false);
+  const [savingReminder, setSavingReminder] = useState(false);
 
   const planKey = tenant?.plan || "trial";
   const isPayg = planKey === "payg";
+  const isActivePaid = ["starter", "pro"].includes(planKey) && !isTrialMode && !isReadOnly;
 
   const refresh = useCallback(() => {
     apiClient<Invoice[]>("/billing/invoices").then(setInvoices).catch(() => {});
@@ -75,6 +82,16 @@ const Billing = () => {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Seed the reminder form once from the API (don't clobber edits on refetch).
+  useEffect(() => {
+    const r = plansData?.current?.reminder;
+    if (r && !reminderLoaded) {
+      setReminderDays(r.days != null ? String(r.days) : "");
+      setReminderEmails(r.emails_enabled);
+      setReminderLoaded(true);
+    }
+  }, [plansData, reminderLoaded]);
 
   useEffect(() => {
     if (!isPayg) return;
@@ -340,6 +357,67 @@ const Billing = () => {
         </div>
       </div>
 
+      {/* ── Change plan (active paid merchants) ───────────────────────── */}
+      {isActivePaid && (
+        <Card>
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+            <CardTitle className="text-base">{isAr ? "غيّر باقتك" : "Change plan"}</CardTitle>
+            {cycleToggle}
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(["starter", "pro"] as const).map((key) => {
+                const cents = planPrice(key);
+                const per = cycle === "annual" ? (isAr ? "سنة" : "yr") : (isAr ? "شهر" : "mo");
+                const isCurrent = planKey === key && currentCycle === cycle;
+                return (
+                  <div
+                    key={key}
+                    className={`relative rounded-xl border p-4 ${
+                      isCurrent ? "border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20" : ""
+                    }`}
+                  >
+                    {isCurrent && (
+                      <span className="absolute top-3 end-3 text-[10px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5">
+                        {isAr ? "باقتك الحالية" : "Current plan"}
+                      </span>
+                    )}
+                    <p className="font-bold">{key === "starter" ? "Starter" : "Pro"}</p>
+                    <p className="text-lg font-extrabold mt-0.5 tabular-nums">
+                      {cents != null ? `${fmtEgp(cents)}/${per}` : "…"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                      {key === "starter"
+                        ? (isAr ? "١٠٠ منتج، دومين مخصص، كل الثيمات" : "100 products, custom domain, all themes")
+                        : (isAr ? "منتجات بلا حدود، تحليلات، أتمتة" : "Unlimited products, analytics, automations")}
+                    </p>
+                    {!isCurrent && (
+                      <Button
+                        size="sm"
+                        className="mt-3"
+                        disabled={!instapayOn || Boolean(openIntent)}
+                        onClick={() => openPaidPlanDialog(key)}
+                      >
+                        {planKey === key
+                          ? (isAr ? "التبديل لهذه الدورة" : "Switch to this cycle")
+                          : key === "pro"
+                            ? (isAr ? "ترقية إلى Pro" : "Upgrade to Pro")
+                            : (isAr ? "التبديل إلى Starter" : "Switch to Starter")}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-3">
+              {isAr
+                ? "الدفع عبر إنستاباي — الباقة الجديدة تتفعّل فور تأكيد التحويل، وتُحسب فترتها من نهاية فترتك الحالية."
+                : "Paid via InstaPay — the new plan activates once the transfer is verified, and its period starts where your current one ends."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Plan picker (trial / read-only) ───────────────────────────── */}
       {(isTrialMode || isReadOnly) && (
         <Card>
@@ -412,6 +490,119 @@ const Billing = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Renewal reminder + payment history ────────────────────────── */}
+      <div className="grid gap-6 lg:grid-cols-5">
+        {["starter", "pro"].includes(planKey) && (
+          <Card className="lg:col-span-2 h-fit">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BellRing className="h-4 w-4" />
+                {isAr ? "تذكير التجديد" : "Renewal reminder"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <label className="flex items-center justify-between gap-3 text-sm font-medium">
+                {isAr ? "ذكّرني قبل التجديد بالإيميل" : "Email me before my renewal"}
+                <Switch checked={reminderEmails} onCheckedChange={setReminderEmails} />
+              </label>
+              {reminderEmails && (
+                <div className="space-y-1">
+                  <p className="text-sm">{isAr ? "قبل التجديد بكام يوم؟" : "How many days before?"}</p>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    className="w-28 tabular-nums"
+                    placeholder={String(plansData?.current?.reminder?.platform_default_days ?? 7)}
+                    value={reminderDays}
+                    onChange={(e) => setReminderDays(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {isAr
+                      ? `اتركه فارغاً للإعداد الافتراضي (${plansData?.current?.reminder?.platform_default_days ?? 7} أيام)`
+                      : `Leave empty for the default (${plansData?.current?.reminder?.platform_default_days ?? 7} days)`}
+                  </p>
+                </div>
+              )}
+              <Button
+                size="sm"
+                disabled={savingReminder}
+                onClick={async () => {
+                  setSavingReminder(true);
+                  try {
+                    const days = reminderDays.trim() === "" ? null : Math.min(30, Math.max(1, Number(reminderDays)));
+                    await updateReminderSettings(days, reminderEmails);
+                    toast.success(isAr ? "تم حفظ إعدادات التذكير" : "Reminder settings saved");
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : (isAr ? "تعذر الحفظ" : "Could not save"));
+                  } finally {
+                    setSavingReminder(false);
+                  }
+                }}
+              >
+                {isAr ? "حفظ" : "Save"}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {intents.length > 0 && (
+          <Card className={["starter", "pro"].includes(planKey) ? "lg:col-span-3" : "lg:col-span-5"}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <History className="h-4 w-4" />
+                {isAr ? "مدفوعات الاشتراك" : "Subscription payments"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1">
+                {intents.map((it) => (
+                  <div key={it.id} className="flex items-center justify-between gap-3 py-2.5 border-b last:border-0">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {(PLAN_DISPLAY[it.plan] ? (isAr ? PLAN_DISPLAY[it.plan].nameAr : PLAN_DISPLAY[it.plan].name) : it.plan)}
+                        {" · "}
+                        {it.billing_cycle === "annual" ? (isAr ? "سنوي" : "Annual") : (isAr ? "شهري" : "Monthly")}
+                        {it.purpose === "renewal" && (
+                          <span className="text-muted-foreground"> · {isAr ? "تجديد" : "Renewal"}</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        {fmtEgp(it.amount_cents)} · <span className="font-mono">{it.reference_code}</span>
+                        {it.created_at && <> · {fmtDate(it.created_at)}</>}
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={
+                        it.status === "succeeded"
+                          ? "border-emerald-300 text-emerald-700 gap-1"
+                          : it.status === "under_review"
+                            ? "border-amber-300 text-amber-700"
+                            : it.status === "awaiting_proof"
+                              ? "border-blue-300 text-blue-700"
+                              : "text-muted-foreground"
+                      }
+                    >
+                      {it.status === "succeeded" && <CheckCircle2 className="h-3 w-3" />}
+                      {it.status === "succeeded"
+                        ? (isAr ? "مكتمل" : "Paid")
+                        : it.status === "under_review"
+                          ? (isAr ? "قيد التحقق" : "Under review")
+                          : it.status === "awaiting_proof"
+                            ? (isAr ? "بانتظار الإيصال" : "Awaiting receipt")
+                            : it.status === "expired"
+                              ? (isAr ? "منتهي" : "Expired")
+                              : (isAr ? "فشل" : "Failed")}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* ── Discount + invoices ───────────────────────────────────────── */}
       <div className="grid gap-6 lg:grid-cols-5">

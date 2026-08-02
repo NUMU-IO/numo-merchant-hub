@@ -8,12 +8,20 @@ export interface BillingPlan {
   annual_price_cents: number;
 }
 
+export interface ReminderSettings {
+  /** null = platform default window. */
+  days: number | null;
+  emails_enabled: boolean;
+  platform_default_days: number;
+}
+
 export interface BillingCurrentState {
   plan: string;
   billing_cycle: string | null;
   lifecycle_state: string;
   next_renewal_at: string | null;
   renewal_due: boolean;
+  reminder?: ReminderSettings;
 }
 
 export interface BillingPlansResponse {
@@ -63,6 +71,18 @@ export interface InstapayProofResponse {
 
 export const getBillingPlans = () =>
   apiClient<BillingPlansResponse>("/billing/plans");
+
+export const updateReminderSettings = (
+  days: number | null,
+  emailsEnabled: boolean,
+) =>
+  apiClient<{ days: number | null; emails_enabled: boolean }>(
+    "/billing/reminder-settings",
+    {
+      method: "PUT",
+      body: JSON.stringify({ days, emails_enabled: emailsEnabled }),
+    },
+  );
 
 export const listInstapayIntents = () =>
   apiClient<InstapayIntent[]>("/billing/instapay-intents");
