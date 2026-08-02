@@ -25,6 +25,7 @@ import {
   CreditCard, ShieldCheck, Compass, Lightning, Article,
 } from "@phosphor-icons/react";
 import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { listThreads } from "@/services/inboxApi";
@@ -58,6 +59,27 @@ const AppSidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentStore, stores, switchStore } = useDashboardStore();
+  const { tenant } = useAuth();
+
+  // Real plan label for the store-switcher card (was a hardcoded
+  // "Premium plan" — not even a NUMU plan name).
+  const PLAN_LABELS: Record<string, { en: string; ar: string }> = {
+    trial: { en: "Trial", ar: "تجربة مجانية" },
+    demo: { en: "Trial", ar: "تجربة مجانية" },
+    free: { en: "Free plan", ar: "الباقة المجانية" },
+    beta: { en: "Beta", ar: "بيتا" },
+    payg: { en: "Pay as you Grow", ar: "ادفع وأنت تنمو" },
+    starter: { en: "Starter plan", ar: "باقة Starter" },
+    pro: { en: "Pro plan", ar: "باقة Pro" },
+    enterprise: { en: "Enterprise", ar: "إنتربرايز" },
+  };
+  const planLabel = (() => {
+    const key = tenant?.plan;
+    if (!key) return isRTL ? "..." : "…";
+    const entry = PLAN_LABELS[key];
+    if (!entry) return key;
+    return isRTL ? entry.ar : entry.en;
+  })();
 
   const { data: inboxData } = useQuery({
     queryKey: ["inbox", "threads", currentStore?.id],
@@ -563,7 +585,7 @@ const AppSidebar = () => {
                     {currentStore.name}
                   </div>
                   <div className="text-[11px] text-muted-foreground truncate mt-0.5">
-                    {isRTL ? "باقة Premium" : "Premium plan"}
+                    {planLabel}
                   </div>
                 </div>
                 <CaretUpDown
