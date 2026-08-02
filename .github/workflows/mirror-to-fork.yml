@@ -27,11 +27,15 @@ jobs:
           # Don't persist GITHUB_TOKEN as a git auth header — it would override
           # the MIRROR_PAT in the push URL and fail (no fork access).
           persist-credentials: false
-      - name: Force-mirror prod -> fork
+      - name: Force-mirror prod -> fork (prod AND main)
+        # BOTH branches: the Vercel project's production branch is `main`
+        # on the fork, so mirroring only `prod` made every Promote look
+        # successful while Vercel kept building stale `main` (live
+        # incident 2026-08-02 — hub "deployed" with nothing changing).
         run: |
           git push --force \
             "https://x-access-token:${{ secrets.MIRROR_PAT }}@github.com/Yahiasherif002/numo-merchant-hub.git" \
-            HEAD:prod
+            HEAD:prod HEAD:main
       # Vercel's GitHub webhook has silently dropped push events before
       # (2026-07-16: mirror succeeded, no deployment was created). The deploy
       # hook makes the production build deterministic instead of hoping the
