@@ -1,15 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { apiClient } from "@/services/api";
+import {
+  getBillingPlans, listInstapayIntents,
+  type BillingPlansResponse, type InstapayIntent,
+} from "@/services/billingApi";
+import SubscribeInstapayDialog from "@/components/billing/SubscribeInstapayDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   CreditCard, Receipt, Tag, Wallet as WalletIcon, ArrowUpRight,
-  CheckCircle2, Sparkle,
+  CheckCircle2, Sparkle, Clock, Hourglass,
 } from "lucide-react";
 
 const NUMU_PRIMARY = "hsl(222.2, 47.4%, 11.2%)";
@@ -41,6 +46,8 @@ const PLAN_DISPLAY: Record<string, { name: string; nameAr: string }> = {
   enterprise: { name: "Enterprise", nameAr: "إنتربرايز" },
 };
 
+const OPEN_INTENT_STATUSES = new Set(["awaiting_proof", "under_review"]);
+
 const Billing = () => {
   const { tenant, isTrialMode, isReadOnly } = useAuth();
   const { language } = useLanguage();
@@ -48,16 +55,26 @@ const Billing = () => {
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
+  const [plansData, setPlansData] = useState<BillingPlansResponse | null>(null);
+  const [intents, setIntents] = useState<InstapayIntent[]>([]);
+  const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
   const [discountCode, setDiscountCode] = useState("");
   const [discountMsg, setDiscountMsg] = useState("");
   const [subscribing, setSubscribing] = useState(false);
+  const [payDialog, setPayDialog] = useState<{ plan: string } | null>(null);
 
   const planKey = tenant?.plan || "trial";
   const isPayg = planKey === "payg";
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     apiClient<Invoice[]>("/billing/invoices").then(setInvoices).catch(() => {});
+    getBillingPlans().then(setPlansData).catch(() => {});
+    listInstapayIntents().then(setIntents).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   useEffect(() => {
     if (!isPayg) return;
@@ -67,6 +84,8 @@ const Billing = () => {
   const plan = PLAN_DISPLAY[planKey] || PLAN_DISPLAY.trial;
   const fmt = (cents: number) =>
     (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", { minimumFractionDigits: 2 });
+  const fmtEgp = (cents: number) =>
+    `${(cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US")} ${isAr ? "ج.م" : "EGP"}`;
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
       day: "numeric", month: "short", year: "numeric",
@@ -75,15 +94,35 @@ const Billing = () => {
     ? (wallet.effective_commission_bps / 100).toLocaleString(isAr ? "ar-EG" : "en-US")
     : null;
 
+  const catalog = plansData?.plans ?? [];
+  const planPrice = (key: string, c: "monthly" | "annual" = cycle): number | null => {
+    const entry = catalog.find((p) => p.plan === key);
+    if (!entry) return null;
+    return c === "annual" ? entry.annual_price_cents : entry.monthly_price_cents;
+  };
+  const instapayOn = plansData?.instapay_available ?? false;
+  const planIntent = plansData?.plan_intent;
+  const currentCycle = (plansData?.current?.billing_cycle === "annual" ? "annual" : "monthly") as
+    | "monthly"
+    | "annual";
+  const renewalDue = Boolean(
+    plansData?.current?.renewal_due && ["starter", "pro"].includes(planKey),
+  );
+
+  const openIntent = intents.find((i) => OPEN_INTENT_STATUSES.has(i.status));
+
   const priceLine = isPayg
     ? commissionPct !== null
       ? (isAr ? `${commissionPct}٪ لكل طلب مدفوع — بدون اشتراك شهري` : `${commissionPct}% per paid order — no monthly fee`)
       : (isAr ? "عمولة على كل طلب مدفوع — بدون اشتراك شهري" : "Commission per paid order — no monthly fee")
-    : planKey === "starter"
-      ? (isAr ? "٩٩ ج.م / شهر" : "99 EGP / month")
-      : planKey === "pro"
-        ? (isAr ? "٢٩٩ ج.م / شهر" : "299 EGP / month")
-        : (isAr ? "مجاناً" : "Free");
+    : ["starter", "pro"].includes(planKey)
+      ? (() => {
+          const cents = planPrice(planKey, currentCycle);
+          if (cents == null) return "…";
+          const per = currentCycle === "annual" ? (isAr ? "سنة" : "year") : (isAr ? "شهر" : "month");
+          return `${fmtEgp(cents)} / ${per}`;
+        })()
+      : (isAr ? "مجاناً" : "Free");
 
   const handleSubscribe = async (selectedPlan: string) => {
     setSubscribing(true);
@@ -127,6 +166,45 @@ const Billing = () => {
     }
   };
 
+  const openPaidPlanDialog = (selectedPlan: string) => {
+    setPayDialog({ plan: selectedPlan });
+  };
+
+  const onPaymentDone = (activated: boolean) => {
+    if (activated) {
+      // Plan changed server-side — full reload refreshes AuthContext too.
+      setTimeout(() => window.location.reload(), 1600);
+    } else {
+      refresh();
+    }
+  };
+
+  // Which plan the payment dialog is for: an explicit pick, or the open
+  // intent being resumed, or (renewal) the current plan.
+  const dialogPlan = payDialog?.plan ?? openIntent?.plan ?? planKey;
+  const dialogCycle = (payDialog
+    ? cycle
+    : openIntent
+      ? (openIntent.billing_cycle === "annual" ? "annual" : "monthly")
+      : currentCycle) as "monthly" | "annual";
+
+  const cycleToggle = (
+    <div className="inline-flex rounded-lg border p-0.5 text-xs font-semibold">
+      <button
+        onClick={() => setCycle("monthly")}
+        className={`px-3 py-1.5 rounded-md transition-colors ${cycle === "monthly" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+      >
+        {isAr ? "شهري" : "Monthly"}
+      </button>
+      <button
+        onClick={() => setCycle("annual")}
+        className={`px-3 py-1.5 rounded-md transition-colors ${cycle === "annual" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+      >
+        {isAr ? "سنوي (شهرين مجاناً)" : "Annual (2 months free)"}
+      </button>
+    </div>
+  );
+
   return (
     <div className="max-w-[1000px] mx-auto space-y-6">
       <div>
@@ -137,6 +215,37 @@ const Billing = () => {
           {isAr ? "إدارة اشتراكك وطرق الدفع" : "Manage your subscription and payment methods"}
         </p>
       </div>
+
+      {/* ── Pending InstaPay payment strip ────────────────────────────── */}
+      {openIntent && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            {openIntent.status === "under_review"
+              ? <Hourglass className="h-5 w-5 text-amber-600 shrink-0" />
+              : <Clock className="h-5 w-5 text-amber-600 shrink-0" />}
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">
+                {openIntent.status === "under_review"
+                  ? (isAr ? "إيصال الدفع قيد التحقق" : "Payment receipt under review")
+                  : (isAr ? "عملية دفع بانتظار الإيصال" : "Payment awaiting your receipt")}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {(PLAN_DISPLAY[openIntent.plan] ? (isAr ? PLAN_DISPLAY[openIntent.plan].nameAr : PLAN_DISPLAY[openIntent.plan].name) : openIntent.plan)}
+                {" · "}{fmtEgp(openIntent.amount_cents)}
+                {" · "}<span className="font-mono">{openIntent.reference_code}</span>
+                {openIntent.rejection_reason && (
+                  <span className="text-red-600"> · {openIntent.rejection_reason}</span>
+                )}
+              </p>
+            </div>
+          </div>
+          {openIntent.status === "awaiting_proof" && (
+            <Button size="sm" onClick={setPayDialogFromIntent}>
+              {isAr ? "إكمال الدفع" : "Resume payment"}
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* ── Current plan hero ─────────────────────────────────────────── */}
       <div className="rounded-xl overflow-hidden text-white" style={{ background: NUMU_PRIMARY }}>
@@ -165,6 +274,12 @@ const Billing = () => {
                     {isAr ? `باقي ${tenant.days_remaining} يوم على انتهاء التجربة` : `${tenant.days_remaining} days left in your trial`}
                   </p>
                 )}
+                {plansData?.current?.next_renewal_at && !isTrialMode && !isReadOnly && (
+                  <p className="text-sm text-white/60 mt-2">
+                    {isAr ? "التجديد القادم: " : "Next renewal: "}
+                    {fmtDate(plansData.current.next_renewal_at)}
+                  </p>
+                )}
               </div>
               <Badge
                 className={`border-transparent ${
@@ -178,6 +293,28 @@ const Billing = () => {
                 {tenant?.lifecycle_state || "active"}
               </Badge>
             </div>
+
+            {/* Renewal due: pay now via InstaPay */}
+            {renewalDue && instapayOn && !openIntent && (
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-400/10 border border-amber-300/30 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-amber-300" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-200">
+                      {isAr ? "موعد تجديد اشتراكك اقترب" : "Your renewal is due"}
+                    </p>
+                    <p className="text-xs text-white/60">
+                      {isAr
+                        ? "جدد الآن عبر إنستاباي قبل انتهاء الفترة الحالية"
+                        : "Renew now via InstaPay before the current period ends"}
+                    </p>
+                  </div>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => setPayDialog({ plan: planKey })}>
+                  {isAr ? "ادفع الآن" : "Pay now"}
+                </Button>
+              </div>
+            )}
 
             {/* payg: wallet strip */}
             {isPayg && (
@@ -206,8 +343,9 @@ const Billing = () => {
       {/* ── Plan picker (trial / read-only) ───────────────────────────── */}
       {(isTrialMode || isReadOnly) && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
             <CardTitle className="text-base">{isAr ? "اختار باقتك" : "Choose your plan"}</CardTitle>
+            {cycleToggle}
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -228,29 +366,49 @@ const Billing = () => {
                     : "No subscription — a per-paid-order commission from a prepaid wallet, locked at the rate you sign up with"}
                 </p>
               </button>
-              <button
-                onClick={() => handleSubscribe("starter")}
-                disabled={subscribing}
-                className="text-start rounded-xl border p-4 hover:border-foreground/30 transition-colors disabled:opacity-60"
-              >
-                <p className="font-bold mt-6">Starter</p>
-                <p className="text-lg font-extrabold mt-0.5">{isAr ? "٩٩ ج.م/شهر" : "99 EGP/mo"}</p>
-                <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                  {isAr ? "١٠٠ منتج، دومين مخصص، كل الثيمات" : "100 products, custom domain, all themes"}
-                </p>
-              </button>
-              <button
-                onClick={() => handleSubscribe("pro")}
-                disabled={subscribing}
-                className="text-start rounded-xl border p-4 hover:border-foreground/30 transition-colors disabled:opacity-60"
-              >
-                <p className="font-bold mt-6">Pro</p>
-                <p className="text-lg font-extrabold mt-0.5">{isAr ? "٢٩٩ ج.م/شهر" : "299 EGP/mo"}</p>
-                <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                  {isAr ? "منتجات بلا حدود، تحليلات، أتمتة" : "Unlimited products, analytics, automations"}
-                </p>
-              </button>
+              {(["starter", "pro"] as const).map((key) => {
+                const cents = planPrice(key);
+                const per = cycle === "annual" ? (isAr ? "سنة" : "yr") : (isAr ? "شهر" : "mo");
+                const intended = planIntent === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => openPaidPlanDialog(key)}
+                    disabled={subscribing || !instapayOn || Boolean(openIntent)}
+                    className={`relative text-start rounded-xl border p-4 transition-colors disabled:opacity-60 ${
+                      intended ? "border-primary ring-1 ring-primary/40" : "hover:border-foreground/30"
+                    }`}
+                  >
+                    {intended && (
+                      <span className="absolute top-3 end-3 text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-2 py-0.5">
+                        {isAr ? "اخترتها عند التسجيل" : "Your signup pick"}
+                      </span>
+                    )}
+                    <p className="font-bold mt-6">{key === "starter" ? "Starter" : "Pro"}</p>
+                    <p className="text-lg font-extrabold mt-0.5 tabular-nums">
+                      {cents != null ? `${fmtEgp(cents)}/${per}` : "…"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                      {key === "starter"
+                        ? (isAr ? "١٠٠ منتج، دومين مخصص، كل الثيمات" : "100 products, custom domain, all themes")
+                        : (isAr ? "منتجات بلا حدود، تحليلات، أتمتة" : "Unlimited products, analytics, automations")}
+                    </p>
+                    {instapayOn && (
+                      <p className="text-[11px] text-muted-foreground mt-2">
+                        {isAr ? "الدفع عبر إنستاباي" : "Pay via InstaPay"}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
             </div>
+            {!instapayOn && (
+              <p className="text-xs text-muted-foreground mt-3">
+                {isAr
+                  ? "الدفع للباقات المدفوعة غير متاح حالياً — تواصل مع الدعم."
+                  : "Payments for paid plans aren't available yet — contact support."}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -340,8 +498,24 @@ const Billing = () => {
           </Button>
         </div>
       )}
+
+      <SubscribeInstapayDialog
+        open={Boolean(payDialog)}
+        onOpenChange={(o) => { if (!o) setPayDialog(null); }}
+        plan={dialogPlan}
+        billingCycle={dialogCycle}
+        amountCents={planPrice(dialogPlan, dialogCycle)}
+        resumeIntent={openIntent && openIntent.status === "awaiting_proof" ? openIntent : null}
+        onDone={onPaymentDone}
+      />
     </div>
   );
+
+  // Resume the open intent: opening the dialog with payDialog set to the
+  // intent's own plan keeps the header/labels consistent.
+  function setPayDialogFromIntent() {
+    if (openIntent) setPayDialog({ plan: openIntent.plan });
+  }
 };
 
 export default Billing;
