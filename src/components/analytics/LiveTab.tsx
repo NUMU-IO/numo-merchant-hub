@@ -131,6 +131,26 @@ export function LiveTab({ formatCurrency }: LiveTabProps) {
         </div>
       </div>
 
+      {/* Counter store unreachable — every figure below is a placeholder
+          zero, not a measurement. Without this banner an outage is
+          indistinguishable from a genuinely quiet day, and the merchant
+          reads "0 visitors" as their store being dead. */}
+      {data && data.available === false && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
+          <WifiOff className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-[12.5px] font-semibold text-amber-700 dark:text-amber-400">
+              {isAr ? "البيانات المباشرة غير متاحة" : "Live data unavailable"}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {isAr
+                ? "مش قادرين نقرأ عدادات الوقت الحقيقي دلوقتي. الأرقام تحت مش دقيقة — مش معناها إن مفيش زوار."
+                : "We can't read the realtime counters right now. The numbers below are placeholders, not a reading — they don't mean you have no visitors."}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* KPI Cards — 6 cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="border-border/60">

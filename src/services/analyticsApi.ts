@@ -945,6 +945,14 @@ export interface RealtimeSnapshot {
   hourly_orders: number[]; // 24 values
   hourly_revenue: number[]; // 24 values (cents)
   top_pages: TopPage[];
+  /**
+   * False when the backend could not read its realtime counter store. Every
+   * numeric field above is then a placeholder zero, NOT a measurement — a
+   * cache outage and a genuinely quiet day are otherwise indistinguishable,
+   * and rendering zeros for both tells the merchant their store is dead.
+   * Optional: older API builds don't send it, and absent means "fine".
+   */
+  available?: boolean;
 }
 
 export async function getRealtimeSnapshot(
