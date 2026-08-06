@@ -147,6 +147,10 @@ export function MetaTrackingPanel() {
   const [consentRequired, setConsentRequired] = useState(false);
   const [adAccountId, setAdAccountId] = useState("");
   const [pageId, setPageId] = useState("");
+  // Meta mints this in Business Manager; the merchant pastes it here. It used
+  // to be a read-only field showing a value NUMU generated, which could never
+  // verify a domain because Meta looks for the token IT issued.
+  const [domainToken, setDomainToken] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -171,6 +175,7 @@ export function MetaTrackingPanel() {
       debugMode: settings?.debug_mode ?? false,
       adAccountId: settings?.ad_account_id ?? "",
       pageId: settings?.page_id ?? "",
+      domainToken: settings?.domain_verification_token ?? "",
     };
   }, [settings]);
 
@@ -194,6 +199,7 @@ export function MetaTrackingPanel() {
     setCapiToken("");
     setAdAccountId(settings.ad_account_id ?? "");
     setPageId(settings.page_id ?? "");
+    setDomainToken(settings.domain_verification_token ?? "");
   }, [settings]);
 
   // ─── Validation ──────────────────────────────────────────────────────────
@@ -251,7 +257,8 @@ export function MetaTrackingPanel() {
     consentRequired !== baseline.consentRequired ||
     debugMode !== baseline.debugMode ||
     adAccountId !== baseline.adAccountId ||
-    pageId !== baseline.pageId;
+    pageId !== baseline.pageId ||
+    domainToken !== baseline.domainToken;
 
   const blockedHint = !dirty
     ? null
@@ -286,6 +293,9 @@ export function MetaTrackingPanel() {
       // field, so undefined here is the safe "no change" signal.
       ad_account_id: adAccountId.trim() || undefined,
       page_id: pageId.trim() || undefined,
+      // Same "undefined means no change" contract as the two IDs above, so a
+      // save that doesn't touch this field can't clear a working token.
+      domain_verification_token: domainToken.trim() || undefined,
     };
     if (capiToken.trim()) {
       payload.capi_access_token = capiToken.trim();
@@ -348,6 +358,7 @@ export function MetaTrackingPanel() {
     adAccountId,
     pageId,
     debugMode,
+    domainToken,
   ]);
 
   const handleDiscard = useCallback(() => {
@@ -358,6 +369,7 @@ export function MetaTrackingPanel() {
     setDebugMode(baseline.debugMode);
     setAdAccountId(baseline.adAccountId);
     setPageId(baseline.pageId);
+    setDomainToken(baseline.domainToken);
     setCapiToken("");
     setShowToken(false);
     setFieldErrors({});
@@ -431,7 +443,6 @@ export function MetaTrackingPanel() {
 
   const status: MetaTrackingStatus = settings?.status ?? "disabled";
   const tokenMasked = settings?.capi_access_token_masked ?? null;
-  const domainToken = settings?.domain_verification_token ?? null;
   const canSendTest = modeIncludesCapi && tokenOnFile;
 
   const eventsManagerUrl = pixelIdValid
@@ -528,7 +539,7 @@ export function MetaTrackingPanel() {
                 <p className="mt-1.5 text-xs text-destructive">{fieldErrors.pixel_id}</p>
               )}
 
-              {/* Domain verification — identity-adjacent, auto-emitted */}
+              {/* Domain verification — the token Meta issues, pasted here */}
               <div className="mt-5 border-t border-border pt-4">
                 <div className="text-[12.5px] font-extrabold">
                   {t("metaTracking.domainLabel")}
@@ -538,24 +549,27 @@ export function MetaTrackingPanel() {
                 </p>
                 <div className="mt-2.5 flex items-center gap-2">
                   <Input
-                    readOnly
-                    value={
-                      domainToken ??
-                      (isAr ? "هيتولّد بعد أول حفظ" : "Generated after first save")
+                    value={domainToken}
+                    onChange={(e) => setDomainToken(e.target.value)}
+                    placeholder={
+                      isAr
+                        ? "الصق التوكن من Business Manager"
+                        : "Paste the token from Business Manager"
                     }
                     className="font-mono text-xs"
-                    // LTR only when a real token shows — the Arabic
-                    // placeholder sentence must render in page direction.
+                    // LTR only when a value shows — the Arabic placeholder
+                    // sentence must render in page direction.
                     dir={domainToken ? "ltr" : undefined}
                   />
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={!domainToken}
+                    disabled={!domainToken.trim()}
                     onClick={() => {
-                      if (!domainToken) return;
-                      navigator.clipboard.writeText(domainToken).then(
+                      const value = domainToken.trim();
+                      if (!value) return;
+                      navigator.clipboard.writeText(value).then(
                         () => toast.success(isAr ? "تم النسخ" : "Copied to clipboard"),
                         () => toast.error(isAr ? "فشل النسخ" : "Couldn't copy"),
                       );
@@ -565,6 +579,11 @@ export function MetaTrackingPanel() {
                     {isAr ? "نسخ" : "Copy"}
                   </Button>
                 </div>
+                {fieldErrors.domain_verification_token && (
+                  <p className="mt-1.5 text-xs text-destructive">
+                    {fieldErrors.domain_verification_token}
+                  </p>
+                )}
                 <p className="mt-1.5 text-[11px] text-ink-faint">
                   {t("metaTracking.domainAutoEmit")}
                 </p>

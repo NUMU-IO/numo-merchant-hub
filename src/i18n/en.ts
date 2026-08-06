@@ -952,9 +952,9 @@ export default {
     hideToken: "Hide token",
     domainLabel: "Domain verification token",
     domainHelp:
-      "Auto-generated. Used by Meta to verify ownership of your storefront domain (eliminates iOS 14.5 attribution loss).",
+      "Meta issues this. In Business Manager go to Brand Safety → Domains, add your storefront domain, choose the meta-tag method, then paste the token here. Verifying your domain recovers the attribution iOS 14.5 costs you.",
     domainAutoEmit:
-      "Auto-emitted as a meta tag on your storefront — no merchant action required.",
+      "Once saved, your storefront serves it as a meta tag on every page — then press Verify back in Business Manager.",
     behaviourTitle: "Behaviour",
     debugLabel: "Debug mode (60 min)",
     debugHelp:

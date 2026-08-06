@@ -946,9 +946,9 @@
     hideToken: "إخفاء الـ Token",
     domainLabel: "Domain verification token",
     domainHelp:
-      "بيتولّد تلقائياً. ميتا بتستخدمه عشان تتأكد إنك مالك دومين المتجر (يقلل خسارة الـ attribution على iOS 14.5).",
+      "ميتا هي اللي بتديك التوكن ده. من Business Manager روح لـ Brand Safety ← Domains، ضيف دومين متجرك، اختار طريقة الـ meta-tag، والصق التوكن هنا. توثيق الدومين بيرجّعلك الـ attribution اللي بيضيع على iOS 14.5.",
     domainAutoEmit:
-      "بيتنشر تلقائياً كـ meta tag على المتجر — مش محتاج تعمل أي حاجة.",
+      "بعد الحفظ المتجر بينشره كـ meta tag على كل الصفحات — وبعدين ارجع لـ Business Manager ودوس تحقّق.",
     behaviourTitle: "السلوك",
     debugLabel: "وضع التصحيح (60 دقيقة)",
     debugHelp:
