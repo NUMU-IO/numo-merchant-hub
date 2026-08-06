@@ -1,14 +1,13 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
+# Merchant dashboard — an authenticated application, not a public site.
+#
+# This file previously said `Allow: /` to Googlebot, Bingbot, Twitterbot,
+# facebookexternalhit and *, which actively invited a login-gated dashboard into
+# the search index. Nothing behind the login can be crawled, so the only page
+# that can rank is the shell — and when it does, it splits brand queries away
+# from numueg.app. The sibling admin backoffice reached #2 on Bing for the brand
+# name exactly this way, above the product site itself.
+#
+# Disallow alone only stops crawling, not indexing of a URL discovered
+# elsewhere; the X-Robots-Tag header in vercel.json is what guarantees removal.
 User-agent: *
-Allow: /
+Disallow: /
