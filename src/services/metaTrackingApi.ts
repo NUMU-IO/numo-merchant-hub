@@ -72,7 +72,12 @@ export interface MetaTrackingSettings {
   mode: MetaTrackingMode;
   /** Masked view of the saved token, e.g. `EAAB••••••XK7`. Null if no token on file. */
   capi_access_token_masked: string | null;
-  /** Storefront emits this as a `<meta>` tag automatically — see plan §8.1. */
+  /**
+   * The token Meta mints in Business Manager → Brand Safety → Domains. The
+   * storefront emits it as `<meta name="facebook-domain-verification">`.
+   * Merchant-supplied — a value NUMU invents can never verify anything,
+   * because Meta looks for the token it issued.
+   */
   domain_verification_token: string | null;
   /** Optional debug-only event code, e.g. `TEST12345`. */
   test_event_code: string | null;
@@ -157,6 +162,13 @@ export interface SaveMetaTrackingPayload {
   ad_account_id?: string | null;
   /** Meta Page ID (promote-on-Meta ad-creative actor). */
   page_id?: string | null;
+  /**
+   * Domain-verification token copied out of Business Manager. Omit to leave
+   * the stored value untouched — same "no change" contract as the fields
+   * above. The API also accepts the whole `<meta …>` tag and extracts the
+   * token, since that is what Business Manager puts on the clipboard.
+   */
+  domain_verification_token?: string | null;
 }
 
 /** Channel a CAPI event was emitted on, for the recent-events table. */
