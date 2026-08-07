@@ -13,7 +13,7 @@
  *  - Version history toggle
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   ArrowLeft,
   Monitor,
@@ -111,6 +111,51 @@ const PAGES: { value: string; label: Record<EditorLocale, string> }[] = [
   { value: "404", label: { en: "404 — Not found", ar: "404 — غير موجود" } },
 ];
 
+/**
+ * Title-case a template id the canonical list doesn't know ("faq" → "Faq",
+ * "size-guide" → "Size Guide"). Mirrors `friendlyTemplateName` in the store.
+ */
+function humanizeTemplateId(id: string): string {
+  return id
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+/**
+ * The canonical list UNION whatever templates the draft actually has.
+ *
+ * `PAGES` above is a fixed list, and its own comment argues for staying
+ * canonical so an un-seeded template still shows an empty state. That reasoning
+ * holds — but it only covers templates the PLATFORM knows about, and a BYOT
+ * theme can ship its own. When vionne 0.8.0 introduced a designed `faq`
+ * template, the store had it (`draft.templates.faq`, with a `vionne-faq`
+ * section and a registered schema) and the storefront rendered it — yet the
+ * merchant could not select it here, so the page was live and uneditable. The
+ * same was already true of `collections`.
+ *
+ * Appending the draft's own keys makes every template the theme ships reachable
+ * without the hub needing to know about it in advance, which is the whole point
+ * of BYOT. Canonical entries keep their curated order and bilingual labels;
+ * theme-introduced ones follow, title-cased.
+ */
+function usePageOptions(
+  templates: Record<string, unknown> | undefined,
+): { value: string; label: Record<EditorLocale, string> }[] {
+  return useMemo(() => {
+    const known = new Set(PAGES.map((p) => p.value));
+    const extra = Object.keys(templates ?? {})
+      .filter((id) => !known.has(id))
+      .sort()
+      .map((id) => {
+        const label = humanizeTemplateId(id);
+        return { value: id, label: { en: label, ar: label } as Record<EditorLocale, string> };
+      });
+    return [...PAGES, ...extra];
+  }, [templates]);
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 interface TopBarProps {
@@ -152,6 +197,8 @@ export function TopBar({
   const [publishLabel, setPublishLabel] = useState("");
   const draft = useCustomizerStore((s) => s.draft);
   const storeId = useCustomizerStore((s) => s.storeId);
+  // Canonical templates + whatever this theme actually ships (see usePageOptions).
+  const pageOptions = usePageOptions(draft?.templates);
 
   // Keyboard shortcuts for undo/redo (Phase 2.4 — also surfaced in the
   // toolbar tooltips so merchants can discover them).
@@ -294,7 +341,7 @@ export function TopBar({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PAGES.map((p) => {
+              {pageOptions.map((p) => {
                 const exists = Boolean(draft?.templates?.[p.value]);
                 return (
                   <SelectItem key={p.value} value={p.value}>
