@@ -16,8 +16,11 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
   CreditCard, Receipt, Tag, Wallet as WalletIcon, ArrowUpRight,
-  CheckCircle2, Sparkle, Clock, Hourglass, BellRing, History,
+  CheckCircle2, Check, Sparkle, Clock, Hourglass, BellRing, History, Download, Building2,
 } from "lucide-react";
+import {
+  printInvoice, downloadInvoicesCsv, invoiceNumber,
+} from "@/lib/subscriptionInvoice";
 
 const NUMU_PRIMARY = "hsl(222.2, 47.4%, 11.2%)";
 
@@ -51,13 +54,63 @@ const PLAN_DISPLAY: Record<string, { name: string; nameAr: string }> = {
   enterprise: { name: "Enterprise", nameAr: "إنتربرايز" },
 };
 
+// Per-plan feature lists, mirroring the landing page's pricing cards so a
+// merchant who compared tiers before signing up meets the same claims here.
+//
+// Hardcoded rather than fetched: /billing/plans returns pricing only, and three
+// short lists are not worth an API change. They MUST stay in step with
+// PLAN_LIMITS in the API — edit both together, or this page starts promising
+// ceilings the backend will not honour.
+const PLAN_FEATURES: Record<string, { en: string; ar: string }[]> = {
+  payg: [
+    { en: "No monthly fee — you pay only when you sell", ar: "بدون اشتراك شهري — بتدفع لما تبيع بس" },
+    { en: "100 products, custom domain, all themes", ar: "١٠٠ منتج، دومين مخصص، كل الثيمات" },
+    { en: "Rate locked at the day you activate", ar: "السعر مثبّت من يوم تفعيلك" },
+    { en: "Prepaid wallet — top up as you go", ar: "محفظة مسبقة الشحن — اشحن وقت ما تحب" },
+  ],
+  starter: [
+    { en: "100 products", ar: "١٠٠ منتج" },
+    { en: "Custom domain + all themes", ar: "دومين مخصص + كل الثيمات" },
+    { en: "3 staff members", ar: "٣ أعضاء فريق" },
+    { en: "Discount codes + webhooks", ar: "أكواد خصم + ويبهوكس" },
+    { en: "0% commission — keep every pound", ar: "٠٪ عمولة — الإيراد كله ليك" },
+  ],
+  pro: [
+    { en: "Unlimited products and customers", ar: "منتجات وعملاء بلا حدود" },
+    { en: "Up to 3 stores on one account", ar: "لحد ٣ متاجر على نفس الحساب" },
+    { en: "10 staff members", ar: "١٠ أعضاء فريق" },
+    { en: "Advanced analytics + automations", ar: "تحليلات متقدمة + أتمتة" },
+    { en: "Full API access", ar: "وصول كامل للـ API" },
+  ],
+};
+
 // Self-serve paid tiers — the only plans payable via InstaPay.
 const PAID_SELF_SERVE = ["starter", "pro"];
 
 const OPEN_INTENT_STATUSES = new Set(["awaiting_proof", "under_review"]);
 
+// Enterprise is sold, not self-served. Prefilled subject + body so the reply
+// lands in the right queue with the store already identified — an empty
+// mailto puts the burden of explaining themselves on the merchant.
+const ENTERPRISE_MAILTO =
+  "mailto:sales@numueg.app" +
+  "?subject=" + encodeURIComponent("Enterprise plan enquiry") +
+  "&body=" +
+    encodeURIComponent(
+      [
+        "Hi numu team,",
+        "",
+        "I would like to talk about an Enterprise plan.",
+        "",
+        "Store: ",
+        "Monthly orders: ",
+        "What we need: ",
+      ].join("\n"),
+    );
+
+
 const Billing = () => {
-  const { tenant, isTrialMode, isReadOnly } = useAuth();
+  const { tenant, isTrialMode, isReadOnly, refreshUser } = useAuth();
   const { language } = useLanguage();
   const isAr = language === "ar";
 
@@ -89,7 +142,15 @@ const Billing = () => {
     apiClient<Invoice[]>("/billing/invoices").then(setInvoices).catch(() => {});
     getBillingPlans().then(setPlansData).catch(() => {});
     listInstapayIntents().then(setIntents).catch(() => {});
-  }, []);
+    // The current plan is read from the auth context, which is only populated
+    // at app mount and on tab focus — everything else on this page is fetched
+    // fresh. Without this the two disagree, and an InstaPay activation makes
+    // that visible: approval lands server-side minutes after the merchant
+    // pays, with no client event, so the page would show a PAID invoice for
+    // Pro sitting directly above a "Current plan: Beta" hero. The tenant row
+    // was already correct; only this screen was stale.
+    refreshUser().catch(() => {});
+  }, [refreshUser]);
 
   useEffect(() => {
     refresh();
@@ -438,62 +499,144 @@ const Billing = () => {
             {cycleToggle}
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Structure ported from the landing page's pricing section: one
+                card per tier, a highlighted recommendation, and a checked
+                feature list so the tiers are comparable at a glance rather
+                than by reading three different one-line summaries.
+
+                Styling stays in the merchant-hub language (near-white ground,
+                Inter, Stripe-ish borders) — the design system keeps the two
+                surfaces apart deliberately. What IS shared is the brand
+                palette: sage/saffron/navy are defined as hub Tailwind tokens
+                for exactly this, so the checks and the highlight read as numu
+                without importing the storefront's cream-and-Reem-Kufi world. */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-stretch">
               <button
                 onClick={() => handleSubscribe("payg")}
                 disabled={subscribing || isPayg}
-                className="group text-start rounded-xl border-2 border-primary/60 p-4 hover:border-primary transition-colors disabled:opacity-60"
+                className="group flex flex-col text-start rounded-xl border p-5 transition-colors hover:border-navy/40 disabled:opacity-60"
               >
-                <div className="flex items-center gap-1.5 text-primary text-xs font-semibold mb-2">
+                <div className="flex items-center gap-1.5 text-navy text-[11px] font-bold uppercase tracking-wide mb-3">
                   <Sparkle className="h-3.5 w-3.5" />
                   {isPayg
                     ? (isAr ? "باقتك الحالية" : "Current plan")
                     : (isAr ? "الأنسب للبداية" : "Best to start")}
                 </div>
-                <p className="font-bold">{isAr ? "ادفع وأنت تنمو" : "Pay as you Grow"}</p>
-                <p className="text-lg font-extrabold mt-0.5">{isAr ? "٠ ج.م/شهر" : "0 EGP/mo"}</p>
-                <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                  {isAr
-                    ? "بدون اشتراك — عمولة على كل طلب مدفوع من محفظة مسبقة الشحن، بسعر مثبّت من يوم تفعيلك"
-                    : "No subscription — a per-paid-order commission from a prepaid wallet, locked at the rate you sign up with"}
+                <p className="font-bold text-base">{isAr ? "ادفع وأنت تنمو" : "Pay as you Grow"}</p>
+                <p className="text-2xl font-extrabold mt-1 tabular-nums">
+                  {isAr ? "٠ ج.م" : "0 EGP"}
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {isAr ? " /شهر" : " /mo"}
+                  </span>
                 </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {commissionPct !== null
+                    ? (isAr ? `${commissionPct}٪ على كل طلب مدفوع` : `${commissionPct}% per paid order`)
+                    : (isAr ? "عمولة على كل طلب مدفوع" : "Commission per paid order")}
+                </p>
+                <ul className="mt-4 space-y-2 flex-1">
+                  {PLAN_FEATURES.payg.map((f, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs leading-relaxed">
+                      <Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-sage" />
+                      <span>{isAr ? f.ar : f.en}</span>
+                    </li>
+                  ))}
+                </ul>
               </button>
               {(["starter", "pro"] as const).map((key) => {
                 const cents = planPrice(key);
                 const per = cycle === "annual" ? (isAr ? "سنة" : "yr") : (isAr ? "شهر" : "mo");
                 const intended = planIntent === key;
+                // Pro carries the recommendation, as on the landing page —
+                // unless the merchant already picked a tier at signup, in
+                // which case echoing their own choice back beats overriding
+                // it with ours.
+                const featured = planIntent ? intended : key === "pro";
+                const monthly = planPrice(key, "monthly");
+                const annual = planPrice(key, "annual");
+                // Months saved by paying yearly, shown only when it is real.
+                const saved =
+                  monthly && annual && monthly > 0
+                    ? Math.round(12 - annual / monthly)
+                    : 0;
                 return (
                   <button
                     key={key}
                     onClick={() => openPaidPlanDialog(key)}
                     disabled={subscribing || !instapayOn || Boolean(openIntent)}
-                    className={`relative text-start rounded-xl border p-4 transition-colors disabled:opacity-60 ${
-                      intended ? "border-primary ring-1 ring-primary/40" : "hover:border-foreground/30"
+                    className={`relative flex flex-col text-start rounded-xl border p-5 transition-colors disabled:opacity-60 ${
+                      featured
+                        ? "border-saffron ring-1 ring-saffron/40 bg-saffron/[0.04]"
+                        : "hover:border-foreground/30"
                     }`}
                   >
-                    {intended && (
-                      <span className="absolute top-3 end-3 text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-2 py-0.5">
-                        {isAr ? "اخترتها عند التسجيل" : "Your signup pick"}
+                    {featured && (
+                      <span className="absolute -top-2.5 start-5 rounded-full bg-saffron px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-navy-900">
+                        {intended
+                          ? (isAr ? "اخترتها عند التسجيل" : "Your signup pick")
+                          : (isAr ? "الأكثر اختياراً" : "Most popular")}
                       </span>
                     )}
-                    <p className="font-bold mt-6">{key === "starter" ? "Starter" : "Pro"}</p>
-                    <p className="text-lg font-extrabold mt-0.5 tabular-nums">
-                      {cents != null ? `${fmtEgp(cents)}/${per}` : "…"}
+                    <p className="font-bold text-base">{key === "starter" ? "Starter" : "Pro"}</p>
+                    <p className="text-2xl font-extrabold mt-1 tabular-nums">
+                      {cents != null ? fmtEgp(cents) : "…"}
+                      <span className="text-sm font-medium text-muted-foreground">{` /${per}`}</span>
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                      {key === "starter"
-                        ? (isAr ? "١٠٠ منتج، دومين مخصص، كل الثيمات" : "100 products, custom domain, all themes")
-                        : (isAr ? "منتجات بلا حدود، تحليلات، أتمتة" : "Unlimited products, analytics, automations")}
+                    <p className="text-xs text-muted-foreground mt-1 min-h-[1rem]">
+                      {cycle === "annual" && saved > 0
+                        ? (isAr ? `وفّر ${saved} شهور` : `${saved} months free`)
+                        : instapayOn
+                          ? (isAr ? "الدفع عبر إنستاباي" : "Pay via InstaPay")
+                          : ""}
                     </p>
-                    {instapayOn && (
-                      <p className="text-[11px] text-muted-foreground mt-2">
-                        {isAr ? "الدفع عبر إنستاباي" : "Pay via InstaPay"}
-                      </p>
-                    )}
+                    <ul className="mt-4 space-y-2 flex-1">
+                      {PLAN_FEATURES[key].map((f, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs leading-relaxed">
+                          <Check
+                            className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${
+                              featured ? "text-saffron" : "text-sage"
+                            }`}
+                          />
+                          <span>{isAr ? f.ar : f.en}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </button>
                 );
               })}
             </div>
+
+            {/* Enterprise — a contract, not a checkout.
+                Deliberately outside the plan grid and styled as a row rather
+                than a fourth priced card: putting "Contact us" where a price
+                belongs makes the other three read as incomplete, and a merchant
+                scanning for a number finds a dead end. */}
+            <a
+              href={ENTERPRISE_MAILTO}
+              className="mt-3 flex items-center gap-4 rounded-xl border border-dashed p-4 transition-colors hover:border-foreground/30 hover:bg-muted/40"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                <Building2 className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-bold">
+                  Enterprise
+                  <span className="ms-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {isAr ? "بالاتفاق" : "Custom"}
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                  {isAr
+                    ? "حجم أوردرات كبير، أكتر من متجر، تكاملات خاصة، أو اتفاق SLA — نظبّطها معاك."
+                    : "High order volume, multiple stores, custom integrations or an SLA — we'll shape it with you."}
+                </p>
+              </div>
+              <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-primary">
+                {isAr ? "كلّمنا" : "Contact us"}
+                <ArrowUpRight className="h-4 w-4" />
+              </span>
+            </a>
+
             {!instapayOn && (
               <p className="text-xs text-muted-foreground mt-3">
                 {isAr
@@ -644,11 +787,32 @@ const Billing = () => {
         </Card>
 
         <Card className="lg:col-span-3">
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between space-y-0 gap-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Receipt className="h-4 w-4" />
               {isAr ? "الفواتير" : "Invoices"}
+              {invoices.length > 0 && (
+                <span className="text-xs font-normal text-muted-foreground tabular-nums">
+                  ({invoices.length})
+                </span>
+              )}
             </CardTitle>
+            {invoices.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 shrink-0"
+                onClick={() =>
+                  downloadInvoicesCsv(
+                    invoices,
+                    `numu-invoices-${tenant?.subdomain || "store"}.csv`,
+                  )
+                }
+              >
+                <Download className="h-3.5 w-3.5" />
+                {isAr ? "تصدير CSV" : "Export CSV"}
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {invoices.length === 0 ? (
@@ -662,31 +826,78 @@ const Billing = () => {
                 </p>
               </div>
             ) : (
-              <div className="space-y-1">
+              <div className="-mx-2">
                 {invoices.map((inv) => (
-                  <div key={inv.id} className="flex items-center justify-between gap-3 py-2.5 border-b last:border-0">
-                    <div className="min-w-0">
+                  <div
+                    key={inv.id}
+                    className="group flex items-center gap-3 px-2 py-3 rounded-lg border-b last:border-0 transition-colors hover:bg-muted/40"
+                  >
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                        inv.status === "paid"
+                          ? "bg-emerald-50 text-emerald-600"
+                          : "bg-amber-50 text-amber-600"
+                      }`}
+                    >
+                      {inv.status === "paid" ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : (
+                        <Clock className="h-4 w-4" />
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">
                         {fmtDate(inv.period_start)} — {fmtDate(inv.period_end)}
                       </p>
-                      <p className="text-xs text-muted-foreground tabular-nums">
-                        {fmt(inv.amount_cents)} {inv.currency}
+                      <p className="text-xs text-muted-foreground tabular-nums" dir="ltr">
+                        {invoiceNumber(inv)}
                         {inv.discount_amount_cents > 0 && (
-                          <span className="text-emerald-600"> · {isAr ? "خصم" : "discount"} −{fmt(inv.discount_amount_cents)}</span>
+                          <span className="text-emerald-600">
+                            {" · "}
+                            {isAr ? "خصم" : "discount"} −{fmt(inv.discount_amount_cents)}
+                          </span>
                         )}
                       </p>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className={
-                        inv.status === "paid"
-                          ? "border-emerald-300 text-emerald-700 gap-1"
-                          : "text-muted-foreground"
-                      }
+
+                    <p className="text-sm font-semibold tabular-nums shrink-0" dir="ltr">
+                      {fmt(inv.amount_cents)} {inv.currency}
+                    </p>
+
+                    {/* Always rendered, not hover-revealed: a download you cannot
+                        see on touch is a download that does not exist. */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                      title={isAr ? "تحميل الفاتورة" : "Download invoice"}
+                      aria-label={`${isAr ? "تحميل الفاتورة" : "Download invoice"} ${invoiceNumber(inv)}`}
+                      onClick={() => {
+                        const ok = printInvoice(
+                          inv,
+                          {
+                            name: tenant?.name || "—",
+                            subdomain: tenant?.subdomain,
+                            plan: PLAN_DISPLAY[planKey]?.name,
+                          },
+                          isAr,
+                        );
+                        if (!ok) {
+                          // sonner, not shadcn's useToast — different signature.
+                          toast.error(
+                            isAr ? "المتصفح منع النافذة" : "Popup blocked",
+                            {
+                              description: isAr
+                                ? "اسمح بالنوافذ المنبثقة لهذا الموقع عشان تحمّل الفاتورة."
+                                : "Allow popups for this site to download the invoice.",
+                            },
+                          );
+                        }
+                      }}
                     >
-                      {inv.status === "paid" && <CheckCircle2 className="h-3 w-3" />}
-                      {inv.status}
-                    </Badge>
+                      <Download className="h-4 w-4" />
+                    </Button>
                   </div>
                 ))}
               </div>
