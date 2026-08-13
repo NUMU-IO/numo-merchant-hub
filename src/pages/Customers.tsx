@@ -3,6 +3,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ResponsiveTable, MobileCardList, MobileCard } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -365,6 +366,52 @@ export default function Customers() {
             </div>
           ) : (
             <>
+              <ResponsiveTable
+                mobile={
+                  <MobileCardList className="p-3">
+                    {customers.map((c) => (
+                      <MobileCard
+                        key={c.id}
+                        onClick={() => openCustomerDetail(c)}
+                        leading={
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/8 text-[12px] font-bold text-primary">
+                            {(c.full_name || c.first_name || "?").charAt(0).toUpperCase()}
+                          </div>
+                        }
+                        title={c.full_name || `${c.first_name} ${c.last_name}`}
+                        subtitle={
+                          /* Phone before email: for an Egyptian merchant the
+                             phone is the identifier they actually act on. */
+                          c.phone ? <span dir="ltr">{c.phone}</span> : displayEmail(c.email)
+                        }
+                        trailing={<span dir="ltr">{formatCurrency(c.total_spent)}</span>}
+                        trailingMeta={
+                          <span className="tabular-nums">
+                            {c.total_orders} {isAr ? "طلب" : c.total_orders === 1 ? "order" : "orders"}
+                          </span>
+                        }
+                        badges={
+                          <Badge
+                            variant="outline"
+                            className={`px-1.5 py-0 text-[10px] font-medium border ${c.is_verified ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" : "bg-muted text-muted-foreground border-border"}`}
+                          >
+                            {c.is_verified ? (
+                              <>
+                                <ShieldCheck className="me-0.5 inline h-2.5 w-2.5" />
+                                {isAr ? "مُفعّل" : "Verified"}
+                              </>
+                            ) : isAr ? (
+                              "غير مُفعّل"
+                            ) : (
+                              "Unverified"
+                            )}
+                          </Badge>
+                        }
+                      />
+                    ))}
+                  </MobileCardList>
+                }
+              >
               <Table>
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
@@ -406,6 +453,7 @@ export default function Customers() {
                   ))}
                 </TableBody>
               </Table>
+              </ResponsiveTable>
 
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-5 py-3 border-t border-border/40">

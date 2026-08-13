@@ -15,6 +15,9 @@ import DemoBanner from "@/components/demo/DemoBanner";
 import GoLiveBanner from "@/components/wallet/GoLiveBanner";
 import LowBalanceBanner from "@/components/wallet/LowBalanceBanner";
 import { ImpersonationBanner } from "./ImpersonationBanner";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
+import { useAppBadge } from "@/hooks/useAppBadge";
+import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
 import { NewOrderNotifier } from "@/components/NewOrderNotifier";
 import { AgentPanel } from "@/features/agent";
 import { useNavConfig } from "@/hooks/useNavConfig";
@@ -43,6 +46,12 @@ const DashboardLayout = () => {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const isAr = language === "ar";
+
+  // Mirror the unread count onto the installed app icon. Same hook and same
+  // store id the header bell uses, so the badge and the bell can never
+  // disagree. No-ops where the Badging API is unsupported — notably Chrome
+  // for Android.
+  useAppBadge(useUnreadNotificationCount(currentStore?.id));
 
   const trialDaysLeft = useMemo(() => {
     if (!user?.trial_ends_at) return null;
@@ -76,6 +85,9 @@ const DashboardLayout = () => {
               <GoLiveBanner />
               {/* Pay-as-you-grow wallet warnings (low / negative / blocked) */}
               <LowBalanceBanner />
+              {/* PWA install nudge. Self-gating: mobile only, dashboard route
+                  only, and only once the merchant has had a real order. */}
+              <InstallPrompt />
               {/* Store status alerts */}
               {currentStore?.status === "suspended" && (
                 <Alert className="mb-5 rounded-xl border-red-200 bg-red-50/80 dark:border-red-500/30 dark:bg-red-950/40">

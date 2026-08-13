@@ -5,6 +5,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -522,6 +523,11 @@ export default function SettingsPreferences() {
 
         {/* Content */}
         <div className="flex-1 max-w-2xl space-y-5">
+          {/* PWA push — the always-available place to turn order notifications
+              on, including for merchants who dismissed the dashboard prompt.
+              Self-hides where push is unsupported. */}
+          {activeSection === "general" && <NotificationSettings />}
+
           {/* GENERAL */}
           {activeSection === "general" && (
             <Card className="border-border/60">

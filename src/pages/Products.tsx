@@ -13,6 +13,9 @@ import {
 import { ImportDialog } from "@/components/products/ImportDialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ResponsiveTable, MobileCardList, MobileCard } from "@/components/ui/responsive-table";
+import { BarcodeScanner, isBarcodeScanSupported } from "@/components/scanner/BarcodeScanner";
+import { ScanLine } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +56,10 @@ const Products = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  // Computed once: capability cannot change mid-session, and calling it in
+  // render would re-probe on every keystroke in the search box.
+  const [scanSupported] = useState(isBarcodeScanSupported);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ProductStatus>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -478,7 +485,32 @@ const Products = () => {
             className="pe-9 h-9 rounded-lg bg-muted/40 border-transparent focus:bg-background focus:border-border transition-colors"
           />
         </div>
+        {/* Scan-to-find. Hidden where BarcodeDetector or a camera is missing —
+            a permanently-dead button reads as a broken feature. The scanned
+            code lands in the SAME search box, so it filters by barcode/SKU
+            through the existing query path with no new endpoint. */}
+        {scanSupported && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setScannerOpen(true)}
+            aria-label={isAr ? "امسح باركود" : "Scan barcode"}
+            title={isAr ? "امسح باركود" : "Scan barcode"}
+            className="h-9 w-9 shrink-0 rounded-lg md:hidden"
+          >
+            <ScanLine className="h-4 w-4" />
+          </Button>
+        )}
       </div>
+
+      <BarcodeScanner
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onDetected={(code) => {
+          setScannerOpen(false);
+          setSearch(code);
+        }}
+      />
 
       {/* ─── Table card ─── */}
       <Card className="overflow-hidden border-border/60">
@@ -600,6 +632,75 @@ const Products = () => {
               })}
             </div>
           ) : (
+            /* List view. `viewMode` is a MERCHANT choice and defaults to
+               "list", so on a phone this used to mean a 8-column table
+               scrolling sideways. ResponsiveTable swaps in a card list below
+               `md` while leaving the desktop table byte-identical. */
+            <ResponsiveTable
+              mobile={
+                <MobileCardList className="p-3">
+                  {filtered.map((p) => {
+                    const outOfStock = p.stock === 0;
+                    const lowStock = p.stock > 0 && p.stock < 20;
+                    return (
+                      <MobileCard
+                        key={p.id}
+                        selected={selectedIds.has(p.id)}
+                        onClick={() => navigate(`/products/${p.id}/edit`)}
+                        leading={
+                          <Checkbox
+                            checked={selectedIds.has(p.id)}
+                            onCheckedChange={() => toggleSelect(p.id)}
+                            aria-label={isAr ? "تحديد" : "Select"}
+                          />
+                        }
+                        title={
+                          <span className="flex items-center gap-2.5">
+                            {p.image.startsWith("http") ? (
+                              <img
+                                src={p.image}
+                                alt=""
+                                className="h-9 w-9 shrink-0 rounded-lg bg-muted object-cover ring-1 ring-border/30"
+                              />
+                            ) : (
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-base ring-1 ring-border/20">
+                                {p.image}
+                              </span>
+                            )}
+                            <span className="truncate">{isAr ? p.nameAr : p.name}</span>
+                          </span>
+                        }
+                        subtitle={<span className="font-mono">{p.sku || "—"}</span>}
+                        trailing={formatCurrency(p.price)}
+                        trailingMeta={
+                          p.compareAtPrice ? (
+                            <span className="line-through">{formatCurrency(p.compareAtPrice)}</span>
+                          ) : null
+                        }
+                        badges={
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold ${
+                              outOfStock
+                                ? "border-destructive/30 bg-destructive/10 text-destructive"
+                                : lowStock
+                                  ? "border-amber-200/50 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                  : "border-border bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {(outOfStock || lowStock) && (
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${outOfStock ? "bg-destructive" : "bg-amber-500"}`}
+                              />
+                            )}
+                            {t("products.stock")}: <span className="tabular-nums">{p.stock}</span>
+                          </span>
+                        }
+                      />
+                    );
+                  })}
+                </MobileCardList>
+              }
+            >
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -798,6 +899,7 @@ const Products = () => {
                 </TableBody>
               </Table>
             </div>
+            </ResponsiveTable>
           )}
 
           {/* Pagination */}

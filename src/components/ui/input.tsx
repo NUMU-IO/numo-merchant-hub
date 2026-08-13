@@ -10,7 +10,11 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
       <input
         type={type}
         className={cn(
-          "flex h-11 w-full rounded-xl border-[1.5px] border-input bg-card px-4 py-2 text-[15px] transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-ink-faint focus-visible:outline-none focus-visible:border-navy focus-visible:ring-4 focus-visible:ring-navy/15 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+          // text-base (16px) below md, NOT 15px: iOS zooms the whole page when
+          // a focused input is under 16px, which is the single most obvious
+          // "this is a website" tell on a phone. The desktop size is unchanged
+          // — `md:text-sm` below already governs it.
+          "flex h-11 w-full rounded-xl border-[1.5px] border-input bg-card px-4 py-2 text-base transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-ink-faint focus-visible:outline-none focus-visible:border-navy focus-visible:ring-4 focus-visible:ring-navy/15 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
           className,
         )}
         ref={ref}
