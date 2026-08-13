@@ -222,9 +222,46 @@ export default defineConfig(({ mode }) => ({
           { src: "/pwa/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
           { src: "/apple-touch-icon.png", sizes: "180x180", type: "image/png", purpose: "any" },
         ],
-        // TODO(P1A): add `screenshots` once the mobile surfaces are polished.
-        // Capturing them now would show the pre-Phase-1A layout in Chrome's
-        // install dialog. Must come from a TEST store — the manifest is public.
+        // Unlocks Chrome's richer install dialog — an app card with imagery
+        // instead of a bare "Install?" bar, which is a real conversion
+        // difference on the one surface where merchants decide.
+        //
+        // Captured from a TEST store (qalab) at 360 CSS px / DPR 3, because
+        // the manifest is PUBLIC. No customer names, phones or addresses
+        // appear in any of them. Each is framed past the transient wallet
+        // banner so the dialog shows the product rather than a warning.
+        //
+        // `sizes` must match the files exactly or Chrome ignores the entry.
+        screenshots: [
+          {
+            src: "/pwa/shot-mobile-1.png",
+            sizes: "1080x1920",
+            type: "image/png",
+            form_factor: "narrow",
+            label: "Your store at a glance",
+          },
+          {
+            src: "/pwa/shot-mobile-2.png",
+            sizes: "1080x1920",
+            type: "image/png",
+            form_factor: "narrow",
+            label: "Orders, built for one hand",
+          },
+          {
+            src: "/pwa/shot-mobile-3.png",
+            sizes: "1080x1920",
+            type: "image/png",
+            form_factor: "narrow",
+            label: "Manage your products",
+          },
+          {
+            src: "/pwa/shot-wide-1.png",
+            sizes: "1920x1080",
+            type: "image/png",
+            form_factor: "wide",
+            label: "The full dashboard on desktop",
+          },
+        ],
         shortcuts: [
           { name: "الطلبات · Orders", url: "/orders" },
           { name: "طلب جديد · New order", url: "/orders/create" },
