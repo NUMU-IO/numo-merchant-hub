@@ -124,6 +124,17 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     VitePWA({
+      // Response headers for the two files this plugin emits live in
+      // vercel.json (JSON, so they cannot carry their own comments):
+      //   /sw.js  -> Cache-Control: public, max-age=0, must-revalidate
+      //              (a cached worker cannot be replaced on installed clients;
+      //              Vercel's static default already matches, stated explicitly
+      //              so a future default change cannot pin the fleet to an old
+      //              worker) + Service-Worker-Allowed: / so it claims the origin.
+      //   /manifest.webmanifest -> Content-Type: application/manifest+json,
+      //              because some hosts guess text/plain for .webmanifest and
+      //              Chrome then ignores it and silently blocks installability.
+      //
       // injectManifest (not generateSW): we hand-write src/sw.ts because the
       // worker needs an explicit NetworkOnly deny on /api/, cache purging on
       // logout, and (Phase 2) push handlers. generateSW can host none of that.
