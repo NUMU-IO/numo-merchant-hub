@@ -5,6 +5,12 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { apiClient } from "@/services/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  ResponsiveTable,
+  MobileCardList,
+  MobileCard,
+  MobileCardSkeleton,
+} from "@/components/ui/responsive-table";
 import { Button } from "@/components/ui/button";
 import {
   Loader2, ChevronLeft, ChevronRight, Hourglass,
@@ -60,6 +66,36 @@ const FAILED_STATUSES = new Set([
 // going the other way. We surface it as its own neutral pill so the
 // merchant sees it for what it is.
 const REVERSED_STATUSES = new Set(["reversed", "reversal", "partial_refund"]);
+
+/**
+ * Payment-method pill. Extracted (not duplicated) so the desktop table and the
+ * mobile card render the same four branches from one place.
+ */
+const MethodPill = ({ method, isAr }: { method?: string | null; isAr: boolean }) => (
+  <span className="souq-pill bg-muted text-ink-soft">
+    {method === "card" ? (
+      <>
+        <CreditCard className="h-3.5 w-3.5" strokeWidth={2.2} />
+        {isAr ? "بطاقة" : "Card"}
+      </>
+    ) : method === "wallet" ? (
+      <>
+        <Wallet className="h-3.5 w-3.5" strokeWidth={2.2} />
+        {isAr ? "محفظة" : "Wallet"}
+      </>
+    ) : method === "cod" ? (
+      <>
+        <Banknote className="h-3.5 w-3.5" strokeWidth={2.2} />
+        {isAr ? "عند الاستلام" : "COD"}
+      </>
+    ) : (
+      <>
+        <ArrowLeftRight className="h-3.5 w-3.5" strokeWidth={2.2} />
+        {method || (isAr ? "تحويل" : "Transfer")}
+      </>
+    )}
+  </span>
+);
 
 const StatusPill = ({ status, isAr }: { status: string; isAr: boolean }) => {
   const s = (status || "").toLowerCase().trim();
@@ -473,6 +509,59 @@ const Payments = () => {
                 : `Wallet: ${fmt(walletBalance)}`}
             </span>
           </div>
+          <ResponsiveTable
+            mobile={
+              loadingTx ? (
+                <MobileCardSkeleton />
+              ) : transactions.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 py-16">
+                  <div className="ichip ichip-navy ichip-lg">
+                    <Wallet className="h-6 w-6" strokeWidth={2} />
+                  </div>
+                  <p className="text-sm font-bold">
+                    {isAr ? "مفيش حركات لسه" : "No transactions yet"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {isAr ? "المدفوعات من الطلبات هتظهر هنا" : "Payments from orders will appear here"}
+                  </p>
+                </div>
+              ) : (
+                <MobileCardList className="p-3">
+                  {transactions.map((tx) => {
+                    const isOut = REFUNDED_STATUSES.has((tx.status || "").toLowerCase().trim());
+                    return (
+                      <MobileCard
+                        key={tx.id}
+                        title={
+                          <span className="font-mono">
+                            {tx.reference_id || tx.id.slice(0, 10)}
+                          </span>
+                        }
+                        subtitle={tx.customer_name || tx.customer_email || "—"}
+                        trailing={
+                          <span className={isOut ? "text-terracotta" : "text-sage"}>
+                            {isOut ? "−" : "+"}
+                            {fmt(tx.amount_cents)}
+                          </span>
+                        }
+                        badges={
+                          <>
+                            <StatusPill status={tx.status} isAr={isAr} />
+                            <MethodPill method={tx.payment_method} isAr={isAr} />
+                          </>
+                        }
+                        meta={
+                          <span>
+                            {fmtDate(tx.created_at)} · {fmtTime(tx.created_at)}
+                          </span>
+                        }
+                      />
+                    );
+                  })}
+                </MobileCardList>
+              )
+            }
+          >
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -528,29 +617,7 @@ const Payments = () => {
                           )}
                         </TableCell>
                         <TableCell>
-                          <span className="souq-pill bg-muted text-ink-soft">
-                            {t.payment_method === "card" ? (
-                              <>
-                                <CreditCard className="h-3.5 w-3.5" strokeWidth={2.2} />
-                                {isAr ? "بطاقة" : "Card"}
-                              </>
-                            ) : t.payment_method === "wallet" ? (
-                              <>
-                                <Wallet className="h-3.5 w-3.5" strokeWidth={2.2} />
-                                {isAr ? "محفظة" : "Wallet"}
-                              </>
-                            ) : t.payment_method === "cod" ? (
-                              <>
-                                <Banknote className="h-3.5 w-3.5" strokeWidth={2.2} />
-                                {isAr ? "عند الاستلام" : "COD"}
-                              </>
-                            ) : (
-                              <>
-                                <ArrowLeftRight className="h-3.5 w-3.5" strokeWidth={2.2} />
-                                {t.payment_method || (isAr ? "تحويل" : "Transfer")}
-                              </>
-                            )}
-                          </span>
+                          <MethodPill method={t.payment_method} isAr={isAr} />
                         </TableCell>
                         <TableCell>
                           <div className="text-xs">{fmtDate(t.created_at)}</div>
@@ -574,6 +641,7 @@ const Payments = () => {
               </TableBody>
             </Table>
           </div>
+          </ResponsiveTable>
           {transactions.length > 0 && (
             <div className="flex items-center justify-between px-5 py-3 border-t">
               <Button

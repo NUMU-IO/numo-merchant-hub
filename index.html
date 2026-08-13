@@ -13,6 +13,31 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <!-- PWA — the manifest link element is injected at build time by
+         vite-plugin-pwa (see vite.config.ts); do NOT add it by hand or it
+         will be duplicated. (Written in prose deliberately: a literal tag in
+         this comment shows up in `grep rel=manifest dist/index.html` and reads
+         like a real duplicate.)
+
+         theme-color tints the BROWSER toolbar while browsing in a tab. It is
+         matched to `--background`, which is what `.dash-header` actually sits
+         on (#FFFFFF light / #0B1420 dark) and what the inline splash below
+         paints — so the browser chrome, splash and app agree with no colour
+         jump. The manifest's own theme_color is NUMU navy instead: it colours
+         the INSTALLED app's status bar, cannot respond to dark mode, and navy
+         reads as deliberate brand against both backgrounds where a flat white
+         would look broken in dark mode. -->
+    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0B1420" media="(prefers-color-scheme: dark)" />
+    <!-- iOS standalone: opt into full-screen chrome and match the status bar
+         to the app background. `black-translucent` lets content run under the
+         status bar, which works because the viewport is already
+         `viewport-fit=cover` and `.safe-bottom`/`.safe-top` handle the insets. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="NUMU" />
+
     <meta property="og:title" content="NUMU - Merchant Dashboard" />
     <meta property="og:description" content="NUMU Merchant Dashboard — manage your e-commerce store" />
     <meta property="og:type" content="website" />

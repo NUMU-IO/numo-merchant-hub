@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ResponsiveTable, MobileCardList, MobileCard } from "@/components/ui/responsive-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Check,
@@ -194,6 +195,55 @@ const AbandonedCheckouts = () => {
     return c.email || c.phone || (isAr ? "زائر بدون بيانات" : "Guest, no contact");
   };
 
+  /**
+   * Recovery status. Extracted (not duplicated) because the desktop table and
+   * the mobile card both render it — four branches of conditional badge JSX
+   * copied into two places would drift the moment either is touched.
+   * Output is identical to the previous inline markup.
+   */
+  const statusBadge = (c: AbandonedCheckout) => {
+    if (c.recovered_at)
+      return (
+        <Badge
+          variant="outline"
+          className="text-[10px] py-0.5 bg-emerald-500/10 text-emerald-600 border-emerald-200/50"
+        >
+          <CheckCircle2 className="h-3 w-3 me-1" />
+          {t("abandonedCheckouts.recovered")}
+        </Badge>
+      );
+    if (c.recovery_email_sent_at)
+      return (
+        <Badge
+          variant="outline"
+          className="text-[10px] py-0.5 bg-blue-500/10 text-blue-600 border-blue-200/50"
+        >
+          {t("abandonedCheckouts.emailSent")}
+        </Badge>
+      );
+    if (c.abandoned_at)
+      return (
+        <Badge
+          variant="outline"
+          className="text-[10px] py-0.5 bg-amber-500/10 text-amber-600 border-amber-200/50"
+        >
+          {t("abandonedCheckouts.abandoned")}
+        </Badge>
+      );
+    return (
+      <Badge
+        variant="outline"
+        className="text-[10px] py-0.5 bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-200/50"
+      >
+        <span className="relative flex h-1.5 w-1.5 me-1">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-sky-500" />
+        </span>
+        {t("abandonedCheckouts.inProgress")}
+      </Badge>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -265,6 +315,68 @@ const AbandonedCheckouts = () => {
         </Card>
       ) : (
         <Card>
+          <ResponsiveTable
+            mobile={
+              <MobileCardList className="p-3">
+                {items.map((c) => (
+                  <MobileCard
+                    key={c.id}
+                    /* Same tap target as the desktop row: opens the detail
+                       dialog, which carries the full action set. The card
+                       surfaces only WhatsApp — the recovery channel that
+                       actually converts for Egyptian merchants — so the
+                       action row stays one-handed instead of four buttons. */
+                    onClick={() => {
+                      setDetailSnapshot(c);
+                      setDetailOpen(true);
+                    }}
+                    title={contactDisplay(c)}
+                    subtitle={
+                      c.utm_source ? (
+                        <span className="flex items-center gap-1">
+                          <TrafficSourceIcon source={c.utm_source} className="h-3 w-3 shrink-0" />
+                          <span className="truncate">
+                            {c.utm_source}
+                            {c.utm_campaign ? ` · ${c.utm_campaign}` : ""}
+                          </span>
+                        </span>
+                      ) : null
+                    }
+                    trailing={formatCurrency(c.total)}
+                    trailingMeta={
+                      <span className="tabular-nums">
+                        {c.item_count} {isAr ? "صنف" : c.item_count === 1 ? "item" : "items"}
+                      </span>
+                    }
+                    badges={statusBadge(c)}
+                    meta={<span>{fmtRelative(c.last_activity_at)}</span>}
+                    actions={
+                      !c.recovered_at && c.phone ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-10 gap-1.5 rounded-lg text-[12px]"
+                          disabled={notifyWhatsApp.isPending && notifyWhatsApp.variables === c.id}
+                          onClick={() => notifyWhatsApp.mutate(c.id)}
+                        >
+                          {isAr ? "واتساب" : "WhatsApp"}
+                        </Button>
+                      ) : c.recovered_order_id ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-10 rounded-lg text-[12px]"
+                          onClick={() => navigate(`/orders/${c.recovered_order_id}`)}
+                        >
+                          {isAr ? "عرض الطلب" : "View order"}
+                        </Button>
+                      ) : null
+                    }
+                  />
+                ))}
+              </MobileCardList>
+            }
+          >
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -337,42 +449,7 @@ const AbandonedCheckouts = () => {
                           status-flip marker. */}
                       {fmtRelative(c.last_activity_at)}
                     </TableCell>
-                    <TableCell>
-                      {c.recovered_at ? (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] py-0.5 bg-emerald-500/10 text-emerald-600 border-emerald-200/50"
-                        >
-                          <CheckCircle2 className="h-3 w-3 me-1" />
-                          {t("abandonedCheckouts.recovered")}
-                        </Badge>
-                      ) : c.recovery_email_sent_at ? (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] py-0.5 bg-blue-500/10 text-blue-600 border-blue-200/50"
-                        >
-                          {t("abandonedCheckouts.emailSent")}
-                        </Badge>
-                      ) : c.abandoned_at ? (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] py-0.5 bg-amber-500/10 text-amber-600 border-amber-200/50"
-                        >
-                          {t("abandonedCheckouts.abandoned")}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] py-0.5 bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-200/50"
-                        >
-                          <span className="relative flex h-1.5 w-1.5 me-1">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-sky-500" />
-                          </span>
-                          {t("abandonedCheckouts.inProgress")}
-                        </Badge>
-                      )}
-                    </TableCell>
+                    <TableCell>{statusBadge(c)}</TableCell>
                     <TableCell
                       className="text-right"
                       onClick={(e) => e.stopPropagation()}
@@ -453,6 +530,7 @@ const AbandonedCheckouts = () => {
               </TableBody>
             </Table>
           </div>
+          </ResponsiveTable>
         </Card>
       )}
 

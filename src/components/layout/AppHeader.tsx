@@ -126,8 +126,10 @@ const AppHeader = () => {
         <div className="flex-1" />
 
         {/* Quick Actions Row — Souq chrome: chunky 42px icon buttons,
-            warm hairline borders, ≥44px touch targets. */}
-        <div className="flex items-center gap-2">
+            warm hairline borders, ≥44px touch targets.
+            min-w-0 so the store switcher inside can shrink at 360px instead of
+            pushing the row past the viewport (see .dash-header). */}
+        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
           {/* Search trigger — pill-shaped chip with card surface + border,
               matches NHUB's `.h-search`. */}
           <button
@@ -218,7 +220,7 @@ const AppHeader = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 max-w-[180px] h-[42px] rounded-xl px-3 bg-card border border-border hover:bg-muted"
+                  className="gap-2 max-w-[104px] sm:max-w-[180px] h-[42px] rounded-xl px-2.5 sm:px-3 bg-card border border-border hover:bg-muted"
                 >
                   {currentStore?.logo_url ? (
                     <img

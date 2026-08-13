@@ -73,6 +73,34 @@ jobs:
           VITE_API_URL: /api/v1
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
+      # PWA guards. Both failure modes below are SILENT — they pass every
+      # functional test — so they are enforced here rather than reviewed.
+      #   1. Precache bloat: a broad glob precaches all ~343 route chunks
+      #      (4.9 MB) instead of the ~1.2 MB shell. Merchants pay that on
+      #      install, over Egyptian mobile data.
+      #   2. A cache rule matching /api/: a cross-tenant data leak, because the
+      #      Cache API keys by URL and ignores the X-Tenant-Id header.
+      - name: PWA precache budget + /api/ deny-rule guard
+        run: node scripts/check-precache.mjs
+
+      # The Vercel catch-all rewrite turns a MISSING file into a 200 text/html
+      # instead of a 404. If sw.js ever fails to emit, registration fails with a
+      # confusing "unsupported MIME type" rather than an honest error — so we
+      # assert the served content type, not just the file's existence.
+      - name: Service worker is served as JavaScript
+        run: |
+          npm run preview -- --port 4173 &
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null "http://127.0.0.1:4173/" && break
+            sleep 1
+          done
+          CT=$(curl -sI "http://127.0.0.1:4173/sw.js" | tr -d '\r' | grep -i '^content-type:' | cut -d' ' -f2-)
+          echo "sw.js content-type: $CT"
+          case "$CT" in
+            *javascript*) echo "OK" ;;
+            *) echo "::error::sw.js served as '$CT', expected a JavaScript type"; exit 1 ;;
+          esac
+
       - name: Upload build artifact
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4

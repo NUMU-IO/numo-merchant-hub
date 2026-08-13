@@ -14,6 +14,15 @@ interface State {
 
 const RELOAD_GUARD_KEY = "numu:stale-chunk-reload";
 
+/**
+ * How long a recorded reload suppresses another one.
+ *
+ * A stale-chunk reload either fixes the problem within a second or two, or it
+ * never will. 30s is far longer than a successful recovery needs, and short
+ * enough that a genuine chunk failure weeks later still gets its own retry.
+ */
+const RELOAD_COOLDOWN_MS = 30_000;
+
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, error: null };
 
@@ -21,23 +30,51 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidMount() {
-    sessionStorage.removeItem(RELOAD_GUARD_KEY);
-  }
-
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     if (isStaleChunkError(error)) {
-      // Stale dynamic chunk — usually means the dev server restarted or a new
-      // build was deployed while this tab was open. Reload once to pick up the
-      // current asset URLs. The sessionStorage flag prevents an infinite loop
-      // if the chunk really is missing.
-      const alreadyReloaded = sessionStorage.getItem(RELOAD_GUARD_KEY);
-      if (!alreadyReloaded) {
-        sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now()));
+      // Stale dynamic chunk — the dev server restarted, or a new build was
+      // deployed while this tab was open. Reload once to pick up the current
+      // asset URLs.
+      //
+      // ─── DO NOT CLEAR THIS GUARD ON MOUNT ────────────────────────────────
+      // A previous version cleared it in componentDidMount(). That looked
+      // right but guaranteed an infinite reload loop: the boundary always
+      // MOUNTS before it can CATCH an async lazy-import rejection, so the flag
+      // was wiped on every single page load and the "have I already tried?"
+      // check could never be true. Measured in QA at 28-58 navigations, never
+      // settling (~2.4/sec, blank page).
+      //
+      // The service worker makes it worse, which is why this matters: without
+      // it the browser shows one error page and stops, but with a precached
+      // shell every reload successfully boots the app straight back into the
+      // failing route.
+      //
+      // So the guard is a TIMESTAMP that expires on its own — never cleared
+      // eagerly, and never dependent on a lifecycle hook that runs first.
+      let lastReload = 0;
+      try {
+        lastReload = Number(sessionStorage.getItem(RELOAD_GUARD_KEY)) || 0;
+      } catch {
+        /* private mode — fall through to the error UI rather than looping */
+      }
+
+      const reloadedRecently = Date.now() - lastReload < RELOAD_COOLDOWN_MS;
+      if (!reloadedRecently) {
+        try {
+          sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now()));
+        } catch {
+          // Cannot record the attempt, so we cannot prove we won't loop.
+          // Show the error UI instead of reloading blind.
+          Sentry.captureException(error, {
+            extra: { componentStack: errorInfo.componentStack, reloadSkipped: "no-storage" },
+          });
+          return;
+        }
         window.location.reload();
         return;
       }
-      sessionStorage.removeItem(RELOAD_GUARD_KEY);
+      // Already tried within the cooldown — the chunk is genuinely gone.
+      // Fall through and render the error UI.
     }
     Sentry.captureException(error, {
       extra: { componentStack: errorInfo.componentStack },

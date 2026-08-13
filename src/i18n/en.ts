@@ -1285,4 +1285,9 @@ export default {
     phAuthor: "Store team",
     phTags: "news, offers",
   },
+  pwa: {
+    updateTitle: "A new version is available",
+    updateBody: "Reload to get the latest version. Your work is saved.",
+    updateAction: "Update",
+  },
 };

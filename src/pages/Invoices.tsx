@@ -9,6 +9,7 @@ import {
 } from "@/services/invoiceApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ResponsiveTable, MobileCardList, MobileCard } from "@/components/ui/responsive-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -341,6 +342,52 @@ export default function Invoices() {
             </div>
           ) : (
             <>
+              <ResponsiveTable
+                mobile={
+                  <MobileCardList className="p-3">
+                    {invoices.map((inv) => {
+                      const cfg = statusConfig[inv.status] || statusConfig.draft;
+                      return (
+                        <MobileCard
+                          key={inv.id}
+                          onClick={() => openDetail(inv.id)}
+                          title={<span className="tabular-nums">{inv.invoice_number}</span>}
+                          subtitle={inv.buyer_name}
+                          trailing={inv.total_formatted || formatCurrency(inv.total)}
+                          badges={
+                            <>
+                              <Badge
+                                variant="outline"
+                                className={`gap-1.5 rounded-md py-0.5 text-[10px] font-medium ${cfg.bg}`}
+                              >
+                                <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+                                {inv.status}
+                              </Badge>
+                              <Badge variant="secondary" className="text-[10px] font-normal">
+                                {typeLabels[inv.invoice_type]}
+                              </Badge>
+                            </>
+                          }
+                          meta={<span className="tabular-nums">{formatDate(inv.date_issued)}</span>}
+                          actions={
+                            inv.status === "draft" ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-10 w-10 rounded-lg p-0"
+                                onClick={() => setDeleteTarget(inv)}
+                                aria-label={isAr ? "حذف" : "Delete"}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            ) : null
+                          }
+                        />
+                      );
+                    })}
+                  </MobileCardList>
+                }
+              >
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30 border-y border-border/40">
@@ -387,6 +434,7 @@ export default function Invoices() {
                   })}
                 </TableBody>
               </Table>
+              </ResponsiveTable>
 
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-5 py-3 border-t border-border/40">

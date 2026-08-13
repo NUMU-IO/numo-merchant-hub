@@ -49,6 +49,13 @@ jobs:
 
           title = pr['title']
           body = pr.get('body') or "No description provided"
+          # Slack rejects a section whose text exceeds 3000 chars with
+          # `invalid_blocks` / HTTP 400, failing this whole job. The body was
+          # injected unbounded, so any sufficiently detailed PR description
+          # broke the notification. Truncate well under the limit to leave room
+          # for the "*Description:*\n" prefix.
+          if len(body) > 2800:
+              body = body[:2800].rstrip() + "\n\n… (truncated — see the PR for the full description)"
           author = pr['user']['login']
           head_ref = pr['head']['ref']
           base_ref = pr['base']['ref']

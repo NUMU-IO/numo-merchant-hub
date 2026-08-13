@@ -10,6 +10,16 @@ interface ImportMetaEnv {
   readonly VITE_SENTRY_DSN: string;
   readonly VITE_SENTRY_ENVIRONMENT: string;
   readonly VITE_SENTRY_RELEASE: string;
+  /**
+   * PWA kill switch. Set to the string "false" to build with no service worker
+   * and no manifest; main.tsx also skips registration. Anything else (or unset)
+   * leaves the PWA enabled.
+   *
+   * NOTE: this only prevents NEW registrations. It does not unregister a worker
+   * already installed on a merchant's device — deploy scripts/sw-kill.js as
+   * /sw.js for that.
+   */
+  readonly VITE_PWA_ENABLED?: string;
 }
 
 interface ImportMeta {
