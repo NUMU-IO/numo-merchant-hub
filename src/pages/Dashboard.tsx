@@ -4,6 +4,7 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatMoney } from "@/lib/format-money";
 import { Card, CardContent } from "@/components/ui/card";
+import { StaleDataBanner } from "@/components/ui/stale-data-banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -451,6 +452,13 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Offline honesty. This dashboard is mostly money figures, and a
+          merchant reading a cached revenue number as today's makes a real
+          decision on a wrong one. Self-hides when online. */}
+      <StaleDataBanner
+        updatedAt={statsQuery.dataUpdatedAt}
+        onRetry={() => void statsQuery.refetch()}
+      />
       {/* Active theme card — surfaces the store's current V3 theme */}
       <ActiveThemeCard />
       {/* ─── Greeting strip — sits above the zones ────────────────────── */}
@@ -896,7 +904,9 @@ const Dashboard = () => {
                 className="overflow-hidden hover-lift cursor-pointer group flex flex-col"
                 onClick={() => navigate(kpi.reportHref)}
               >
-                <CardContent className="p-5 flex flex-col flex-1">
+                {/* p-4 below sm: at 360px the 2-up grid leaves ~156px per tile,
+                    and p-5 spent 40px of that on padding. Unchanged from sm up. */}
+                <CardContent className="p-4 sm:p-5 flex flex-col flex-1">
                   <div className="flex items-start justify-between mb-4">
                     <div className={kpi.chipClass}>
                       <kpi.Icon className="h-5 w-5" />
@@ -1366,21 +1376,24 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  {/* Stats row */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="rounded-xl border p-3 text-center">
+                  {/* Stats row — stays 3-up on mobile (Current/Goal/Remaining
+                      is a triplet; stacking it would lengthen the page for no
+                      gain), but the tiles shed padding at 360px where each is
+                      only ~101px wide. */}
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <div className="rounded-xl border p-2.5 sm:p-3 text-center">
                       <p className="text-[10.5px] text-muted-foreground mb-1 font-semibold">
                         {isAr ? "الحالي" : "Current"}
                       </p>
                       <p className="text-lg font-extrabold tabular-nums">{fmtN(currentOrders)}</p>
                     </div>
-                    <div className="rounded-xl border p-3 text-center bg-navy/[0.03] dark:bg-navy/[0.10]">
+                    <div className="rounded-xl border p-2.5 sm:p-3 text-center bg-navy/[0.03] dark:bg-navy/[0.10]">
                       <p className="text-[10.5px] text-muted-foreground mb-1 font-semibold">
                         {isAr ? "الهدف" : "Goal"}
                       </p>
                       <p className="text-lg font-extrabold tabular-nums">{fmtN(effectiveGoal)}</p>
                     </div>
-                    <div className="rounded-xl border p-3 text-center">
+                    <div className="rounded-xl border p-2.5 sm:p-3 text-center">
                       <p className="text-[10.5px] text-muted-foreground mb-1 font-semibold">
                         {isAr ? "المتبقي" : "Remaining"}
                       </p>

@@ -3,6 +3,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ResponsiveTable, MobileCardList, MobileCard } from "@/components/ui/responsive-table";
 import { Button } from "@/components/ui/button";
 import {
   CheckCircle2, Clock, AlertTriangle, Banknote, Loader2,
@@ -361,6 +362,57 @@ const CODReconciliation = () => {
                           </p>
                         </div>
                       ) : (
+                        <ResponsiveTable
+                          mobile={
+                            <MobileCardList>
+                              {mismatches[run.id]?.map((m) => (
+                                <MobileCard
+                                  key={m.id}
+                                  title={
+                                    <span className="font-mono">{m.order_number || "—"}</span>
+                                  }
+                                  subtitle={m.gateway || "—"}
+                                  /* Expected vs actual is the entire point of a
+                                     mismatch row, so both stay visible rather
+                                     than being demoted to a detail view. */
+                                  trailing={
+                                    m.actual_amount_cents != null
+                                      ? fmt(m.actual_amount_cents)
+                                      : m.gateway?.toLowerCase() === "cod"
+                                        ? isAr
+                                          ? "نقدي"
+                                          : "Cash"
+                                        : "—"
+                                  }
+                                  trailingMeta={
+                                    <span className="tabular-nums">
+                                      {isAr ? "المتوقع" : "expected"}{" "}
+                                      {m.expected_amount_cents != null
+                                        ? fmt(m.expected_amount_cents)
+                                        : "—"}
+                                    </span>
+                                  }
+                                  badges={
+                                    <>
+                                      {mismatchTypePill(m.mismatch_type)}
+                                      {m.resolved ? (
+                                        <span className="souq-pill bg-emerald-500/14 text-emerald-700 dark:text-emerald-400">
+                                          <span className="dot" />
+                                          {isAr ? "اتحلّ" : "Resolved"}
+                                        </span>
+                                      ) : (
+                                        <span className="souq-pill bg-amber-500/14 text-amber-700 dark:text-amber-400">
+                                          <span className="dot" />
+                                          {isAr ? "مفتوح" : "Open"}
+                                        </span>
+                                      )}
+                                    </>
+                                  }
+                                />
+                              ))}
+                            </MobileCardList>
+                          }
+                        >
                         <div className="overflow-x-auto">
                           <Table>
                             <TableHeader>
@@ -407,6 +459,7 @@ const CODReconciliation = () => {
                             </TableBody>
                           </Table>
                         </div>
+                        </ResponsiveTable>
                       )}
                     </div>
                   )}

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#14253D" />
+    <title>غير متصل · Offline — NUMU</title>
+    <!--
+      Served by the service worker (setCatchHandler) when a NAVIGATION fails
+      and the app shell is not in the precache.
+
+      MUST stay self-contained: no external CSS, JS, fonts or images. Anything
+      fetched from the network here would fail for exactly the reason this page
+      is being shown. The mark below is inline SVG for that reason.
+
+      The copy is deliberately honest — NUMU needs a connection to show live
+      store data. Do NOT render a fake dashboard or stale figures here; a
+      merchant misreading yesterday's revenue as today's is a real business
+      error, not just a UX one.
+    -->
+    <style>
+      * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #ffffff;
+        color: #14253d;
+        font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+        text-align: center;
+      }
+      /* Three-step type scale: 24 / 15 / 12 (ratios 1.6 and 1.25).
+         Arabic and English are TRANSLATIONS of the same content, not different
+         hierarchy levels — so they share a size and are differentiated by
+         weight and opacity instead. Adding size steps between them would imply
+         the English says something less important than the Arabic. */
+      .card { max-width: 380px; width: 100%; }
+      .mark {
+        width: 68px; height: 68px; margin: 0 auto 26px;
+        border-radius: 19px; display: grid; place-items: center;
+        background: #14253d;
+        box-shadow: 0 1px 3px rgba(20, 37, 61, 0.05), 0 12px 28px -16px rgba(20, 37, 61, 0.32);
+      }
+      /* Opacity floor is 0.65 — below that this ink/ground pair drops under
+         WCAG AA 4.5:1 in BOTH schemes (0.50 measures 3.14:1 light, 0.45
+         measures 2.74:1). 0.68 keeps a margin. Hierarchy is carried by weight
+         and the 1.0 → 0.72 → 0.68 ramp, not by making text unreadable. */
+      h1 { font-size: 24px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.015em; }
+      .en-h1 { font-size: 15px; font-weight: 700; margin: 0 0 20px; opacity: 0.68; direction: ltr; }
+      p { font-size: 15px; line-height: 1.6; margin: 0 0 6px; opacity: 0.72; }
+      p.en { direction: ltr; opacity: 0.68; margin-bottom: 30px; }
+      button {
+        appearance: none; border: 0; cursor: pointer;
+        min-height: 48px; padding: 0 30px;
+        border-radius: 14px;
+        background: #e89a2c; color: #14253d;
+        font-size: 15px; font-weight: 800; font-family: inherit;
+        transition: filter 0.15s ease;
+      }
+      button:hover { filter: brightness(0.94); }
+      button:active { filter: brightness(0.88); }
+      button:focus-visible { outline: 3px solid #14253d; outline-offset: 3px; }
+      .hint { margin-top: 22px; font-size: 12px; opacity: 0.68; }
+      @media (prefers-color-scheme: dark) {
+        body { background: #0b1420; color: #eef2f7; }
+        .mark { background: #16283f; }
+        button { background: #e89a2c; color: #0b1420; }
+        button:focus-visible { outline-color: #e89a2c; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="mark" aria-hidden="true">
+        <!-- Simplified NUMU mark, inline so it needs no network. -->
+        <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+          <circle cx="24.5" cy="7" r="3.1" stroke="#F7F0E6" stroke-width="2.1" />
+          <circle cx="16" cy="9.5" r="2.4" stroke="#F7F0E6" stroke-width="2.1" />
+          <path
+            d="M5 20.5c0-2 1.6-3.6 3.6-3.6S12 18.5 12 20.5v4.2h13.5c1.6 0 2.5-.9 2.5-2.4v-5"
+            stroke="#F7F0E6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"
+          />
+          <circle cx="20" cy="21" r="1.5" fill="#E89A2C" />
+        </svg>
+      </div>
+
+      <h1>مفيش اتصال بالإنترنت</h1>
+      <p class="en-h1">You're offline</p>
+
+      <p>محتاجين اتصال عشان نعرض بيانات متجرك الحالية. اتأكد من الشبكة وجرّب تاني.</p>
+      <p class="en">NUMU needs a connection to show live store data. Check your network and try again.</p>
+
+      <button type="button" onclick="location.reload()">
+        إعادة المحاولة · Retry
+      </button>
+
+      <p class="hint" id="status"></p>
+    </main>
+
+    <script>
+      // Reload when connectivity RETURNS, so the merchant doesn't have to
+      // notice and tap.
+      //
+      // ─── DO NOT REACT TO navigator.onLine ON LOAD ────────────────────────
+      // An earlier version checked `navigator.onLine` on load and reloaded if
+      // it was true. But `onLine` only means "there is a network interface" —
+      // it is TRUE on a captive portal, a dead connection, or a zero-balance
+      // SIM, which are exactly the situations that make a navigation fail and
+      // land the merchant here. So the page reloaded itself every 600ms and
+      // could not be read (measured in QA at 17 navigations in 10 seconds).
+      //
+      // Only a genuine offline -> online TRANSITION triggers a reload, and only
+      // once. Everything else is the Retry button, which the merchant controls.
+      var status = document.getElementById("status");
+      var reloading = false;
+
+      window.addEventListener(
+        "online",
+        function () {
+          if (reloading) return;
+          reloading = true;
+          status.textContent = "رجع الاتصال · Back online — reloading…";
+          setTimeout(function () { location.reload(); }, 600);
+        },
+        { once: true }
+      );
+    </script>
+  </body>
+</html>

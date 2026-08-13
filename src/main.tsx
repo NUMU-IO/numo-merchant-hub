@@ -1,8 +1,15 @@
 import { createRoot } from "react-dom/client";
 import * as Sentry from "@sentry/react";
 import App from "./App.tsx";
+import { registerServiceWorker } from "./lib/register-sw";
+import { initInstallPromptCapture } from "./lib/install-prompt";
 import "./i18n";
 import "./index.css";
+
+// Chrome can fire `beforeinstallprompt` before React mounts, and the event is
+// only usable if it was captured when it fired. So this runs FIRST — earlier
+// than everything below, including the impersonation intercept.
+initInstallPromptCapture();
 
 // ────────────────────────────────────────────────────────────────────────────
 // IMPERSONATION URL INTERCEPT
@@ -112,3 +119,8 @@ Sentry.init({
 });
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+// Service worker — registered AFTER mount so the worker fetch never competes
+// with first paint. No-ops in dev and when VITE_PWA_ENABLED=false.
+// See src/lib/register-sw.ts for why we prompt rather than auto-update.
+void registerServiceWorker();

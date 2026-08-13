@@ -9,6 +9,8 @@ import { TrialPaywallProvider } from "@/contexts/TrialPaywallContext";
 import { StoreProvider, useDashboardStore } from "@/contexts/StoreContext";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { DesktopOnlyRoute } from "@/components/layout/DesktopOnlyRoute";
+import { QueryPersistGate } from "@/components/QueryPersistGate";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { NumuRingScreen } from "@/components/NumuLoader/RingLoader";
 import { FirstLoginGate } from "@/components/NumuLoader/FirstLoginGate";
@@ -40,7 +42,15 @@ const ThemeCodeEditor = lazy(() => import("@/pages/online-store/ThemeCodeEditor"
 const MyThemeSubmissions = lazy(
   () => import("@/pages/online-store/MyThemeSubmissions"),
 );
-const ThemeCustomizerV3 = lazy(() => import("@/features/theme-editor-v3/pages/ThemeCustomizerV3"));
+// Viewport switch, not the customizer directly: it lazy-loads EITHER the
+// desktop customizer or the Mobile Lite Editor, so a phone never fetches the
+// desktop chunk. See ThemeEditorViewportSwitch for why the breakpoint must be
+// read synchronously.
+const ThemeEditorViewportSwitch = lazy(() =>
+  import("@/features/theme-editor-v3/mobile/ThemeEditorViewportSwitch").then((m) => ({
+    default: m.ThemeEditorViewportSwitch,
+  })),
+);
 // Session E (2026-05-28) — marketplace detail + full-screen preview iframe.
 const MarketplaceThemeDetail = lazy(
   () => import("@/pages/online-store/_marketplace/ThemeDetailPage"),
@@ -142,6 +152,25 @@ const queryClient = new QueryClient({
   },
 });
 
+// Offline reads (PWA Phase 3): give ONLY the persisted query families a longer
+// in-memory lifetime.
+//
+// The global gcTime is 10 minutes. A query garbage-collected out of memory is
+// no longer in the cache to dehydrate, so with the default the snapshot would
+// only ever hold whatever the merchant touched in the last 10 minutes —
+// useless for "open the app tomorrow morning on a dead connection".
+//
+// Raised per-family rather than globally on purpose: a blanket 24h gcTime
+// across ~79 pages would hold every response the merchant ever loaded in
+// memory for a day.
+// `orders` is deliberately absent: those rows carry customer_name and are no
+// longer persisted (see query-persist.ts, defect D14-2), so holding them in
+// memory for a day would cost us the memory without buying offline reads.
+const OFFLINE_GC_TIME = 24 * 60 * 60 * 1000;
+for (const key of [["dashboard"], ["products"]]) {
+  queryClient.setQueryDefaults(key, { gcTime: OFFLINE_GC_TIME });
+}
+
 
 
 /** Redirects unauthenticated users to /login */
@@ -187,6 +216,10 @@ const App = () => (
         <AuthProvider>
           <TrialPaywallProvider>
           <StoreProvider>
+            {/* Offline reads. Inside StoreProvider so it can re-key on a store
+                switch — persisted data is only ever restored for the store it
+                was captured from. Renders nothing. */}
+            <QueryPersistGate />
             <Toaster />
             <Sonner />
             <BrowserRouter>
@@ -240,22 +273,37 @@ const App = () => (
                     element={<Navigate to="/online-store/themes/editor-v3" replace />}
                   />
 
-                  {/* Theme code editor — full-screen, outside DashboardLayout */}
+                  {/* Theme code editor — full-screen, outside DashboardLayout.
+                      Gated above the lazy boundary on purpose: below `md` the
+                      DesktopOnlyRoute renders instead of <ThemeCodeEditor/>, so
+                      Monaco's ~11.1 MB of chunks are never fetched on a phone.
+                      Gating INSIDE the component (or with CSS) would download
+                      them first and only then show the message. */}
                   <Route
                     path="/online-store/themes/code-editor"
                     element={
                       <RouteResolver>
-                        <ThemeCodeEditor />
+                        <DesktopOnlyRoute
+                          title="Code editor"
+                          titleAr="محرر الأكواد"
+                          fallbackPath="/online-store/themes"
+                        >
+                          <ThemeCodeEditor />
+                        </DesktopOnlyRoute>
                       </RouteResolver>
                     }
                   />
 
-                  {/* V3 Theme Customizer — full-screen, outside DashboardLayout */}
+                  {/* V3 Theme Customizer — full-screen, outside DashboardLayout.
+                      Viewport-split: below `md` the Mobile Lite Editor renders
+                      instead of the desktop customizer. Both are lazy, and the
+                      mobile branch must NOT import the desktop module or the
+                      desktop chunk lands on phones. */}
                   <Route
                     path="/online-store/themes/editor-v3"
                     element={
                       <RouteResolver>
-                        <ThemeCustomizerV3 />
+                        <ThemeEditorViewportSwitch />
                       </RouteResolver>
                     }
                   />

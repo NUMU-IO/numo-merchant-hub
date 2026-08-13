@@ -19,6 +19,22 @@
           "value": "noindex, nofollow, noarchive"
         }
       ]
+    },
+    {
+      "//": "The service worker must never be cached, or a deploy cannot reach installed clients. Vercel's default for static files is already 'public, max-age=0, must-revalidate' — stated explicitly so a future default change cannot silently pin the fleet to an old worker. Service-Worker-Allowed lets the worker claim the whole origin.",
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    },
+    {
+      "//": "Content-Type is stated because the manifest is served from the filesystem and some hosts guess text/plain for .webmanifest, which makes Chrome ignore it and silently blocks installability.",
+      "source": "/manifest.webmanifest",
+      "headers": [
+        { "key": "Content-Type", "value": "application/manifest+json" },
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
     }
   ]
 }

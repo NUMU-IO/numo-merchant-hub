@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { listOrders, type OrderListItem } from "@/services/orderApi";
+import { useNewOrderSound } from "@/hooks/useNewOrderSound";
 
 const POLL_INTERVAL_MS = 60_000;
 const STORAGE_PREFIX = "numu.lastOrderSeen.";
@@ -119,6 +120,7 @@ export function NewOrderNotifier() {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const isAr = language === "ar";
+  const playNewOrderSound = useNewOrderSound();
 
   const storeId = currentStore?.id ?? "";
   // Holds the ISO timestamp of the newest order we've already shown a toast
@@ -132,6 +134,11 @@ export function NewOrderNotifier() {
   const showOrderToast = useCallback(
     (order: OrderListItem) => {
       const id = `new-order-${order.id}`;
+      // Audible cue — the same chime numu-merchant-app uses, so the mobile app
+      // and the hub teach one sound. A merchant working the shop floor with the
+      // dashboard open on a counter screen isn't watching it; the toast alone
+      // is invisible to them. Opt-out via Settings → Notifications.
+      playNewOrderSound();
       toast.custom(
         (toastId) => (
           <OrderToast
@@ -144,7 +151,9 @@ export function NewOrderNotifier() {
         { id, duration: 8000 },
       );
     },
-    [isAr, navigate],
+    // playNewOrderSound is a stable useCallback([]), so listing it costs
+    // nothing and keeps the exhaustive-deps lint honest.
+    [isAr, navigate, playNewOrderSound],
   );
 
   useEffect(() => {

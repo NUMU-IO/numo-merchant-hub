@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ResponsiveTable, MobileCardList, MobileCard } from "@/components/ui/responsive-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   AlertDialog,
@@ -153,6 +154,61 @@ const DraftOrders = () => {
         </Card>
       ) : (
         <Card>
+          <ResponsiveTable
+            mobile={
+              <MobileCardList className="p-3">
+                {drafts.map((d) => (
+                  <MobileCard
+                    key={d.id}
+                    onClick={() => navigate(`/orders/${d.id}`)}
+                    title={<span className="font-mono">{d.order_number}</span>}
+                    subtitle={d.customer_name || "—"}
+                    trailing={formatCurrency(d.total)}
+                    badges={
+                      <Badge
+                        variant="outline"
+                        className="bg-muted py-0 text-[10px] text-muted-foreground"
+                      >
+                        {t("orders.draft")}
+                      </Badge>
+                    }
+                    meta={<span>{fmtDate(d.created_at)}</span>}
+                    /* Convert and Delete live in `actions`, which renders
+                       OUTSIDE the card's tap-target button — nesting them
+                       inside would be invalid markup and would swallow the
+                       row-navigation click. */
+                    actions={
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-10 gap-1.5 rounded-lg text-[12px]"
+                          disabled={convert.isPending && convert.variables === d.id}
+                          onClick={() => convert.mutate(d.id)}
+                        >
+                          {convert.isPending && convert.variables === d.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <ArrowRightCircle className="h-3.5 w-3.5" />
+                          )}
+                          {t("drafts.convert")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-10 w-10 rounded-lg p-0 text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteTarget(d)}
+                          aria-label={t("drafts.delete")}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    }
+                  />
+                ))}
+              </MobileCardList>
+            }
+          >
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -243,6 +299,7 @@ const DraftOrders = () => {
               </TableBody>
             </Table>
           </div>
+          </ResponsiveTable>
         </Card>
       )}
 

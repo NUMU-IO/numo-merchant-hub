@@ -22,7 +22,46 @@ import {
   TwoFactorRequiredError,
 } from "@/services/authApi";
 import { initCSRF } from "@/services/csrf";
+import { purgeServiceWorkerCaches } from "@/lib/register-sw";
+import { revokePushSubscription } from "@/services/pushApi";
+import { clearPersistedQueries } from "@/lib/query-persist";
 import type { User, RegisterData, TenantInfo } from "@/services/authApi";
+
+/**
+ * Last known signed-in user, so an OFFLINE boot can render the app instead of
+ * bouncing to /login.
+ *
+ * Holds the merchant's own identity (name, email, tenant) — never customer
+ * data — and is cleared on logout alongside the SW caches and the offline
+ * query snapshot. It is a rendering hint, not an authorisation decision: every
+ * API call still goes through the real 401 → refresh → redirect path.
+ */
+const SESSION_USER_KEY = "numu.session-user";
+
+function cacheSessionUser(user: User): void {
+  try {
+    localStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
+  } catch {
+    /* private mode / quota — offline boot simply falls back to /login */
+  }
+}
+
+function readCachedSessionUser(): User | null {
+  try {
+    const raw = localStorage.getItem(SESSION_USER_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearCachedSessionUser(): void {
+  try {
+    localStorage.removeItem(SESSION_USER_KEY);
+  } catch {
+    /* nothing to clear */
+  }
+}
 
 interface AuthContextType {
   user: User | null;
@@ -71,12 +110,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     getMe()
       .then(async (u) => {
         setUser(u);
+        cacheSessionUser(u);
         // Ensure we have a CSRF token for subsequent requests
         await initCSRF();
       })
-      .catch(() => {
-        // No valid session
-        setUser(null);
+      .catch((err) => {
+        // ─── A NETWORK FAILURE IS NOT A LOGOUT ───────────────────────────
+        // This used to be a bare `.catch(() => setUser(null))`, which treated
+        // "the server said no" and "there is no server" as the same thing.
+        // Offline, that meant: every reload signed the merchant out, bounced
+        // them to /login, and the login chunk isn't precached — so they got
+        // "Failed to fetch dynamically imported module" instead of the app.
+        // It made the entire offline-reads feature unreachable, because you
+        // could never get past the boot check to see it.
+        //
+        // ApiError uses status 0 for network/timeout. In that case we restore
+        // the last known user and let the app render. This is optimistic, not
+        // a security hole: every subsequent API call still goes through the
+        // real 401 → refresh → redirect path, so a genuinely dead session is
+        // caught the moment the merchant does anything.
+        const isNetworkFailure = (err as { status?: number } | null)?.status === 0;
+        const cached = isNetworkFailure ? readCachedSessionUser() : null;
+
+        if (cached) {
+          setUser(cached);
+        } else {
+          setUser(null);
+          clearCachedSessionUser();
+        }
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -125,6 +186,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       await logoutApi();
     } finally {
+      // SECURITY: a signed-out device must stop receiving this store's order
+      // notifications. Shared phones are common among merchant staff, and a
+      // push subscription outlives the session unless it is revoked.
+      // Best-effort and never throws — it must not be able to block logout.
+      try {
+        const reg = await navigator.serviceWorker?.ready;
+        const sub = await reg?.pushManager?.getSubscription();
+        if (sub) {
+          // Server first: if the browser unsubscribes but the API call fails,
+          // the backend keeps pushing to a dead endpoint until it 410s.
+          await revokePushSubscription(sub.endpoint).catch(() => {});
+          await sub.unsubscribe().catch(() => {});
+        }
+      } catch {
+        /* no service worker, or push unsupported */
+      }
+
+      // SECURITY: drop every service-worker cache this app owns before the
+      // session ends. Shared devices are common among merchant staff, so no
+      // cached application state may outlive a sign-out. Never throws and is
+      // time-limited, so it cannot block or delay logout.
+      await purgeServiceWorkerCaches();
+
+      // Same reason, for the offline-reads snapshot (Phase 3). IndexedDB
+      // survives browser restarts, so a signed-out merchant's dashboard
+      // figures would otherwise still be on the device.
+      await clearPersistedQueries().catch(() => {});
+
+      // The offline-boot hint must not outlive the session either.
+      clearCachedSessionUser();
+
       setUser(null);
     }
   }, []);

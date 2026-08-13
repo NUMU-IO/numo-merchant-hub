@@ -13,6 +13,9 @@ import { useQuery } from "@tanstack/react-query";
 import { listOrders } from "@/services/orderApi";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useInstallPrompt } from "@/hooks/useInstallPrompt";
+import { IosInstallSheet } from "@/components/pwa/IosInstallSheet";
+import { Smartphone } from "lucide-react";
 
 type IconType = typeof Home;
 
@@ -28,6 +31,8 @@ const MobileBottomNav = () => {
   const { currentStore } = useDashboardStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const { affordance: installAffordance, install } = useInstallPrompt();
+  const [iosSheetOpen, setIosSheetOpen] = useState(false);
 
   // Orders count badge (pending+processing) — same signal the Dashboard
   // attention bar uses so the badge stays in sync.
@@ -97,6 +102,11 @@ const MobileBottomNav = () => {
       ],
     },
   ];
+
+  // Permanent install entry point. The dashboard card (InstallPrompt) is the
+  // timed nudge and can be dismissed forever; this is the way back to it.
+  // Renders nothing once installed, in an unsupported browser, or on desktop.
+  const showInstall = installAffordance !== null;
 
   const goAdd = (href: string) => { setAddOpen(false); navigate(href); };
   const goMore = (href: string) => { setMenuOpen(false); navigate(href); };
@@ -223,9 +233,40 @@ const MobileBottomNav = () => {
                 </div>
               </div>
             ))}
+
+            {showInstall && (
+              <div>
+                <h3 className="souq-eyebrow mb-2 px-1">§ {isRTL ? "التطبيق" : "App"}</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    // Android/Chromium can show the real dialog; iOS and in-app
+                    // WebViews get the instruction sheet instead.
+                    if (installAffordance === "native") void install();
+                    else setIosSheetOpen(true);
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 rounded-2xl border border-border bg-card p-3.5 text-start hover-lift"
+                >
+                  <div className="ichip ichip-navy shrink-0">
+                    <Smartphone className="h-5 w-5" />
+                  </div>
+                  <span className="flex-1 text-[15px] font-bold">
+                    {isRTL ? "ثبّت التطبيق" : "Install app"}
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground rtl:rotate-180" />
+                </button>
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>
+
+      <IosInstallSheet
+        open={iosSheetOpen}
+        onOpenChange={setIosSheetOpen}
+        inWebView={installAffordance === "webview"}
+      />
     </>
   );
 };
