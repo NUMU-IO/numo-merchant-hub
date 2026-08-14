@@ -26,6 +26,7 @@ import {
   getTopProducts,
   getHealthScore,
   getOrderStreak,
+  getConversionStats,
 } from "@/services/analyticsApi";
 import type { HealthScoreData } from "@/services/analyticsApi";
 import { dateRangeKey } from "@/services/dateRangeParams";
@@ -151,6 +152,17 @@ const Dashboard = () => {
   const chartQuery = useQuery({
     queryKey: ["dashboard", "chart", storeId, ...rangeKey],
     queryFn: () => getRevenueChart(storeId!, range),
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+  });
+
+  // Distinct-visitor truth for the Visitors/Conversion tiles. The old tiles
+  // SUMMED the daily sparkline — i.e. total page VIEWS labelled "Visitors" —
+  // which triple-counted every browsing session (a store with ~1.1k unique
+  // visitors showed 2.5k) and made conversion look catastrophically low.
+  const conversionQuery = useQuery({
+    queryKey: ["dashboard", "conversion", storeId, ...rangeKey],
+    queryFn: () => getConversionStats(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
   });
@@ -329,7 +341,11 @@ const Dashboard = () => {
   const revenueVals = revenueChartData.map((d) => d.revenue);
   const orderVals = chartData.map((d) => d.orders);
   const visitVals = chartData.map((d) => d.visits ?? 0);
-  const totalVisits = visitVals.reduce((s, v) => s + v, 0);
+  // Unique visitors from the analytics endpoint; the summed sparkline is
+  // only the FALLBACK while that query loads (it counts views, not people).
+  const totalVisits =
+    conversionQuery.data?.total_visitors ??
+    visitVals.reduce((s, v) => s + v, 0);
   const convRate =
     totalVisits > 0 ? Math.min(99.9, (animOrders / totalVisits) * 100) : 0;
   const heroSparkPath =
