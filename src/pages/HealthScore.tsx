@@ -40,6 +40,10 @@ export default function HealthScore() {
 
   const insufficient = healthScore?.insufficient_data || healthScore?.score == null;
   const insufficientMetrics = new Set(healthScore?.insufficient_metrics || []);
+  // The backend computes over a 90-day rolling window (window_days in the
+  // response) — the page previously hardcoded "30 days" everywhere, so the
+  // copy contradicted the numbers.
+  const windowDays = healthScore?.window_days ?? 90;
 
   const gradeColor = (grade?: string) => {
     switch (grade) {
@@ -105,8 +109,8 @@ export default function HealthScore() {
       weight: 30,
       unit: "%",
       description: isAr
-        ? "نسبة الشحنات التي تم تسليمها بنجاح من إجمالي الشحنات (بدون الملغاة قبل الاستلام). يتم حسابه من بيانات شركات الشحن خلال آخر 30 يوم."
-        : "Percentage of shipments successfully delivered out of total shipments (excluding those cancelled before pickup). Calculated from carrier data over the last 30 days.",
+        ? `نسبة الشحنات التي تم تسليمها بنجاح من إجمالي الشحنات (بدون الملغاة قبل الاستلام). يتم حسابه من بيانات شركات الشحن خلال آخر ${windowDays} يوم.`
+        : `Percentage of shipments successfully delivered out of total shipments (excluding those cancelled before pickup). Calculated from carrier data over the last ${windowDays} days.`,
       formula: isAr
         ? "الشحنات المسلّمة ÷ إجمالي الشحنات × 100"
         : "Delivered shipments ÷ Total shipments × 100",
@@ -143,11 +147,11 @@ export default function HealthScore() {
       weight: 20,
       unit: "%",
       description: isAr
-        ? "نسبة الطلبات التي تم تسليمها بنجاح من إجمالي الطلبات (بدون المعلقة). يشمل الطلبات الملغاة والفاشلة في الحساب."
-        : "Percentage of orders that were delivered out of all orders (excluding pending). Includes cancelled and failed orders in the denominator.",
+        ? "نسبة الطلبات المسلّمة من الطلبات المكتملة فقط (تم التوصيل أو الإلغاء أو الفشل أو الإرجاع). الطلبات الجارية لا تدخل في الحساب حتى تصل لحالة نهائية."
+        : "Percentage of delivered orders out of settled orders only (delivered, cancelled, failed or returned). In-flight orders don't count until they reach a final status.",
       formula: isAr
-        ? "الطلبات المسلّمة ÷ (إجمالي الطلبات - المعلقة) × 100"
-        : "Delivered orders ÷ (Total orders - Pending) × 100",
+        ? "الطلبات المسلّمة ÷ الطلبات المكتملة × 100"
+        : "Delivered orders ÷ Settled orders × 100",
       tips: isAr
         ? ["تابع الطلبات المعلقة يوميًا وسرّع التجهيز", "قلل وقت المعالجة بتجهيز المنتجات مسبقًا", "أبلغ العميل بأي تأخير متوقع"]
         : ["Follow up on pending orders daily", "Reduce processing time by pre-packing products", "Notify customer of any expected delays"],
@@ -205,7 +209,7 @@ export default function HealthScore() {
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "تفاصيل صحة المتجر" : "Store Health Details"}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {isAr ? "تحليل شامل لأداء متجرك خلال آخر 30 يوم" : "Comprehensive analysis of your store performance over the last 30 days"}
+            {isAr ? `تحليل شامل لأداء متجرك خلال آخر ${windowDays} يوم` : `Comprehensive analysis of your store performance over the last ${windowDays} days`}
           </p>
         </div>
         <Button
@@ -230,9 +234,13 @@ export default function HealthScore() {
             <Activity className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-base font-semibold">{t("dashboard.healthNoData")}</p>
             <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-              {isAr
-                ? "نحتاج إلى عدد كافٍ من الطلبات والشحنات (5 على الأقل) خلال آخر 30 يوم لاحتساب نتيجة دقيقة لمتجرك."
-                : "We need at least 5 orders and shipments in the last 30 days to compute a meaningful score for your store."}
+              {/* The backend distinguishes "no orders at all" from "orders
+                  still in flight" — show its sentence when available so a
+                  store WITH orders isn't told it has none. */}
+              {healthScore.empty_state_message ||
+                (isAr
+                  ? `نحتاج إلى عدد كافٍ من الطلبات المكتملة خلال آخر ${windowDays} يوم لاحتساب نتيجة دقيقة لمتجرك.`
+                  : `We need enough settled orders in the last ${windowDays} days to compute a meaningful score for your store.`)}
             </p>
             <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/70">
               <span>{isAr ? "طلبات تم تحليلها:" : "Orders analyzed:"} {healthScore.orders_analyzed}</span>
@@ -272,8 +280,8 @@ export default function HealthScore() {
                   </div>
                   <p className="text-sm text-muted-foreground mb-3">
                     {isAr
-                      ? `تم تحليل ${healthScore.orders_analyzed} طلب و ${healthScore.shipments_analyzed} شحنة خلال آخر 30 يوم`
-                      : `Analyzed ${healthScore.orders_analyzed} orders and ${healthScore.shipments_analyzed} shipments over the last 30 days`}
+                      ? `تم تحليل ${healthScore.orders_analyzed} طلب و ${healthScore.shipments_analyzed} شحنة خلال آخر ${windowDays} يوم`
+                      : `Analyzed ${healthScore.orders_analyzed} orders and ${healthScore.shipments_analyzed} shipments over the last ${windowDays} days`}
                   </p>
                   <div className="text-[11px] text-muted-foreground/60">
                     {isAr ? "يتم تحديث النتيجة يوميًا تلقائيًا" : "Score is updated daily automatically"}

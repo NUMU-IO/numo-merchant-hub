@@ -286,6 +286,11 @@ export interface HealthScoreData {
   recommendations: string[];
   orders_analyzed: number;
   shipments_analyzed: number;
+  /** Rolling window the score covers (days). Backend default is 90 — the
+   * page must render THIS, not a hardcoded "30". */
+  window_days?: number;
+  /** Localised reason a score is withheld (no activity vs still settling). */
+  empty_state_message?: string | null;
   calculated_at: string | null;
 }
 
