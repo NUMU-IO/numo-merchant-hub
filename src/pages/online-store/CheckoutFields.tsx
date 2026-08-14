@@ -30,6 +30,7 @@ import {
   type CheckoutFieldsConfig,
   type CustomFieldSetting,
   type CustomFieldType,
+  type IdentityConfig,
   getCheckoutFields,
   updateCheckoutFields,
 } from "@/services/checkoutFieldsApi";
@@ -142,6 +143,14 @@ export default function CheckoutFields() {
       // Required implies enabled — keep the pair coherent.
       if (next.required) next.enabled = true;
       return { ...c, standard_fields: { ...c.standard_fields, [key]: next } };
+    });
+  };
+
+  // ── Identity (phone verification + save-cart nudge) editors ─────
+  const setIdentity = (patch: Partial<IdentityConfig>) => {
+    setConfig((c) => {
+      if (!c?.identity) return c;
+      return { ...c, identity: { ...c.identity, ...patch } };
     });
   };
 
@@ -335,6 +344,115 @@ export default function CheckoutFields() {
           })}
         </div>
       </section>
+
+      {/* Customer verification (phone-first identity) — only rendered when
+          the backend returned the block (older backends omit it). */}
+      {config.identity && (
+        <section className="rounded-xl border">
+          <div className="border-b p-4">
+            <h2 className="text-sm font-semibold">
+              {isAr ? "تأكيد هوية العميل" : "Customer verification"}
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {isAr
+                ? "تأكيد رقم الموبايل بكود واتساب قبل إتمام الطلب — بيقلل الطلبات الوهمية وبيخلي السلات المتسابة قابلة للاسترجاع."
+                : "Verify the customer's phone with a WhatsApp code before they can place an order — cuts fake COD orders and makes abandoned carts recoverable."}
+            </p>
+          </div>
+          <div className="divide-y">
+            <div className="flex items-center justify-between gap-4 px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-sm">
+                  {isAr ? "طلب تأكيد الرقم عند الدفع" : "Require phone verification at checkout"}
+                </div>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {isAr
+                    ? "العميل لازم يأكد رقمه بكود واتساب قبل ما يأكد الطلب."
+                    : "The customer must verify via a WhatsApp code before submitting the order."}
+                </p>
+              </div>
+              <Switch
+                checked={config.identity.require_verification}
+                onCheckedChange={(v) => setIdentity({ require_verification: v })}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-sm">
+                  {isAr ? "رسالة «احفظ سلتك»" : '"Save your cart" prompt'}
+                </div>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {isAr
+                    ? "بنطلب رقم الواتساب أثناء التسوق عشان نقدر نرجّع العميل لو ساب السلة."
+                    : "Ask for the WhatsApp number mid-shopping so you can win back shoppers who leave their cart."}
+                </p>
+              </div>
+              <Switch
+                checked={config.identity.nudge_enabled}
+                onCheckedChange={(v) => setIdentity({ nudge_enabled: v })}
+              />
+            </div>
+            {config.identity.nudge_enabled && (
+              <div className="grid grid-cols-1 gap-4 px-4 py-3 sm:grid-cols-3">
+                <div>
+                  <Label className="text-xs">
+                    {isAr ? "أقل عدد منتجات" : "Min items in cart"}
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={50}
+                    className="mt-1"
+                    value={config.identity.nudge_min_items}
+                    onChange={(e) =>
+                      setIdentity({
+                        nudge_min_items: Math.max(0, Number(e.target.value) || 0),
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">
+                    {isAr ? "أقل قيمة للسلة (جنيه)" : "Min cart value (EGP)"}
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    className="mt-1"
+                    value={Math.round(config.identity.nudge_min_value_cents / 100)}
+                    onChange={(e) =>
+                      setIdentity({
+                        nudge_min_value_cents:
+                          Math.max(0, Number(e.target.value) || 0) * 100,
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">
+                    {isAr ? "التأخير (ثواني)" : "Delay (seconds)"}
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={3600}
+                    className="mt-1"
+                    value={config.identity.nudge_delay_seconds}
+                    onChange={(e) =>
+                      setIdentity({
+                        nudge_delay_seconds: Math.min(
+                          3600,
+                          Math.max(0, Number(e.target.value) || 0),
+                        ),
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Custom fields */}
       <section className="rounded-xl border">
