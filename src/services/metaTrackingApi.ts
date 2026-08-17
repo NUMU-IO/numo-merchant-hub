@@ -188,8 +188,17 @@ export interface MetaEventLogEntry {
   created_at: string;
   /** ISO-8601 — when CAPI delivery completed; null until first attempt. */
   sent_at: string | null;
-  /** Server-side redacted payload for click-to-expand drilldown. PII never leaves the backend in raw form. */
-  redacted_payload: Record<string, unknown> | null;
+  /**
+   * Server-side redacted payload for click-to-expand drilldown. PII never
+   * leaves the backend in raw form.
+   *
+   * Name must match the API exactly (`request_payload_redacted`, see
+   * `schemas/tenant/tracking.py`). It was `redacted_payload` here — a field
+   * the API has never sent — so the drilldown rendered empty for every
+   * merchant, on every event, since it shipped. The sibling TikTok panel got
+   * the name right, which is why only the Meta one looked broken.
+   */
+  request_payload_redacted: Record<string, unknown> | null;
 }
 
 export interface SendTestEventResponse {
@@ -328,4 +337,59 @@ export function flagsForMode(mode: MetaTrackingMode): {
     default:
       return { pixel_enabled: false, capi_enabled: false };
   }
+}
+
+// ─── Event Match Quality ─────────────────────────────────────────────────────
+
+export interface MetaMatchKeyCoverage {
+  identifier: string;
+  coverage_percentage: number;
+}
+
+export interface MetaMatchQualityEvent {
+  event_name: string;
+  pixel_id: string;
+  /** Meta's composite_score, 0.0–10.0. */
+  emq_score: number;
+  total_events: number;
+  dedup_rate: number | null;
+  /** 7-day average % of browser Pixel events also covered by CAPI. */
+  event_coverage: number | null;
+  data_freshness: string | null;
+  match_keys: MetaMatchKeyCoverage[];
+  /**
+   * Meta's own diagnostics. Each entry names a problem AND states the fix, so
+   * these are rendered verbatim rather than mapped to our own copy.
+   */
+  diagnostics: Array<{
+    name?: string;
+    description?: string;
+    solution?: string;
+    percentage?: number;
+    affected_event_count?: number;
+    total_event_count?: number;
+  }>;
+  captured_at: string;
+}
+
+export interface MetaMatchQualityResponse {
+  events: MetaMatchQualityEvent[];
+  /** Null means no poll has landed yet — distinct from "no Meta connection". */
+  last_polled_at: string | null;
+  low_score_threshold: number;
+}
+
+/**
+ * Event Match Quality, as Meta last reported it.
+ *
+ * Served from cached snapshots written by the `meta_match_quality_poll` beat
+ * task — never a live call to Meta, whose Marketing API rate-limits per app.
+ * An empty `events` list means no poll has landed yet.
+ */
+export async function fetchMetaMatchQuality(
+  storeId: string,
+): Promise<MetaMatchQualityResponse> {
+  return apiClient<MetaMatchQualityResponse>(
+    `/stores/${storeId}/settings/tracking/meta/match-quality`,
+  );
 }
