@@ -36,6 +36,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useTranslation } from "react-i18next";
 import { showError, extractFieldErrors } from "@/lib/show-error";
 import { ApiError } from "@/lib/api-error";
+import { MetaMatchQualityCard } from "@/components/settings/MetaMatchQualityCard";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -488,7 +489,7 @@ export function MetaTrackingPanel() {
     lastError: e.last_error,
     createdAt: e.created_at,
     sentAt: e.sent_at,
-    payload: e.redacted_payload,
+    payload: e.request_payload_redacted,
   }));
 
   return (
@@ -844,6 +845,12 @@ export function MetaTrackingPanel() {
                 eventCount={statusQuery.data?.recent_event_count ?? null}
                 isAr={isAr}
               />
+
+              {/* How matchable the events actually are — sits next to the
+                  delivery stats above because "we sent 400 events" and "Meta
+                  could match 12% of them" are different questions and a
+                  merchant needs both. */}
+              <MetaMatchQualityCard storeId={storeId ?? undefined} />
 
               <VerifyConnectionRow
                 onVerify={handleVerify}

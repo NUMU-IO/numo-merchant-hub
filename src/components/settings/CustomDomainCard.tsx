@@ -295,13 +295,29 @@ function DnsRecordRow({ record }: { record: CustomDomainDnsRecord }) {
     }
   };
   return (
-    <div className="flex items-center gap-2 rounded-lg border bg-background/60 px-3 py-2 text-xs font-mono overflow-x-auto">
+    // dir="ltr" is load-bearing, not cosmetic. Under the Arabic layout this row
+    // inherits dir="rtl", which mirrors the flex children: "name → value"
+    // renders as "value ← name" and a merchant reading it left-to-right adds
+    // the record BACKWARDS. That happened — someone tried to create
+    // `origin.numueg.app CNAME vionneeg.com` inside the numueg.app zone, where
+    // it collided with the Cloudflare-for-SaaS fallback origin. Had it not
+    // collided it would have overwritten the fallback and taken down custom
+    // domains for every merchant. DNS records are identifiers, never prose:
+    // they must not mirror in any locale.
+    <div
+      dir="ltr"
+      className="flex items-center gap-2 rounded-lg border bg-background/60 px-3 py-2 text-xs font-mono overflow-x-auto"
+    >
       <span className="font-bold text-muted-foreground shrink-0">
         {record.type}
       </span>
-      <span className="text-muted-foreground shrink-0">{record.name}</span>
-      <span className="text-muted-foreground">→</span>
-      <span className="font-semibold flex-1 min-w-0">{record.value}</span>
+      <span className="text-muted-foreground shrink-0" title="Name / Host">
+        {record.name}
+      </span>
+      <span className="text-muted-foreground shrink-0">→</span>
+      <span className="font-semibold flex-1 min-w-0" title="Value / Points to">
+        {record.value}
+      </span>
       <button
         type="button"
         onClick={copy}
