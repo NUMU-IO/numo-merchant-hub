@@ -25,6 +25,7 @@ import {
   CheckCircle2, ArrowUpRight, ShieldCheck,
 } from "lucide-react";
 import InstapaySetupCard from "@/components/payments/InstapaySetupCard";
+import VodafoneCashSetupCard from "@/components/payments/VodafoneCashSetupCard";
 import CodDepositPolicyCard from "@/components/payments/CodDepositPolicyCard";
 import { useNavigate } from "react-router-dom";
 
@@ -373,7 +374,12 @@ const PaymentSetup = () => {
 
       {/* ── Section: InstaPay (Egypt only) ── */}
       {storeId && market === "EG" ? (
-        <InstapaySetupCard storeId={storeId} isAr={isAr} />
+        <>
+          <InstapaySetupCard storeId={storeId} isAr={isAr} />
+          {/* Vodafone Cash — same manual rail as InstaPay (publish a
+              destination, verify a proof), so it sits right beside it. */}
+          <VodafoneCashSetupCard storeId={storeId} isAr={isAr} />
+        </>
       ) : null}
 
       {/* ── Section: COD ── */}

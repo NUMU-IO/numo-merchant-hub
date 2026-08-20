@@ -26,6 +26,10 @@ import {
   type InstapayCredentialsResponse,
 } from "@/services/storeApi";
 import { showError } from "@/lib/show-error";
+import {
+  ManualRailAutoApproval,
+  type ManualRailAutoApprovalValues,
+} from "@/components/payments/ManualRailAutoApproval";
 
 interface Props {
   storeId: string;
@@ -45,13 +49,6 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
   const [ipa, setIpa] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [fallbackPhone, setFallbackPhone] = useState("");
-  const [thresholdEgp, setThresholdEgp] = useState<number>(
-    DEFAULT_THRESHOLD_CENTS / 100,
-  );
-  const [dailyCapEgp, setDailyCapEgp] = useState<number>(
-    DEFAULT_DAILY_CAP_CENTS / 100,
-  );
-  const [dailyCount, setDailyCount] = useState<number>(DEFAULT_DAILY_COUNT);
   const [enabled, setEnabled] = useState(false);
   const [togglingEnabled, setTogglingEnabled] = useState(false);
 
@@ -66,17 +63,28 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
   // box hides.
   const [qrLinkPreview, setQrLinkPreview] = useState<string | null>(null);
 
-  // Phase C — OCR opt-in flags. The provider itself is admin-managed
-  // and read-only on the merchant side; we display it as a banner
-  // when set so merchants understand which engine is checking their
-  // proofs and why a soft-block fired.
-  const [requireOcrAmount, setRequireOcrAmount] = useState(false);
-  const [requireOcrIpa, setRequireOcrIpa] = useState(false);
-  const [ocrAmountTolerancePct, setOcrAmountTolerancePct] = useState<number>(1);
-  const [requireNoteContainsRef, setRequireNoteContainsRef] = useState(false);
-  const [requireTxnRefMatch, setRequireTxnRefMatch] = useState(false);
-  const [requireRecipientNameMatch, setRequireRecipientNameMatch] = useState(false);
-  const [recipientNameToken, setRecipientNameToken] = useState("");
+  // Auto-approval thresholds + OCR opt-in flags. Held as one object
+  // and rendered by ManualRailAutoApproval, which the Vodafone Cash
+  // card also uses — one rules engine on the server, one form here.
+  // The OCR provider is admin-managed and read-only for merchants; we
+  // show it as a banner so they understand which engine flagged a proof.
+  const [rules, setRules] = useState<ManualRailAutoApprovalValues>({
+    thresholdEgp: DEFAULT_THRESHOLD_CENTS / 100,
+    dailyCapEgp: DEFAULT_DAILY_CAP_CENTS / 100,
+    dailyCount: DEFAULT_DAILY_COUNT,
+    requireOcrAmount: false,
+    requireOcrDestination: false,
+    ocrAmountTolerancePct: 1,
+    requireNoteContainsRef: false,
+    requireTxnRefMatch: false,
+    requireRecipientNameMatch: false,
+    recipientNameToken: "",
+  });
+
+  const setRule = <K extends keyof ManualRailAutoApprovalValues>(
+    key: K,
+    value: ManualRailAutoApprovalValues[K],
+  ) => setRules((prev) => ({ ...prev, [key]: value }));
 
   // Persist the "Offer at checkout" toggle independently of the creds
   // Save button. Mirrors the PATCH /settings/payment flow used by the
@@ -119,25 +127,23 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
         setEnabled(!!c.enabled);
         setDisplayName(c.ipa_display_name || "");
         setFallbackPhone(c.fallback_phone || "");
-        setThresholdEgp(
-          (c.auto_approve_threshold_cents ?? DEFAULT_THRESHOLD_CENTS) / 100,
-        );
-        setDailyCapEgp(
-          (c.auto_approve_daily_cap_cents ?? DEFAULT_DAILY_CAP_CENTS) / 100,
-        );
-        setDailyCount(c.auto_approve_daily_count ?? DEFAULT_DAILY_COUNT);
         setQrLinkUrl(c.qr_link_url || "");
-        setRequireOcrAmount(!!c.require_ocr_amount_match);
-        setRequireOcrIpa(!!c.require_ocr_ipa_match);
-        // Backend stores tolerance in basis points (100 bps = 1%);
-        // we render percent so the merchant sees a friendly number.
-        setOcrAmountTolerancePct(
-          (c.ocr_amount_tolerance_bps ?? 100) / 100,
-        );
-        setRequireNoteContainsRef(!!c.require_note_contains_reference);
-        setRequireTxnRefMatch(!!c.require_transaction_ref_match);
-        setRequireRecipientNameMatch(!!c.require_recipient_name_match);
-        setRecipientNameToken(c.recipient_name_token || "");
+        setRules({
+          thresholdEgp:
+            (c.auto_approve_threshold_cents ?? DEFAULT_THRESHOLD_CENTS) / 100,
+          dailyCapEgp:
+            (c.auto_approve_daily_cap_cents ?? DEFAULT_DAILY_CAP_CENTS) / 100,
+          dailyCount: c.auto_approve_daily_count ?? DEFAULT_DAILY_COUNT,
+          requireOcrAmount: !!c.require_ocr_amount_match,
+          requireOcrDestination: !!c.require_ocr_ipa_match,
+          // Backend stores tolerance in basis points (100 bps = 1%);
+          // we render percent so the merchant sees a friendly number.
+          ocrAmountTolerancePct: (c.ocr_amount_tolerance_bps ?? 100) / 100,
+          requireNoteContainsRef: !!c.require_note_contains_reference,
+          requireTxnRefMatch: !!c.require_transaction_ref_match,
+          requireRecipientNameMatch: !!c.require_recipient_name_match,
+          recipientNameToken: c.recipient_name_token || "",
+        });
       })
       .catch(() => setCreds({ is_configured: false } as InstapayCredentialsResponse))
       .finally(() => {
@@ -195,22 +201,22 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
         ipa: trimmedIpa ? trimmedIpa : null,
         ipa_display_name: displayName.trim() || null,
         fallback_phone: fallbackPhone.trim() || null,
-        auto_approve_threshold_cents: Math.round(thresholdEgp * 100),
-        auto_approve_daily_cap_cents: Math.round(dailyCapEgp * 100),
-        auto_approve_daily_count: Math.max(0, Math.floor(dailyCount)),
+        auto_approve_threshold_cents: Math.round(rules.thresholdEgp * 100),
+        auto_approve_daily_cap_cents: Math.round(rules.dailyCapEgp * 100),
+        auto_approve_daily_count: Math.max(0, Math.floor(rules.dailyCount)),
         // Empty string → backend clears; non-empty → backend stores.
         qr_link_url: qrLinkUrl.trim(),
-        require_ocr_amount_match: requireOcrAmount,
-        require_ocr_ipa_match: requireOcrIpa,
+        require_ocr_amount_match: rules.requireOcrAmount,
+        require_ocr_ipa_match: rules.requireOcrDestination,
         // Convert percent → BPS for the wire format.
         ocr_amount_tolerance_bps: Math.max(
           0,
-          Math.round(ocrAmountTolerancePct * 100),
+          Math.round(rules.ocrAmountTolerancePct * 100),
         ),
-        require_note_contains_reference: requireNoteContainsRef,
-        require_transaction_ref_match: requireTxnRefMatch,
-        require_recipient_name_match: requireRecipientNameMatch,
-        recipient_name_token: recipientNameToken.trim() || null,
+        require_note_contains_reference: rules.requireNoteContainsRef,
+        require_transaction_ref_match: rules.requireTxnRefMatch,
+        require_recipient_name_match: rules.requireRecipientNameMatch,
+        recipient_name_token: rules.recipientNameToken.trim() || null,
       });
       setCreds(saved);
       setIpa("");
@@ -360,244 +366,14 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
           </div>
         </div>
 
-        <div className="border-t pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-sm font-semibold">
-                {isAr ? "الموافقة التلقائية" : "Auto-approval"}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {isAr
-                  ? "للطلبات الصغيرة، يتم قبول الإثبات تلقائياً بناءً على القواعد أدناه."
-                  : "Small orders auto-approve based on the rules below."}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label className="text-xs">
-                {isAr ? "حد القبول (ج.م)" : "Threshold (EGP)"}
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                value={thresholdEgp}
-                onChange={(e) => setThresholdEgp(Number(e.target.value) || 0)}
-              />
-            </div>
-            <div>
-              <Label className="text-xs">
-                {isAr ? "الحد اليومي (ج.م)" : "Daily cap (EGP)"}
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                value={dailyCapEgp}
-                onChange={(e) => setDailyCapEgp(Number(e.target.value) || 0)}
-              />
-            </div>
-            <div>
-              <Label className="text-xs">
-                {isAr ? "عدد الطلبات/اليوم" : "Orders/day"}
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                value={dailyCount}
-                onChange={(e) => setDailyCount(Number(e.target.value) || 0)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* ── Image verification (Phase C) ────────────────────────────
-             Visible only when an admin has assigned an OCR provider
-             to this store. Otherwise the section is hidden so
-             merchants don't see knobs they can't act on — flipping
-             these flags without a provider would be a no-op anyway
-             (the auto-approval rules require ``ocr_status="ok"``). */}
-        {creds?.ocr_provider ? (
-          <div className="border-t pt-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-sm font-semibold">
-                  {isAr
-                    ? "التحقق من الصورة (متقدم)"
-                    : "Image verification (advanced)"}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {isAr
-                    ? "نقرأ الصورة آلياً للتحقق من المبلغ ورقم المستلم. عند الفشل أو عدم التطابق، يتم تحويل الإثبات للمراجعة اليدوية."
-                    : "We read the image to cross-check amount + recipient. On failure or mismatch, the proof routes to manual review."}
-                </p>
-              </div>
-            </div>
-
-            {/* Read-only provider banner — admins set this; merchants
-                see it only so they understand which engine flagged a
-                proof. */}
-            <div className="rounded-md bg-muted/30 px-3 py-2 mb-3 text-[11px]">
-              <span className="text-muted-foreground">
-                {isAr ? "مزود التحقق: " : "OCR provider: "}
-              </span>
-              <span className="font-mono">{creds.ocr_provider}</span>
-              {(creds.ocr_provider === "deepseek_hf" ||
-                creds.ocr_provider === "glm_hf") && (
-                <span className="block text-amber-700 mt-1">
-                  {isAr
-                    ? "هذا المزود مجاني وقد يستغرق حتى دقيقة في الاستخدام الأول."
-                    : "This provider is best-effort and may take up to a minute on first use."}
-                </span>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium">
-                    {isAr ? "تحقق من المبلغ" : "Verify amount"}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {isAr
-                      ? "ارفض الموافقة التلقائية عند عدم تطابق المبلغ المقروء مع إجمالي الطلب."
-                      : "Block auto-approval when the OCR'd amount disagrees with the order total."}
-                  </p>
-                </div>
-                <Switch
-                  checked={requireOcrAmount}
-                  onCheckedChange={setRequireOcrAmount}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium">
-                    {isAr ? "تحقق من المستلم" : "Verify recipient IPA"}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {isAr
-                      ? "ارفض الموافقة التلقائية عند اختلاف المستلم في الصورة عن عنوانك."
-                      : "Block auto-approval when the recipient on the screenshot doesn't match your IPA."}
-                  </p>
-                </div>
-                <Switch
-                  checked={requireOcrIpa}
-                  onCheckedChange={setRequireOcrIpa}
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs">
-                  {isAr ? "هامش الفرق المسموح (%)" : "Amount tolerance (%)"}
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={50}
-                  step={0.5}
-                  value={ocrAmountTolerancePct}
-                  onChange={(e) =>
-                    setOcrAmountTolerancePct(Number(e.target.value) || 0)
-                  }
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {isAr
-                    ? "أكبر فرق نسبي بين المبلغ المقروء وإجمالي الطلب يمر دون مراجعة."
-                    : "Maximum percent difference allowed between the OCR'd amount and the order total before the rule fires."}
-                </p>
-              </div>
-
-              {/* Note-field reference rule — single strongest fraud
-                  signal: a fraudster physically can't have typed our
-                  short-lived per-order code into someone else's
-                  bank-app note. */}
-              <div className="flex items-center justify-between border-t pt-3">
-                <div>
-                  <p className="text-xs font-medium">
-                    {isAr
-                      ? "تحقق من ظهور الرمز المرجعي في خانة الملاحظات"
-                      : "Require reference code in bank's Note field"}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {isAr
-                      ? "ارفض الموافقة التلقائية إذا لم تحتوي ملاحظة التحويل في صورة الإثبات على الرمز المرجعي للطلب (مثل NU-XXXXXX)."
-                      : "Block auto-approval when the bank-app's note in the screenshot doesn't contain our order reference (e.g. NU-XXXXXX)."}
-                  </p>
-                </div>
-                <Switch
-                  checked={requireNoteContainsRef}
-                  onCheckedChange={setRequireNoteContainsRef}
-                />
-              </div>
-
-              {/* Transaction-ref OCR cross-check — verifies the
-                  customer typed the same number that's actually on
-                  the screenshot, catching copy-paste fraud. */}
-              <div className="flex items-center justify-between border-t pt-3">
-                <div>
-                  <p className="text-xs font-medium">
-                    {isAr
-                      ? "تحقق من تطابق الرقم المرجعي للمعاملة"
-                      : "Verify transaction reference matches screenshot"}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {isAr
-                      ? "ارفض الموافقة التلقائية إذا اختلف الرقم الذي كتبه العميل في النموذج عن الرقم المقروء من الصورة."
-                      : "Block auto-approval when the typed transaction reference disagrees with the one OCR'd from the receipt."}
-                  </p>
-                </div>
-                <Switch
-                  checked={requireTxnRefMatch}
-                  onCheckedChange={setRequireTxnRefMatch}
-                />
-              </div>
-
-              {/* Recipient name — useful for non-QR payments where
-                  bank apps mask all but the merchant's first name.
-                  Token here is what should appear visibly in the
-                  receipt's "To" block. */}
-              <div className="border-t pt-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium">
-                      {isAr
-                        ? "تحقق من اسم المستلم"
-                        : "Verify recipient name"}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {isAr
-                        ? "ارفض الموافقة التلقائية عند عدم ظهور اسمك في خانة المستلم بصورة الإثبات."
-                        : "Block auto-approval when your name token doesn't appear in the receipt's recipient block."}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={requireRecipientNameMatch}
-                    onCheckedChange={setRequireRecipientNameMatch}
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">
-                    {isAr ? "اسم/كلمة دلالية مرئية" : "Visible name token"}
-                  </Label>
-                  <Input
-                    value={recipientNameToken}
-                    onChange={(e) =>
-                      setRecipientNameToken(e.target.value)
-                    }
-                    placeholder={isAr ? "مثل: غادة" : "e.g. Nagwa"}
-                    autoComplete="off"
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    {isAr
-                      ? "اكتب الجزء من اسمك الذي يظهر فعلياً في إيصال التحويل (عادةً الاسم الأول قبل التشفير بالنجوم)."
-                      : "The chunk of your name that survives the bank's privacy mask — typically your first name (e.g. \"Nagwa\" for \"Nagwa F**** H****\")."}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        <ManualRailAutoApproval
+          isAr={isAr}
+          values={rules}
+          onChange={setRule}
+          ocrProvider={creds?.ocr_provider}
+          destinationNoun={isAr ? "عنوان الدفع" : "IPA"}
+          referenceExample="NU-XXXXXX"
+        />
 
         {/* ── Customer-facing QR ──────────────────────────────────────
              Two ways the merchant can supply a working QR:
