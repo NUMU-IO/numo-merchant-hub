@@ -53,7 +53,7 @@ import {
 } from "@/services/marketplaceApi";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getStoreUrl } from "@/lib/storefront";
+import { getPublicStoreUrl } from "@/lib/storefront";
 import { ActivateModal } from "./ActivateModal";
 import { UninstallModal } from "./UninstallModal";
 
@@ -158,9 +158,7 @@ export function MarketplaceLibraryTab({
     [installed],
   );
 
-  const storeUrl = currentStore?.subdomain
-    ? getStoreUrl(currentStore.subdomain)
-    : null;
+  const storeUrl = getPublicStoreUrl(currentStore);
 
   if (installedQuery.isLoading) {
     return (

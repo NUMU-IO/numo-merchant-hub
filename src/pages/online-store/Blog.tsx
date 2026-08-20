@@ -40,7 +40,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
-import { getStoreUrl } from "@/lib/storefront";
+import { getPublicStoreHost, getPublicStoreUrl } from "@/lib/storefront";
 
 function makeSlug(title: string) {
   return title.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -338,7 +338,7 @@ export default function OnlineStoreBlog() {
     (isRTL && a.title?.ar ? a.title.ar : a.title?.en || a.title?.ar) ||
     t("blog.untitled");
 
-  const storeUrl = currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null;
+  const storeUrl = getPublicStoreUrl(currentStore);
   const saving = saveArticleMutation.isPending;
   const articleValid = !!articleEditing?.titleEn.trim();
 
@@ -561,7 +561,7 @@ export default function OnlineStoreBlog() {
                   <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     <Globe className="h-3 w-3" />
                     <span className="opacity-60">
-                      {currentStore?.subdomain ?? "yourstore"}.numueg.app/blogs/
+                      {getPublicStoreHost(currentStore) ?? "yourstore.numueg.app"}/blogs/
                     </span>
                     <span className="font-medium text-foreground/70">
                       {makeSlug(blogEditing.titleEn) || "—"}

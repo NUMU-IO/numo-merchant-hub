@@ -15,7 +15,7 @@ import {
   listThemeInstallations, renameThemeInstallation,
 } from "@/services/themeCodeApi";
 import { showError } from "@/lib/show-error";
-import { getStoreUrl } from "@/lib/storefront";
+import { getPublicStoreHost, getPublicStoreUrl } from "@/lib/storefront";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -226,13 +226,12 @@ const OnlineStoreLanding = () => {
   const { currentStore } = useDashboardStore();
   const navigate = useNavigate();
   const storeId = currentStore?.id;
-  const storeUrl = currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null;
-  // Env-aware display host — strip protocol + trailing slash off the
-  // configured storefront URL (VITE_STOREFRONT_URL) so dev/test/staging
-  // each show their real domain instead of a hardcoded `.numueg.app`.
-  const storeHost = storeUrl
-    ? storeUrl.replace(/^https?:\/\//, "").replace(/\/+$/, "")
-    : null;
+  // The store's public URL — a merchant's own domain once it's live, else the
+  // env-aware storefront URL. The chrome bar, copy-link and "Open store"
+  // overlay all follow it, so a merchant with a custom domain never sees the
+  // `.numueg.app` fallback here.
+  const storeUrl = getPublicStoreUrl(currentStore);
+  const storeHost = getPublicStoreHost(currentStore);
 
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
   const [copied, setCopied] = useState(false);

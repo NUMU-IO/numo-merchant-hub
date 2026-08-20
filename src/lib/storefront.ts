@@ -35,3 +35,93 @@ export function getStoreDomainSuffix(): string | null {
   const after = STOREFRONT_URL_TEMPLATE.split("{subdomain}")[1];
   return after || null;
 }
+
+/* ─── Custom domains ────────────────────────────────────────────────────────
+ * Once a merchant connects their own domain and Cloudflare issues the cert,
+ * THAT domain is the store — it's what the storefront sets as `canonical`,
+ * what Meta/TikTok feeds emit, and what shoppers see. Everything in the hub
+ * that opens/shares/displays the live store must follow it instead of the
+ * `<subdomain>.numueg.app` fallback, or a merchant who paid for a domain
+ * keeps being handed the NUMU URL.
+ *
+ * Preview/editor plumbing (theme preview iframes, promotion preview tokens)
+ * deliberately stays on the canonical subdomain — see the call sites.
+ */
+
+/** The subset of `StoreData` these helpers need (keeps them import-free). */
+export interface StoreUrlSource {
+  subdomain?: string | null;
+  custom_domain?: string | null;
+  settings?: Record<string, unknown> | null;
+}
+
+/** Lifecycle block the backend persists at `settings.custom_domain`. */
+interface CustomDomainSettings {
+  hostname?: string;
+  status?: string;
+}
+
+/** Strip scheme/path/case off a stored hostname. */
+function normalizeHost(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/+$/, "");
+}
+
+/**
+ * The merchant's own domain — but only once it actually serves the store.
+ *
+ * `store.custom_domain` is written the moment the merchant clicks Connect,
+ * long before they've added the CNAME, so it alone is not proof the domain
+ * resolves. The backend tracks the real lifecycle in
+ * `settings.custom_domain.status` (pending_dns → verifying → active), and we
+ * only switch over on `active`. Domains provisioned out-of-band (no lifecycle
+ * block at all) are trusted as-is — they predate the Cloudflare flow.
+ */
+export function getActiveCustomDomain(
+  store: StoreUrlSource | null | undefined,
+): string | null {
+  if (!store?.custom_domain) return null;
+  const host = normalizeHost(store.custom_domain);
+  if (!host) return null;
+
+  const block = (
+    store.settings as { custom_domain?: CustomDomainSettings } | null | undefined
+  )?.custom_domain;
+  if (!block || typeof block !== "object") return host;
+
+  return String(block.status ?? "").toLowerCase() === "active" ? host : null;
+}
+
+/**
+ * The store's public URL: the live custom domain when there is one, else the
+ * env-aware `<subdomain>` storefront URL. Returns null for a store with
+ * neither (shouldn't happen — guard anyway).
+ */
+export function getPublicStoreUrl(
+  store: StoreUrlSource | null | undefined,
+): string | null {
+  const domain = getActiveCustomDomain(store);
+  if (domain) return `https://${domain}`;
+  return store?.subdomain ? getStoreUrl(store.subdomain) : null;
+}
+
+/** Same as {@link getPublicStoreUrl} but bare host — for display/chrome bars. */
+export function getPublicStoreHost(
+  store: StoreUrlSource | null | undefined,
+): string | null {
+  const url = getPublicStoreUrl(store);
+  return url ? normalizeHost(url) : null;
+}
+
+/** Join a path onto the store's public URL without doubling the slash. */
+export function getPublicStorePath(
+  store: StoreUrlSource | null | undefined,
+  path: string,
+): string | null {
+  const base = getPublicStoreUrl(store);
+  if (!base) return null;
+  return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}

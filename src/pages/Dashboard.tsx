@@ -42,7 +42,7 @@ import {
   undismissOnboarding,
 } from "@/services/storeApi";
 import type { OnboardingData } from "@/services/storeApi";
-import { getStoreUrl } from "@/lib/storefront";
+import { getPublicStoreUrl } from "@/lib/storefront";
 import { toast } from "sonner";
 import {
   TrendingUp,
@@ -110,8 +110,8 @@ const Dashboard = () => {
   // of routing to store settings. Sharing does NOT tick the step — that
   // completes on its own when the first real order lands.
   const shareStoreLink = async () => {
-    if (!currentStore?.subdomain) return;
-    const url = getStoreUrl(currentStore.subdomain);
+    const url = getPublicStoreUrl(currentStore);
+    if (!currentStore || !url) return;
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({ title: currentStore.name, url });
@@ -547,8 +547,8 @@ const Dashboard = () => {
             size="sm"
             className="gap-2"
             onClick={() => {
-              if (currentStore?.subdomain)
-                window.open(getStoreUrl(currentStore.subdomain), "_blank");
+              const url = getPublicStoreUrl(currentStore);
+              if (url) window.open(url, "_blank");
             }}
           >
             <ExternalLink className="h-4 w-4" />
@@ -835,8 +835,8 @@ const Dashboard = () => {
                       size="sm"
                       className="gap-1.5 flex-1"
                       onClick={async () => {
-                        if (currentStore?.subdomain) {
-                          const url = getStoreUrl(currentStore.subdomain);
+                        const url = getPublicStoreUrl(currentStore);
+                        if (currentStore && url) {
                           if (navigator.share) {
                             try { await navigator.share({ title: currentStore.name, url }); } catch { /* cancelled */ }
                           } else {

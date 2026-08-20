@@ -51,7 +51,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
-import { getStoreUrl } from "@/lib/storefront";
+import { getPublicStoreUrl } from "@/lib/storefront";
 import {
   Pencil, MoreHorizontal, ExternalLink, Eye, Copy, Sparkles,
   CheckCircle2, Clock, Loader2, ArrowUpRight, Layers, Github, Trash2, RefreshCw, ShieldCheck,
@@ -183,7 +183,7 @@ export default function OnlineStoreThemes() {
   const [devError, setDevError] = useState<string | null>(null);
 
   const storeId = currentStore?.id ?? "";
-  const storeUrl = currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null;
+  const storeUrl = getPublicStoreUrl(currentStore);
 
   // Built-in themes (legacy endpoint)
   const { data: builtinThemes = [], isLoading: themesLoading } = useQuery({
