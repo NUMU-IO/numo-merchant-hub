@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
-import { getStoreUrl } from "@/lib/storefront";
+import { getPublicStorePath } from "@/lib/storefront";
 
 const PAGE_SIZE = 20;
 
@@ -836,7 +836,7 @@ const Products = () => {
                               title={isAr ? "عرض في المتجر" : "View in storefront"}
                             >
                               <a
-                                href={`${getStoreUrl(currentStore.subdomain).replace(/\/$/, "")}/product/${p.id}`}
+                                href={getPublicStorePath(currentStore, `product/${p.id}`)!}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 aria-label={isAr ? "عرض في المتجر" : "View in storefront"}

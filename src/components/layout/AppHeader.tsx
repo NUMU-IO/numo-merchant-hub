@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { useEffect, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { getStoreUrl } from "@/lib/storefront";
+import { getPublicStoreUrl } from "@/lib/storefront";
 import { SearchPalette } from "@/components/layout/SearchPalette";
 import WalletHeaderChip from "@/components/wallet/WalletHeaderChip";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
@@ -105,12 +105,10 @@ const AppHeader = () => {
 
   const openStore = useCallback(() => {
     if (!currentStore) return;
-    // Prefer the env-aware storefront URL (v3 when configured) over the
-    // backend's canonical store_url so "Visit store" matches the preview.
-    const url =
-      (currentStore.subdomain ? getStoreUrl(currentStore.subdomain) : null) ||
-      currentStore.store_url ||
-      null;
+    // A live custom domain IS the store — open that. Otherwise fall back to
+    // the env-aware storefront URL (v3 when configured), then the backend's
+    // canonical store_url.
+    const url = getPublicStoreUrl(currentStore) || currentStore.store_url || null;
     if (url) window.open(url, "_blank");
   }, [currentStore]);
 

@@ -22,7 +22,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { getStoreUrl } from "@/lib/storefront";
+import { getPublicStoreUrl } from "@/lib/storefront";
 import { useCustomizerStore } from "../store/customizerStore";
 import { registerMetafieldSources } from "../components/inputs/DynamicSourcePicker";
 import {
@@ -255,9 +255,7 @@ export function ThemeCustomizerV3() {
         onBack={handleBack}
         onToggleVersionHistory={handleToggleVersionHistory}
         showVersionHistory={showVersionHistory}
-        viewStoreUrl={
-          currentStore?.subdomain ? getStoreUrl(currentStore.subdomain) : null
-        }
+        viewStoreUrl={getPublicStoreUrl(currentStore)}
       />
 
       {/* Main content area */}

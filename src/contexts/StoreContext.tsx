@@ -14,7 +14,7 @@ import React, {
   useRef,
 } from "react";
 import { useAuth } from "./AuthContext";
-import { listStores } from "@/services/storeApi";
+import { getCustomDomain, listStores } from "@/services/storeApi";
 import type { StoreData } from "@/services/storeApi";
 import { setActiveStoreCurrency } from "@/lib/format-money";
 import { setActiveStoreTimezone } from "@/lib/store-timezone";
@@ -110,6 +110,59 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
     setActiveStoreTimezone(
       (currentStore?.settings as { timezone?: string } | undefined)?.timezone
     );
+  }, [currentStore]);
+
+  // ─── Custom-domain freshness ──────────────────────────────────────────
+  // A connected domain only becomes the store's public URL once Cloudflare
+  // has issued its cert. That lifecycle is persisted on the store, but the
+  // backend only refreshes it when someone opens Settings → Domain — so a
+  // domain that went live in the meantime would leave every "Open store"
+  // link stuck on `<subdomain>.numueg.app`. Poll once per store, in the
+  // background, and patch the in-memory store when it comes back active.
+  const domainCheckedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const store = currentStore;
+    if (!store?.id || !store.custom_domain) return;
+    const block = (
+      store.settings as { custom_domain?: { status?: string } } | null
+    )?.custom_domain;
+    // No lifecycle block → the domain predates the Cloudflare flow and is
+    // already trusted by getActiveCustomDomain(). Already active → nothing
+    // to refresh.
+    if (!block || String(block.status ?? "").toLowerCase() === "active") return;
+    if (domainCheckedRef.current.has(store.id)) return;
+    domainCheckedRef.current.add(store.id);
+
+    let cancelled = false;
+    getCustomDomain(store.id)
+      .then((state) => {
+        if (cancelled || !state.is_active || !state.domain) return;
+        const domain = state.domain;
+        const patch = (s: StoreData): StoreData => ({
+          ...s,
+          custom_domain: domain,
+          settings: {
+            ...(s.settings ?? {}),
+            custom_domain: {
+              ...block,
+              hostname: domain,
+              status: "active",
+              ssl_status: state.ssl_status,
+            },
+          },
+        });
+        setCurrentStore((c) => (c && c.id === store.id ? patch(c) : c));
+        setStores((prev) =>
+          prev.map((s) => (s.id === store.id ? patch(s) : s))
+        );
+      })
+      .catch(() => {
+        // Non-fatal — the hub just keeps using the canonical subdomain URL.
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentStore]);
 
   const switchStore = useCallback(

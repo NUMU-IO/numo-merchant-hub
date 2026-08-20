@@ -49,6 +49,7 @@ import { useNavigate } from "react-router-dom";
 import { Checkbox } from "@/components/ui/checkbox";
 import { showError } from "@/lib/show-error";
 import { PromotedItemPicker } from "@/components/campaigns/PromotedItemPicker";
+import { getPublicStoreUrl } from "@/lib/storefront";
 import { AudiencePicker } from "@/components/campaigns/AudiencePicker";
 import {
   buildEmailBody,
@@ -480,11 +481,11 @@ export default function MarketingCampaigns() {
             {/* "What are you promoting?" — drives the template generator
                 below. Picker is optional; merchant can leave at "Nothing
                 specific" and write the body freehand. */}
-            {channel === "email" && currentStore?.subdomain && (
+            {channel === "email" && getPublicStoreUrl(currentStore) && (
               <>
                 <PromotedItemPicker
                   storeId={storeId!}
-                  storeUrl={`https://${currentStore.subdomain}.numueg.app`}
+                  storeUrl={getPublicStoreUrl(currentStore)!}
                   isAr={isAr}
                   value={promotedSnapshot}
                   onChange={setPromotedSnapshot}

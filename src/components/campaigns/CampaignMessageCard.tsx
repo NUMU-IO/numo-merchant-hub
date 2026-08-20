@@ -49,6 +49,7 @@ import { toast } from "sonner";
 
 import { updateCampaign, type Campaign } from "@/services/campaignApi";
 import { PromotedItemPicker } from "./PromotedItemPicker";
+import { getPublicStoreUrl } from "@/lib/storefront";
 import {
   buildEmailBody,
   suggestSubject,
@@ -191,11 +192,11 @@ export function CampaignMessageCard({ storeId, campaign, onUpdated }: Props) {
                 on click (toast confirms), never silently auto-updated, so a
                 merchant tweaking the picker mid-edit doesn't lose their
                 hand-written copy. */}
-            {isEmail && currentStore?.subdomain && (
+            {isEmail && getPublicStoreUrl(currentStore) && (
               <>
                 <PromotedItemPicker
                   storeId={storeId}
-                  storeUrl={`https://${currentStore.subdomain}.numueg.app`}
+                  storeUrl={getPublicStoreUrl(currentStore)!}
                   isAr={isAr}
                   value={promotedSnapshot}
                   onChange={setPromotedSnapshot}
