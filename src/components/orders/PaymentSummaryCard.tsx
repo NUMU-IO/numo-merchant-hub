@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { isManualPaymentMethod } from "@/services/storeApi";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useQueryClient } from "@tanstack/react-query";
@@ -169,7 +170,7 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid }: Props) {
           )}
         </div>
 
-        {order.payment_method === "instapay" && currentStore?.id && (
+        {isManualPaymentMethod(order.payment_method) && currentStore?.id && (
           <div className="border-t pt-3">
             <InstapayProofReview
               storeId={currentStore.id}

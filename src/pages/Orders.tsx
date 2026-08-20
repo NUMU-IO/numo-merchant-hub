@@ -42,7 +42,10 @@ import { downloadInvoicePdf, getInvoiceForOrder } from "@/services/invoiceApi";
 import { showError } from "@/lib/show-error";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
 import InstapayProofReview from "@/components/payments/InstapayProofReview";
-import { fetchPendingInstapayOrders } from "@/services/storeApi";
+import {
+  fetchPendingInstapayOrders,
+  isManualPaymentMethod,
+} from "@/services/storeApi";
 import { listAutopilotExceptions } from "@/services/orderApi";
 import AutopilotExceptions from "@/components/orders/AutopilotExceptions";
 import {
@@ -662,7 +665,7 @@ const Orders = () => {
                     {language === "ar" ? "تحميل الفاتورة" : "Download Invoice"}
                   </Button>
                 )}
-                {o.payment_method === "instapay" && currentStore?.id && (
+                {isManualPaymentMethod(o.payment_method) && currentStore?.id && (
                   <div className="mt-3">
                     <InstapayProofReview
                       storeId={currentStore.id}
