@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { isManualPaymentMethod } from "@/services/storeApi";
+import { isManualPaymentMethod, paymentMethodLabel } from "@/services/storeApi";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useQueryClient } from "@tanstack/react-query";
@@ -143,7 +143,7 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid }: Props) {
           {order.payment_method && (
             <p className="text-sm text-muted-foreground">
               {language === "ar" ? "طريقة الدفع: " : "Method: "}
-              {order.payment_method}
+              {paymentMethodLabel(order.payment_method, language === "ar")}
             </p>
           )}
           {order.payment_status !== "paid" && (

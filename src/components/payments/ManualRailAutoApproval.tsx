@@ -16,6 +16,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
 export interface ManualRailAutoApprovalValues {
+  /** Master switch — when off, every proof waits for a human. */
+  autoApproveEnabled: boolean;
   thresholdEgp: number;
   dailyCapEgp: number;
   dailyCount: number;
@@ -57,20 +59,40 @@ export function ManualRailAutoApproval({
   return (
     <>
       <div className="border-t pt-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-start justify-between gap-4 mb-3">
           <div>
             <p className="text-sm font-semibold">
               {isAr ? "الموافقة التلقائية" : "Auto-approval"}
             </p>
             <p className="text-[11px] text-muted-foreground">
               {isAr
-                ? "للطلبات الصغيرة، يتم قبول الإثبات تلقائياً بناءً على القواعد أدناه."
-                : "Small orders auto-approve based on the rules below."}
+                ? "اقبل إثبات الدفع تلقائياً للطلبات الصغيرة بدل مراجعتها يدوياً."
+                : "Approve small orders automatically instead of reviewing each one."}
             </p>
           </div>
+          <Switch
+            checked={values.autoApproveEnabled}
+            onCheckedChange={(v) => onChange("autoApproveEnabled", v)}
+          />
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        {/* The honest version of what "on" means. Without an OCR provider
+            nothing inspects the image, so the thresholds are the ONLY gate
+            — a merchant switching this on should know they are trusting the
+            amount, not the receipt. */}
+        {values.autoApproveEnabled && !ocrProvider && (
+          <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+            {isAr
+              ? "لا يوجد تحقق آلي من الصورة على هذا المتجر، لذا سيتم قبول أي صورة مرفوعة لطلب أقل من الحد أدناه. لمراجعة كل طلب بنفسك، أوقف هذا الخيار."
+              : "No image verification is active on this store, so any uploaded picture is accepted for orders under the threshold below. Turn this off to review every order yourself."}
+          </p>
+        )}
+
+
+        <div
+          className={`grid grid-cols-3 gap-3 ${values.autoApproveEnabled ? "" : "pointer-events-none opacity-50"}`}
+          aria-hidden={!values.autoApproveEnabled}
+        >
           <div>
             <Label className="text-xs">
               {isAr ? "حد القبول (ج.م)" : "Threshold (EGP)"}
