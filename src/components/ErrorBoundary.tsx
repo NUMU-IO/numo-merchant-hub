@@ -2,6 +2,7 @@ import { Component, ErrorInfo, ReactNode } from "react";
 import * as Sentry from "@sentry/react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { isStaleChunkError } from "@/lib/lazy-with-retry";
+import { recoverFromStaleAssets } from "@/lib/register-sw";
 
 interface Props {
   children: ReactNode;
@@ -33,8 +34,14 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     if (isStaleChunkError(error)) {
       // Stale dynamic chunk — the dev server restarted, or a new build was
-      // deployed while this tab was open. Reload once to pick up the current
-      // asset URLs.
+      // deployed while this tab was open.
+      //
+      // A plain reload is NOT enough, and the note below about the precached
+      // shell is exactly why: the cached index.html still references the
+      // chunk hashes that just went away, so reloading serves the same
+      // broken shell forever. recoverFromStaleAssets() activates the waiting
+      // worker (or purges the precache when none is staged) and then reloads,
+      // which is the only sequence that replaces the shell.
       //
       // ─── DO NOT CLEAR THIS GUARD ON MOUNT ────────────────────────────────
       // A previous version cleared it in componentDidMount(). That looked
@@ -70,7 +77,7 @@ export class ErrorBoundary extends Component<Props, State> {
           });
           return;
         }
-        window.location.reload();
+        void recoverFromStaleAssets();
         return;
       }
       // Already tried within the cooldown — the chunk is genuinely gone.
@@ -93,7 +100,13 @@ export class ErrorBoundary extends Component<Props, State> {
             </p>
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                if (isStaleChunkError(this.state.error)) {
+                  void recoverFromStaleAssets();
+                } else {
+                  window.location.reload();
+                }
+              }}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 cursor-pointer"
             >
               <RotateCcw size={16} />
