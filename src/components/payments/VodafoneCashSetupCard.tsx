@@ -20,7 +20,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Loader2, CheckCircle2, Trash2, Smartphone } from "lucide-react";
+import { Loader2, CheckCircle2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -242,9 +242,11 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
     <div className="rounded-xl border bg-card">
       <div className="px-5 py-4 border-b flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-[#e60000] flex items-center justify-center shrink-0">
-            <Smartphone className="w-5 h-5 text-white" />
-          </div>
+          <img
+            src="/vodafone-cash-logo.png"
+            alt="Vodafone Cash"
+            className="h-10 w-auto object-contain shrink-0"
+          />
           <div>
             <h2 className="text-base font-bold">
               {isAr ? "فودافون كاش" : "Vodafone Cash"}

@@ -15,10 +15,22 @@
  *
  * Registration runs AFTER React mounts (see main.tsx) so the worker fetch never
  * competes with first paint.
+ *
+ * WHY THE PROMPT IS PWA-ONLY
+ * The toast is an APP-update affordance: it asks the merchant to relaunch
+ * something they installed. In a browser tab that framing is simply wrong —
+ * nobody installed anything, and a tab already updates by being reloaded. It
+ * was firing in desktop Chrome and interrupting merchants mid-task.
+ *
+ * So the worker still registers everywhere (it backs push notifications and
+ * the offline shell) and still WAITS everywhere; we just do not nag outside
+ * the installed app. A browser tab picks the new worker up when the app's
+ * last tab closes, which is the normal web lifecycle.
  */
 import { Workbox } from "workbox-window";
 import { toast } from "sonner";
 import i18n from "@/i18n";
+import { isInstalledApp } from "@/hooks/useDisplayMode";
 
 /** How often a foregrounded tab may ask the browser to check for a new worker. */
 const UPDATE_CHECK_THROTTLE_MS = 60_000;
@@ -38,7 +50,13 @@ export function registerServiceWorker(): void {
   // Fired when a NEW worker has installed and is waiting because an old one is
   // still controlling this page. `isUpdate` distinguishes that from the very
   // first install, where there is nothing to prompt about.
-  const onWaiting = () => promptForUpdate(wb);
+  //
+  // Checked at event time, not at registration: a merchant can install the
+  // app while this tab is open, and the next update should then prompt.
+  const onWaiting = () => {
+    if (!isInstalledApp()) return;
+    promptForUpdate(wb);
+  };
   wb.addEventListener("waiting", onWaiting);
 
   // The old worker handed over. Reload once so the page runs the new assets.

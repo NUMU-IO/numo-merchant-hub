@@ -20,7 +20,14 @@ const STANDALONE_QUERIES = [
   "(display-mode: minimal-ui)",
 ];
 
-function detect(): boolean {
+/**
+ * Non-hook form, for code that runs outside React.
+ *
+ * `register-sw.ts` needs this at service-worker-event time, which is not a
+ * render. Exported rather than duplicated so there is exactly one answer to
+ * "are we installed?".
+ */
+export function isInstalledApp(): boolean {
   if (typeof window === "undefined") return false;
   const byQuery = STANDALONE_QUERIES.some((q) => window.matchMedia?.(q).matches);
   // iOS legacy flag — absent from TypeScript's Navigator type.
@@ -32,12 +39,12 @@ export function useDisplayMode() {
   // Computed synchronously on first render, not in an effect: a one-frame
   // "browser" flash would make the install CTA blink into view inside an
   // already-installed app.
-  const [isStandalone, setIsStandalone] = useState(detect);
+  const [isStandalone, setIsStandalone] = useState(isInstalledApp);
 
   useEffect(() => {
     if (!window.matchMedia) return;
     const mqls = STANDALONE_QUERIES.map((q) => window.matchMedia(q));
-    const onChange = () => setIsStandalone(detect());
+    const onChange = () => setIsStandalone(isInstalledApp());
     for (const m of mqls) m.addEventListener("change", onChange);
     return () => {
       for (const m of mqls) m.removeEventListener("change", onChange);
