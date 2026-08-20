@@ -141,7 +141,11 @@ import {
 } from "@/components/store-settings/PagesAndHoursPanel";
 import { SeoSettingsPanel } from "@/components/store-settings/SeoSettingsPanel";
 import { apiClient } from "@/services/api";
-import { getStoreUrl, getStoreDomainSuffix } from "@/lib/storefront";
+import {
+  getActiveCustomDomain,
+  getStoreUrl,
+  getStoreDomainSuffix,
+} from "@/lib/storefront";
 import { FontGallery } from "@/components/theme-editor/FontGallery";
 import {
   fetchShippingSettings,
@@ -1895,6 +1899,16 @@ const StoreSettings = () => {
                       {getStoreUrl(currentStore.subdomain)}
                       <ExternalLink className="h-3 w-3" />
                     </a>
+                  )}
+                  {/* Once a custom domain goes live it becomes the store's
+                      public URL everywhere in the hub — say so here so the
+                      NUMU subdomain doesn't read as the primary address. */}
+                  {getActiveCustomDomain(currentStore) && (
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      {language === "ar"
+                        ? `العنوان الأساسي لمتجرك دلوقتي ${getActiveCustomDomain(currentStore)} — الرابط ده بيفضل شغال كعنوان احتياطي.`
+                        : `Your store's primary address is now ${getActiveCustomDomain(currentStore)} — this URL keeps working as a fallback.`}
+                    </p>
                   )}
                 </div>
               </div>

@@ -11,7 +11,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { configureFromWizard, type WizardConfig } from "@/services/storeApi";
 import { createProduct, uploadProductImage } from "@/services/productApi";
-import { getStoreUrl } from "@/lib/storefront";
+import { getPublicStoreUrl } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -612,13 +612,13 @@ export default function OnboardingWizard() {
           {isAr ? "شوف شكل متجرك — تقدر تعدل أي وقت من لوحة التحكم" : "See how your store looks — you can customize anytime from the dashboard"}
         </p>
       </div>
-      {currentStore?.subdomain && (
+      {getPublicStoreUrl(currentStore) && (
         <div className="rounded-xl border overflow-hidden max-w-lg mx-auto">
           <div className="bg-muted/50 px-4 py-2 flex items-center justify-between border-b">
-            <span className="text-xs text-muted-foreground font-mono truncate">{getStoreUrl(currentStore.subdomain)}</span>
+            <span className="text-xs text-muted-foreground font-mono truncate">{getPublicStoreUrl(currentStore)}</span>
             <button
               type="button"
-              onClick={() => window.open(getStoreUrl(currentStore.subdomain), "_blank")}
+              onClick={() => window.open(getPublicStoreUrl(currentStore)!, "_blank")}
               className="text-xs text-primary flex items-center gap-1 hover:underline shrink-0"
             >
               <ExternalLink className="h-3 w-3" />
@@ -626,7 +626,7 @@ export default function OnboardingWizard() {
             </button>
           </div>
           <iframe
-            src={getStoreUrl(currentStore.subdomain)}
+            src={getPublicStoreUrl(currentStore)!}
             className="w-full h-[350px]"
             title="Store Preview"
           />

@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
-import { getStoreUrl } from "@/lib/storefront";
+import { getPublicStoreHost, getPublicStoreUrl } from "@/lib/storefront";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -204,7 +204,7 @@ export default function OnlineStorePages() {
               key={page.id}
               page={page}
               isRTL={isRTL}
-              subdomain={currentStore?.subdomain ?? ""}
+              storeUrl={getPublicStoreUrl(currentStore)}
               onEdit={() => setEditing(toDraft(page))}
               onToggle={() => togglePublish.mutate(page)}
               onDelete={() => setDeleteTarget(page)}
@@ -254,7 +254,7 @@ export default function OnlineStorePages() {
               {(editing.handle || editing.titleEn) && (
                 <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
                   <Globe className="h-3 w-3" />
-                  <span className="opacity-60">{currentStore?.subdomain ?? "yourstore"}.numueg.app/pages/</span>
+                  <span className="opacity-60">{getPublicStoreHost(currentStore) ?? "yourstore.numueg.app"}/pages/</span>
                   <span className="font-medium text-foreground/70">
                     {editing.handle ?? makeSlug(editing.titleEn) ?? "—"}
                   </span>
@@ -420,13 +420,12 @@ export default function OnlineStorePages() {
 
 // ─── Page row ──────────────────────────────────────────────────────────────
 function PageRow({
-  page, isRTL, subdomain, onEdit, onToggle, onDelete,
+  page, isRTL, storeUrl, onEdit, onToggle, onDelete,
 }: {
-  page: StorePage; isRTL: boolean; subdomain: string;
+  page: StorePage; isRTL: boolean; storeUrl: string | null;
   onEdit: () => void; onToggle: () => void; onDelete: () => void;
 }) {
   const displayTitle = (isRTL && page.title?.ar) ? page.title.ar : (page.title?.en || page.handle);
-  const storeUrl = subdomain ? getStoreUrl(subdomain) : null;
   const viewUrl = storeUrl ? `${storeUrl.replace(/\/+$/, "")}/pages/${page.handle}` : null;
 
   return (

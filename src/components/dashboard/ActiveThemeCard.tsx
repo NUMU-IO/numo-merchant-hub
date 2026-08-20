@@ -31,16 +31,14 @@ import { ExternalLink, Palette, Pencil } from "lucide-react";
 import { listInstalled } from "@/services/marketplaceApi";
 import { fetchCustomization, fetchThemes } from "@/services/themeApi";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { getStoreUrl } from "@/lib/storefront";
+import { getPublicStoreUrl } from "@/lib/storefront";
 
 export function ActiveThemeCard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id ?? null;
-  const storeUrl = currentStore?.subdomain
-    ? getStoreUrl(currentStore.subdomain)
-    : null;
+  const storeUrl = getPublicStoreUrl(currentStore);
 
   const installedQuery = useQuery({
     queryKey: ["marketplace-installed", storeId],
