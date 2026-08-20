@@ -805,7 +805,89 @@ export async function deleteInstapayQrImage(
   );
 }
 
-// ─── InstaPay Payment Proofs (merchant review) ────────────────────────────
+// ─── Vodafone Cash Credentials ────────────────────────────────────────────
+//
+// Vodafone Cash is a MANUAL rail, the same shape as InstaPay: the
+// merchant publishes a wallet number, the customer transfers from their
+// own wallet, and a screenshot + reference is verified. There is no API
+// key — Vodafone's merchant API needs a commercial partnership and an
+// aggregator, which is a different product. The wallet number is the
+// only credential.
+
+export interface VodafoneCashCredentialsResponse {
+  is_configured: boolean;
+  enabled?: boolean;
+  /** Masked as 010****5678 — enough to recognise your own number. */
+  wallet_number_masked: string | null;
+  display_name: string | null;
+  fallback_phone: string | null;
+  auto_approve_threshold_cents: number | null;
+  auto_approve_daily_cap_cents: number | null;
+  auto_approve_daily_count: number | null;
+  last_configured: string | null;
+  /** Admin-assigned; read-only here. Null means OCR is off. */
+  ocr_provider?: string | null;
+  require_ocr_amount_match?: boolean;
+  /** "The screenshot's recipient must be my wallet number." Shares the
+   *  InstaPay field name because one rules engine serves both rails. */
+  require_ocr_ipa_match?: boolean;
+  ocr_amount_tolerance_bps?: number;
+  require_note_contains_reference?: boolean;
+  require_transaction_ref_match?: boolean;
+  require_recipient_name_match?: boolean;
+  recipient_name_token?: string | null;
+}
+
+export interface SaveVodafoneCashCredentialsPayload {
+  /** Omit (or send null) when updating an already-configured store to
+   *  keep the saved number. Required on first-time setup. Accepts
+   *  +20 / 0020 prefixes and separators; the backend normalizes. */
+  wallet_number?: string | null;
+  display_name?: string | null;
+  fallback_phone?: string | null;
+  auto_approve_threshold_cents: number;
+  auto_approve_daily_cap_cents: number;
+  auto_approve_daily_count: number;
+  require_ocr_amount_match?: boolean;
+  require_ocr_ipa_match?: boolean;
+  ocr_amount_tolerance_bps?: number;
+  require_note_contains_reference?: boolean;
+  require_transaction_ref_match?: boolean;
+  require_recipient_name_match?: boolean;
+  recipient_name_token?: string | null;
+}
+
+export async function fetchVodafoneCashCredentials(
+  storeId: string,
+): Promise<VodafoneCashCredentialsResponse> {
+  return apiClient<VodafoneCashCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/vodafone-cash/credentials`,
+  );
+}
+
+export async function saveVodafoneCashCredentials(
+  storeId: string,
+  data: SaveVodafoneCashCredentialsPayload,
+): Promise<VodafoneCashCredentialsResponse> {
+  return apiClient<VodafoneCashCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/vodafone-cash/credentials`,
+    { method: "PUT", body: JSON.stringify(data) },
+  );
+}
+
+export async function deleteVodafoneCashCredentials(
+  storeId: string,
+): Promise<VodafoneCashCredentialsResponse> {
+  return apiClient<VodafoneCashCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/vodafone-cash/credentials`,
+    { method: "DELETE" },
+  );
+}
+
+// ─── Manual-rail Payment Proofs (merchant review) ─────────────────────────
+//
+// Endpoint path keeps its historical "instapay" name; the list covers
+// both manual rails.
 
 // Mirrors PaymentProofStatus (Python). Narrow union so switch statements
 // that branch on proof status are checked for exhaustiveness.
