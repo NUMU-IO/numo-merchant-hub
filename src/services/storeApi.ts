@@ -358,6 +358,37 @@ export interface PaymentMethodStatus {
  */
 export const MANUAL_PAYMENT_METHODS = ["instapay", "vodafone_cash"] as const;
 
+/**
+ * A payment method as a merchant should read it.
+ *
+ * `order.payment_method` is a wire enum — rendering it raw put
+ * "vodafone_cash", underscore and all, on the order card. Unknown codes
+ * fall back to a de-underscored, title-cased form so a gateway added later
+ * still reads as words rather than crashing or showing nothing.
+ */
+const PAYMENT_METHOD_LABELS: Record<string, { en: string; ar: string }> = {
+  cod: { en: "Cash on Delivery", ar: "الدفع عند الاستلام" },
+  instapay: { en: "InstaPay", ar: "انستاباي" },
+  vodafone_cash: { en: "Vodafone Cash", ar: "فودافون كاش" },
+  paymob: { en: "Paymob", ar: "باي موب" },
+  paymob_card: { en: "Card (Paymob)", ar: "بطاقة (باي موب)" },
+  kashier: { en: "Kashier", ar: "كاشير" },
+  fawry: { en: "Fawry", ar: "فوري" },
+  fawaterak: { en: "Fawaterak", ar: "فواتيرك" },
+  moyasar: { en: "Moyasar", ar: "ميسر" },
+  bank_transfer: { en: "Bank Transfer", ar: "تحويل بنكي" },
+};
+
+export function paymentMethodLabel(method?: string | null, isAr = false): string {
+  if (!method) return "";
+  const known = PAYMENT_METHOD_LABELS[method];
+  if (known) return isAr ? known.ar : known.en;
+  return method
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 export function isManualPaymentMethod(method?: string | null): boolean {
   return (MANUAL_PAYMENT_METHODS as readonly string[]).includes(method ?? "");
 }
@@ -717,6 +748,8 @@ export interface InstapayCredentialsResponse {
   ipa_masked: string | null;
   ipa_display_name: string | null;
   fallback_phone: string | null;
+  /** Master switch. Off by default on Vodafone Cash. */
+  auto_approve_enabled?: boolean;
   auto_approve_threshold_cents: number | null;
   auto_approve_daily_cap_cents: number | null;
   auto_approve_daily_count: number | null;
@@ -752,6 +785,7 @@ export interface SaveInstapayCredentialsPayload {
   ipa?: string | null;
   ipa_display_name?: string | null;
   fallback_phone?: string | null;
+  auto_approve_enabled?: boolean;
   auto_approve_threshold_cents: number;
   auto_approve_daily_cap_cents: number;
   auto_approve_daily_count: number;
@@ -835,6 +869,8 @@ export interface VodafoneCashCredentialsResponse {
   wallet_number_masked: string | null;
   display_name: string | null;
   fallback_phone: string | null;
+  /** Master switch. Off by default on Vodafone Cash. */
+  auto_approve_enabled?: boolean;
   auto_approve_threshold_cents: number | null;
   auto_approve_daily_cap_cents: number | null;
   auto_approve_daily_count: number | null;
@@ -859,6 +895,7 @@ export interface SaveVodafoneCashCredentialsPayload {
   wallet_number?: string | null;
   display_name?: string | null;
   fallback_phone?: string | null;
+  auto_approve_enabled?: boolean;
   auto_approve_threshold_cents: number;
   auto_approve_daily_cap_cents: number;
   auto_approve_daily_count: number;

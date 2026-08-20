@@ -69,6 +69,7 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
   // The OCR provider is admin-managed and read-only for merchants; we
   // show it as a banner so they understand which engine flagged a proof.
   const [rules, setRules] = useState<ManualRailAutoApprovalValues>({
+    autoApproveEnabled: true,
     thresholdEgp: DEFAULT_THRESHOLD_CENTS / 100,
     dailyCapEgp: DEFAULT_DAILY_CAP_CENTS / 100,
     dailyCount: DEFAULT_DAILY_COUNT,
@@ -129,6 +130,7 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
         setFallbackPhone(c.fallback_phone || "");
         setQrLinkUrl(c.qr_link_url || "");
         setRules({
+          autoApproveEnabled: c.auto_approve_enabled ?? true,
           thresholdEgp:
             (c.auto_approve_threshold_cents ?? DEFAULT_THRESHOLD_CENTS) / 100,
           dailyCapEgp:
@@ -201,6 +203,7 @@ export default function InstapaySetupCard({ storeId, isAr }: Props) {
         ipa: trimmedIpa ? trimmedIpa : null,
         ipa_display_name: displayName.trim() || null,
         fallback_phone: fallbackPhone.trim() || null,
+        auto_approve_enabled: rules.autoApproveEnabled,
         auto_approve_threshold_cents: Math.round(rules.thresholdEgp * 100),
         auto_approve_daily_cap_cents: Math.round(rules.dailyCapEgp * 100),
         auto_approve_daily_count: Math.max(0, Math.floor(rules.dailyCount)),

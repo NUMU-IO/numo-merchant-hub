@@ -69,6 +69,7 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
   const [togglingEnabled, setTogglingEnabled] = useState(false);
 
   const [rules, setRules] = useState<ManualRailAutoApprovalValues>({
+    autoApproveEnabled: false,
     thresholdEgp: DEFAULT_THRESHOLD_CENTS / 100,
     dailyCapEgp: DEFAULT_DAILY_CAP_CENTS / 100,
     dailyCount: DEFAULT_DAILY_COUNT,
@@ -126,6 +127,7 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
         setDisplayName(c.display_name || "");
         setFallbackPhone(c.fallback_phone || "");
         setRules({
+          autoApproveEnabled: c.auto_approve_enabled ?? false,
           thresholdEgp:
             (c.auto_approve_threshold_cents ?? DEFAULT_THRESHOLD_CENTS) / 100,
           dailyCapEgp:
@@ -172,6 +174,7 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
         wallet_number: trimmed ? trimmed : null,
         display_name: displayName.trim() || null,
         fallback_phone: fallbackPhone.trim() || null,
+        auto_approve_enabled: rules.autoApproveEnabled,
         auto_approve_threshold_cents: Math.round(rules.thresholdEgp * 100),
         auto_approve_daily_cap_cents: Math.round(rules.dailyCapEgp * 100),
         auto_approve_daily_count: Math.max(0, Math.floor(rules.dailyCount)),
