@@ -348,6 +348,20 @@ export interface PaymentMethodStatus {
   last_configured: string | null;
 }
 
+/**
+ * Payment methods verified by a customer-uploaded receipt rather than a
+ * gateway callback — InstaPay and Vodafone Cash.
+ *
+ * Anything keyed off "is this order proof-verified?" must test this set
+ * rather than a literal, or the next rail silently gets no proof UI.
+ * Mirrors `MANUAL_TRANSFER_METHODS` in the API.
+ */
+export const MANUAL_PAYMENT_METHODS = ["instapay", "vodafone_cash"] as const;
+
+export function isManualPaymentMethod(method?: string | null): boolean {
+  return (MANUAL_PAYMENT_METHODS as readonly string[]).includes(method ?? "");
+}
+
 /** Gateways that can carry a COD deposit. Must stay in sync with the
  *  backend's `DepositGateway` literal. */
 export type DepositGateway =
