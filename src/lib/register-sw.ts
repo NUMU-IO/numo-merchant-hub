@@ -37,6 +37,13 @@ const UPDATE_CHECK_THROTTLE_MS = 60_000;
 
 let reloading = false;
 
+/**
+ * The live Workbox handle, so recovery can reach the waiting worker from
+ * outside `registerServiceWorker()`. Null in dev and when the PWA is off,
+ * where there is no worker to blame for a stale chunk anyway.
+ */
+let workbox: Workbox | null = null;
+
 export function registerServiceWorker(): void {
   // Dev uses `npm run dev` with devOptions disabled — the worker is validated
   // against `npm run preview`. Registering in dev would serve stale modules
@@ -46,6 +53,7 @@ export function registerServiceWorker(): void {
   if (!("serviceWorker" in navigator)) return;
 
   const wb = new Workbox("/sw.js", { scope: "/" });
+  workbox = wb;
 
   // Fired when a NEW worker has installed and is waiting because an old one is
   // still controlling this page. `isUpdate` distinguishes that from the very
@@ -139,4 +147,91 @@ function promptForUpdate(wb: Workbox): void {
       },
     },
   });
+}
+
+/**
+ * Drop the Workbox precache, so the next load fetches the shell fresh.
+ *
+ * Separate from `purgeServiceWorkerCaches` because that one deliberately
+ * spares the precache (it is a logout/security routine, and the precache
+ * holds no tenant data). Here the precache is precisely what is wrong.
+ *
+ * Resolves either way and self-limits — recovery must never hang.
+ */
+function purgePrecache(timeoutMs = 1500): Promise<void> {
+  return new Promise((resolve) => {
+    const controller = navigator.serviceWorker?.controller;
+    if (!controller) return resolve();
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    try {
+      const channel = new MessageChannel();
+      channel.port1.onmessage = done;
+      controller.postMessage({ type: "PURGE_PRECACHE" }, [channel.port2]);
+      setTimeout(done, timeoutMs);
+    } catch {
+      done();
+    }
+  });
+}
+
+/**
+ * Recover a tab whose precached shell points at chunks that no longer exist.
+ *
+ * Called by the ErrorBoundary on a stale-chunk error — NOT on a schedule and
+ * NOT as a prompt. By the time we get here the app has already failed to
+ * render a route, so the usual reason for waiting politely (don't blow away
+ * a merchant's half-finished form) no longer applies: there is nothing left
+ * on screen to lose.
+ *
+ * Two paths:
+ *   • A worker is WAITING — the new shell is already downloaded. Tell it to
+ *     take over; the "controlling" listener above then reloads exactly once.
+ *   • No worker waiting — the shell is stale with no replacement staged, so
+ *     drop the caches and reload to fetch fresh from the network.
+ *
+ * Always resolves, and always ends in a reload: a recovery path that can
+ * hang is worse than one that occasionally reloads for nothing.
+ */
+export async function recoverFromStaleAssets(): Promise<void> {
+  const reload = () => {
+    if (reloading) return;
+    reloading = true;
+    window.location.reload();
+  };
+
+  const takeOver = (registration: ServiceWorkerRegistration) => {
+    // Let the "controlling" listener do the reload so we don't race it.
+    if (workbox) workbox.messageSkipWaiting();
+    else registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+    // Belt and braces: if the handover never lands, reload anyway.
+    setTimeout(reload, 3_000);
+  };
+
+  try {
+    let registration = await navigator.serviceWorker?.getRegistration();
+    if (!registration) return reload();
+
+    if (registration.waiting) return takeOver(registration);
+
+    // Nothing staged yet — the tab may not have checked since the deploy.
+    // Ask once; a new worker usually installs in well under a second.
+    try {
+      await registration.update();
+    } catch {
+      /* offline or blocked — fall through to the precache purge */
+    }
+    registration = (await navigator.serviceWorker.getRegistration()) ?? registration;
+    if (registration.waiting) return takeOver(registration);
+
+    // Still nothing to hand over to, so the precache itself is the problem.
+    await purgePrecache();
+  } catch {
+    /* no worker, or a wedged one — the reload below is still the best move */
+  }
+  reload();
 }

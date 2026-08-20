@@ -179,6 +179,28 @@ self.addEventListener("message", (event) => {
     return;
   }
 
+  // Sent by ErrorBoundary when a lazy chunk 404s. The precache still holds
+  // an index.html pointing at asset hashes the server no longer serves, so
+  // the tab reloads straight back into the same failure. Dropping the
+  // precache lets Workbox's precache route fall through to the network on
+  // the next load, which fetches the current shell.
+  //
+  // Scoped to the precache ON PURPOSE: unregistering the worker would fix it
+  // too, but takes the push subscription down with it, and the runtime caches
+  // PURGE_CACHES owns are not what went stale.
+  if (type === "PURGE_PRECACHE") {
+    event.waitUntil(
+      (async () => {
+        const names = await caches.keys();
+        await Promise.all(
+          names.filter((n) => n.includes("workbox-precache")).map((n) => caches.delete(n)),
+        );
+        event.ports?.[0]?.postMessage({ type: "PURGE_PRECACHE_DONE" });
+      })(),
+    );
+    return;
+  }
+
   // Sent by AuthContext on logout. SECURITY: a logged-out device must retain no
   // cached application state. Shared phones are common among merchant staff.
   if (type === "PURGE_CACHES") {
