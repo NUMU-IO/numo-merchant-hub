@@ -230,8 +230,55 @@ export const Inbox = () => {
   const sendMutation = useMutation({
     mutationFn: (payload: { type: string; text?: string; template_id?: string }) =>
       sendMessage(storeId!, threadId!, payload),
-    onSuccess: (newMessage) => {
+    // Optimistic: the composer clears and the bubble appears instantly;
+    // the server copy replaces it when the roundtrip (our API + Meta's
+    // send API) finishes. On failure the bubble is removed and the text
+    // restored.
+    onMutate: async (payload) => {
+      const queryKey = ["inbox", "messages", storeId, threadId];
+      const text = payload.text ?? "";
       setMessageText("");
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData(queryKey);
+      const tempId = `temp-${Date.now()}`;
+      const optimistic: MessageDTO = {
+        id: tempId,
+        thread_id: threadId!,
+        direction: "outbound",
+        type: payload.type === "template" ? "template" : "text",
+        body: text || null,
+        attachment_url: null,
+        attachment_mime: null,
+        template_name: null,
+        product_id: null,
+        status: "sent",
+        error_code: null,
+        created_at: new Date().toISOString(),
+        external_timestamp: new Date().toISOString(),
+      };
+      queryClient.setQueryData(queryKey, (old: unknown) => {
+        if (!old) return old;
+        const oldData = old as { pages: { messages: MessageDTO[] }[] };
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page, idx) =>
+            idx === 0
+              ? { ...page, messages: [optimistic, ...page.messages] }
+              : page
+          ),
+        };
+      });
+      return { previous, tempId, text };
+    },
+    onError: (_err, _payload, ctx) => {
+      const queryKey = ["inbox", "messages", storeId, threadId];
+      if (ctx?.previous !== undefined) {
+        queryClient.setQueryData(queryKey, ctx.previous);
+      }
+      if (ctx?.text) setMessageText(ctx.text);
+      toast.error("Failed to send message");
+    },
+    onSuccess: (newMessage, _payload, ctx) => {
       queryClient.setQueryData(
         ["inbox", "messages", storeId, threadId],
         (old: unknown) => {
@@ -241,7 +288,12 @@ export const Inbox = () => {
             ...oldData,
             pages: oldData.pages.map((page, idx) =>
               idx === 0
-                ? { ...page, messages: [newMessage, ...page.messages] }
+                ? {
+                    ...page,
+                    messages: page.messages.map((m) =>
+                      m.id === ctx?.tempId ? newMessage : m
+                    ),
+                  }
                 : page
             ),
           };
