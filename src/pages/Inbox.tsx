@@ -14,7 +14,7 @@ import {
 } from "@/services/inboxApi";
 import { listTemplates, type WhatsAppTemplate } from "@/services/templatesApi";
 import { createInboxSocket, type InboxSocket } from "@/services/inboxSocket";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, isSameDay, isToday, isYesterday } from "date-fns";
 import { ar } from "date-fns/locale";
 import { enUS } from "date-fns/locale";
 import {
@@ -28,6 +28,7 @@ import {
   Paperclip,
   Check,
   CheckCheck,
+  ChevronRight,
   X,
   Loader2,
   FileImage,
@@ -356,7 +357,7 @@ export const Inbox = () => {
         queryClient.setQueryData(queryKey, ctx.previous);
       }
       if (ctx?.text) setMessageText(ctx.text);
-      toast.error("Failed to send message");
+      toast.error(t("omnichannel.send_failed"));
     },
     onSuccess: (newMessage, _payload, ctx) => {
       queryClient.setQueryData(
@@ -469,11 +470,11 @@ export const Inbox = () => {
   };
 
   const handleAttachImage = () => {
-    toast.info("Image attachments coming soon!");
+    toast.info(t("omnichannel.attachments_soon"));
   };
 
   const handleAttachDocument = () => {
-    toast.info("Document attachments coming soon!");
+    toast.info(t("omnichannel.attachments_soon"));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -496,10 +497,21 @@ export const Inbox = () => {
     .flatMap((page) => page.messages)
     .reverse() || [];
 
+  const dayLabel = (date: Date) => {
+    if (isToday(date)) return t("omnichannel.day_today");
+    if (isYesterday(date)) return t("omnichannel.day_yesterday");
+    return format(date, "d MMM yyyy", { locale: isRTL ? ar : enUS });
+  };
+
   return (
     <div className="flex h-[calc(100vh-4rem)]">
-      {/* Thread List */}
-      <div className="w-[380px] border-r flex flex-col bg-background">
+      {/* Thread List — on mobile this is the whole screen until a thread
+          is opened, then the detail pane takes over. */}
+      <div
+        className={`w-full md:w-[360px] lg:w-[380px] border-e flex-col bg-background ${
+          threadId ? "hidden md:flex" : "flex"
+        }`}
+      >
         <div className="p-4 border-b space-y-3">
           <h2 className="text-lg font-semibold">{t("omnichannel.inbox")}</h2>
           <div className="relative">
@@ -582,7 +594,9 @@ export const Inbox = () => {
       </div>
 
       {/* Thread Detail */}
-      <div className="flex-1 flex flex-col">
+      <div
+        className={`flex-1 flex-col min-w-0 ${threadId ? "flex" : "hidden md:flex"}`}
+      >
         {!threadId ? (
           <div className="flex-1 grid place-items-center bg-muted/20">
             <div className="text-center">
@@ -599,6 +613,15 @@ export const Inbox = () => {
             {/* Thread Header */}
             <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden -ms-2 shrink-0"
+                  aria-label={t("omnichannel.back_to_list")}
+                  onClick={() => navigate("/inbox")}
+                >
+                  <ChevronRight className={isRTL ? "h-5 w-5" : "h-5 w-5 rotate-180"} />
+                </Button>
                 <ParticipantAvatar
                   name={currentThread?.participant.name || "—"}
                   avatarUrl={currentThread?.participant.avatar_url}
@@ -630,7 +653,7 @@ export const Inbox = () => {
                   }
                 }}
               >
-                {t("omnichannel.thread_status_resolved")}
+                {t("omnichannel.resolve")}
               </Button>
             </div>
 
@@ -650,10 +673,31 @@ export const Inbox = () => {
                   <p>{t("omnichannel.no_messages_yet")}</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {allMessages.map((message) => (
-                    <MessageBubble key={message.id} message={message} isRTL={isRTL} />
-                  ))}
+                <div className="space-y-2 pb-2">
+                  {allMessages.map((message, idx) => {
+                    const sentAt = new Date(message.created_at);
+                    const prev = idx > 0 ? allMessages[idx - 1] : null;
+                    const startsNewDay =
+                      !prev || !isSameDay(new Date(prev.created_at), sentAt);
+                    const startsNewGroup =
+                      !prev || startsNewDay || prev.direction !== message.direction;
+
+                    return (
+                      <div
+                        key={message.id}
+                        className={startsNewGroup && idx > 0 ? "pt-2" : undefined}
+                      >
+                        {startsNewDay && (
+                          <div className="flex justify-center py-3">
+                            <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                              {dayLabel(sentAt)}
+                            </span>
+                          </div>
+                        )}
+                        <MessageBubble message={message} isRTL={isRTL} />
+                      </div>
+                    );
+                  })}
                   <div ref={messagesEndRef} />
                 </div>
               )}
@@ -800,7 +844,7 @@ export const Inbox = () => {
           <DialogHeader>
             <DialogTitle>{t("omnichannel.attach_template")}</DialogTitle>
             <DialogDescription>
-              Select a template to send to this conversation
+              {t("omnichannel.template_picker_desc")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 mt-4">
@@ -819,8 +863,8 @@ export const Inbox = () => {
                 </button>
               ))}
             {approvedTemplates.filter((t) => t.status === "APPROVED").length === 0 && (
-              <p className="text-center text-muted-foreground py-4">
-                No approved templates available
+              <p className="text-center text-sm text-muted-foreground py-6">
+                {t("omnichannel.no_templates")}
               </p>
             )}
           </div>
