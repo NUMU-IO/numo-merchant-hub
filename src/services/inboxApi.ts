@@ -53,6 +53,37 @@ export interface ListThreadsParams {
   limit?: number;
 }
 
+// The API returns threads with flat participant_* fields; the UI works
+// with a nested `participant` object.
+interface RawThread {
+  id: string;
+  channel: ThreadDTO["channel"];
+  participant_name: string | null;
+  participant_avatar_url: string | null;
+  participant_phone: string | null;
+  status: ThreadDTO["status"];
+  last_message_at: string;
+  last_message_preview: string;
+  unread_count: number;
+}
+
+function mapThread(raw: RawThread): ThreadDTO {
+  return {
+    id: raw.id,
+    channel: raw.channel,
+    status: raw.status,
+    last_message_at: raw.last_message_at,
+    last_message_preview: raw.last_message_preview ?? "",
+    unread_count: raw.unread_count ?? 0,
+    participant: {
+      id: raw.id,
+      name: raw.participant_name || "Customer",
+      avatar_url: raw.participant_avatar_url ?? null,
+      phone_e164: raw.participant_phone ?? null,
+    },
+  };
+}
+
 export async function listThreads(
   storeId: string,
   params?: ListThreadsParams,
@@ -66,11 +97,21 @@ export async function listThreads(
     });
   }
   const query = qs.toString();
-  return apiClient(`/stores/${storeId}/threads/${query ? `?${query}` : ""}`);
+  const res = await apiClient(`/stores/${storeId}/threads/${query ? `?${query}` : ""}`) as {
+    threads: RawThread[];
+    next_cursor: string | null;
+    total_unread: number;
+  };
+  return {
+    threads: (res.threads ?? []).map(mapThread),
+    next_cursor: res.next_cursor ?? null,
+    total_unread: res.total_unread ?? 0,
+  };
 }
 
 export async function getThread(storeId: string, threadId: string): Promise<ThreadDTO> {
-  return apiClient(`/stores/${storeId}/threads/${threadId}`);
+  const raw = await apiClient(`/stores/${storeId}/threads/${threadId}`) as RawThread;
+  return mapThread(raw);
 }
 
 export async function listMessages(
