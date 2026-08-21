@@ -194,6 +194,7 @@ interface MessageBubbleProps {
 
 const MessageBubble = ({ message, isRTL }: MessageBubbleProps) => {
   const { t } = useTranslation();
+  const [previewFailed, setPreviewFailed] = useState(false);
   const isInbound = message.direction === "inbound";
   const statusIcon = !isInbound ? (
     message.status === "sent" ? (
@@ -224,25 +225,32 @@ const MessageBubble = ({ message, isRTL }: MessageBubbleProps) => {
             : "bg-primary text-primary-foreground rounded-2xl rounded-se-sm"
         }`}
       >
-        {message.attachment_url && message.type === "image" ? (
-          <img
-            src={message.attachment_url}
-            alt=""
-            className="max-w-full rounded-lg mb-2"
-          />
-        ) : message.attachment_url ? (
-          // Shared posts, reels, voice notes and files: Meta gives a URL
-          // we can't preview inline, so link it rather than showing an
-          // empty bubble.
-          <a
-            href={message.attachment_url}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-2 text-sm underline underline-offset-2 mb-1"
-          >
-            <Paperclip className="h-3.5 w-3.5 shrink-0" />
-            {t("omnichannel.open_attachment")}
-          </a>
+        {message.attachment_url ? (
+          // Shared posts and reels arrive typed as documents even though
+          // the asset itself is an image, so try to preview anything with
+          // a URL and fall back to a link when the browser can't load it
+          // (video, audio, files, or an expired Meta CDN signature).
+          previewFailed ? (
+            <a
+              href={message.attachment_url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 text-sm underline underline-offset-2 mb-1"
+            >
+              <Paperclip className="h-3.5 w-3.5 shrink-0" />
+              {t("omnichannel.open_attachment")}
+            </a>
+          ) : (
+            <a href={message.attachment_url} target="_blank" rel="noreferrer">
+              <img
+                src={message.attachment_url}
+                alt=""
+                loading="lazy"
+                onError={() => setPreviewFailed(true)}
+                className="max-h-64 max-w-full rounded-lg mb-1 object-cover"
+              />
+            </a>
+          )
         ) : null}
         {message.body && (
           <p className="text-sm whitespace-pre-wrap break-words">{message.body}</p>
