@@ -5,6 +5,7 @@ import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tansta
 import { useDashboardStore } from "@/contexts/StoreContext";
 import {
   listThreads,
+  getThread,
   listMessages,
   sendMessage,
   markThreadRead,
@@ -192,6 +193,8 @@ interface MessageBubbleProps {
 }
 
 const MessageBubble = ({ message, isRTL }: MessageBubbleProps) => {
+  const { t } = useTranslation();
+  const [previewFailed, setPreviewFailed] = useState(false);
   const isInbound = message.direction === "inbound";
   const statusIcon = !isInbound ? (
     message.status === "sent" ? (
@@ -222,15 +225,40 @@ const MessageBubble = ({ message, isRTL }: MessageBubbleProps) => {
             : "bg-primary text-primary-foreground rounded-2xl rounded-se-sm"
         }`}
       >
-        {message.attachment_url && message.type === "image" && (
-          <img
-            src={message.attachment_url}
-            alt=""
-            className="max-w-full rounded-lg mb-2"
-          />
-        )}
+        {message.attachment_url ? (
+          // Shared posts and reels arrive typed as documents even though
+          // the asset itself is an image, so try to preview anything with
+          // a URL and fall back to a link when the browser can't load it
+          // (video, audio, files, or an expired Meta CDN signature).
+          previewFailed ? (
+            <a
+              href={message.attachment_url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 text-sm underline underline-offset-2 mb-1"
+            >
+              <Paperclip className="h-3.5 w-3.5 shrink-0" />
+              {t("omnichannel.open_attachment")}
+            </a>
+          ) : (
+            <a href={message.attachment_url} target="_blank" rel="noreferrer">
+              <img
+                src={message.attachment_url}
+                alt=""
+                loading="lazy"
+                onError={() => setPreviewFailed(true)}
+                className="max-h-64 max-w-full rounded-lg mb-1 object-cover"
+              />
+            </a>
+          )
+        ) : null}
         {message.body && (
           <p className="text-sm whitespace-pre-wrap break-words">{message.body}</p>
+        )}
+        {!message.body && !message.attachment_url && (
+          <p className="text-sm italic opacity-70">
+            {t("omnichannel.unsupported_message")}
+          </p>
         )}
         {message.type === "template" && message.template_name && (
           <p className="text-sm italic">{message.template_name}</p>
@@ -281,7 +309,16 @@ export const Inbox = () => {
     enabled: !!storeId,
   });
 
-  const currentThread = threadsQuery.data?.threads.find((t) => t.id === threadId);
+  // The open thread may not be in the current list (a channel filter or
+  // search can exclude it), so fall back to fetching it directly —
+  // otherwise the panel renders a nameless conversation.
+  const threadInList = threadsQuery.data?.threads.find((t) => t.id === threadId);
+  const threadQuery = useQuery({
+    queryKey: ["inbox", "thread", storeId, threadId],
+    queryFn: () => getThread(storeId!, threadId!),
+    enabled: !!storeId && !!threadId && !threadInList,
+  });
+  const currentThread = threadInList ?? threadQuery.data;
 
   const isWAWindowClosed = currentThread?.channel === "whatsapp" && currentThread?.last_message_at
     ? Date.now() - new Date(currentThread.last_message_at).getTime() > 24 * 60 * 60 * 1000
