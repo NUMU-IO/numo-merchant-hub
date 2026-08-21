@@ -63,11 +63,18 @@ const proofStatusColor: Record<string, string> = {
 // Friendly text + tone class per OCR status discriminator. Kept
 // outside the component so the bilingual lookup is a pure function;
 // the UI just renders ocrStatusCopy[status][lang].
+//
+// "ok" is deliberately NOT called "Verified", and deliberately not green.
+// It means the provider ran and returned text — nothing more. Whether the
+// amount, recipient or reference actually matched is decided by the opt-in
+// rules in payment settings, which are off unless the merchant turned them
+// on. Labelling a successful read as "Verified" put a green tick on a
+// screenshot of a GitHub page.
 const ocrStatusCopy: Record<
   OcrStatus,
   { en: string; ar: string; tone: "ok" | "warn" | "muted" }
 > = {
-  ok: { en: "Verified", ar: "تم التحقق", tone: "ok" },
+  ok: { en: "Image read", ar: "تمت قراءة الصورة", tone: "muted" },
   skipped: {
     en: "OCR not run",
     ar: "لم يتم التحقق",
@@ -410,6 +417,22 @@ export default function InstapayProofReview({
                 </span>
               ) : null}
             </div>
+            {/* Nothing found. A genuine receipt yields an amount at the
+                very least, so "read fine, found nothing" is the loudest
+                signal available that this image is not a receipt — and it
+                used to render as blank space beneath a green tick. */}
+            {latest.ocr_status === "ok" &&
+              latest.ocr_extracted_amount_cents == null &&
+              !latest.ocr_extracted_ipa &&
+              !latest.ocr_extracted_note &&
+              !latest.ocr_extracted_transaction_ref &&
+              !latest.ocr_extracted_recipient_name && (
+                <div className="pt-1 border-t border-current/20 font-medium text-amber-800">
+                  {isAr
+                    ? "لم يُعثر على أي بيانات دفع في هذه الصورة — لا مبلغ ولا رقم مرجعي ولا مستلم. راجعها بنفسك قبل القبول."
+                    : "No payment details found in this image — no amount, no reference, no recipient. Check it yourself before accepting."}
+                </div>
+              )}
             {(latest.ocr_extracted_amount_cents != null ||
               latest.ocr_extracted_ipa ||
               latest.ocr_extracted_note ||
