@@ -132,6 +132,8 @@ export interface JourneyTouch {
   utm_content: string | null;
   gclid: string | null;
   fbclid: string | null;
+  /** TikTok click id. Optional: older API builds omit it. */
+  ttclid?: string | null;
   referrer: string | null;
   landing_path: string | null;
   campaign_id: string | null;

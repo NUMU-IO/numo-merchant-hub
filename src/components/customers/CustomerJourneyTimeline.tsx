@@ -182,7 +182,11 @@ function TouchRow({ touch, isAr }: TouchRowProps) {
           )}
         </div>
 
-        {(touch.utm_term || touch.utm_content || touch.gclid || touch.fbclid) && (
+        {(touch.utm_term ||
+          touch.utm_content ||
+          touch.gclid ||
+          touch.fbclid ||
+          touch.ttclid) && (
           <div className="flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
             {touch.utm_term && (
               <span className="font-mono">term: {touch.utm_term}</span>
@@ -195,6 +199,9 @@ function TouchRow({ touch, isAr }: TouchRowProps) {
             )}
             {touch.fbclid && (
               <span className="font-mono">fbclid: {touch.fbclid.slice(0, 12)}…</span>
+            )}
+            {touch.ttclid && (
+              <span className="font-mono">ttclid: {touch.ttclid.slice(0, 12)}…</span>
             )}
           </div>
         )}
