@@ -10,10 +10,13 @@ import {
   sendMessage,
   markThreadRead,
   resolveThread,
+  linkCustomer,
+  unlinkCustomer,
   type ThreadDTO,
   type MessageDTO,
 } from "@/services/inboxApi";
 import { listTemplates, type WhatsAppTemplate } from "@/services/templatesApi";
+import { getCustomer, listCustomers } from "@/services/customerApi";
 import { createInboxSocket, type InboxSocket } from "@/services/inboxSocket";
 import { format, formatDistanceToNow, isSameDay, isToday, isYesterday } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -27,6 +30,7 @@ import {
   Image,
   FileText,
   Paperclip,
+  Link2 as LinkIcon,
   Check,
   CheckCheck,
   ChevronRight,
@@ -49,6 +53,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { formatMoney } from "@/lib/format-money";
 
 const channelIcons = {
   facebook: Facebook,
@@ -296,6 +301,8 @@ export const Inbox = () => {
   const [messageText, setMessageText] = useState("");
   const [socket, setSocket] = useState<InboxSocket | null>(null);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const threadsQuery = useQuery({
@@ -336,6 +343,46 @@ export const Inbox = () => {
     queryKey: ["whatsapp-templates", storeId, "approved"],
     queryFn: () => listTemplates(storeId!),
     enabled: !!storeId && showTemplatePicker,
+  });
+
+  // Linked customer: identity plus the order history that makes a reply
+  // useful ("you've ordered 3 times" beats a bare social handle).
+  const linkedCustomerQuery = useQuery({
+    queryKey: ["customer", storeId, currentThread?.customer_id],
+    queryFn: () => getCustomer(storeId!, currentThread!.customer_id!),
+    enabled: !!storeId && !!currentThread?.customer_id,
+  });
+
+  const customerSearchQuery = useQuery({
+    queryKey: ["customers", storeId, "picker", customerSearch],
+    queryFn: () =>
+      listCustomers(storeId!, { query: customerSearch || undefined, limit: 8 }),
+    enabled: !!storeId && showCustomerPicker,
+  });
+
+  const invalidateThread = () => {
+    queryClient.invalidateQueries({ queryKey: ["inbox", "threads", storeId] });
+    queryClient.invalidateQueries({
+      queryKey: ["inbox", "thread", storeId, threadId],
+    });
+  };
+
+  const linkMutation = useMutation({
+    mutationFn: (customerId: string) =>
+      linkCustomer(storeId!, threadId!, customerId),
+    onSuccess: () => {
+      setShowCustomerPicker(false);
+      setCustomerSearch("");
+      invalidateThread();
+      toast.success(t("omnichannel.linked_toast"));
+    },
+    onError: () => toast.error(t("omnichannel.link_failed")),
+  });
+
+  const unlinkMutation = useMutation({
+    mutationFn: () => unlinkCustomer(storeId!, threadId!),
+    onSuccess: invalidateThread,
+    onError: () => toast.error(t("omnichannel.link_failed")),
   });
 
   const markReadMutation = useMutation({
@@ -863,17 +910,139 @@ export const Inbox = () => {
             </dl>
           </div>
 
-          <div className="p-5 space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("omnichannel.context_orders")}
-            </p>
-            <p className="text-sm">{t("omnichannel.context_no_orders")}</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {t("omnichannel.context_no_orders_hint")}
-            </p>
+          <div className="p-5 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("omnichannel.context_customer")}
+              </p>
+              {currentThread.customer_id && (
+                <button
+                  onClick={() => unlinkMutation.mutate()}
+                  className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                >
+                  {t("omnichannel.unlink")}
+                </button>
+              )}
+            </div>
+
+            {currentThread.customer_id ? (
+              linkedCustomerQuery.isLoading ? (
+                <Skeleton className="h-16 w-full" />
+              ) : linkedCustomerQuery.data ? (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {linkedCustomerQuery.data.full_name}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {linkedCustomerQuery.data.email}
+                    </p>
+                    {linkedCustomerQuery.data.phone && (
+                      <p className="text-xs text-muted-foreground tabular-nums" dir="ltr">
+                        {linkedCustomerQuery.data.phone}
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border bg-background p-2.5">
+                      <p className="text-[11px] text-muted-foreground">
+                        {t("omnichannel.stat_orders")}
+                      </p>
+                      <p className="text-lg font-semibold tabular-nums">
+                        {linkedCustomerQuery.data.total_orders}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border bg-background p-2.5">
+                      <p className="text-[11px] text-muted-foreground">
+                        {t("omnichannel.stat_spent")}
+                      </p>
+                      <p className="text-lg font-semibold tabular-nums">
+                        {formatMoney(linkedCustomerQuery.data.total_spent, { fromCents: true, locale: language })}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() =>
+                      navigate(`/customers/${currentThread.customer_id}`)
+                    }
+                  >
+                    {t("omnichannel.view_customer")}
+                  </Button>
+                </div>
+              ) : null
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {t("omnichannel.context_no_customer_hint")}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowCustomerPicker(true)}
+                >
+                  <LinkIcon className="h-3.5 w-3.5 me-1.5" />
+                  {t("omnichannel.link_customer")}
+                </Button>
+              </div>
+            )}
           </div>
         </aside>
       )}
+
+      {/* Customer Link Dialog */}
+      <Dialog open={showCustomerPicker} onOpenChange={setShowCustomerPicker}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("omnichannel.link_customer")}</DialogTitle>
+            <DialogDescription>
+              {t("omnichannel.link_customer_desc")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="relative mt-2">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              autoFocus
+              placeholder={t("omnichannel.search_customers")}
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+              className="ps-9"
+            />
+          </div>
+          <div className="mt-3 max-h-72 overflow-y-auto space-y-1">
+            {customerSearchQuery.isLoading ? (
+              <Skeleton className="h-12 w-full" />
+            ) : customerSearchQuery.data?.items.length ? (
+              customerSearchQuery.data.items.map((customer) => (
+                <button
+                  key={customer.id}
+                  onClick={() => linkMutation.mutate(customer.id)}
+                  disabled={linkMutation.isPending}
+                  className="w-full rounded-lg p-2.5 text-start hover:bg-muted transition-colors disabled:opacity-50"
+                >
+                  <p className="text-sm font-medium truncate">{customer.full_name}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {[customer.phone, customer.email].filter(Boolean).join(" · ")}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {t("omnichannel.customer_summary", {
+                      orders: customer.total_orders,
+                      spent: formatMoney(customer.total_spent, { fromCents: true, locale: language }),
+                    })}
+                  </p>
+                </button>
+              ))
+            ) : (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {t("omnichannel.no_customers_found")}
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Template Picker Dialog */}
       <Dialog open={showTemplatePicker} onOpenChange={setShowTemplatePicker}>
