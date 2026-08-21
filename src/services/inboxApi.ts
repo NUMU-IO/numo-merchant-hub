@@ -15,6 +15,7 @@ export interface ThreadDTO {
   last_message_at: string;
   last_message_preview: string;
   unread_count: number;
+  customer_id: string | null;
 }
 
 export interface MessageDTO {
@@ -65,6 +66,7 @@ interface RawThread {
   last_message_at: string;
   last_message_preview: string;
   unread_count: number;
+  customer_id: string | null;
 }
 
 // Meta withholds sender profiles until the app has Advanced Access, so a
@@ -84,6 +86,7 @@ function mapThread(raw: RawThread): ThreadDTO {
     last_message_at: raw.last_message_at,
     last_message_preview: raw.last_message_preview ?? "",
     unread_count: raw.unread_count ?? 0,
+    customer_id: raw.customer_id ?? null,
     participant: {
       id: raw.id,
       name:
@@ -164,4 +167,24 @@ export async function markThreadRead(storeId: string, threadId: string): Promise
 
 export async function resolveThread(storeId: string, threadId: string): Promise<void> {
   return apiClient(`/stores/${storeId}/threads/${threadId}/resolve`, { method: "POST" });
+}
+
+export async function linkCustomer(
+  storeId: string,
+  threadId: string,
+  customerId: string,
+): Promise<void> {
+  return apiClient(`/stores/${storeId}/threads/${threadId}/customer`, {
+    method: "POST",
+    body: JSON.stringify({ customer_id: customerId }),
+  });
+}
+
+export async function unlinkCustomer(
+  storeId: string,
+  threadId: string,
+): Promise<void> {
+  return apiClient(`/stores/${storeId}/threads/${threadId}/customer`, {
+    method: "DELETE",
+  });
 }
