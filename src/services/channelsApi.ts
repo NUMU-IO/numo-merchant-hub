@@ -11,8 +11,15 @@ export interface ChannelConnectionDTO {
   webhook_subscribed_at: string | null;
 }
 
+// Must be listed in the Meta app's Valid OAuth Redirect URIs and must be
+// identical between the authorize call and the code exchange.
+const metaRedirectUri = () => `${window.location.origin}/channels/oauth/meta/callback`;
+
 export async function startOAuth(storeId: string): Promise<{ authorization_url: string; state: string }> {
-  return apiClient(`/stores/${storeId}/channels/connect`, { method: "POST" });
+  return apiClient(`/stores/${storeId}/channels/connect`, {
+    method: "POST",
+    body: JSON.stringify({ store_id: storeId, redirect_uri: metaRedirectUri() }),
+  });
 }
 
 export async function handleOAuthCallback(
@@ -22,7 +29,7 @@ export async function handleOAuthCallback(
 ): Promise<{ connections: ChannelConnectionDTO[] }> {
   return apiClient(`/stores/${storeId}/channels/callback`, {
     method: "POST",
-    body: JSON.stringify({ code, state }),
+    body: JSON.stringify({ code, state, redirect_uri: metaRedirectUri() }),
   });
 }
 
