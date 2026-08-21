@@ -67,6 +67,15 @@ interface RawThread {
   unread_count: number;
 }
 
+// Meta withholds sender profiles until the app has Advanced Access, so a
+// thread can legitimately have no name. Fall back to the channel's own
+// label rather than a generic "Customer" for every row.
+const channelLabels: Record<ThreadDTO["channel"], string> = {
+  facebook: "Messenger",
+  instagram: "Instagram",
+  whatsapp: "WhatsApp",
+};
+
 function mapThread(raw: RawThread): ThreadDTO {
   return {
     id: raw.id,
@@ -77,7 +86,10 @@ function mapThread(raw: RawThread): ThreadDTO {
     unread_count: raw.unread_count ?? 0,
     participant: {
       id: raw.id,
-      name: raw.participant_name || "Customer",
+      name:
+        raw.participant_name ||
+        raw.participant_phone ||
+        `${channelLabels[raw.channel]} · ${String(raw.id).slice(0, 4)}`,
       avatar_url: raw.participant_avatar_url ?? null,
       phone_e164: raw.participant_phone ?? null,
     },
