@@ -9,6 +9,8 @@ export interface ChannelConnectionDTO {
   token_expires_at: string | null;
   last_error: string | null;
   webhook_subscribed_at: string | null;
+  linked_page_id: string | null;
+  is_active: boolean;
 }
 
 // Must be listed in the Meta app's Valid OAuth Redirect URIs and must be
@@ -22,15 +24,47 @@ export async function startOAuth(storeId: string): Promise<{ authorization_url: 
   });
 }
 
-export async function handleOAuthCallback(
+export interface MetaAsset {
+  page_id: string;
+  page_name: string | null;
+  instagram: { id: string; name: string | null } | null;
+}
+
+/**
+ * Exchanges the OAuth code and returns what COULD be connected. Nothing
+ * is connected until the merchant picks assets and calls connectAssets.
+ */
+export async function fetchAvailableAssets(
   storeId: string,
   code: string,
   state: string,
-): Promise<{ connections: ChannelConnectionDTO[] }> {
+): Promise<{ state: string; assets: MetaAsset[] }> {
   return apiClient(`/stores/${storeId}/channels/callback`, {
     method: "POST",
     body: JSON.stringify({ code, state, redirect_uri: metaRedirectUri() }),
   });
+}
+
+export async function connectAssets(
+  storeId: string,
+  state: string,
+  pageIds: string[],
+): Promise<ChannelConnectionDTO[]> {
+  return apiClient(`/stores/${storeId}/channels/connect-assets`, {
+    method: "POST",
+    body: JSON.stringify({ state, page_ids: pageIds }),
+  });
+}
+
+export async function syncHistory(
+  storeId: string,
+  connectionId: string,
+  sinceDays = 90,
+): Promise<void> {
+  return apiClient(
+    `/stores/${storeId}/channels/${connectionId}/sync-history?since_days=${sinceDays}`,
+    { method: "POST" },
+  );
 }
 
 export async function listConnections(storeId: string): Promise<ChannelConnectionDTO[]> {
