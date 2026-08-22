@@ -43,7 +43,7 @@ const DashboardLayout = () => {
   // store id the header bell uses, so the badge and the bell can never
   // disagree. No-ops where the Badging API is unsupported — notably Chrome
   // for Android.
-  const unreadNotifications = useUnreadNotificationCount(currentStore?.id);
+  const unreadNotifications = useUnreadNotificationCount(currentStore?.id, { poll: true });
   useAppBadge(unreadNotifications);
   // Same count on the browser tab: numbered favicon + "(n) " title prefix.
   useFaviconBadge(unreadNotifications);

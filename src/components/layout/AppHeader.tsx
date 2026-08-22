@@ -31,6 +31,7 @@ import { getPublicStoreUrl } from "@/lib/storefront";
 import { SearchPalette } from "@/components/layout/SearchPalette";
 import WalletHeaderChip from "@/components/wallet/WalletHeaderChip";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { AddMenu } from "@/components/layout/AddMenu";
 import { getRealtimeSnapshot } from "@/services/analyticsApi";
 import { cn } from "@/lib/utils";
 
@@ -60,7 +61,8 @@ const AppHeader = () => {
 
   // Live-visitor count — refetches every 30s.
   const realtimeQuery = useQuery({
-    queryKey: ["header", "realtime", storeId],
+    // Same key as the Live analytics tab so the two 30 s polls dedupe into one.
+    queryKey: ["analytics", "realtime-snapshot", storeId],
     queryFn: () => getRealtimeSnapshot(storeId!),
     enabled: !!storeId,
     refetchInterval: 30_000,
@@ -106,22 +108,27 @@ const AppHeader = () => {
           </span>
         </Link>
 
-        <div className="flex-1" />
+        {/* "+ Add" — Zid-style quick-create menu next to the brand */}
+        <AddMenu className="ms-1" />
 
-        {/* End: controls */}
-        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-          {/* Search pill */}
+        {/* Center: search pill (Zid puts search in the middle of the bar) */}
+        <div className="hidden min-w-0 flex-1 justify-center px-3 md:flex">
           <button
             type="button"
             onClick={() => setSearchOpen(true)}
-            className="hidden md:flex h-10 min-w-[220px] items-center gap-2.5 rounded-xl border border-white/15 bg-white/10 px-3.5 text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+            className="flex h-10 w-full max-w-[460px] items-center gap-2.5 rounded-xl border border-white/15 bg-white/10 px-3.5 text-white/80 transition-colors hover:bg-white/15 hover:text-white"
           >
             <Search className="h-[17px] w-[17px]" />
-            <span className="text-[13px]">{t("header.search")}</span>
+            <span className="truncate text-[13px]">{t("header.search")}</span>
             <kbd className="ms-auto pointer-events-none hidden h-[20px] select-none items-center rounded-md border border-white/20 bg-white/10 px-1.5 font-mono text-[10.5px] font-medium text-white/70 sm:flex">
-              ⌘K
+              Ctrl+K
             </kbd>
           </button>
+        </div>
+        <div className="flex-1 md:hidden" />
+
+        {/* End: controls */}
+        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
           <Button
             variant="ghost"
             size="icon"
