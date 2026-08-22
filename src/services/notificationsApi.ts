@@ -3,6 +3,9 @@
  *
  * Rows carry a machine `kind` + `data` snapshot, not rendered copy; see
  * `lib/notifications/render.ts` for the bilingual titles.
+ *
+ * `apiClient` already unwraps the `{success, data}` envelope, so every
+ * function here returns its result directly (no `.data`).
  */
 
 import { apiClient } from "./api";
@@ -68,7 +71,7 @@ function base(storeId: string) {
   return `/stores/${storeId}/notifications`;
 }
 
-export async function listNotifications(
+export function listNotifications(
   storeId: string,
   params: ListNotificationsParams = {},
 ): Promise<NotificationListResponse> {
@@ -79,17 +82,11 @@ export async function listNotifications(
   if (params.cursor) qs.set("cursor", params.cursor);
   if (params.limit) qs.set("limit", String(params.limit));
   const q = qs.toString();
-  const res = await apiClient<{ data: NotificationListResponse }>(
-    `${base(storeId)}/${q ? `?${q}` : ""}`,
-  );
-  return res.data;
+  return apiClient<NotificationListResponse>(`${base(storeId)}/${q ? `?${q}` : ""}`);
 }
 
-export async function getUnreadCounts(storeId: string): Promise<UnreadCounts> {
-  const res = await apiClient<{ data: UnreadCounts }>(
-    `${base(storeId)}/unread-count`,
-  );
-  return res.data;
+export function getUnreadCounts(storeId: string): Promise<UnreadCounts> {
+  return apiClient<UnreadCounts>(`${base(storeId)}/unread-count`);
 }
 
 export async function markNotificationsRead(
@@ -97,43 +94,36 @@ export async function markNotificationsRead(
   ids: string[],
 ): Promise<number> {
   if (ids.length === 0) return 0;
-  const res = await apiClient<{ data: { updated: number } }>(
-    `${base(storeId)}/read`,
-    { method: "POST", body: JSON.stringify({ ids }) },
-  );
-  return res.data.updated;
+  const res = await apiClient<{ updated: number }>(`${base(storeId)}/read`, {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  });
+  return res.updated;
 }
 
 export async function markAllNotificationsRead(
   storeId: string,
   category?: NotificationCategory,
 ): Promise<number> {
-  const res = await apiClient<{ data: { updated: number } }>(
-    `${base(storeId)}/read-all`,
-    {
-      method: "POST",
-      body: JSON.stringify(category ? { category } : {}),
-    },
-  );
-  return res.data.updated;
+  const res = await apiClient<{ updated: number }>(`${base(storeId)}/read-all`, {
+    method: "POST",
+    body: JSON.stringify(category ? { category } : {}),
+  });
+  return res.updated;
 }
 
-export async function getNotificationPreferences(
+export function getNotificationPreferences(
   storeId: string,
 ): Promise<NotificationPreferences> {
-  const res = await apiClient<{ data: NotificationPreferences }>(
-    `${base(storeId)}/preferences`,
-  );
-  return res.data;
+  return apiClient<NotificationPreferences>(`${base(storeId)}/preferences`);
 }
 
-export async function updateNotificationPreferences(
+export function updateNotificationPreferences(
   storeId: string,
   patch: Partial<NotificationPreferences>,
 ): Promise<NotificationPreferences> {
-  const res = await apiClient<{ data: NotificationPreferences }>(
-    `${base(storeId)}/preferences`,
-    { method: "PUT", body: JSON.stringify(patch) },
-  );
-  return res.data;
+  return apiClient<NotificationPreferences>(`${base(storeId)}/preferences`, {
+    method: "PUT",
+    body: JSON.stringify(patch),
+  });
 }
