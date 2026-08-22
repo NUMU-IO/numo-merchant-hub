@@ -26,6 +26,7 @@ import { purgeServiceWorkerCaches } from "@/lib/register-sw";
 import { revokePushSubscription } from "@/services/pushApi";
 import { clearPersistedQueries } from "@/lib/query-persist";
 import type { User, RegisterData, TenantInfo } from "@/services/authApi";
+import { refreshSession } from "@/services/authApi";
 
 /**
  * Last known signed-in user, so an OFFLINE boot can render the app instead of
@@ -139,7 +140,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         // a security hole: every subsequent API call still goes through the
         // real 401 → refresh → redirect path, so a genuinely dead session is
         // caught the moment the merchant does anything.
-        const isNetworkFailure = (err as { status?: number } | null)?.status === 0;
+        // Same treatment for a 429 (rate-limited) and any 5xx (deploy window,
+        // DB pool exhaustion): the server didn't say "no session", it said
+        // "not right now". Only a 401/403 means the session is really over.
+        const status = (err as { status?: number } | null)?.status ?? 0;
+        const isNetworkFailure = status === 0 || status === 429 || status >= 500;
         const cached = isNetworkFailure ? readCachedSessionUser() : null;
 
         if (cached) {
@@ -160,21 +165,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // Refetch user when the tab regains focus so per-tenant feature flag
   // flips made elsewhere (admin panel, another tab) propagate without
   // needing a hard reload.
+  // One listener (visibilitychange fires on every alt-tab return; the extra
+  // `focus` listener doubled every /auth/me call), throttled to 30 s.
   useEffect(() => {
+    let last = 0;
     const refresh = () => {
-      if (document.visibilityState === "visible") {
-        getMe()
-          .then((u) => setUser(u))
-          .catch(() => {});
-      }
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - last < 30_000) return;
+      last = now;
+      getMe()
+        .then((u) => setUser(u))
+        .catch(() => {});
     };
     document.addEventListener("visibilitychange", refresh);
-    window.addEventListener("focus", refresh);
-    return () => {
-      document.removeEventListener("visibilitychange", refresh);
-      window.removeEventListener("focus", refresh);
-    };
+    return () => document.removeEventListener("visibilitychange", refresh);
   }, []);
+
+  // Proactive rotation: refresh the session every 20 min while the tab is
+  // visible so the 30-min access token never actually expires under the
+  // merchant. Without this, expiry produced a burst of 401s from every
+  // poller at once, one refresh, and a logout if that single refresh was
+  // rate-limited or blipped. Outcomes other than "ok" are ignored here —
+  // the reactive 401 path handles them with proper error surfacing.
+  useEffect(() => {
+    if (!user) return;
+    const tick = () => {
+      if (document.visibilityState === "visible") void refreshSession();
+    };
+    const id = window.setInterval(tick, 20 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, [user]);
 
   const login = useCallback(async (email: string, password: string) => {
     // Throws TwoFactorRequiredError if 2FA is enabled — caller should catch it
