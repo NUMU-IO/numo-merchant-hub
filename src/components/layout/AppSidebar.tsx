@@ -38,6 +38,27 @@ import { NavCollapsible } from "./NavCollapsible";
  * Settings tab, like Zid), while navigation from elsewhere (header,
  * search, deep link) re-seeds both from the URL.
  */
+/**
+ * Zid-style affordance: a small chevron appears at the end of a row on
+ * hover (and keyboard focus). Hidden on active rows — the navy fill already
+ * says "you are here" — and in icon-collapsed mode.
+ */
+function HoverCaret({ trailing }: { trailing: boolean }) {
+  const { isRTL } = useLanguage();
+  return (
+    <CaretRight
+      size={12}
+      weight="bold"
+      aria-hidden
+      className={cn(
+        "shrink-0 text-muted-foreground/70 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-visible/row:opacity-100 group-data-[active=true]/row:hidden group-data-[collapsible=icon]:hidden",
+        trailing ? "ms-auto" : "ms-1",
+        isRTL && "rotate-180",
+      )}
+    />
+  );
+}
+
 const AppSidebar = () => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
@@ -116,7 +137,7 @@ const AppSidebar = () => {
         asChild
         isActive={active}
         tooltip={item.label}
-        className="h-10 rounded-lg px-3"
+        className="group/row h-10 rounded-lg px-3"
       >
         <NavLink to={item.url} onClick={onNavigate}>
           {icon}
@@ -128,6 +149,7 @@ const AppSidebar = () => {
           ) : item.dot ? (
             <span className="ms-auto h-2 w-2 rounded-full bg-saffron group-data-[collapsible=icon]:hidden" aria-hidden />
           ) : null}
+          <HoverCaret trailing={!item.badge && !item.dot} />
         </NavLink>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -158,7 +180,7 @@ const AppSidebar = () => {
     return (
       <NavItemGate key={g.key} navKey={g.navKey}>
         <SidebarMenuItem>
-          <SidebarMenuButton asChild isActive={g.active} tooltip={g.label} className="h-10 rounded-lg px-3">
+          <SidebarMenuButton asChild isActive={g.active} tooltip={g.label} className="group/row h-10 rounded-lg px-3">
             <NavLink to={g.url} onClick={onNavigate}>
               <Icon size={20} weight={g.active ? "fill" : "duotone"} className={iconClass} />
               <span className="truncate text-[13px] font-medium">{g.label}</span>
@@ -169,6 +191,7 @@ const AppSidebar = () => {
               ) : g.dot && !g.active ? (
                 <span className="ms-auto h-2 w-2 rounded-full bg-red-500 ring-2 ring-sidebar group-data-[collapsible=icon]:hidden" aria-hidden />
               ) : null}
+              <HoverCaret trailing={!g.badge && !(g.dot && !g.active)} />
             </NavLink>
           </SidebarMenuButton>
           {g.active && g.children && (

@@ -135,3 +135,27 @@ export async function notifyAbandonedCheckoutWhatsApp(
     { method: "POST" },
   );
 }
+
+export interface AbandonedCheckoutSummary {
+  open_count: number;
+  open_value_cents: number;
+  recovered_count: number;
+  recovered_value_cents: number;
+  reminders_sent: number;
+  payback_pct: number;
+  currency: string;
+}
+
+/** Analytics strip: open vs recovered carts, value, payback %, reminders. */
+export function getAbandonedCheckoutSummary(
+  storeId: string,
+  params: { date_from?: string; date_to?: string } = {},
+): Promise<AbandonedCheckoutSummary> {
+  const qs = new URLSearchParams();
+  if (params.date_from) qs.set("date_from", params.date_from);
+  if (params.date_to) qs.set("date_to", params.date_to);
+  const q = qs.toString();
+  return apiClient<AbandonedCheckoutSummary>(
+    `/stores/${storeId}/abandoned-checkouts/summary${q ? `?${q}` : ""}`,
+  );
+}

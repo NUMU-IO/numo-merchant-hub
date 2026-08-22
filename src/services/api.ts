@@ -226,11 +226,25 @@ export async function apiClient<T>(
   if (res.status === 403) {
     const body = await res.json().catch(() => null);
     if (body?.detail === "CSRF validation failed") {
-      await initCSRF();
+      const refreshed = await initCSRF();
+      if (!refreshed) {
+        throw new ApiError(
+          403,
+          "Couldn't refresh the security token — reload the page and try again.",
+        );
+      }
       try {
         res = await rawFetch(endpoint, options);
       } catch (err) {
         throw apiErrorFromNetwork(err);
+      }
+      if (res.status === 403) {
+        // A second CSRF failure after a fresh token means the cookie and
+        // the header disagree (stale domain cookie) — reload fixes it.
+        throw new ApiError(
+          403,
+          "Security check failed twice — reload the page and try again.",
+        );
       }
     } else {
       throw new ApiError(403, body?.detail || null);
@@ -255,7 +269,13 @@ export async function apiClient<T>(
     res = retried;
   }
 
-  if (res.status === 429 && SAFE_METHODS.has((options?.method || "GET").toUpperCase())) {
+  // 429 (rate limited) and 503 (edge nginx answers DEPLOYING with
+  // Retry-After while the API container restarts) are both "ask again in a
+  // moment" for idempotent requests.
+  if (
+    (res.status === 429 || res.status === 503) &&
+    SAFE_METHODS.has((options?.method || "GET").toUpperCase())
+  ) {
     const wait = retryAfterMs(res);
     if (wait !== null && wait <= MAX_429_WAIT_MS) {
       await sleep(wait || 500);

@@ -31,12 +31,17 @@ export function invalidateNotificationQueries(
   return qc.invalidateQueries({ queryKey: notificationKeys.all(storeId) });
 }
 
-export function useUnreadCounts(storeId: string | undefined) {
+/**
+ * `poll` should be true for exactly ONE mounted observer (DashboardLayout).
+ * React Query attaches a refetchInterval timer per observer, so the bell,
+ * the mobile nav and the page all polling meant up to 3 requests per tick.
+ */
+export function useUnreadCounts(storeId: string | undefined, opts: { poll?: boolean } = {}) {
   return useQuery<UnreadCounts>({
     queryKey: notificationKeys.unread(storeId),
     queryFn: () => getUnreadCounts(storeId!),
     enabled: !!storeId,
-    refetchInterval: UNREAD_POLL_MS,
+    refetchInterval: opts.poll ? UNREAD_POLL_MS : false,
     staleTime: UNREAD_POLL_MS - 5_000,
     // A failed poll must never surface as a red error anywhere — the bell
     // simply shows no badge.
@@ -44,8 +49,11 @@ export function useUnreadCounts(storeId: string | undefined) {
   });
 }
 
-export function useUnreadNotificationCount(storeId: string | undefined): number {
-  const { data } = useUnreadCounts(storeId);
+export function useUnreadNotificationCount(
+  storeId: string | undefined,
+  opts: { poll?: boolean } = {},
+): number {
+  const { data } = useUnreadCounts(storeId, opts);
   return data?.total ?? 0;
 }
 

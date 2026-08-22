@@ -390,6 +390,22 @@ function PreferencesView({ storeId }: { storeId: string | undefined }) {
                 onCheckedChange={(v) => update.mutate({ push_rich_details: v })}
               />
             </div>
+            <div className="flex items-center justify-between rounded-lg px-2 py-2.5 hover:bg-muted/50">
+              <div>
+                <Label htmlFor="email-important" className="cursor-pointer text-sm font-semibold">
+                  {t("notifications.prefs.emailImportant")}
+                </Label>
+                <p className="text-[12px] text-muted-foreground">
+                  {t("notifications.prefs.emailImportantHint")}
+                </p>
+              </div>
+              <Switch
+                id="email-important"
+                checked={prefs?.email_important ?? true}
+                disabled={!prefs || pending === "email_important"}
+                onCheckedChange={(v) => update.mutate({ email_important: v })}
+              />
+            </div>
           </CardContent>
         </Card>
 

@@ -57,6 +57,8 @@ export interface NotificationPreferences {
   push_important: boolean;
   /** Include customer name / items / payment method in push bodies. */
   push_rich_details: boolean;
+  /** Email the owner for important rows — reaches every phone, no PWA needed. */
+  email_important: boolean;
 }
 
 export interface ListNotificationsParams {
