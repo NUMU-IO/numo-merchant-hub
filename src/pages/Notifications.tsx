@@ -374,6 +374,22 @@ function PreferencesView({ storeId }: { storeId: string | undefined }) {
                 onCheckedChange={(v) => update.mutate({ push_important: v })}
               />
             </div>
+            <div className="flex items-center justify-between rounded-lg px-2 py-2.5 hover:bg-muted/50">
+              <div>
+                <Label htmlFor="push-rich" className="cursor-pointer text-sm font-semibold">
+                  {t("notifications.prefs.pushRichDetails")}
+                </Label>
+                <p className="text-[12px] text-muted-foreground">
+                  {t("notifications.prefs.pushRichDetailsHint")}
+                </p>
+              </div>
+              <Switch
+                id="push-rich"
+                checked={prefs?.push_rich_details ?? true}
+                disabled={!prefs || pending === "push_rich_details"}
+                onCheckedChange={(v) => update.mutate({ push_rich_details: v })}
+              />
+            </div>
           </CardContent>
         </Card>
 

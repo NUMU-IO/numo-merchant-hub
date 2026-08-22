@@ -52,6 +52,8 @@ export interface NotificationPreferences {
   push_new_order: boolean;
   /** Web-push for important rows (cancelled / payment failed / returned / kill-switch). */
   push_important: boolean;
+  /** Include customer name / items / payment method in push bodies. */
+  push_rich_details: boolean;
 }
 
 export interface ListNotificationsParams {

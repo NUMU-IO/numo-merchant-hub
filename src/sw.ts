@@ -228,6 +228,8 @@ interface PushPayload {
   tag?: string;
   locale?: string;
   dir?: "rtl" | "ltr" | "auto";
+  /** Urgent (cancelled / payment failed / returned / trust pause). */
+  important?: boolean;
 }
 
 self.addEventListener("push", (event) => {
@@ -259,7 +261,15 @@ self.addEventListener("push", (event) => {
       // but is missing from TypeScript's NotificationOptions. Without it a
       // replaced notification updates silently — the merchant's phone would
       // not buzz for the second order of the same tag.
-      ...({ renotify: Boolean(data.tag) } as Record<string, unknown>),
+      ...({
+        renotify: Boolean(data.tag),
+        // Never silent: the OS default sound plays (web push cannot carry a
+        // custom sound on iOS or Android — the in-app chime covers the
+        // open-hub case). Urgent ones buzz harder and stay until dismissed.
+        silent: false,
+        vibrate: data.important ? [300, 100, 300, 100, 300] : [200, 100, 200],
+        requireInteraction: Boolean(data.important),
+      } as Record<string, unknown>),
     }),
   );
 });
