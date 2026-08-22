@@ -212,6 +212,8 @@ export default {
       pushNewOrderHint: "Needs the app installed and push enabled below.",
       pushImportant: "Push urgent alerts",
       pushImportantHint: "Cancelled orders, failed payments, returns and trust pauses — even when the hub is closed.",
+      pushRichDetails: "Show order details in push",
+      pushRichDetailsHint: "Customer name, items and payment method on the lock screen — like the email. Turn off if staff or couriers handle your phone.",
       saved: "Preferences saved.",
       saveFailed: "Couldn't save — try again.",
     },

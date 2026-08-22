@@ -592,7 +592,12 @@
      beneath the bar (AppSidebar offsets its fixed panel by it). */
   :root {
     --topbar: var(--navy);
-    --topbar-h: 64px;
+    /* 64px of chrome + the status-bar inset: in an installed iOS PWA the
+       page runs under the notch/clock (viewport-fit=cover), so the bar pads
+       itself by env(safe-area-inset-top) and the sidebar hangs below the
+       padded height. 0px in a normal browser tab. */
+    --topbar-chrome: 64px;
+    --topbar-h: calc(var(--topbar-chrome) + env(safe-area-inset-top, 0px));
   }
   .dark {
     --topbar: 216 50% 10%;
@@ -601,6 +606,7 @@
     /* px-3 below sm: at 360px the control row measured wider than the
        viewport — `min-w-0` lets the end cluster actually shrink. */
     @apply sticky top-0 z-40 flex h-[var(--topbar-h)] min-w-0 items-center gap-1.5 px-2.5 sm:gap-2 sm:px-4;
+    padding-top: env(safe-area-inset-top, 0px);
     background: hsl(var(--topbar));
     color: #fff;
     border-bottom: 1px solid hsl(0 0% 100% / 0.08);
