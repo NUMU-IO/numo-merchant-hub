@@ -112,6 +112,13 @@ export default {
     margin: "Margin",
     setCost: "Set cost",
     stock: "Stock",
+    stockState: {
+      oversold: "Oversold",
+      out: "Out of stock",
+      low: "Low stock",
+      ok: "In stock",
+      fixStock: "Fix stock",
+    },
     status: "Status",
     image: "Image",
     actions: "Actions",
@@ -195,6 +202,11 @@ export default {
     postComment: "Post",
     activityComment: "{{user}} commented",
     activityStatus: "Status changed: {{from}} → {{to}}",
+    hint: {
+      refundDue: "Paid but cancelled — a refund is due",
+      codCollect: "COD — cash is collected on delivery",
+      awaitingCod: "Shipped COD — awaiting courier cash remittance",
+    },
   },
   drafts: {
     title: "Drafts",

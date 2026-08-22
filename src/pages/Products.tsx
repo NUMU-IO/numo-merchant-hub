@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { formatMoney } from "@/lib/format-money";
 import { type Product, type ProductStatus } from "@/data/mock-products";
 import { listCategories, type Category } from "@/services/categoryApi";
 import {
@@ -227,8 +228,10 @@ const Products = () => {
   // products in matching categories on later pages were invisible).
   const filtered = productsList;
 
+  // Product prices are MAJOR units here (see apiToProduct); formatMoney
+  // reads the store's default currency so non-EGP stores stop seeing "EGP".
   const formatCurrency = (val: number) =>
-    language === "ar" ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
+    formatMoney(val, { locale: language === "ar" ? "ar" : "en" });
 
   const statusConfig: Record<ProductStatus, { bg: string; dot: string }> = {
     published: { bg: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-800/40", dot: "bg-emerald-500" },

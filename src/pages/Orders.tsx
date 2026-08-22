@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { formatMoney } from "@/lib/format-money";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   listOrders, getOrder, updateOrderStatus as apiUpdateStatus,
@@ -178,10 +179,8 @@ const Orders = () => {
     ? pendingInstapayQuery.data?.total ?? 0
     : ordersQuery.data?.total ?? 0;
 
-  const formatCurrency = (cents: number) => {
-    const val = cents / 100;
-    return language === "ar" ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
-  };
+  const formatCurrency = (cents: number, currency?: string | null) =>
+    formatMoney(cents, { fromCents: true, locale: language === "ar" ? "ar" : "en", currency });
 
   const invalidateOrders = () => {
     queryClient.invalidateQueries({ queryKey: ["orders", storeId] });
