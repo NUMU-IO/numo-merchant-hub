@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { formatMoney } from "@/lib/format-money";
+import { useTranslation } from "react-i18next";
+import { StatTile } from "@/components/ui/stat-tile";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ResponsiveTable, MobileCardList, MobileCard } from "@/components/ui/responsive-table";
@@ -22,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 type RunStatus = "all" | "completed" | "failed" | "running" | "pending";
 
 const CODReconciliation = () => {
+  const { t } = useTranslation();
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const { toast } = useToast();
@@ -92,14 +97,40 @@ const CODReconciliation = () => {
 
   const filtered = runs.filter(r => statusFilter === "all" || r.status === statusFilter);
 
-  // Spec-aligned KPIs: "Collected this month" / "To reconcile" / "Reconciled".
-  // Derived from the runs feed — matched portion vs variance, calendar-month
-  // bucket. Best-effort directional figures.
+  // KPIs are derived from the runs FEED (the most recent `runs.length`
+  // runs, not all history) — so every tile says which window it covers.
+  // They used to sit side by side with no window at all ("Collected this
+  // month EGP 0" next to "Reconciled EGP 148"), which read as a
+  // contradiction rather than two different time spans.
   const monthStart = (() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; })();
   const thisMonthRuns = runs.filter(r => new Date(r.period_start) >= monthStart);
   const collectedThisMonth = thisMonthRuns.reduce((s, r) => s + r.actual_amount_cents, 0);
-  const totalVariance = runs.reduce((s, r) => s + Math.abs(r.expected_amount_cents - r.actual_amount_cents), 0);
-  const reconciledTotal = runs.filter(r => r.status === "completed").reduce((s, r) => s + r.actual_amount_cents, 0);
+  // Open variance = unexplained gaps on completed runs. The sign is kept
+  // per run (see the pill); the tile sums magnitudes.
+  const completedRuns = runs.filter(r => r.status === "completed");
+  const totalVariance = completedRuns.reduce((s, r) => s + Math.abs(r.expected_amount_cents - r.actual_amount_cents), 0);
+  const reconciledTotal = completedRuns.reduce((s, r) => s + r.actual_amount_cents, 0);
+  const monthLabel = new Date().toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", year: "numeric" });
+
+  // variance_cents = expected − actual. Positive → the courier remitted
+  // LESS than the paid orders say (short); negative → more (over).
+  const variancePill = (cents: number) => {
+    if (cents === 0) {
+      return (
+        <span className="souq-pill bg-emerald-500/14 text-emerald-700 dark:text-emerald-400">
+          <span className="dot" />
+          {t("cod.matched")}
+        </span>
+      );
+    }
+    const short = cents > 0;
+    return (
+      <span className={`souq-pill ${short ? "bg-destructive/14 text-destructive" : "bg-blue-500/14 text-blue-700 dark:text-blue-400"}`}>
+        <span className="dot" />
+        {t(short ? "cod.short" : "cod.over", { amount: fmt(Math.abs(cents)) })}
+      </span>
+    );
+  };
 
   // Souq status pill (soft 14% tint + colored dot/icon)
   const statusPill = (status: string) => {
@@ -140,7 +171,7 @@ const CODReconciliation = () => {
       amount_mismatch:          { bg: "bg-amber-500/14",     color: "text-amber-700 dark:text-amber-400", en: "Amount mismatch", ar: "فرق مبلغ" },
       paid_order_no_transaction:{ bg: "bg-destructive/14",   color: "text-destructive",                   en: "Order no txn",    ar: "طلب بدون معاملة" },
       transaction_no_order:     { bg: "bg-purple-500/14",    color: "text-purple-700 dark:text-purple-400", en: "Txn no order",  ar: "معاملة بدون طلب" },
-      duplicate_transaction:    { bg: "bg-orange-500/14",    color: "text-orange-700 dark:text-orange-400", en: "Duplicate",     ar: "معاملة مكررة" },
+      // (no `duplicate_transaction` — the reconciliation service never emits it)
     };
     const t = map[type];
     if (!t) {
@@ -165,88 +196,58 @@ const CODReconciliation = () => {
   const tabs: { v: RunStatus; en: string; ar: string }[] = [
     { v: "all", en: "All", ar: "الكل" },
     { v: "completed", en: "Completed", ar: "مكتمل" },
+    { v: "running", en: "Running", ar: "بيشتغل" },
     { v: "failed", en: "Failed", ar: "فشل" },
     { v: "pending", en: "Pending", ar: "مستني" },
   ];
 
   return (
     <div className="space-y-6">
-      {/* ─── Page head ──────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
-            {isAr ? "تسوية الدفع عند الاستلام" : "COD reconciliation"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {isAr
-              ? "طابق الفلوس المحصّلة مع شركة الشحن"
-              : "Match collected cash with your courier"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+      <PageHeader
+        title={isAr ? "تسوية الدفع عند الاستلام" : "COD reconciliation"}
+        subtitle={isAr ? "طابق الفلوس المحصّلة مع شركة الشحن" : "Match collected cash with your courier"}
+        actions={<>
+          <label className="sr-only" htmlFor="cod-target-date">{isAr ? "تاريخ التسوية" : "Reconciliation date"}</label>
           <input
+            id="cod-target-date"
             type="date"
             value={targetDate}
             onChange={(e) => setTargetDate(e.target.value)}
             max={new Date().toISOString().split("T")[0]}
-            className="h-10 rounded-xl border border-input bg-background px-3 text-sm"
+            className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
           />
-          <Button onClick={handleTrigger} disabled={triggering} variant="accent" size="sm" className="gap-1.5">
+          <Button onClick={handleTrigger} disabled={triggering} variant="accent" size="sm" className="gap-1.5 h-9">
             {triggering
               ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.2} />
               : <Play className="h-4 w-4" strokeWidth={2.4} />}
             {isAr ? "سوّي الكل" : "Reconcile all"}
           </Button>
-        </div>
-      </div>
+        </>}
+      />
 
-      {/* ─── 3 stat tiles (Souq spec) ───────────────────────────── */}
+      {/* ─── 3 stat tiles — each labelled with the window it covers ── */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="p-5 flex flex-col gap-3">
-            <div className="ichip ichip-navy">
-              <Banknote className="h-5 w-5" strokeWidth={2.2} />
-            </div>
-            <div>
-              <p className="text-[12.5px] font-semibold text-muted-foreground">
-                {isAr ? "اتحصّل الشهر ده" : "Collected this month"}
-              </p>
-              <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">
-                {fmt(collectedThisMonth)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5 flex flex-col gap-3">
-            <div className="ichip ichip-saffron">
-              <Hourglass className="h-5 w-5" strokeWidth={2.2} />
-            </div>
-            <div>
-              <p className="text-[12.5px] font-semibold text-muted-foreground">
-                {isAr ? "محتاج تسوية" : "To reconcile"}
-              </p>
-              <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">
-                {fmt(totalVariance)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5 flex flex-col gap-3">
-            <div className="ichip ichip-sage">
-              <CheckCircle2 className="h-5 w-5" strokeWidth={2.2} />
-            </div>
-            <div>
-              <p className="text-[12.5px] font-semibold text-muted-foreground">
-                {isAr ? "اتسوّى" : "Reconciled"}
-              </p>
-              <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">
-                {fmt(reconciledTotal)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <StatTile
+          icon={Banknote}
+          tone="navy"
+          label={t("cod.collectedMonth", { month: monthLabel })}
+          value={fmt(collectedThisMonth)}
+          sub={t("cod.thisMonthRuns", { count: thisMonthRuns.length })}
+        />
+        <StatTile
+          icon={Hourglass}
+          tone="saffron"
+          label={t("cod.openVariance")}
+          value={fmt(totalVariance)}
+          sub={t("cod.lastRuns", { count: completedRuns.length })}
+        />
+        <StatTile
+          icon={CheckCircle2}
+          tone="sage"
+          label={t("cod.reconciledTotal")}
+          value={fmt(reconciledTotal)}
+          sub={t("cod.lastRuns", { count: completedRuns.length })}
+        />
       </div>
 
       {/* ─── Reconciliation runs ─────────────────────────────────── */}
@@ -272,21 +273,12 @@ const CODReconciliation = () => {
         </div>
         <CardContent>
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-12">
-              <div className="ichip ichip-saffron ichip-lg">
-                <FileSearch className="h-6 w-6" strokeWidth={2} />
-              </div>
-              <p className="text-sm font-bold">
-                {runs.length === 0
-                  ? (isAr ? "لا توجد عمليات تسوية لسه" : "No reconciliation runs yet")
-                  : (isAr ? "لا توجد نتائج لهذا الفلتر" : "No runs match this filter")}
-              </p>
-              <p className="text-xs text-muted-foreground max-w-sm text-center">
-                {runs.length === 0
-                  ? (isAr ? "التسوية بتشتغل تلقائياً كل يوم — أو شغّلها يدوياً" : "Runs happen automatically each day — or trigger one manually")
-                  : ""}
-              </p>
-            </div>
+            <EmptyState
+              icon={FileSearch}
+              title={runs.length === 0 ? t("cod.noRunsTitle") : t("cod.noMatchTitle")}
+              description={runs.length === 0 ? t("cod.noRunsBody") : undefined}
+              className="py-12"
+            />
           ) : (
             <div className="space-y-2">
               {filtered.map((run) => (
@@ -298,13 +290,25 @@ const CODReconciliation = () => {
                     <div className="flex items-center gap-4 min-w-0">
                       <div className="shrink-0">{statusPill(run.status)}</div>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold">
-                          {fmtDate(run.period_start)} — {fmtDate(run.period_end)}
+                        <p className="text-sm font-bold flex items-center gap-2 flex-wrap">
+                          <span>{fmtDate(run.period_start)} — {fmtDate(run.period_end)}</span>
+                          {/* Which rail — several gateways mean several runs per day. */}
+                          {run.gateway && (
+                            <span className="rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                              {run.gateway}
+                            </span>
+                          )}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">
-                          {run.total_orders_checked} {isAr ? "طلب" : "orders"}
-                          {" · "}
-                          {run.total_transactions_checked} {isAr ? "معاملة" : "txns"}
+                          {run.total_orders_checked === 0 ? (
+                            <span>{t("cod.noCodOrders")}</span>
+                          ) : (
+                            <>
+                              {run.total_orders_checked} {isAr ? "طلب" : "orders"}
+                              {" · "}
+                              {run.total_transactions_checked} {isAr ? "معاملة" : "txns"}
+                            </>
+                          )}
                           {run.mismatches_found > 0 && (
                             <span className="text-destructive font-bold">
                               {" · "}{run.mismatches_found} {isAr ? "اختلاف" : "mismatches"}
@@ -314,16 +318,12 @@ const CODReconciliation = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-4 shrink-0">
-                      <div className="text-end hidden sm:block">
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-bold">
-                          {isAr ? "الفرق" : "Variance"}
-                        </p>
-                        <p className={`text-sm font-extrabold tabular-nums ${run.variance_cents === 0 ? "text-sage" : "text-amber-600"}`}>
-                          {run.variance_cents === 0
-                            ? (isAr ? "متطابق" : "Matched")
-                            : fmt(Math.abs(run.variance_cents))}
-                        </p>
-                      </div>
+                      {/* Was a "VARIANCE" label over the word "Matched" — a
+                          metric name with a status for a value. One pill now
+                          carries the state AND the signed gap. */}
+                      {run.status === "completed" && (
+                        <div className="hidden sm:block">{variancePill(run.variance_cents)}</div>
+                      )}
                       {expandedRun === run.id
                         ? <ChevronUp className="h-4 w-4 text-muted-foreground" strokeWidth={2.2} />
                         : <ChevronDown className="h-4 w-4 text-muted-foreground" strokeWidth={2.2} />}
