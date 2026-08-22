@@ -8,6 +8,7 @@ import { StaleDataBanner } from "@/components/ui/stale-data-banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { EmptyState } from "@/components/ui/empty-state";
 import React, { useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
@@ -306,21 +307,8 @@ const Dashboard = () => {
     return `${dayPhrase} ورا بعض وفيهم طلبات — مولّعها ما شاء الله!`;
   })();
 
-  // Status pill colors (Souq order-status ramp via inline color-mix)
-  const statusColorMap: Record<string, string> = {
-    delivered:
-      "bg-emerald-500/14 text-emerald-700 dark:text-emerald-400 border-emerald-200/40",
-    fulfilled:
-      "bg-emerald-500/14 text-emerald-700 dark:text-emerald-400 border-emerald-200/40",
-    shipped:
-      "bg-blue-500/14 text-blue-700 dark:text-blue-400 border-blue-200/40",
-    confirmed:
-      "bg-teal-500/14 text-teal-700 dark:text-teal-400 border-teal-200/40",
-    processing:
-      "bg-amber-500/14 text-amber-700 dark:text-amber-400 border-amber-200/40",
-    pending: "bg-muted text-muted-foreground border-border/60",
-    cancelled: "bg-destructive/14 text-destructive border-destructive/20",
-  };
+  // Order status pills use the shared OrderStatusBadge ramp (this file
+  // used to carry its own, slightly different, colour map).
 
   // Sparkline path builder (smooth bezier)
   const buildSparkPath = (data: number[], w: number, h: number) => {
@@ -1496,12 +1484,7 @@ const Dashboard = () => {
                           <span className="text-[13px] font-bold font-mono tabular-nums">
                             {o.order_number}
                           </span>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] font-semibold px-2 py-0 border ${statusColorMap[o.status] || ""}`}
-                          >
-                            {t(`orders.${o.status}`)}
-                          </Badge>
+                          <OrderStatusBadge status={o.status} dot={false} className="px-2 py-0 font-semibold" />
                         </div>
                         <p className="text-[11.5px] text-muted-foreground mt-0.5">
                           {o.customer_name || "—"}

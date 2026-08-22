@@ -116,6 +116,15 @@ export interface OrderListItem {
     | "no_response"
     | null;
   customer_confirmed_at?: string | null;
+  /** Hub "Shipping" column. Both null until a shipment/courier exists. */
+  shipping_method?: string | null;
+  tracking_number?: string | null;
+}
+
+/** GET /stores/{id}/orders/counts — per-status counts for the tab badges. */
+export interface OrderStatusCounts {
+  by_status: Record<string, number>;
+  total: number;
 }
 
 export interface PaginatedOrders {
@@ -179,6 +188,25 @@ export async function listOrders(
   const query = qs.toString();
   return apiClient<PaginatedOrders>(
     `/stores/${storeId}/orders/${query ? `?${query}` : ""}`,
+  );
+}
+
+/**
+ * Per-status counts honouring the same date/search filters as the list, so
+ * every tab badge agrees with the rows that tab shows. Drafts excluded.
+ */
+export async function getOrderCounts(
+  storeId: string,
+  params?: Pick<ListOrdersParams, "date_from" | "date_to" | "search" | "customer_id">,
+): Promise<OrderStatusCounts> {
+  const qs = new URLSearchParams();
+  if (params?.date_from) qs.set("date_from", params.date_from);
+  if (params?.date_to) qs.set("date_to", params.date_to);
+  if (params?.search) qs.set("search", params.search);
+  if (params?.customer_id) qs.set("customer_id", params.customer_id);
+  const query = qs.toString();
+  return apiClient<OrderStatusCounts>(
+    `/stores/${storeId}/orders/counts${query ? `?${query}` : ""}`,
   );
 }
 

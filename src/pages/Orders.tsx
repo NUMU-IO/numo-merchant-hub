@@ -1,12 +1,12 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { formatMoney } from "@/lib/format-money";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
-  listOrders, getOrder, updateOrderStatus as apiUpdateStatus,
+  listOrders, getOrder, getOrderCounts, updateOrderStatus as apiUpdateStatus,
   bulkUpdateStatus, getOrderTimeline, markOrderPaid, updateOrder,
   type OrderListItem, type Order as ApiOrder, type TimelineEvent,
 } from "@/services/orderApi";
@@ -33,7 +33,7 @@ import {
 import {
   ArrowLeft, CheckCircle2, Circle, Clock, Package, Truck, XCircle,
   MoreHorizontal, Printer, FileDown, FileUp, ChevronRight, ArrowRightCircle, Loader2,
-  RotateCcw, AlertCircle, FileText, ArrowUpDown, ListFilter, LayoutList, Search,
+  RotateCcw, AlertCircle, FileText, Search, X,
   RefreshCw,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,9 +53,18 @@ import {
   DateRangePicker, useDateRangeUrlState,
 } from "@/components/filters/DateRangePicker";
 import OrderDrawer from "@/components/orders/OrderDrawer";
+import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
+import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
+import { orderStateHint } from "@/lib/orders/order-state-hint";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type FulfillmentStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
 const WORKFLOW: FulfillmentStatus[] = ["pending", "processing", "shipped", "delivered"];
+/** Statuses the list tabs can filter on (and accept from `?status=`). */
+const WORKFLOW_STATUSES: readonly FulfillmentStatus[] = [
+  "pending", "processing", "shipped", "delivered", "cancelled",
+];
 
 const Orders = () => {
   const { t } = useTranslation();
@@ -66,15 +75,38 @@ const Orders = () => {
   const navigate = useNavigate();
 
   const [page, setPage] = useState(1);
-  // Initial status filter respects `?status=...` so links from the
-  // dashboard attention card (e.g. "/orders?status=pending") land on
-  // the right filtered view instead of dropping the merchant on "all".
-  const initialStatus = (() => {
-    const s = new URLSearchParams(window.location.search).get("status");
-    const valid = ["pending", "processing", "shipped", "delivered", "cancelled"] as const;
-    return s && (valid as readonly string[]).includes(s) ? (s as FulfillmentStatus) : "all";
-  })();
-  const [statusFilter, setStatusFilter] = useState<"all" | FulfillmentStatus>(initialStatus);
+  // The status filter LIVES in the URL (`?status=`), so dashboard links
+  // ("/orders?status=pending"), the back button and a reload all land on
+  // the same tab. It used to be read once into state and never written
+  // back, so the selection was lost on reload.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const statusParam = searchParams.get("status");
+  const statusFilter: "all" | FulfillmentStatus =
+    statusParam && (WORKFLOW_STATUSES as readonly string[]).includes(statusParam)
+      ? (statusParam as FulfillmentStatus)
+      : "all";
+  const setStatusFilter = (v: "all" | FulfillmentStatus) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (v === "all") next.delete("status");
+        else next.set("status", v);
+        return next;
+      },
+      { replace: true },
+    );
+
+  // Free-text search. The input was rendered with no value/onChange while
+  // the backend and listOrders() already supported `search`.
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(id);
+  }, [searchInput]);
   // Secondary view: InstaPay orders with an awaiting-review proof. Mutually
   // exclusive with statusFilter — clicking this chip clears statusFilter.
   const [pendingInstapay, setPendingInstapay] = useState(false);
@@ -110,7 +142,7 @@ const Orders = () => {
 
   // React Query hook for orders list
   const ordersQuery = useQuery({
-    queryKey: ["orders", storeId, page, statusFilter, dateFrom, dateTo],
+    queryKey: ["orders", storeId, page, statusFilter, dateFrom, dateTo, search],
     queryFn: () => {
       const params: Record<string, string | number | boolean> = {
         page,
@@ -119,11 +151,26 @@ const Orders = () => {
         date_to: dateTo,
       };
       if (statusFilter !== "all") params.status = statusFilter;
+      if (search) params.search = search;
       return listOrders(storeId!, params);
     },
     enabled: !!storeId && !pendingInstapay && !autopilotView,
     placeholderData: keepPreviousData,
   });
+
+  // Per-tab counts from one GROUP BY, honouring the same date/search
+  // filters as the list. Only "All" used to carry a count — and it was the
+  // *filtered* total, so selecting "Shipped" made "All" show the shipped
+  // count. Keyed under ["orders", storeId, …] so invalidateOrders() busts
+  // it together with the list.
+  const countsQuery = useQuery({
+    queryKey: ["orders", storeId, "counts", dateFrom, dateTo, search],
+    queryFn: () =>
+      getOrderCounts(storeId!, { date_from: dateFrom, date_to: dateTo, search: search || undefined }),
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+  });
+  const statusCounts = countsQuery.data;
 
   // Lightweight badge query — always runs at page=1&limit=1 just to pull
   // the total count for the "Pending verification" chip so merchants can
@@ -961,13 +1008,10 @@ const Orders = () => {
 
   return (
     <div className="p-6 max-w-[1200px] mx-auto space-y-4">
-      {/* Souq page head — display title + subtitle */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "قائمة الطلبات" : "Orders"}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{isAr ? "تابع طلباتك وجهّزها" : "Track and fulfill your orders"}</p>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title={isAr ? "قائمة الطلبات" : "Orders"}
+        subtitle={isAr ? "تابع طلباتك وجهّزها" : "Track and fulfill your orders"}
+        actions={<>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg"><MoreHorizontal className="h-4 w-4" /></Button>
@@ -998,8 +1042,8 @@ const Orders = () => {
           <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => navigate("/orders/create")}>
             <Package className="h-3 w-3" />{isAr ? "إنشاء" : "Create"}
           </Button>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Main card */}
       <div className="rounded-xl border bg-card">
@@ -1007,14 +1051,15 @@ const Orders = () => {
         <div className="px-5 pt-4 pb-3 border-b overflow-x-auto">
           <div className="flex gap-1.5 min-w-max">
             {([
-              { v: "all", l: isAr ? "الكل" : "All", count: totalOrders },
+              { v: "all", l: isAr ? "الكل" : "All" },
               { v: "pending", l: isAr ? "جديد" : "New" },
               { v: "processing", l: isAr ? "جاري التجهيز" : "Processing" },
               { v: "shipped", l: isAr ? "جاري التوصيل" : "Shipped" },
               { v: "delivered", l: isAr ? "مُكتمل" : "Delivered" },
               { v: "cancelled", l: isAr ? "مُلغى" : "Cancelled" },
-            ] as { v: "all" | FulfillmentStatus; l: string; count?: number }[]).map(f => {
+            ] as { v: "all" | FulfillmentStatus; l: string }[]).map(f => {
               const active = statusFilter === f.v && !pendingInstapay && !autopilotView;
+              const count = f.v === "all" ? statusCounts?.total : statusCounts?.by_status?.[f.v];
               return (
                 <button
                   key={f.v}
@@ -1024,9 +1069,9 @@ const Orders = () => {
                   className="souq-chip h-9"
                 >
                   {f.l}
-                  {f.v === "all" && totalOrders > 0 && !pendingInstapay && (
-                    <span className={`inline-flex items-center justify-center min-w-[20px] h-[20px] rounded-full text-[10px] font-extrabold tabular-nums ms-1 ${active ? "bg-saffron text-navy-900" : "bg-saffron text-navy-900"}`}>
-                      {totalOrders > 99 ? "99+" : totalOrders}
+                  {count !== undefined && count > 0 && (
+                    <span className={`inline-flex items-center justify-center min-w-[20px] h-[20px] rounded-full px-1 text-[10px] font-extrabold tabular-nums ms-1 ${active ? "bg-saffron text-navy-900" : "bg-muted text-muted-foreground"}`}>
+                      {count > 999 ? "999+" : count}
                     </span>
                   )}
                 </button>
@@ -1099,12 +1144,27 @@ const Orders = () => {
             align="start"
             className="h-9"
           />
-          <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0"><ArrowUpDown className="h-4 w-4" /></Button>
-          <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0"><ListFilter className="h-4 w-4" /></Button>
-          <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg shrink-0"><LayoutList className="h-4 w-4" /></Button>
+          {/* The sort / filter / view icon buttons that sat here had no
+              handlers — removed rather than left as dead controls. */}
           <div className="relative flex-1 max-w-sm ms-auto">
-            <Search className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            <Input placeholder={isAr ? "بحث" : "Search"} className="pe-9 h-9 rounded-lg bg-muted/40 border-transparent focus:bg-background focus:border-border" />
+            <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder={t("orders.searchPlaceholder")}
+              aria-label={t("orders.searchPlaceholder")}
+              className="ps-9 pe-9 h-9 rounded-lg bg-muted/40 border-transparent focus:bg-background focus:border-border"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setSearchInput("")}
+                aria-label={t("common.cancel")}
+                className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1146,28 +1206,39 @@ const Orders = () => {
         {autopilotView ? (
           <AutopilotExceptions storeId={storeId!} isAr={isAr} language={language} />
         ) : orders.length === 0 && !ordersQuery.isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-20 h-20 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-muted-foreground/20">
-                <rect x="8" y="6" width="32" height="36" rx="4" stroke="currentColor" strokeWidth="2" />
-                <path d="M16 16h16M16 22h10M16 28h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <circle cx="36" cy="36" r="8" fill="hsl(var(--background))" stroke="currentColor" strokeWidth="2" />
-                <path d="M34 36h4M36 34v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </div>
-            <p className="text-base font-semibold text-muted-foreground mb-1">{isAr ? "طلباتك ستظهر هنا" : "Your orders will appear here"}</p>
-            <p className="text-xs text-muted-foreground/60 max-w-sm mb-5">
-              {isAr ? "ألقِ نظرة سريعة على كل طلب - من اشترى؟ وكم مرة؟ وما الذي يفضله عملائك؟" : "Quick overview of each order — who bought, how much, and what your customers prefer"}
-            </p>
-            <div className="flex items-center gap-3">
-              <Button size="sm" className="h-9 text-xs rounded-lg gap-1.5 px-4">
-                <Package className="h-3.5 w-3.5" />{isAr ? "إنشاء طلبك الأول الآن" : "Create your first order"}
-              </Button>
-              <Button variant="outline" size="sm" className="h-9 text-xs rounded-lg gap-1.5 px-4">
-                {isAr ? "كيف تحصل على أول 10 عملاء 🚀" : "How to get your first 10 customers 🚀"}
-              </Button>
-            </div>
-          </div>
+          // Two different empty states: "nothing matches these filters"
+          // (clear them) vs "no orders at all" (create one). The old block
+          // showed the onboarding pitch for an empty "Cancelled" tab, and
+          // both of its buttons had no onClick.
+          (statusFilter !== "all" || search || pendingInstapay) ? (
+            <EmptyState
+              icon={Search}
+              tone="navy"
+              title={t("orders.noMatchesTitle")}
+              description={t("orders.noMatchesBody")}
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-xs rounded-lg px-4"
+                  onClick={() => { setStatusFilter("all"); setSearchInput(""); setPendingInstapay(false); setPage(1); }}
+                >
+                  {t("orders.clearFilters")}
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={Package}
+              title={t("orders.emptyTitle")}
+              description={t("orders.emptyBody")}
+              action={
+                <Button size="sm" className="h-9 text-xs rounded-lg gap-1.5 px-4" onClick={() => navigate("/orders/create")}>
+                  <Package className="h-3.5 w-3.5" />{t("orders.createFirst")}
+                </Button>
+              }
+            />
+          )
         ) : (
           <>
             {/* Mobile card list (< md) */}
@@ -1201,31 +1272,8 @@ const Orders = () => {
                       <span className="shrink-0">{fmtDate(o.created_at)}</span>
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 gap-1 ${
-                        o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
-                        o.status === "shipped" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50" :
-                        o.status === "processing" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
-                        o.status === "cancelled" ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50" :
-                        o.status === "returned" ? "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200/50" :
-                        "bg-muted text-muted-foreground border-border"
-                      }`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${
-                          o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500" :
-                          o.status === "shipped" ? "bg-blue-500" :
-                          o.status === "processing" ? "bg-amber-500" :
-                          o.status === "cancelled" ? "bg-red-500" :
-                          o.status === "returned" ? "bg-orange-500" : "bg-muted-foreground/40"
-                        }`} />
-                        {t(`orders.${o.status}`)}
-                      </Badge>
-                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 ${
-                        o.payment_status === "paid" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
-                        o.payment_status === "pending" || o.payment_status === "cod" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
-                        o.payment_status === "refunded" ? "bg-blue-500/10 text-blue-600 border-blue-200/50" :
-                        "bg-red-500/10 text-red-600 border-red-200/50"
-                      }`}>
-                        {t(`orders.${o.payment_status}`)}
-                      </Badge>
+                      <OrderStatusBadge status={o.status} />
+                      <PaymentStatusBadge status={o.payment_status} />
                       {/* backend-031 — WhatsApp customer-confirmation
                           state. Only renders when the store opted into
                           require_order_confirmation (status is non-null).
@@ -1245,6 +1293,14 @@ const Orders = () => {
                         </Badge>
                       )}
                     </div>
+                    {(() => {
+                      const hint = orderStateHint(o);
+                      return hint ? (
+                        <p className={`text-[10px] leading-tight ${hint.tone === "warning" ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
+                          {t(hint.key)}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-1 rtl:rotate-180" />
                 </button>
@@ -1299,38 +1355,39 @@ const Orders = () => {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{o.payment_method || "—"}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 ${
-                        o.payment_status === "paid" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
-                        o.payment_status === "pending" || o.payment_status === "cod" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
-                        o.payment_status === "refunded" ? "bg-blue-500/10 text-blue-600 border-blue-200/50" :
-                        "bg-red-500/10 text-red-600 border-red-200/50"
-                      }`}>
-                        {t(`orders.${o.payment_status}`)}
-                      </Badge>
+                      <PaymentStatusBadge status={o.payment_status} />
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">—</TableCell>
-                    <TableCell>
-                      <div className="text-xs font-semibold tabular-nums">{formatCurrency(o.total)}</div>
-                      <div className="text-[10px] text-muted-foreground">EGP</div>
+                    {/* Shipping — was a hardcoded "—" for every row. */}
+                    <TableCell className="text-xs">
+                      {o.shipping_method || o.tracking_number ? (
+                        <>
+                          <div className="font-medium truncate max-w-[140px]">
+                            {o.shipping_method || t("orders.tracking")}
+                          </div>
+                          {o.tracking_number && (
+                            <div className="text-[10px] text-muted-foreground font-mono truncate max-w-[140px]" title={o.tracking_number}>
+                              {o.tracking_number}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">{t("orders.noShipment")}</span>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 gap-1 ${
-                        o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50" :
-                        o.status === "shipped" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50" :
-                        o.status === "processing" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50" :
-                        o.status === "cancelled" ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50" :
-                        o.status === "returned" ? "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200/50" :
-                        "bg-muted text-muted-foreground border-border"
-                      }`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${
-                          o.status === "delivered" || o.status === "fulfilled" ? "bg-emerald-500" :
-                          o.status === "shipped" ? "bg-blue-500" :
-                          o.status === "processing" ? "bg-amber-500" :
-                          o.status === "cancelled" ? "bg-red-500" :
-                          o.status === "returned" ? "bg-orange-500" : "bg-muted-foreground/40"
-                        }`} />
-                        {t(`orders.${o.status}`)}
-                      </Badge>
+                      <div className="text-xs font-semibold tabular-nums">{formatCurrency(o.total, o.currency)}</div>
+                      <div className="text-[10px] text-muted-foreground">{o.currency || ""}</div>
+                    </TableCell>
+                    <TableCell>
+                      <OrderStatusBadge status={o.status} />
+                      {(() => {
+                        const hint = orderStateHint(o);
+                        return hint ? (
+                          <div className={`mt-1 max-w-[160px] text-[10px] leading-tight ${hint.tone === "warning" ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
+                            {t(hint.key)}
+                          </div>
+                        ) : null;
+                      })()}
                       {/* backend-031 — WhatsApp customer-confirmation badge.
                           Only renders when the store opted into
                           require_order_confirmation (status is non-null). */}
