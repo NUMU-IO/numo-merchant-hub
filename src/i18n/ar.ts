@@ -154,6 +154,7 @@
       payment_failed: "فشلت عملية دفع",
       shipment_returned: "تم إرجاع شحنة",
       trust_kill_switch: "تم إيقاف الموافقة التلقائية مؤقتًا",
+      payment_proof_submitted: "في إثبات دفع مستني مراجعتك",
     },
     tabs: {
       all: "الكل",
@@ -177,6 +178,7 @@
       paymentReceived: { title: "تم استلام دفعة للطلب #{{order}}", body: "{{amount}} عبر {{method}} · {{name}}" },
       paymentFailed: { title: "فشل الدفع للطلب #{{order}}", body: "{{name}} · {{reason}}" },
       paymentRefunded: { title: "تم استرداد الطلب #{{order}}", body: "{{amount}} · {{name}}" },
+      paymentProofSubmitted: { title: "إثبات دفع بانتظار مراجعتك للطلب #{{order}}", body: "{{name}} · {{amount}} عبر {{method}}" },
       shipmentShipped: { title: "الطلب #{{order}} في الطريق", body: "{{carrier}} · {{tracking}} · {{name}}" },
       shipmentDelivered: { title: "تم توصيل الطلب #{{order}} إلى {{name}}", body: "{{amount}}" },
       shipmentReturned: { title: "تم إرجاع الطلب #{{order}}", body: "{{name}} · {{reason}}" },
