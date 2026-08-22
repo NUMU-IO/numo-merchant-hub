@@ -1,7 +1,9 @@
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { HelpTip } from "@/components/ui/help-tip";
 import {
   BarChart3, TrendingUp, ShoppingCart, Users, DollarSign,
   MapPin, ArrowUpRight, ArrowDownRight, Package, AlertTriangle,
@@ -243,11 +245,16 @@ export function OverviewTab({
                 {stages.map((s, i) => {
                   const pct = (s.value / top) * 100;
                   // % of the PREVIOUS stage (real step-to-step
-                  // conversion), not share-of-visits — the old column
-                  // read like a conversion rate but wasn't one.
+                  // conversion), not share-of-visits. Each step is a
+                  // distinct-session count computed independently over
+                  // the window, so a later step CAN exceed the earlier one
+                  // (a session whose page_view fell outside the range, a
+                  // theme that doesn't emit page_view). That used to print
+                  // "166.7%"; it's now capped and flagged instead.
                   const prev = i === 0 ? s.value : stages[i - 1].value;
-                  const conversionPct =
-                    i === 0 ? 100 : prev > 0 ? (s.value / prev) * 100 : 0;
+                  const raw = i === 0 ? 100 : prev > 0 ? (s.value / prev) * 100 : 0;
+                  const exceeds = i > 0 && s.value > prev;
+                  const conversionPct = Math.min(raw, 100);
                   return (
                     <div key={s.label} className="flex items-center gap-3">
                       <div className="w-28 sm:w-36 text-[12.5px] font-bold text-muted-foreground shrink-0">
@@ -266,13 +273,23 @@ export function OverviewTab({
                           </span>
                         </div>
                       </div>
-                      <div className="w-12 text-end text-[12.5px] font-extrabold tabular-nums ltr-nums shrink-0">
-                        {conversionPct.toFixed(1)}%
+                      <div
+                        className={`w-14 text-end text-[12.5px] font-extrabold tabular-nums ltr-nums shrink-0 ${exceeds ? "text-amber-600 dark:text-amber-400" : ""}`}
+                        title={exceeds ? t("analytics.funnel.midFunnel") : undefined}
+                      >
+                        {exceeds ? t("analytics.funnel.overCapped") : `${conversionPct.toFixed(1)}%`}
                       </div>
                     </div>
                   );
                 })}
               </div>
+              {stages.some((s, i) => i > 0 && s.value > stages[i - 1].value) && (
+                <HelpTip title={t("analytics.funnel.midFunnel")} className="mt-4">
+                  <p className="px-4 pb-3 text-xs text-blue-900/80 dark:text-blue-200/80">
+                    {t("analytics.funnel.stepRateHint")}
+                  </p>
+                </HelpTip>
+              )}
             </CardContent>
           </Card>
         );
@@ -399,8 +416,10 @@ export function OverviewTab({
                   {[
                     { label: isAr ? "إجمالي شحنات COD" : "Total COD Shipments", value: codRejection.total_cod_shipments.toLocaleString(isAr ? "ar-EG" : undefined) },
                     { label: isAr ? "تم التسليم" : "Delivered", value: codRejection.delivered_count.toLocaleString(isAr ? "ar-EG" : undefined) },
-                    { label: isAr ? "مرفوض" : "Rejected", value: codRejection.rejected_count.toLocaleString(isAr ? "ar-EG" : undefined) },
-                    { label: isAr ? "مرتجع" : "Returned", value: codRejection.returned_count.toLocaleString(isAr ? "ar-EG" : undefined) },
+                    // Backend: rejected = returned ∪ cancelled, so "Rejected"
+                    // and "Returned" are NOT disjoint rows — label it so.
+                    { label: t("analytics.cod.rejectedOrReturned"), value: codRejection.rejected_count.toLocaleString(isAr ? "ar-EG" : undefined) },
+                    { label: isAr ? "منها مرتجع" : "of which returned", value: codRejection.returned_count.toLocaleString(isAr ? "ar-EG" : undefined) },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between rounded-lg p-2 -mx-2 hover:bg-muted/50 transition-colors">
                       <span className="text-[13px] text-muted-foreground">{item.label}</span>
@@ -433,9 +452,13 @@ export function OverviewTab({
                 </div>
                 <div>
                   <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                    {isAr ? "المبلغ المعرض للخطر" : "Amount at Risk"}
+                    {/* Was "Amount at Risk" — but the backend sums orders
+                        already cancelled/returned. That's money lost, not
+                        money at risk. */}
+                    {t("analytics.cod.lostToRejections")}
                   </p>
                   <p className="text-2xl font-bold tabular-nums text-destructive">{formatCurrency(codRejection.rejected_amount)}</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">{t("analytics.cod.lostHint")}</p>
                 </div>
                 {codRejection.total_cod_amount > 0 && (
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -485,6 +508,16 @@ export function OverviewTab({
           </CardContent>
         </Card>
       </div>
+      {/* Which cohort these COD numbers describe, and where cash matching
+          lives — the reviewer couldn't tell how this section relates to
+          the reconciliation page. */}
+      <p className="text-[11.5px] text-muted-foreground -mt-2">
+        {t("analytics.cod.footnote")}{" "}
+        <Link to="/cod" className="font-semibold underline underline-offset-2 hover:text-foreground">
+          {t("analytics.cod.seeReconcile")}
+        </Link>
+        .
+      </p>
     </>
   );
 }

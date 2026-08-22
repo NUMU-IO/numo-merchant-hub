@@ -6,7 +6,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Activity, ArrowLeft, ArrowRight, Lightbulb, RefreshCw, TrendingUp, Truck, ShieldCheck, PackageCheck, RotateCcw, Timer } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, CheckCircle2, Circle, Lightbulb, RefreshCw, TrendingUp, Truck, ShieldCheck, PackageCheck, RotateCcw, Timer } from "lucide-react";
+
+// Mirrors WEIGHTS in health_score_service.py — shown in "How scoring works".
+const METRIC_WEIGHTS: [string, number][] = [
+  ["delivery_success", 30],
+  ["cod_acceptance", 25],
+  ["order_completion", 20],
+  ["low_return", 15],
+  ["response_time", 10],
+];
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +33,7 @@ export default function HealthScore() {
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const [forceLive, setForceLive] = useState(false);
+  const [showScoring, setShowScoring] = useState(false);
 
   // `language` MUST be in the key: the backend localises
   // empty_state_message + recommendations via ?lang=, and without it the
@@ -233,19 +243,82 @@ export default function HealthScore() {
         </div>
       ) : healthScore && insufficient ? (
         <Card>
-          <CardContent className="py-16 text-center">
-            <Activity className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-base font-semibold">{t("dashboard.healthNoData")}</p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-              {/* The backend distinguishes "no orders at all" from "orders
-                  still in flight" — show its sentence when available so a
-                  store WITH orders isn't told it has none. */}
-              {healthScore.empty_state_message ||
-                (isAr
-                  ? `نحتاج إلى عدد كافٍ من الطلبات المكتملة خلال آخر ${windowDays} يوم لاحتساب نتيجة دقيقة لمتجرك.`
-                  : `We need enough settled orders in the last ${windowDays} days to compute a meaningful score for your store.`)}
-            </p>
-            <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/70">
+          <CardContent className="py-12 px-6">
+            <div className="text-center">
+              <Activity className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-base font-semibold">{t("dashboard.healthNoData")}</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                {/* The backend distinguishes "no orders at all" from "orders
+                    still in flight" — show its sentence when available so a
+                    store WITH orders isn't told it has none. */}
+                {healthScore.empty_state_message ||
+                  (isAr
+                    ? `نحتاج إلى عدد كافٍ من الطلبات المكتملة خلال آخر ${windowDays} يوم لاحتساب نتيجة دقيقة لمتجرك.`
+                    : `We need enough settled orders in the last ${windowDays} days to compute a meaningful score for your store.`)}
+              </p>
+            </div>
+
+            {/* Exactly what's missing — the old empty state said "not
+                enough data" with no minimums and no next step. */}
+            {(healthScore.requirements?.length ?? 0) > 0 && (
+              <div className="mx-auto mt-6 max-w-md rounded-xl border bg-muted/30 p-4 text-start">
+                <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                  {t("health.requirementsTitle")}
+                </p>
+                <ul className="space-y-2">
+                  {healthScore.requirements!.map((r) => {
+                    const done = r.have >= r.needed;
+                    const isPct = r.key === "usable_weight";
+                    return (
+                      <li key={r.key} className="flex items-center gap-2.5 text-[13px]">
+                        {done ? (
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                        ) : (
+                          <Circle className="h-4 w-4 shrink-0 text-muted-foreground/40" />
+                        )}
+                        <span className={`flex-1 ${done ? "text-muted-foreground" : ""}`}>
+                          {t(`health.req.${r.key}`, { defaultValue: r.key })}
+                        </span>
+                        <span className="tabular-nums font-bold ltr-nums">
+                          {r.have}{isPct ? "%" : ""} / {r.needed}{isPct ? "%" : ""}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              {healthScore.shipments_analyzed === 0 && (
+                <Button size="sm" className="h-9 gap-1.5" onClick={() => navigate("/logistics")}>
+                  <Truck className="h-4 w-4" />
+                  {t("health.connectCourier")}
+                </Button>
+              )}
+              <Button variant="outline" size="sm" className="h-9" onClick={() => setShowScoring((v) => !v)}>
+                {showScoring ? t("health.hideScoring") : t("health.howScoring")}
+              </Button>
+            </div>
+
+            {showScoring && (
+              <div className="mx-auto mt-4 max-w-md rounded-xl border border-dashed p-4 text-start text-xs text-muted-foreground">
+                <p className="mb-2">{t("health.scoringIntro")}</p>
+                <ul className="space-y-1.5">
+                  {METRIC_WEIGHTS.map(([key, weight]) => (
+                    <li key={key} className="flex items-center gap-2">
+                      <span className="flex-1">{t(`health.metric.${key}`)}</span>
+                      <span className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+                        <span className="block h-full rounded-full bg-navy" style={{ width: `${weight * 3}%` }} />
+                      </span>
+                      <span className="w-8 text-end tabular-nums font-bold">{weight}%</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="mt-5 flex items-center justify-center gap-2 text-[11px] text-muted-foreground/70">
               <span>{isAr ? "طلبات تم تحليلها:" : "Orders analyzed:"} {healthScore.orders_analyzed}</span>
               <span aria-hidden>·</span>
               <span>{isAr ? "شحنات:" : "Shipments:"} {healthScore.shipments_analyzed}</span>
