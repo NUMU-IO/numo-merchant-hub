@@ -63,7 +63,7 @@ export interface ListNotificationsParams {
 }
 
 function base(storeId: string) {
-  return `/api/v1/stores/${storeId}/notifications`;
+  return `/stores/${storeId}/notifications`;
 }
 
 export async function listNotifications(
