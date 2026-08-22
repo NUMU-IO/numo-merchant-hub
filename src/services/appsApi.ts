@@ -32,13 +32,13 @@ export interface AppInstallation extends AppCatalogEntry {
 export async function listAppCatalog(
   storeId: string,
 ): Promise<AppCatalogEntry[]> {
-  return apiClient<AppCatalogEntry[]>(`/api/v1/stores/${storeId}/apps/catalog`);
+  return apiClient<AppCatalogEntry[]>(`/stores/${storeId}/apps/catalog`);
 }
 
 export async function listAppInstallations(
   storeId: string,
 ): Promise<AppInstallation[]> {
-  return apiClient<AppInstallation[]>(`/api/v1/stores/${storeId}/apps`);
+  return apiClient<AppInstallation[]>(`/stores/${storeId}/apps`);
 }
 
 export async function installApp(
@@ -46,7 +46,7 @@ export async function installApp(
   slug: string,
 ): Promise<AppInstallation> {
   return apiClient<AppInstallation>(
-    `/api/v1/stores/${storeId}/apps/${encodeURIComponent(slug)}/install`,
+    `/stores/${storeId}/apps/${encodeURIComponent(slug)}/install`,
     { method: "POST" },
   );
 }
@@ -57,7 +57,7 @@ export async function updateAppSettings(
   settings: Record<string, unknown>,
 ): Promise<AppInstallation> {
   return apiClient<AppInstallation>(
-    `/api/v1/stores/${storeId}/apps/${encodeURIComponent(slug)}/settings`,
+    `/stores/${storeId}/apps/${encodeURIComponent(slug)}/settings`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -71,7 +71,7 @@ export async function enableApp(
   slug: string,
 ): Promise<AppInstallation> {
   return apiClient<AppInstallation>(
-    `/api/v1/stores/${storeId}/apps/${encodeURIComponent(slug)}/enable`,
+    `/stores/${storeId}/apps/${encodeURIComponent(slug)}/enable`,
     { method: "POST" },
   );
 }
@@ -81,7 +81,7 @@ export async function disableApp(
   slug: string,
 ): Promise<AppInstallation> {
   return apiClient<AppInstallation>(
-    `/api/v1/stores/${storeId}/apps/${encodeURIComponent(slug)}/disable`,
+    `/stores/${storeId}/apps/${encodeURIComponent(slug)}/disable`,
     { method: "POST" },
   );
 }
@@ -91,7 +91,7 @@ export async function uninstallApp(
   slug: string,
 ): Promise<void> {
   await apiClient<{ slug: string }>(
-    `/api/v1/stores/${storeId}/apps/${encodeURIComponent(slug)}`,
+    `/stores/${storeId}/apps/${encodeURIComponent(slug)}`,
     { method: "DELETE" },
   );
 }
