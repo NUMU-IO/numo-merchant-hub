@@ -58,11 +58,11 @@ const WalletHeaderChip = () => {
             : `On hold pending verification: ${(w.pending_balance_cents / 100).toLocaleString()} EGP`
           : undefined
       }
-      className={`group relative hidden sm:inline-flex items-center h-[42px] px-4 rounded-xl border transition-colors duration-150 text-white
+      className={`group relative hidden sm:inline-flex items-center h-10 px-4 rounded-xl border transition-colors duration-150 text-white
         ${
           w.is_blocked
-            ? "bg-red-700 border-red-700 hover:bg-red-600"
-            : "bg-navy border-navy hover:bg-primary hover:border-primary"
+            ? "bg-red-600 border-red-500 hover:bg-red-500"
+            : "bg-white/10 border-white/15 hover:bg-saffron hover:border-saffron hover:text-navy-900"
         }`}
     >
       {/* Resting: currency glyph + balance + wallet icon (solid pill) */}
@@ -75,7 +75,7 @@ const WalletHeaderChip = () => {
         </span>
         <Wallet className="h-[18px] w-[18px] opacity-90" />
         {w.pending_balance_cents > 0 && (
-          <span className="absolute top-1.5 end-1.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-navy" />
+          <span className="absolute top-1.5 end-1.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-[hsl(var(--topbar))]" />
         )}
       </span>
 

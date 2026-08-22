@@ -61,12 +61,15 @@ const DashboardLayout = () => {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
-        <AppSidebar />
-        <div className="flex flex-1 flex-col min-w-0 dash-content">
-          <ImpersonationBanner />
-          <AppHeader />
-          <main className="flex-1 overflow-auto">
+      {/* Zid-style shell: the navy top bar spans the full width; the
+          sidebar hangs beneath it (offset via --topbar-h in .dash-header). */}
+      <div className="flex min-h-screen w-full flex-col">
+        <AppHeader />
+        <div className="flex w-full flex-1">
+          <AppSidebar />
+          <div className="flex flex-1 flex-col min-w-0 dash-content">
+            <ImpersonationBanner />
+            <main className="flex-1 overflow-auto">
             <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:px-8 lg:py-6">
               {/* Demo mode banner — shows countdown + "Save my work" CTA */}
               <DemoBanner />
@@ -123,6 +126,7 @@ const DashboardLayout = () => {
               <div className="h-20 md:hidden" />
             </div>
           </main>
+          </div>
         </div>
       </div>
       <MobileBottomNav />
