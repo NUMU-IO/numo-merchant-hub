@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { formatMoney } from "@/lib/format-money";
+import { stockState, STOCK_STATE_STYLE } from "@/lib/products/stock-state";
+import { QuickCostPopover } from "@/components/products/QuickCostPopover";
+import { EmptyState } from "@/components/ui/empty-state";
 import { type Product, type ProductStatus } from "@/data/mock-products";
 import { listCategories, type Category } from "@/services/categoryApi";
 import {
@@ -32,7 +35,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Plus, Search, MoreHorizontal, Pencil, Trash2, Tag, Loader2,
+  Plus, Search, MoreHorizontal, Pencil, Trash2, Tag, Loader2, X,
   ChevronLeft, ChevronRight, Upload, Download, Archive, Eye, Copy,
   Package, TrendingUp, AlertTriangle,
   ArrowUpDown, ListFilter, LayoutGrid, LayoutList,
@@ -63,6 +66,22 @@ const Products = () => {
   const [scanSupported] = useState(isBarcodeScanSupported);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ProductStatus>("all");
+  // Profit-readiness filter — `/products?cost=missing` (linked from the
+  // dashboard's Net Profit tile and the banner below) shows only products
+  // without a cost so the merchant can fill them in one pass.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const missingCostOnly = searchParams.get("cost") === "missing";
+  const setMissingCostOnly = (on: boolean) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (on) next.set("cost", "missing");
+        else next.delete("cost");
+        return next;
+      },
+      { replace: true },
+    );
+  const [missingCostCount, setMissingCostCount] = useState<number | null>(null);
   const [categoryFilter, setCategoryFilter] = useState("all");
   // Sort/view state — backed by URL-stable values that map straight to the
   // API's `sort_by`/`sort_order` query params (see backend's PRODUCT_SORT_FIELDS).
@@ -126,7 +145,7 @@ const Products = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, categoryFilter, sortKey]);
+  }, [debouncedSearch, statusFilter, categoryFilter, sortKey, missingCostOnly]);
 
   const fetchProducts = useCallback(async () => {
     if (!storeId) return;
@@ -156,6 +175,7 @@ const Products = () => {
         category_id: categoryFilter !== "all" ? categoryFilter : undefined,
         sort_by,
         sort_order,
+        has_cost: missingCostOnly ? false : undefined,
       });
       setProductsList(result.items.map(apiToProduct));
       setTotalProducts(result.total);
@@ -165,7 +185,7 @@ const Products = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [storeId, currentPage, statusFilter, debouncedSearch, categoryFilter, sortKey, language]);
+  }, [storeId, currentPage, statusFilter, debouncedSearch, categoryFilter, sortKey, language, missingCostOnly]);
 
   useEffect(() => {
     fetchProducts();
@@ -197,14 +217,18 @@ const Products = () => {
       limit: 1,
       search: debouncedSearch || undefined,
       category_id: categoryFilter !== "all" ? categoryFilter : undefined,
+      has_cost: missingCostOnly ? false : undefined,
     } as const;
     Promise.all([
       listProducts(storeId, { ...common }),
       listProducts(storeId, { ...common, status: "active" }),
       listProducts(storeId, { ...common, status: "draft" }),
       listProducts(storeId, { ...common, status: "archived" }),
+      // Profit-readiness: how many products (any status, no other filter)
+      // still have no cost. Drives the banner + the Net Profit tile link.
+      listProducts(storeId, { page: 1, limit: 1, has_cost: false }),
     ])
-      .then(([all, active, draft, archived]) => {
+      .then(([all, active, draft, archived, missingCost]) => {
         if (cancelled) return;
         setStatusCounts({
           all: all.total,
@@ -212,16 +236,20 @@ const Products = () => {
           draft: draft.total,
           archived: archived.total,
         });
+        setMissingCostCount(missingCost.total);
       })
       // Counts are a nicety; a failure here must not blank the page. The
       // chips fall back to hiding their badge rather than showing a wrong 0.
       .catch(() => {
-        if (!cancelled) setStatusCounts(null);
+        if (!cancelled) {
+          setStatusCounts(null);
+          setMissingCostCount(null);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [storeId, debouncedSearch, categoryFilter]);
+  }, [storeId, debouncedSearch, categoryFilter, missingCostOnly]);
 
   // Category filter is now server-side (was previously a client-side filter
   // over `productsList` which only ever saw the current 20-item page, so
@@ -395,6 +423,40 @@ const Products = () => {
         })}
       </div>
 
+      {/* Profit-readiness. Net Profit on the dashboard is only as good as the
+          costs behind it; "Set cost" used to be a scattered per-row link with
+          no way to see how many were missing. */}
+      {missingCostOnly ? (
+        <div className="flex items-center gap-2 -mt-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/50 bg-amber-500/10 px-2.5 py-1 font-semibold text-amber-700 dark:text-amber-400">
+            {t("products.missingCostChip")}
+            {missingCostCount !== null && <span className="tabular-nums">· {missingCostCount}</span>}
+            <button
+              type="button"
+              onClick={() => setMissingCostOnly(false)}
+              className="ms-0.5 rounded-full p-0.5 hover:bg-amber-500/20"
+              aria-label={t("products.clearFilters")}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        </div>
+      ) : missingCostCount !== null && missingCostCount > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 -mt-2 rounded-xl border border-amber-300/50 bg-amber-500/8 px-3.5 py-2.5 text-xs">
+          <span className="text-amber-800 dark:text-amber-300 font-medium">
+            {t("products.missingCostBanner", { count: missingCostCount })}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs rounded-lg border-amber-300/60"
+            onClick={() => setMissingCostOnly(true)}
+          >
+            {t("products.setCosts")}
+          </Button>
+        </div>
+      ) : null}
+
       {/* What the current filter is actually showing. Without this the merchant
           has to infer it from which chip looks darker — and when a status has
           no products the table just reads "no products", which is easy to
@@ -552,39 +614,58 @@ const Products = () => {
               <p className="text-xs text-muted-foreground">{isAr ? "جارٍ التحميل..." : "Loading products..."}</p>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-5">
-              <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/10">
-                <Package className="h-12 w-12 text-primary/40" />
-              </div>
-              <div className="text-center space-y-2 max-w-md">
-                <p className="text-lg font-semibold text-foreground">
-                  {isAr ? "متجرك في انتظار المنتجات" : "Your store is waiting for products"}
-                </p>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {isAr
+            // An empty "Archived" tab (or a search with no hits) is not "your
+            // store is waiting for products" — only show the onboarding pitch
+            // when there is genuinely nothing in the catalog.
+            (statusFilter !== "all" || debouncedSearch || categoryFilter !== "all" || missingCostOnly) ? (
+              <EmptyState
+                icon={Search}
+                tone="navy"
+                title={t("products.emptyFilteredTitle")}
+                description={t("products.emptyFilteredBody")}
+                action={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 rounded-lg px-4"
+                    onClick={() => { setStatusFilter("all"); setSearch(""); setCategoryFilter("all"); setMissingCostOnly(false); }}
+                  >
+                    {t("products.clearFilters")}
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={Package}
+                title={isAr ? "متجرك في انتظار المنتجات" : "Your store is waiting for products"}
+                description={
+                  isAr
                     ? "أضف أول منتج وابدأ البيع. تقدر تضيف المنتجات يدوي أو تستوردها من إنستجرام أو ملف CSV."
-                    : "Add your first product to start selling. You can add products manually or import them from Instagram or a CSV file."}
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <Button onClick={() => navigate("/products/new")} size="sm" className="gap-1.5 rounded-lg px-5 h-9 shadow-sm">
-                  <Plus className="h-4 w-4" />
-                  {isAr ? "أضف منتج" : "Add Product"}
-                </Button>
-                <Button variant="outline" onClick={() => navigate("/social")} size="sm" className="gap-1.5 rounded-lg px-5 h-9">
-                  {isAr ? "استيراد منتجات" : "Import Products"}
-                </Button>
-              </div>
-            </div>
+                    : "Add your first product to start selling. You can add products manually or import them from Instagram or a CSV file."
+                }
+                action={
+                  <div className="flex gap-3">
+                    <Button onClick={() => navigate("/products/new")} size="sm" className="gap-1.5 rounded-lg px-5 h-9 shadow-sm">
+                      <Plus className="h-4 w-4" />
+                      {isAr ? "أضف منتج" : "Add Product"}
+                    </Button>
+                    <Button variant="outline" onClick={() => navigate("/social")} size="sm" className="gap-1.5 rounded-lg px-5 h-9">
+                      {isAr ? "استيراد منتجات" : "Import Products"}
+                    </Button>
+                  </div>
+                }
+              />
+            )
           ) : viewMode === "grid" ? (
             /* Souq product card grid — square thumb, name, sku, price,
                and a sage/terracotta stock progress bar that pops to
                terracotta when stock <= 10. Matches NHUB Products spec. */
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 p-4">
               {filtered.map((p) => {
-                const low = p.stock > 0 && p.stock <= 10;
-                const out = p.stock === 0;
-                const stockPct = Math.min(100, Math.max(out ? 0 : 6, Math.round((p.stock / 120) * 100)));
+                const state = stockState(p.stock);
+                const low = state === "low";
+                const out = state === "out" || state === "oversold";
+                const stockPct = Math.min(100, Math.max(out ? 0 : 6, Math.round((Math.max(0, p.stock) / 120) * 100)));
                 return (
                   <button
                     type="button"
@@ -619,7 +700,9 @@ const Products = () => {
                         <div className="flex justify-between items-center text-[11px] mb-1.5">
                           <span className="text-muted-foreground">{t("products.stock")}</span>
                           <span className={`tabular-nums font-bold ${out ? "text-destructive" : low ? "text-terracotta" : "text-foreground"}`}>
-                            {p.stock} {isAr ? "وحدة" : "units"}
+                            {state === "oversold"
+                              ? `${t("products.stockState.oversold")} (${p.stock})`
+                              : `${p.stock} ${isAr ? "وحدة" : "units"}`}
                           </span>
                         </div>
                         <div className="h-1.5 rounded-full bg-muted overflow-hidden">
@@ -643,8 +726,9 @@ const Products = () => {
               mobile={
                 <MobileCardList className="p-3">
                   {filtered.map((p) => {
-                    const outOfStock = p.stock === 0;
-                    const lowStock = p.stock > 0 && p.stock < 20;
+                    const state = stockState(p.stock);
+                    const outOfStock = state === "out" || state === "oversold";
+                    const lowStock = state === "low";
                     return (
                       <MobileCard
                         key={p.id}
@@ -695,7 +779,9 @@ const Products = () => {
                                 className={`h-1.5 w-1.5 rounded-full ${outOfStock ? "bg-destructive" : "bg-amber-500"}`}
                               />
                             )}
-                            {t("products.stock")}: <span className="tabular-nums">{p.stock}</span>
+                            {state === "oversold"
+                              ? <>{t("products.stockState.oversold")} <span className="tabular-nums">({p.stock})</span></>
+                              : <>{t("products.stock")}: <span className="tabular-nums">{p.stock}</span></>}
                           </span>
                         }
                       />
@@ -765,27 +851,52 @@ const Products = () => {
                         </div>
                       </TableCell>
 
-                      {/* Quantity */}
+                      {/* Quantity — one shared ramp (stockState). Negative stock
+                          used to fall through every branch and render as a
+                          plain neutral number. */}
                       <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          {p.stock < 20 && p.stock > 0 && (
-                            <div className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                          )}
-                          {p.stock === 0 && (
-                            <div className="h-1.5 w-1.5 rounded-full bg-destructive" />
-                          )}
-                          <span className={`text-[13px] tabular-nums font-medium ${p.stock === 0 ? "text-destructive" : p.stock < 20 ? "text-amber-600 dark:text-amber-400" : ""}`}>
-                            {p.stock}
-                          </span>
-                        </div>
+                        {(() => {
+                          const state = stockState(p.stock);
+                          const style = STOCK_STATE_STYLE[state];
+                          if (state === "oversold") {
+                            return (
+                              <div className="space-y-1">
+                                <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-semibold ${style.pill}`}>
+                                  <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                                  {t("products.stockState.oversold")}
+                                  <span className="tabular-nums">({p.stock})</span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); navigate(`/products/${p.id}/edit?focus=stock`); }}
+                                  className="block text-[11px] text-destructive underline-offset-2 hover:underline"
+                                >
+                                  {t("products.stockState.fixStock")}
+                                </button>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="flex items-center gap-1.5">
+                              {style.dot && <div className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />}
+                              <span className={`text-[13px] tabular-nums font-medium ${style.text}`}>{p.stock}</span>
+                            </div>
+                          );
+                        })()}
                       </TableCell>
 
-                      {/* Price + Currency */}
+                      {/* Price — sale price, struck compare-at and the discount
+                          in one line instead of a dense two-line stack. */}
                       <TableCell>
-                        <div>
-                          <p className="font-semibold text-[13px] tabular-nums">{formatCurrency(p.price)}</p>
-                          {p.compareAtPrice && (
-                            <p className="text-[11px] text-muted-foreground/50 line-through tabular-nums">{formatCurrency(p.compareAtPrice)}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-[13px] tabular-nums">{formatCurrency(p.price)}</span>
+                          {p.compareAtPrice && p.compareAtPrice > p.price && (
+                            <>
+                              <span className="text-[11px] text-muted-foreground/60 line-through tabular-nums">{formatCurrency(p.compareAtPrice)}</span>
+                              <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                                -{Math.round((1 - p.price / p.compareAtPrice) * 100)}%
+                              </span>
+                            </>
                           )}
                         </div>
                       </TableCell>
@@ -809,13 +920,15 @@ const Products = () => {
                             );
                           })()
                         ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); navigate(`/products/${p.id}/edit`); }}
-                            className="text-[11px] text-muted-foreground/60 hover:text-primary underline-offset-2 hover:underline"
-                          >
-                            {t("products.setCost")}
-                          </button>
+                          <QuickCostPopover
+                            storeId={storeId!}
+                            productId={p.id}
+                            price={p.price}
+                            onSaved={(cost) => {
+                              setProductsList((prev) => prev.map((x) => (x.id === p.id ? { ...x, costPrice: cost } : x)));
+                              setMissingCostCount((n) => (n === null ? n : Math.max(0, n - 1)));
+                            }}
+                          />
                         )}
                       </TableCell>
 

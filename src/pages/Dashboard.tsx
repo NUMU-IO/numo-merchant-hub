@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import React, { useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
@@ -361,6 +362,8 @@ const Dashboard = () => {
     data: number[];
     stroke: string;
     hint?: string;
+    /** Makes the hint a link (e.g. Net Profit → products missing a cost). */
+    hintHref?: string;
     reportHref: string;
   }> = [
     {
@@ -398,6 +401,7 @@ const Dashboard = () => {
       data: [],
       stroke: "hsl(var(--saffron))",
       hint: profitHint,
+      hintHref: profitHint ? "/products?cost=missing" : undefined,
       reportHref: "/analytics/sales",
     },
   ];
@@ -967,6 +971,16 @@ const Dashboard = () => {
                         />
                       </svg>
                     </div>
+                  ) : kpi.hint && kpi.hintHref ? (
+                    // "2 of 3 products have a cost set" was plain text — now
+                    // it takes the merchant straight to the products missing one.
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); navigate(kpi.hintHref!); }}
+                      className="text-start text-[11px] leading-snug text-amber-700 dark:text-amber-400 underline-offset-2 hover:underline"
+                    >
+                      {kpi.hint} →
+                    </button>
                   ) : kpi.hint ? (
                     <p className="text-[11px] text-muted-foreground/80 leading-snug">
                       {kpi.hint}
@@ -1160,7 +1174,9 @@ const Dashboard = () => {
               </div>
               <CardContent className="pb-4">
                 <div className="h-[230px]">
-                  {revenueChartData.length > 0 ? (
+                  {chartQuery.isLoading && revenueChartData.length === 0 ? (
+                    <Skeleton className="h-full w-full rounded-lg" />
+                  ) : revenueChartData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={revenueChartData}>
                         <defs>
@@ -1304,10 +1320,39 @@ const Dashboard = () => {
                       </div>
                     ))}
                   </div>
-                ) : (
+                ) : topProductsQuery.isLoading ? (
+                  <div className="space-y-2 py-1">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 p-2.5">
+                        <Skeleton className="h-9 w-9 rounded-lg" />
+                        <div className="flex-1 space-y-1.5">
+                          <Skeleton className="h-3.5 w-32" />
+                          <Skeleton className="h-3 w-14" />
+                        </div>
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                    ))}
+                  </div>
+                ) : totalProductsWithCostHint === 0 ? (
+                  // Genuinely no catalog → point at adding a product.
                   <EmptyState
                     icon={Package}
                     title={isAr ? "لا توجد منتجات بعد" : "No products yet"}
+                    className="py-6"
+                    action={
+                      <Button size="sm" className="h-8 text-xs rounded-lg" onClick={() => navigate("/products/new")}>
+                        {isAr ? "أضف منتج" : "Add a product"}
+                      </Button>
+                    }
+                  />
+                ) : (
+                  // This list is ranked BY SALES — an empty list with products
+                  // in the catalog means "no sales yet", not "no products".
+                  <EmptyState
+                    icon={TrendingUp}
+                    tone="sage"
+                    title={t("dashboard.noSalesYet")}
+                    description={t("dashboard.noSalesYetBody")}
                     className="py-6"
                   />
                 )}
@@ -1493,6 +1538,18 @@ const Dashboard = () => {
                       <span className="text-[14px] font-extrabold tabular-nums shrink-0">
                         {formatCurrency(o.total)}
                       </span>
+                    </div>
+                  ))}
+                </div>
+              ) : recentOrdersQuery.isLoading ? (
+                <div className="space-y-1 py-1">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 p-2.5">
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-3.5 w-40" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                      <Skeleton className="h-4 w-16" />
                     </div>
                   ))}
                 </div>

@@ -68,6 +68,8 @@ export interface ListProductsParams {
   sort_by?: string;
   sort_order?: "asc" | "desc";
   category_id?: string;
+  /** true → only products with a cost set; false → only those missing one. */
+  has_cost?: boolean;
 }
 
 /** One option axis for the canonical (server-side) variant model. */
