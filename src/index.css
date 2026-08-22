@@ -587,18 +587,23 @@
   /* ── Dashboard chrome ─────────────────────────── */
 
   /* Frosted header bar — Souq: 68px tall, deeper blur, warm hairline. */
+  /* Zid-style full-width brand bar. `--topbar` is the bar colour (the
+     bell badge rings against it), `--topbar-h` positions the sidebar
+     beneath the bar (AppSidebar offsets its fixed panel by it). */
+  :root {
+    --topbar: var(--navy);
+    --topbar-h: 64px;
+  }
+  .dark {
+    --topbar: 216 50% 10%;
+  }
   .dash-header {
-    /* px-3 below sm: at 360px the control row (sidebar + search + theme +
-       language + store switcher + bell) measured ~406px against a 360px
-       viewport — a 45px sideways scroll on EVERY page, and in Arabic the
-       account avatar landed entirely off-screen. `min-w-0` lets the store
-       switcher actually shrink; without it a flex item refuses to go below
-       its content width and the overflow just moves. */
-    @apply sticky top-0 z-30 flex h-[68px] min-w-0 items-center gap-1.5 px-3 sm:gap-2 sm:px-6;
-    background: hsl(var(--background) / 0.82);
-    -webkit-backdrop-filter: blur(18px) saturate(1.4);
-    backdrop-filter: blur(18px) saturate(1.4);
-    border-bottom: 1px solid hsl(var(--border));
+    /* px-3 below sm: at 360px the control row measured wider than the
+       viewport — `min-w-0` lets the end cluster actually shrink. */
+    @apply sticky top-0 z-40 flex h-[var(--topbar-h)] min-w-0 items-center gap-1.5 px-2.5 sm:gap-2 sm:px-4;
+    background: hsl(var(--topbar));
+    color: #fff;
+    border-bottom: 1px solid hsl(0 0% 100% / 0.08);
   }
 
   /* Dark mode card glass treatment */

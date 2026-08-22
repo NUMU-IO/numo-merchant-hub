@@ -18,6 +18,8 @@ import { ImpersonationBanner } from "./ImpersonationBanner";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { useAppBadge } from "@/hooks/useAppBadge";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
+import { useNotificationStream } from "@/hooks/useNotificationStream";
+import { useFaviconBadge } from "@/hooks/useFaviconBadge";
 import { NewOrderNotifier } from "@/components/NewOrderNotifier";
 import { AgentPanel } from "@/features/agent";
 import { useNavConfig } from "@/hooks/useNavConfig";
@@ -41,7 +43,13 @@ const DashboardLayout = () => {
   // store id the header bell uses, so the badge and the bell can never
   // disagree. No-ops where the Badging API is unsupported — notably Chrome
   // for Android.
-  useAppBadge(useUnreadNotificationCount(currentStore?.id));
+  const unreadNotifications = useUnreadNotificationCount(currentStore?.id);
+  useAppBadge(unreadNotifications);
+  // Same count on the browser tab: numbered favicon + "(n) " title prefix.
+  useFaviconBadge(unreadNotifications);
+  // SSE stream — invalidates the notification queries the moment the API
+  // commits a feed row, so the 45 s poll is only the fallback.
+  useNotificationStream(currentStore?.id);
 
   const trialDaysLeft = useMemo(() => {
     if (!user?.trial_ends_at) return null;
@@ -61,12 +69,15 @@ const DashboardLayout = () => {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
-        <AppSidebar />
-        <div className="flex flex-1 flex-col min-w-0 dash-content">
-          <ImpersonationBanner />
-          <AppHeader />
-          <main className="flex-1 overflow-auto">
+      {/* Zid-style shell: the navy top bar spans the full width; the
+          sidebar hangs beneath it (offset via --topbar-h in .dash-header). */}
+      <div className="flex min-h-screen w-full flex-col">
+        <AppHeader />
+        <div className="flex w-full flex-1">
+          <AppSidebar />
+          <div className="flex flex-1 flex-col min-w-0 dash-content">
+            <ImpersonationBanner />
+            <main className="flex-1 overflow-auto">
             <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:px-8 lg:py-6">
               {/* Demo mode banner — shows countdown + "Save my work" CTA */}
               <DemoBanner />
@@ -123,6 +134,7 @@ const DashboardLayout = () => {
               <div className="h-20 md:hidden" />
             </div>
           </main>
+          </div>
         </div>
       </div>
       <MobileBottomNav />

@@ -1,30 +1,36 @@
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
-  Home, ShoppingCart, Package, Plus, MoreHorizontal, X,
-  CreditCard, Truck, Banknote, Receipt, Megaphone, BarChart3,
-  Share2, Store, Bell, Settings, Users, FolderOpen, Wallet,
-  Tag, FileEdit, ShoppingBag, Inbox, Mail, Send,
-  Sparkles, Gift, MapPin, PlugZap, Boxes, ChevronRight,
+  Home, ShoppingCart, Package, Plus, MoreHorizontal, X, Tag,
+  ChevronRight, ChevronDown, Bell, Smartphone,
 } from "lucide-react";
-import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
+import { CaretRight } from "@phosphor-icons/react";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { listOrders } from "@/services/orderApi";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { IosInstallSheet } from "@/components/pwa/IosInstallSheet";
-import { Smartphone } from "lucide-react";
+import { NavItemGate } from "@/components/layout/NavItemGate";
+import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
+import { useHubNav, type HubTab, type NavGroup, type NavLeaf } from "@/lib/nav/useHubNav";
+import { cn } from "@/lib/utils";
 
 type IconType = typeof Home;
 
-// WhatsApp brand mark as a nav icon — sized via `className` like the
-// lucide icons around it. Cast bridges our plain function component to
-// lucide's forwardRef icon type.
-const WhatsAppNavIcon = WhatsAppGlyph as unknown as IconType;
-
+/**
+ * Souq mobile chrome: Home · Orders · +FAB · Products · More.
+ *
+ * The "More" sheet is the Zid shell on a phone — the same Dashboard /
+ * Apps / Settings switcher and the same nav model as the desktop
+ * sidebar (`useHubNav`), rendered as a list with expandable groups
+ * instead of a tile grid. Notifications (with the unread count) sit at
+ * the top because the header bell is the one thing a thumb can't reach.
+ */
 const MobileBottomNav = () => {
+  const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
@@ -33,9 +39,10 @@ const MobileBottomNav = () => {
   const [addOpen, setAddOpen] = useState(false);
   const { affordance: installAffordance, install } = useInstallPrompt();
   const [iosSheetOpen, setIosSheetOpen] = useState(false);
+  const nav = useHubNav();
+  const unreadNotifications = useUnreadNotificationCount(currentStore?.id);
 
-  // Orders count badge (pending+processing) — same signal the Dashboard
-  // attention bar uses so the badge stays in sync.
+  // Orders count badge (pending) — same signal the Dashboard attention bar uses.
   const ordersQuery = useQuery({
     queryKey: ["mnav", "ordersCount", currentStore?.id],
     queryFn: () => listOrders(currentStore!.id, { page: 1, limit: 1, status: "pending" }),
@@ -47,120 +54,254 @@ const MobileBottomNav = () => {
   const isActive = (path: string) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
 
-  // ─── Quick add sheet items — matches Souq spec (Product / Order / Discount) ──
+  // ── Sheet state: tab + expanded group, re-seeded from the route on open ──
+  const [tab, setTab] = useState<HubTab>(nav.routeTab);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    setTab(nav.routeTab);
+    const activeGroup = nav.groups.find((g) => g.active && g.children);
+    setExpanded(
+      nav.channelsActive ? "channels" : activeGroup ? activeGroup.key : null,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuOpen]);
+
   const quickAdd: { Icon: IconType; label: string; tone: string; href: string }[] = [
-    { Icon: Package, label: isRTL ? "منتج جديد" : "New product", tone: "ichip-navy", href: "/products/new" },
-    { Icon: ShoppingCart, label: isRTL ? "طلب جديد" : "New order", tone: "ichip-saffron", href: "/orders/create" },
-    { Icon: Tag, label: isRTL ? "خصم جديد" : "New discount", tone: "ichip-sage", href: "/marketing/promotions/new" },
+    { Icon: Package, label: t("nav.newProduct"), tone: "ichip-navy", href: "/products/new" },
+    { Icon: ShoppingCart, label: t("nav.newOrder"), tone: "ichip-saffron", href: "/orders/create" },
+    { Icon: Tag, label: t("nav.newDiscount"), tone: "ichip-sage", href: "/marketing/promotions/new" },
   ];
 
-  // ─── More sheet — grouped tiles mirroring the desktop sidebar IA ──
-  type Tile = { Icon: IconType; label: string; href: string };
-  const moreGroups: { label: string; tiles: Tile[] }[] = [
-    {
-      label: isRTL ? "البيع والنمو" : "Sell & grow",
-      tiles: [
-        { Icon: Store, label: isRTL ? "المتجر" : "Online Store", href: "/online-store/themes" },
-        { Icon: Megaphone, label: isRTL ? "التسويق" : "Marketing", href: "/marketing" },
-        { Icon: BarChart3, label: isRTL ? "التحليلات" : "Analytics", href: "/analytics/overview" },
-        { Icon: Sparkles, label: isRTL ? "الإحالات" : "Referrals", href: "/referrals" },
-      ],
-    },
-    {
-      label: isRTL ? "الفلوس" : "Money",
-      tiles: [
-        { Icon: Wallet, label: isRTL ? "المالية" : "Finance", href: "/payments" },
-        { Icon: Banknote, label: isRTL ? "الاستلام" : "COD", href: "/cod" },
-        { Icon: Receipt, label: isRTL ? "الفواتير" : "Invoices", href: "/invoices" },
-        { Icon: CreditCard, label: isRTL ? "إعداد الدفع" : "Payment setup", href: "/payment-setup" },
-        { Icon: Gift, label: isRTL ? "بطاقات هدايا" : "Gift cards", href: "/gift-cards" },
-      ],
-    },
-    {
-      label: isRTL ? "العمليات" : "Operations",
-      tiles: [
-        { Icon: Truck, label: isRTL ? "الشحن" : "Logistics", href: "/logistics" },
-        { Icon: MapPin, label: isRTL ? "المناطق" : "Zones", href: "/shipping/zones" },
-        { Icon: Inbox, label: isRTL ? "الرسائل" : "Inbox", href: "/inbox" },
-        { Icon: WhatsAppNavIcon, label: isRTL ? "واتساب" : "WhatsApp", href: "/whatsapp" },
-        { Icon: Mail, label: isRTL ? "قوالب البريد" : "Email", href: "/email-templates" },
-        { Icon: PlugZap, label: isRTL ? "القنوات" : "Channels", href: "/channels" },
-        { Icon: Users, label: isRTL ? "الفريق" : "Staff", href: "/staff" },
-        { Icon: Boxes, label: isRTL ? "التطبيقات" : "Apps", href: "/apps" },
-      ],
-    },
-    {
-      label: isRTL ? "الإضافات" : "More",
-      tiles: [
-        { Icon: FolderOpen, label: isRTL ? "الفئات" : "Categories", href: "/categories" },
-        { Icon: ShoppingBag, label: isRTL ? "السلال المهجورة" : "Abandoned", href: "/orders/abandoned" },
-        { Icon: FileEdit, label: isRTL ? "المسودات" : "Drafts", href: "/orders/drafts" },
-        { Icon: Send, label: isRTL ? "الحملات" : "Campaigns", href: "/campaigns" },
-        { Icon: Share2, label: isRTL ? "السوشيال" : "Social", href: "/social" },
-        { Icon: Bell, label: isRTL ? "الإشعارات" : "Notifications", href: "/notifications" },
-        { Icon: Settings, label: isRTL ? "الإعدادات" : "Settings", href: "/settings" },
-      ],
-    },
-  ];
-
-  // Permanent install entry point. The dashboard card (InstallPrompt) is the
-  // timed nudge and can be dismissed forever; this is the way back to it.
-  // Renders nothing once installed, in an unsupported browser, or on desktop.
   const showInstall = installAffordance !== null;
-
   const goAdd = (href: string) => { setAddOpen(false); navigate(href); };
-  const goMore = (href: string) => { setMenuOpen(false); navigate(href); };
+  const go = (href: string) => { setMenuOpen(false); navigate(href); };
 
-  // ─── Bottom nav tabs (Souq spec: Home · Orders · +FAB · Products · More) ─
+  // ── Bottom tabs ─────────────────────────────────────────────────────
   type Tab = { key: string; label: string; Icon: IconType; path?: string; fab?: boolean; onClick?: () => void; count?: number };
   const tabs: Tab[] = [
-    { key: "home", label: isRTL ? "الرئيسية" : "Home", Icon: Home, path: "/" },
-    { key: "orders", label: isRTL ? "الطلبات" : "Orders", Icon: ShoppingCart, path: "/orders", count: pendingOrders },
-    { key: "add", label: isRTL ? "إضافة" : "Add", Icon: Plus, fab: true, onClick: () => setAddOpen(true) },
-    { key: "products", label: isRTL ? "المنتجات" : "Products", Icon: Package, path: "/products" },
-    { key: "more", label: isRTL ? "المزيد" : "More", Icon: MoreHorizontal, onClick: () => setMenuOpen(true) },
+    { key: "home", label: t("nav.home"), Icon: Home, path: "/" },
+    { key: "orders", label: t("nav.orders"), Icon: ShoppingCart, path: "/orders", count: pendingOrders },
+    { key: "add", label: t("nav.add"), Icon: Plus, fab: true, onClick: () => setAddOpen(true) },
+    { key: "products", label: t("nav.products"), Icon: Package, path: "/products" },
+    { key: "more", label: t("nav.more"), Icon: MoreHorizontal, onClick: () => setMenuOpen(true), count: unreadNotifications },
   ];
+
+  // ── Sheet renderers ─────────────────────────────────────────────────
+  const Row = ({
+    icon, label, active, badge, dot, chevron, onClick, sub,
+  }: {
+    icon: React.ReactNode; label: string; active?: boolean; badge?: number; dot?: boolean;
+    chevron?: "open" | "closed" | "link"; onClick: () => void; sub?: boolean;
+  }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full min-h-[44px] items-center gap-3 rounded-xl px-3 text-start transition-colors",
+        sub ? "py-2 ps-12" : "py-2.5",
+        active ? "bg-navy text-white dark:bg-saffron dark:text-navy-900" : "hover:bg-muted/60",
+      )}
+    >
+      {icon}
+      <span className={cn("flex-1 truncate", sub ? "text-[13.5px] font-medium" : "text-[14.5px] font-semibold")}>
+        {label}
+      </span>
+      {badge ? (
+        <span className={cn(
+          "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums",
+          active ? "bg-white/20" : "bg-saffron text-navy-900",
+        )}>
+          {badge > 99 ? "99+" : badge}
+        </span>
+      ) : dot ? (
+        <span className="h-2 w-2 rounded-full bg-red-500" aria-hidden />
+      ) : null}
+      {chevron === "open" ? (
+        <ChevronDown className="h-4 w-4 opacity-60" />
+      ) : chevron === "closed" ? (
+        <CaretRight size={14} weight="bold" className={cn("opacity-60", isRTL && "rotate-180")} />
+      ) : chevron === "link" ? (
+        <ChevronRight className="h-4 w-4 opacity-60 rtl:rotate-180" />
+      ) : null}
+    </button>
+  );
+
+  const iconCls = (active?: boolean) =>
+    cn("shrink-0", active ? "text-saffron dark:text-navy-900" : "text-navy dark:text-saffron");
+
+  const renderLeaf = (item: NavLeaf, sub = false) => {
+    const active = nav.isActive(item.url, item.exact);
+    return (
+      <NavItemGate key={item.key} navKey={item.navKey}>
+        <Row
+          sub={sub}
+          icon={<item.icon size={sub ? 16 : 20} weight={active ? "fill" : "duotone"} className={iconCls(active)} />}
+          label={item.label}
+          active={active}
+          badge={item.badge}
+          dot={item.dot}
+          onClick={() => go(item.url)}
+        />
+      </NavItemGate>
+    );
+  };
+
+  const renderGroup = (g: NavGroup) => {
+    const open = expanded === g.key;
+    const hasChildren = !!g.children?.length;
+    return (
+      <NavItemGate key={g.key} navKey={g.navKey}>
+        <div>
+          <Row
+            icon={<g.icon size={20} weight={g.active ? "fill" : "duotone"} className={iconCls(g.active && !hasChildren)} />}
+            label={g.label}
+            active={g.active && !hasChildren}
+            dot={g.dot && !open}
+            chevron={hasChildren ? (open ? "open" : "closed") : undefined}
+            onClick={() => (hasChildren ? setExpanded(open ? null : g.key) : go(g.url))}
+          />
+          {hasChildren && open && (
+            <div className="mb-1 space-y-0.5">
+              {g.children!.map((c) => renderLeaf(c, true))}
+              {g.more?.items.map((c) => renderLeaf(c, true))}
+            </div>
+          )}
+        </div>
+      </NavItemGate>
+    );
+  };
+
+  const dashboardPanel = (
+    <div className="space-y-0.5">
+      {nav.groups.map(renderGroup)}
+      <NavItemGate navKey="channels">
+        <div className="mt-2 border-t border-border/60 pt-2">
+          <Row
+            icon={<Bell className="hidden" />}
+            label={t("nav.channels")}
+            badge={nav.totalUnread}
+            chevron={expanded === "channels" ? "open" : "closed"}
+            onClick={() => setExpanded(expanded === "channels" ? null : "channels")}
+          />
+          {expanded === "channels" && (
+            <div className="space-y-0.5">{nav.channelsItems.map((c) => renderLeaf(c, true))}</div>
+          )}
+        </div>
+      </NavItemGate>
+    </div>
+  );
+
+  const appsPanel = (
+    <div className="space-y-0.5">
+      {nav.appsItems.map((c) => renderLeaf(c))}
+      <h3 className="souq-eyebrow mt-3 mb-1 px-3">§ {t("nav.installedApps")}</h3>
+      {nav.installedApps.length === 0 ? (
+        <p className="px-3 py-2 text-[13px] text-muted-foreground">{t("nav.noApps")}</p>
+      ) : (
+        nav.installedApps.map((app) => (
+          <Row
+            key={app.slug}
+            icon={
+              app.icon_url ? (
+                <img src={app.icon_url} alt="" className="h-5 w-5 rounded-md object-cover" />
+              ) : (
+                <nav.Boxes size={20} weight="duotone" className={iconCls()} />
+              )
+            }
+            label={app.name}
+            dot={!app.is_enabled}
+            chevron="link"
+            onClick={() => go("/apps")}
+          />
+        ))
+      )}
+    </div>
+  );
+
+  const settingsPanel = (
+    <div className="space-y-3">
+      {nav.settingsSections.map((section, i) => {
+        const key = `settings:${i}`;
+        const open = i === 0 || expanded === key;
+        const label = isRTL ? section.title.ar : section.title.en;
+        return (
+          <div key={key}>
+            {i === 0 ? (
+              <h3 className="souq-eyebrow mb-1 px-3">§ {label}</h3>
+            ) : (
+              <Row
+                icon={<span className="w-5" aria-hidden />}
+                label={label}
+                chevron={open ? "open" : "closed"}
+                onClick={() => setExpanded(open ? null : key)}
+              />
+            )}
+            {open && (
+              <div className="space-y-0.5">
+                {section.items.map((item) => {
+                  const active = nav.settingsItemActive(item.to);
+                  const ItemIcon = item.icon;
+                  return (
+                    <Row
+                      key={item.to}
+                      sub={i !== 0}
+                      icon={<ItemIcon className={cn("h-[18px] w-[18px]", iconCls(active))} />}
+                      label={isRTL ? item.title.ar : item.title.en}
+                      active={active}
+                      onClick={() => go(item.to)}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     <>
-      {/* Souq mobile chrome — 76px frosted bar, raised navy FAB at the
-          center (Quick add), saffron count badge on Orders. */}
       <nav className="fixed bottom-0 inset-x-0 z-50 md:hidden border-t border-border bg-background/90 backdrop-blur-lg safe-bottom">
         <div className="flex items-stretch justify-around h-[76px] px-2 pt-2 pb-3">
-          {tabs.map((tab) => {
-            const active = tab.path ? isActive(tab.path) : false;
-            const onTap = tab.onClick ?? (() => tab.path && navigate(tab.path));
+          {tabs.map((tabItem) => {
+            const active = tabItem.path ? isActive(tabItem.path) : false;
+            const onTap = tabItem.onClick ?? (() => tabItem.path && navigate(tabItem.path));
             return (
               <button
-                key={tab.key}
+                key={tabItem.key}
                 type="button"
                 onClick={onTap}
-                aria-label={tab.label}
+                aria-label={tabItem.label}
                 aria-current={active ? "page" : undefined}
                 className={`relative flex flex-col items-center justify-center gap-1 flex-1 rounded-2xl transition-colors cursor-pointer ${
-                  tab.fab
+                  tabItem.fab
                     ? "text-saffron"
                     : active
                       ? "text-navy dark:text-saffron"
                       : "text-ink-faint hover:text-foreground"
                 }`}
               >
-                {tab.fab ? (
+                {tabItem.fab ? (
                   <div className="mnav-fab">
-                    <tab.Icon className="h-6 w-6" strokeWidth={2.5} />
+                    <tabItem.Icon className="h-6 w-6" strokeWidth={2.5} />
                   </div>
                 ) : (
                   <span className="relative">
-                    <tab.Icon className={`h-[25px] w-[25px] ${active ? "stroke-[2.5]" : ""}`} />
-                    {tab.count && tab.count > 0 ? (
-                      <span className="absolute -top-1.5 -end-2 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-saffron px-1 text-[10px] font-extrabold text-navy-900 ring-2 ring-background tabular-nums">
-                        {tab.count > 9 ? "9+" : tab.count}
+                    <tabItem.Icon className={`h-[25px] w-[25px] ${active ? "stroke-[2.5]" : ""}`} />
+                    {tabItem.count && tabItem.count > 0 ? (
+                      <span className={cn(
+                        "absolute -top-1.5 -end-2 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-extrabold ring-2 ring-background tabular-nums",
+                        tabItem.key === "more" ? "bg-red-500 text-white" : "bg-saffron text-navy-900",
+                      )}>
+                        {tabItem.count > 9 ? "9+" : tabItem.count}
                       </span>
                     ) : null}
                   </span>
                 )}
-                <span className={`text-[10.5px] leading-none ${active || tab.fab ? "font-bold" : "font-semibold"}`}>
-                  {tab.label}
+                <span className={`text-[10.5px] leading-none ${active || tabItem.fab ? "font-bold" : "font-semibold"}`}>
+                  {tabItem.label}
                 </span>
               </button>
             );
@@ -168,11 +309,11 @@ const MobileBottomNav = () => {
         </div>
       </nav>
 
-      {/* Quick add bottom sheet — 3 brand-tinted rows */}
+      {/* Quick add bottom sheet */}
       <Sheet open={addOpen} onOpenChange={setAddOpen}>
         <SheetContent side="bottom" className="rounded-t-3xl">
           <SheetHeader>
-            <SheetTitle className="text-base font-extrabold">{isRTL ? "إضافة سريعة" : "Quick add"}</SheetTitle>
+            <SheetTitle className="text-base font-extrabold">{t("nav.quickAdd")}</SheetTitle>
           </SheetHeader>
           <div className="flex flex-col gap-2.5 pt-4 pb-2">
             {quickAdd.map((item) => (
@@ -193,69 +334,74 @@ const MobileBottomNav = () => {
         </SheetContent>
       </Sheet>
 
-      {/* More sheet — grouped IA tiles (matches Souq spec: section labels
-          + tile grid per group, scrollable). */}
+      {/* More sheet — Zid shell on a phone */}
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetContent side="bottom" className="rounded-t-3xl max-h-[88vh] flex flex-col">
-          <SheetHeader className="flex-row items-center justify-between">
-            <SheetTitle className="text-base font-extrabold">{isRTL ? "كل الأقسام" : "All sections"}</SheetTitle>
+        <SheetContent side="bottom" className="rounded-t-3xl max-h-[90vh] flex flex-col p-0">
+          <SheetHeader className="flex-row items-center justify-between px-4 pt-4 pb-2">
+            <SheetTitle className="text-base font-extrabold">{t("nav.allSections")}</SheetTitle>
             <button
               type="button"
               onClick={() => setMenuOpen(false)}
               className="h-9 w-9 rounded-xl bg-card border border-border grid place-items-center"
-              aria-label={isRTL ? "إغلاق" : "Close"}
+              aria-label={t("nav.close")}
             >
               <X className="h-4 w-4" />
             </button>
           </SheetHeader>
-          <div className="flex-1 overflow-y-auto py-3 space-y-5">
-            {moreGroups.map((group) => (
-              <div key={group.label}>
-                <h3 className="souq-eyebrow mb-2 px-1">§ {group.label}</h3>
-                <div className="grid grid-cols-3 gap-2">
-                  {group.tiles.map((tile) => (
-                    <button
-                      key={tile.href}
-                      type="button"
-                      onClick={() => goMore(tile.href)}
-                      className={`relative flex flex-col items-center justify-center gap-2 rounded-2xl border bg-card p-3 transition-colors hover:bg-muted/50 ${
-                        isActive(tile.href) ? "border-navy" : "border-border"
-                      }`}
-                    >
-                      <div className="ichip ichip-navy !w-[38px] !h-[38px]">
-                        <tile.Icon className="h-[18px] w-[18px]" />
-                      </div>
-                      <span className="text-[11px] font-semibold text-center leading-tight line-clamp-2">
-                        {tile.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+
+          {/* Segmented switcher — same three tabs as the desktop sidebar */}
+          <div className="px-4 pb-2">
+            <div role="tablist" className="flex gap-1 rounded-xl bg-muted/60 p-1">
+              {nav.tabs.filter((x) => x.visible).map((x) => {
+                const active = x.key === tab;
+                return (
+                  <button
+                    key={x.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => { setTab(x.key); setExpanded(null); }}
+                    className={cn(
+                      "flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg text-[12.5px] font-bold transition-colors",
+                      active ? "bg-card text-navy shadow-sm dark:text-saffron" : "text-muted-foreground",
+                    )}
+                  >
+                    <x.icon size={18} weight={active ? "fill" : "duotone"} />
+                    {x.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-3">
+            {tab === "dashboard" && (
+              <NavItemGate navKey="notifications">
+                <Row
+                  icon={<Bell className={cn("h-5 w-5", iconCls(isActive("/notifications")))} />}
+                  label={t("nav.notifications")}
+                  active={isActive("/notifications")}
+                  badge={unreadNotifications}
+                  chevron="link"
+                  onClick={() => go("/notifications")}
+                />
+              </NavItemGate>
+            )}
+
+            {tab === "apps" ? appsPanel : tab === "settings" ? settingsPanel : dashboardPanel}
 
             {showInstall && (
-              <div>
-                <h3 className="souq-eyebrow mb-2 px-1">§ {isRTL ? "التطبيق" : "App"}</h3>
-                <button
-                  type="button"
+              <div className="border-t border-border/60 pt-2">
+                <Row
+                  icon={<Smartphone className="h-5 w-5 text-navy dark:text-saffron" />}
+                  label={t("nav.installApp")}
+                  chevron="link"
                   onClick={() => {
                     setMenuOpen(false);
-                    // Android/Chromium can show the real dialog; iOS and in-app
-                    // WebViews get the instruction sheet instead.
                     if (installAffordance === "native") void install();
                     else setIosSheetOpen(true);
                   }}
-                  className="flex w-full min-h-[44px] items-center gap-3 rounded-2xl border border-border bg-card p-3.5 text-start hover-lift"
-                >
-                  <div className="ichip ichip-navy shrink-0">
-                    <Smartphone className="h-5 w-5" />
-                  </div>
-                  <span className="flex-1 text-[15px] font-bold">
-                    {isRTL ? "ثبّت التطبيق" : "Install app"}
-                  </span>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground rtl:rotate-180" />
-                </button>
+                />
               </div>
             )}
           </div>
