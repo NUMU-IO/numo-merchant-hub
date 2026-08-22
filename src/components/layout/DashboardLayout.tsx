@@ -21,17 +21,7 @@ import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
 import { NewOrderNotifier } from "@/components/NewOrderNotifier";
 import { AgentPanel } from "@/features/agent";
 import { useNavConfig } from "@/hooks/useNavConfig";
-
-function PageFallback() {
-  return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="flex flex-col items-center gap-3">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
-        <p className="text-xs text-muted-foreground animate-pulse">Loading...</p>
-      </div>
-    </div>
-  );
-}
+import { PageLoader } from "@/components/PageLoader";
 
 const DashboardLayout = () => {
   const { currentStore } = useDashboardStore();
@@ -107,7 +97,11 @@ const DashboardLayout = () => {
                   </AlertDescription>
                 </Alert>
               )}
-              <Suspense fallback={<PageFallback />}>
+              {/* Same brand ring as the route-level Suspense fallback and
+                  the boot splash — a deep link used to show three different
+                  loaders back to back (ring → ring → grey circle + English
+                  "Loading..."). */}
+              <Suspense fallback={<PageLoader />}>
                 <Outlet />
               </Suspense>
 

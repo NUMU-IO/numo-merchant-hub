@@ -25,8 +25,11 @@ export default function HealthScore() {
   const storeId = currentStore?.id;
   const [forceLive, setForceLive] = useState(false);
 
+  // `language` MUST be in the key: the backend localises
+  // empty_state_message + recommendations via ?lang=, and without it the
+  // Arabic dashboard kept serving the cached English payload.
   const { data: healthScore, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["healthScore", "detail", storeId, forceLive],
+    queryKey: ["healthScore", "detail", storeId, forceLive, language],
     queryFn: () => getHealthScore(storeId!, forceLive, language),
     enabled: !!storeId,
   });

@@ -180,7 +180,8 @@ const Dashboard = () => {
   });
 
   const healthScoreQuery = useQuery({
-    queryKey: ["dashboard", "healthScore", storeId],
+    // `language` in the key — the payload carries localised copy.
+    queryKey: ["dashboard", "healthScore", storeId, language],
     queryFn: () => getHealthScore(storeId!, false, language),
     enabled: !!storeId,
     staleTime: 1000 * 60 * 60,

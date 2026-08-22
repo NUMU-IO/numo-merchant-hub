@@ -37,11 +37,12 @@ import {
   SidebarFooter, SidebarHeader, SidebarMenuSub, SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
-import {
-  Collapsible, CollapsibleContent, CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 import { NavItemGate } from "./NavItemGate";
+import { NavCollapsible } from "./NavCollapsible";
 
 type IconType = typeof House;
 // `navKey` gates the sub-item against the platform-admin nav config
@@ -56,6 +57,7 @@ const WhatsAppNavIcon = WhatsAppGlyph as unknown as IconType;
 
 const AppSidebar = () => {
   const { isRTL } = useLanguage();
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const { currentStore, stores, switchStore } = useDashboardStore();
@@ -153,8 +155,11 @@ const AppSidebar = () => {
     { title: isRTL ? "الجماهير" : "Audiences", url: "/marketing/audiences", icon: Users, navKey: "marketing.audiences" },
     { title: isRTL ? "الإحالات" : "Referrals", url: "/referrals", icon: UserPlus, navKey: "marketing.referrals" },
   ];
+  // Analytics had 13 children in one flat list — the reviewer called the
+  // expanded sidebar "tall and visually heavy". The daily-use reports stay
+  // visible; the advanced / exploratory ones sit under a "More analytics"
+  // disclosure that opens itself when you're on one of them.
   const analyticsSub: NavSubItem[] = [
-    { title: isRTL ? "النظرة التنفيذية" : "Executive", url: "/analytics/executive", icon: Compass, navKey: "analytics.executive" },
     { title: isRTL ? "نظرة عامة" : "Overview", url: "/analytics/overview", icon: BarChart3, navKey: "analytics.overview" },
     { title: isRTL ? "المبيعات" : "Sales", url: "/analytics/sales", icon: CreditCard, navKey: "analytics.sales" },
     { title: isRTL ? "الطلبات" : "Orders", url: "/analytics/orders", icon: ShoppingCart, navKey: "analytics.orders" },
@@ -162,11 +167,16 @@ const AppSidebar = () => {
     { title: isRTL ? "المنتجات" : "Products", url: "/analytics/products", icon: Package, navKey: "analytics.products" },
     { title: isRTL ? "القمع" : "Funnel", url: "/analytics/funnel", icon: Filter, navKey: "analytics.funnel" },
     { title: isRTL ? "التقارير" : "Reports", url: "/analytics/reports", icon: FileText, navKey: "analytics.reports" },
+    { title: isRTL ? "صحة المتجر" : "Store health", url: "/health-score", icon: Sparkles, navKey: "analytics.health" },
+  ];
+  const analyticsMore: NavSubItem[] = [
+    { title: isRTL ? "النظرة التنفيذية" : "Executive", url: "/analytics/executive", icon: Compass, navKey: "analytics.executive" },
     { title: isRTL ? "مباشر" : "Live", url: "/analytics/live", icon: Radio, navKey: "analytics.live" },
     { title: isRTL ? "تحليلات ذكية" : "Insights", url: "/analytics/insights", icon: Lightbulb, navKey: "analytics.insights" },
     { title: isRTL ? "التوقعات" : "Forecast", url: "/analytics/forecast", icon: LineChart, navKey: "analytics.forecast" },
     { title: isRTL ? "رحلة العميل" : "Journey", url: "/analytics/journey", icon: MousePointerClick, navKey: "analytics.journey" },
-    { title: isRTL ? "صحة المتجر" : "Store health", url: "/health-score", icon: Sparkles, navKey: "analytics.health" },
+    // Live route that had no nav entry at all.
+    { title: isRTL ? "التسويق" : "Marketing", url: "/analytics/marketing", icon: Megaphone, navKey: "analytics.marketing" },
   ];
   const financeSub: NavSubItem[] = [
     { title: isRTL ? "نظرة عامة" : "Overview", url: "/payments", icon: Wallet, navKey: "payments.overview" },
@@ -236,10 +246,46 @@ const AppSidebar = () => {
     );
   };
 
+  // Chevron rotation from REAL open state. The previous version built the
+  // Tailwind variant with string concatenation
+  // (`"group-data-[state=open]/" + groupName + ":rotate-90"`), which the
+  // JIT scanner can never see, so the caret silently never rotated in
+  // production builds. ChevronLeft: closed points "forward" (right in LTR,
+  // left in RTL), open points down.
+  const chevronClass = (open: boolean) =>
+    cn(
+      "h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-200",
+      open ? (isRTL ? "-rotate-90" : "rotate-90") : isRTL ? "" : "rotate-180",
+    );
+
+  const renderSub = (item: NavSubItem, dotKeys?: Set<string>) => {
+    const subActive = isActive(item.url);
+    return (
+      <NavItemGate key={item.url} navKey={item.navKey}>
+        <SidebarMenuSubItem>
+          <SidebarMenuSubButton asChild isActive={subActive}>
+            <NavLink to={item.url}>
+              <item.icon size={14} weight={subActive ? "fill" : "duotone"} />
+              <span>{item.title}</span>
+              {dotKeys?.has(item.navKey) && (
+                <span
+                  className="ms-auto h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-sidebar"
+                  aria-label="Update available"
+                />
+              )}
+            </NavLink>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+      </NavItemGate>
+    );
+  };
+
   // ─── Parent row with sub-items (Souq spec) ────────────────────────────
   // Parent is a real link; the chevron toggles the sub-list. Caret flips
   // 180° on open. Children render as an indented list with a connecting
   // hairline; the dot per child fills saffron when that child is active.
+  // Open state is CONTROLLED (see NavCollapsible) so client-side
+  // navigation into a group expands it and a manual collapse sticks.
   const navParent = (
     title: string,
     url: string,
@@ -250,54 +296,63 @@ const AppSidebar = () => {
     badge?: React.ReactNode,
     // navKeys that should carry a red "needs attention" dot on their child row.
     dotKeys?: Set<string>,
-  ) => (
-    <Collapsible defaultOpen={active} className={`group/${groupName}`}>
-      <SidebarMenuItem>
-        <div className="flex items-center">
-          <SidebarMenuButton
-            asChild
-            isActive={active}
-            tooltip={title}
-            className="h-10 rounded-lg px-3 flex-1"
-          >
-            <NavLink to={url}>
-              <Icon size={20} weight={active ? "fill" : "duotone"} className="text-navy dark:text-saffron" />
-              <span className="text-[13px] font-medium">{title}</span>
-              {badge}
-            </NavLink>
-          </SidebarMenuButton>
-          <CollapsibleTrigger className="p-1.5 rounded-md hover:bg-muted/60 transition-colors group-data-[collapsible=icon]:hidden">
-            <ChevronLeft className={`h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-200 group-data-[state=open]/${groupName}:-rotate-90 ${isRTL ? "" : "rotate-180 group-data-[state=open]/" + groupName + ":rotate-90"}`} />
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent>
-          <SidebarMenuSub>
-            {subItems.map((item) => {
-              const subActive = isActive(item.url);
-              return (
-                <NavItemGate key={item.url} navKey={item.navKey}>
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton asChild isActive={subActive}>
-                      <NavLink to={item.url}>
-                        <item.icon size={14} weight={subActive ? "fill" : "duotone"} />
-                        <span>{item.title}</span>
-                        {dotKeys?.has(item.navKey) && (
-                          <span
-                            className="ms-auto h-2 w-2 shrink-0 rounded-full bg-red-500 ring-2 ring-sidebar"
-                            aria-label="Update available"
-                          />
-                        )}
-                      </NavLink>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                </NavItemGate>
-              );
-            })}
-          </SidebarMenuSub>
-        </CollapsibleContent>
-      </SidebarMenuItem>
-    </Collapsible>
-  );
+    // Optional second-tier items behind a "More …" disclosure row.
+    more?: { label: string; items: NavSubItem[] },
+  ) => {
+    const moreActive = Boolean(more?.items.some((i) => isActive(i.url)));
+    return (
+      <NavCollapsible active={active} className={`group/${groupName}`}>
+        {(open) => (
+          <SidebarMenuItem>
+            <div className="flex items-center">
+              <SidebarMenuButton
+                asChild
+                isActive={active}
+                tooltip={title}
+                className="h-10 rounded-lg px-3 flex-1"
+              >
+                <NavLink to={url}>
+                  <Icon size={20} weight={active ? "fill" : "duotone"} className="text-navy dark:text-saffron" />
+                  <span className="text-[13px] font-medium">{title}</span>
+                  {badge}
+                </NavLink>
+              </SidebarMenuButton>
+              <CollapsibleTrigger
+                className="p-1.5 rounded-md hover:bg-muted/60 transition-colors group-data-[collapsible=icon]:hidden"
+                aria-label={title}
+              >
+                <ChevronLeft className={chevronClass(open)} />
+              </CollapsibleTrigger>
+            </div>
+            <CollapsibleContent>
+              <SidebarMenuSub>
+                {subItems.map((item) => renderSub(item, dotKeys))}
+                {more && more.items.length > 0 && (
+                  <NavCollapsible active={moreActive} className={`group/${groupName}-more`}>
+                    {(moreOpen) => (
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={false}>
+                          <CollapsibleTrigger className="w-full text-muted-foreground">
+                            <ChevronLeft className={chevronClass(moreOpen)} />
+                            <span>{more.label}</span>
+                          </CollapsibleTrigger>
+                        </SidebarMenuSubButton>
+                        <CollapsibleContent>
+                          <SidebarMenuSub className="ms-3">
+                            {more.items.map((item) => renderSub(item, dotKeys))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuSubItem>
+                    )}
+                  </NavCollapsible>
+                )}
+              </SidebarMenuSub>
+            </CollapsibleContent>
+          </SidebarMenuItem>
+        )}
+      </NavCollapsible>
+    );
+  };
 
   // Group label — built-in SidebarGroupLabel handles icon-mode collapse
   // via its baked-in `-mt-8 opacity-0` transition (so the label slides
@@ -412,6 +467,9 @@ const AppSidebar = () => {
                   analyticsSub,
                   analyticsActive,
                   "analytics",
+                  undefined,
+                  undefined,
+                  { label: t("nav.moreAnalytics"), items: analyticsMore },
                 )}
               </NavItemGate>
             </SidebarMenu>
@@ -458,7 +516,8 @@ const AppSidebar = () => {
               </NavItemGate>
 
               <NavItemGate navKey="channels">
-                <Collapsible defaultOpen={channelsActive} className="group/channels">
+                <NavCollapsible active={channelsActive} className="group/channels">
+                  {(channelsOpen) => (
                   <SidebarMenuItem>
                     <div className="flex items-center">
                       <SidebarMenuButton
@@ -477,8 +536,11 @@ const AppSidebar = () => {
                           )}
                         </NavLink>
                       </SidebarMenuButton>
-                      <CollapsibleTrigger className="p-1.5 rounded-md hover:bg-muted/60 transition-colors group-data-[collapsible=icon]:hidden">
-                        <ChevronLeft className={`h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-200 group-data-[state=open]/channels:-rotate-90 ${isRTL ? "" : "rotate-180 group-data-[state=open]/channels:rotate-90"}`} />
+                      <CollapsibleTrigger
+                        className="p-1.5 rounded-md hover:bg-muted/60 transition-colors group-data-[collapsible=icon]:hidden"
+                        aria-label={isRTL ? "القنوات" : "Channels"}
+                      >
+                        <ChevronLeft className={chevronClass(channelsOpen)} />
                       </CollapsibleTrigger>
                     </div>
                     <CollapsibleContent>
@@ -511,7 +573,8 @@ const AppSidebar = () => {
                       </SidebarMenuSub>
                     </CollapsibleContent>
                   </SidebarMenuItem>
-                </Collapsible>
+                  )}
+                </NavCollapsible>
               </NavItemGate>
 
               <NavItemGate navKey="whatsapp">

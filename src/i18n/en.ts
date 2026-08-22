@@ -22,6 +22,7 @@ export default {
     undo: "Undo",
   },
   nav: {
+    moreAnalytics: "More analytics",
     dashboard: "Dashboard",
     products: "Products",
     orders: "Orders",
@@ -432,6 +433,12 @@ export default {
     heroTagline3: "Grow without limits.",
     heroTagline4: "Your store, your rules.",
     heroSubtitle: "The merchant platform built for the modern Egyptian seller.",
+  },
+  shell: {
+    slowLoad: "This is taking longer than usual.",
+    retry: "Retry",
+    offlineTitle: "Can't reach NUMU",
+    offlineBody: "Check your connection and try again. If you're online, our servers may be briefly unavailable.",
   },
   common: {
     currency: "EGP",

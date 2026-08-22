@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { ThemeSwitch } from "@/components/layout/ThemeSwitch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1045,13 +1046,7 @@ export default function SettingsPreferences() {
                     <Label className="text-[13px]">{isAr ? "الوضع الداكن" : "Dark Mode"}</Label>
                     <p className="text-[11px] text-muted-foreground">{isAr ? "تبديل المظهر الداكن والفاتح" : "Toggle between dark and light theme"}</p>
                   </div>
-                  <Switch
-                    checked={document.documentElement.classList.contains("dark")}
-                    onCheckedChange={(v) => {
-                      document.documentElement.classList.toggle("dark", v);
-                      localStorage.setItem("theme", v ? "dark" : "light");
-                    }}
-                  />
+                  <ThemeSwitch />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>

@@ -67,6 +67,13 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  /**
+   * The boot-time /auth/me call failed because the server was UNREACHABLE
+   * (network error / timeout) and there was no cached session to fall back
+   * to. Distinct from "not logged in": the guards show an offline screen
+   * with Retry instead of bouncing to /login.
+   */
+  bootError: boolean;
   /** Tenant lifecycle info from GET /auth/me. Null if user has no tenant. */
   tenant: TenantInfo | null;
   /** True when the current session is a Try-a-Demo sandbox. */
@@ -87,6 +94,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   isAuthenticated: false,
   isLoading: true,
+  bootError: false,
   tenant: null,
   isDemoMode: false,
   isTrialMode: false,
@@ -104,12 +112,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [bootError, setBootError] = useState(false);
 
   // Validate session on mount by calling /auth/me
   useEffect(() => {
     getMe()
       .then(async (u) => {
         setUser(u);
+        setBootError(false);
         cacheSessionUser(u);
         // Ensure we have a CSRF token for subsequent requests
         await initCSRF();
@@ -134,6 +144,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         if (cached) {
           setUser(cached);
+        } else if (isNetworkFailure) {
+          // Unreachable AND nothing cached: don't pretend they're logged
+          // out — surface it so the splash can offer a retry.
+          setUser(null);
+          setBootError(true);
         } else {
           setUser(null);
           clearCachedSessionUser();
@@ -241,6 +256,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         user,
         isAuthenticated: !!user,
         isLoading,
+        bootError,
         tenant,
         isDemoMode,
         isTrialMode,

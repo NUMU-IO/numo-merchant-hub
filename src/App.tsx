@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { TrialPaywallProvider } from "@/contexts/TrialPaywallContext";
 import { StoreProvider, useDashboardStore } from "@/contexts/StoreContext";
@@ -176,8 +177,11 @@ for (const key of [["dashboard"], ["products"]]) {
 
 /** Redirects unauthenticated users to /login */
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, bootError } = useAuth();
   if (isLoading) return <NumuRingScreen />;
+  // Server unreachable with no cached session: offline screen + Retry,
+  // not a bounce to /login (whose chunk may not even be cached).
+  if (bootError && !isAuthenticated) return <NumuRingScreen error />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -191,7 +195,7 @@ function RequireVerified({ children }: { children: React.ReactNode }) {
 
 /** Combined guard: auth + verified + store — single loading screen */
 function RouteResolver({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user, bootError } = useAuth();
   const { hasStores, isLoading: storeLoading } = useDashboardStore();
 
   // Single loading state for all checks
@@ -199,6 +203,7 @@ function RouteResolver({ children }: { children: React.ReactNode }) {
     return <NumuRingScreen />;
   }
 
+  if (bootError && !isAuthenticated) return <NumuRingScreen error />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user && !user.is_verified) return <Navigate to="/verify-email" replace />;
   if (!hasStores) return <Navigate to="/create-store" replace />;
@@ -213,6 +218,11 @@ const App = () => (
   <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      {/* Theme: next-themes owns `.dark` + localStorage.theme (values
+          light | dark | system — the legacy "dark"/"light" strings the old
+          hand-rolled toggle wrote are the same keys, so nothing migrates).
+          First-paint is handled by the blocking script in index.html. */}
+      <ThemeProvider attribute="class" storageKey="theme" enableSystem disableTransitionOnChange>
       <LanguageProvider>
         <AuthProvider>
           <TrialPaywallProvider>
@@ -472,6 +482,7 @@ const App = () => (
           </TrialPaywallProvider>
         </AuthProvider>
       </LanguageProvider>
+      </ThemeProvider>
     </TooltipProvider>
   </QueryClientProvider>
   </GoogleOAuthProvider>
