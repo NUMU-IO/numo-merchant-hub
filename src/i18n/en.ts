@@ -154,6 +154,7 @@ export default {
       payment_failed: "A payment failed",
       shipment_returned: "A shipment was returned",
       trust_kill_switch: "Trust auto-approve was paused",
+      payment_proof_submitted: "A payment proof is waiting for review",
     },
     tabs: {
       all: "All",
@@ -177,6 +178,7 @@ export default {
       paymentReceived: { title: "Payment received for #{{order}}", body: "{{amount}} via {{method}} · {{name}}" },
       paymentFailed: { title: "Payment failed for #{{order}}", body: "{{name}} · {{reason}}" },
       paymentRefunded: { title: "Order #{{order}} refunded", body: "{{amount}} · {{name}}" },
+      paymentProofSubmitted: { title: "Payment proof awaiting your review for #{{order}}", body: "{{name}} · {{amount}} via {{method}}" },
       shipmentShipped: { title: "Order #{{order}} is on its way", body: "{{carrier}} · {{tracking}} · {{name}}" },
       shipmentDelivered: { title: "Order #{{order}} delivered to {{name}}", body: "{{amount}}" },
       shipmentReturned: { title: "Order #{{order}} was returned", body: "{{name}} · {{reason}}" },
