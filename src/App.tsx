@@ -149,7 +149,15 @@ const queryClient = new QueryClient({
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
       refetchOnWindowFocus: false,
-      retry: 1,
+      // Retry once, and ONLY for outages (network / 5xx). A 4xx — 401 after
+      // a failed refresh, 403, 404, and especially 429 — is deterministic;
+      // retrying it doubles load precisely when the API is shedding it.
+      retry: (failureCount, error) => {
+        const status = (error as { status?: number } | null)?.status;
+        const transient = status === undefined || status === 0 || status >= 500;
+        return transient && failureCount < 1;
+      },
+      retryDelay: 2_000,
     },
   },
 });

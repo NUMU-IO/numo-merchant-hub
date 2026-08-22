@@ -195,15 +195,35 @@ export async function logout(): Promise<void> {
  * Uses raw fetch (not apiClient) so a 401 here doesn't recurse back through
  * the 401 handler.
  */
-export async function refreshSession(): Promise<boolean> {
+export type RefreshOutcome = "ok" | "expired" | "transient";
+
+/** Refresh must never hang every 401'd caller behind the shared promise. */
+const REFRESH_TIMEOUT_MS = 15_000;
+
+/**
+ * Rotate the session.
+ *
+ * Three outcomes, because they need three different reactions:
+ *  - "ok"        → retry the original request.
+ *  - "expired"   → the refresh cookie is gone/invalid (401/403): only THIS
+ *                  means the session is really over → go to /login.
+ *  - "transient" → 429 (rate limit), 5xx, timeout, offline. The session is
+ *                  fine; the caller surfaces an error and tries again later.
+ *                  Treating these as "expired" is what used to log merchants
+ *                  out mid-work.
+ */
+export async function refreshSession(): Promise<RefreshOutcome> {
   try {
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: "POST",
       credentials: "include",
+      signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
     });
-    return res.ok;
+    if (res.ok) return "ok";
+    if (res.status === 401 || res.status === 403) return "expired";
+    return "transient";
   } catch {
-    return false;
+    return "transient";
   }
 }
 

@@ -25,7 +25,8 @@ export interface NotificationStreamEvent {
 }
 
 export function getNotificationStreamUrl(storeId: string): string {
-  const base = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+  // Same base apiClient uses (VITE_API_URL already ends in /api/v1).
+  const base = import.meta.env.VITE_API_URL || "/api/v1";
   return `${base}/stores/${storeId}/notifications/stream`;
 }
 

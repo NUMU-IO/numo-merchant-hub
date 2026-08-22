@@ -16,7 +16,7 @@
  */
 
 import { getCSRFToken, initCSRF } from "./csrf";
-import { refreshSession } from "./authApi";
+import { refreshSession, type RefreshOutcome } from "./authApi";
 import { ApiError, apiErrorFromResponse, apiErrorFromNetwork } from "@/lib/api-error";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -81,9 +81,9 @@ function shouldAttemptRefresh(endpoint: string): boolean {
 // promise so they don't stampede /auth/refresh (which is rate-limited to
 // 5 req/min on the backend).
 // ────────────────────────────────────────────────────────────────────────────
-let pendingRefresh: Promise<boolean> | null = null;
+let pendingRefresh: Promise<RefreshOutcome> | null = null;
 
-function attemptRefresh(): Promise<boolean> {
+function attemptRefresh(): Promise<RefreshOutcome> {
   if (pendingRefresh) return pendingRefresh;
   pendingRefresh = refreshSession().finally(() => {
     // Clear on settlement so a later 401 (next token expiry) can try again.
@@ -91,6 +91,30 @@ function attemptRefresh(): Promise<boolean> {
   });
   return pendingRefresh;
 }
+
+/** Thrown when a 401 could not be resolved but the session is NOT over. */
+export class TransientAuthError extends ApiError {
+  constructor() {
+    super(503, "Couldn't refresh the session right now — try again in a moment.");
+    this.name = "TransientAuthError";
+  }
+}
+
+// 429 handling: honour Retry-After for idempotent requests (one retry, short
+// waits only). Everything else surfaces the 429 to the caller — and the
+// QueryClient is configured NOT to retry 4xx, so a rate limit never snowballs.
+const MAX_429_WAIT_MS = 5_000;
+
+function retryAfterMs(res: Response): number | null {
+  const raw = res.headers.get("Retry-After");
+  if (!raw) return null;
+  const secs = Number(raw);
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1000);
+  const at = Date.parse(raw);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 async function rawFetch(
   endpoint: string,
@@ -148,13 +172,16 @@ async function handle401(
 ): Promise<Response | null> {
   if (!shouldAttemptRefresh(endpoint)) return null;
 
-  const refreshed = await attemptRefresh();
-  if (!refreshed) return null;
+  const outcome = await attemptRefresh();
+  if (outcome === "expired") return null;
+  if (outcome === "transient") throw new TransientAuthError();
 
   try {
     return await doFetch();
-  } catch {
-    return null;
+  } catch (err) {
+    // The retry itself failed at the network level — that is NOT a dead
+    // session. Surface it instead of bouncing to /login.
+    throw apiErrorFromNetwork(err);
   }
 }
 
@@ -226,6 +253,18 @@ export async function apiClient<T>(
       redirectToLogin();
     }
     res = retried;
+  }
+
+  if (res.status === 429 && SAFE_METHODS.has((options?.method || "GET").toUpperCase())) {
+    const wait = retryAfterMs(res);
+    if (wait !== null && wait <= MAX_429_WAIT_MS) {
+      await sleep(wait || 500);
+      try {
+        res = await rawFetch(endpoint, options);
+      } catch (err) {
+        throw apiErrorFromNetwork(err);
+      }
+    }
   }
 
   if (!res.ok) {
