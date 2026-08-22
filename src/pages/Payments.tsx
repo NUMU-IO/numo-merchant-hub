@@ -1,8 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { formatMoney, currencyLabel } from "@/lib/format-money";
 import { apiClient } from "@/services/api";
+import { StatTile } from "@/components/ui/stat-tile";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -147,27 +151,52 @@ const StatusPill = ({ status, isAr }: { status: string; isAr: boolean }) => {
   );
 };
 
+interface Balances {
+  wallet_balance_cents: number;
+  store_balance_cents: number;
+  // Server-side aggregates (API #498). Optional so an older backend
+  // still renders — the page falls back to page-derived sums.
+  pending_clearance_cents?: number;
+  cod_in_transit_cents?: number;
+  cod_in_transit_count?: number;
+  /** "transactions" | "orders" — what store_balance_cents was summed from. */
+  store_balance_source?: string;
+}
+
 const Payments = () => {
+  const { t } = useTranslation();
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const isAr = language === "ar";
   const storeId = currentStore?.id;
   const navigate = useNavigate();
 
-  // ─── Sub-tab state from the URL last path segment (Overview /
-  // Payouts / Invoices). `/payments` → overview, `/wallet` → payouts,
-  // `/invoices` → invoices. The segmented control swaps tab state
-  // and updates the URL so the new sidebar's sub-nav stays in sync. */
+  // ─── Sub-tab (Overview / Payouts / Invoices) lives in `?tab=` so a
+  // reload / back button keeps it. The comment here used to claim the
+  // URL was updated; it never was.
   type Tab = "overview" | "payouts" | "invoices";
-  const [tab, setTab] = useState<Tab>("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const tab: Tab = tabParam === "payouts" || tabParam === "invoices" ? tabParam : "overview";
+  const setTab = (next: Tab) =>
+    setSearchParams(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        if (next === "overview") n.delete("tab");
+        else n.set("tab", next);
+        return n;
+      },
+      { replace: true },
+    );
   const segItems: { key: Tab; label: string; labelAr: string }[] = [
     { key: "overview", label: "Overview", labelAr: "نظرة عامة" },
     { key: "payouts", label: "Payouts", labelAr: "التحويلات" },
     { key: "invoices", label: "Invoices", labelAr: "الفواتير" },
   ];
 
-  const [storeBalance, setStoreBalance] = useState(0);
-  const [walletBalance, setWalletBalance] = useState(0);
+  const [balances, setBalances] = useState<Balances | null>(null);
+  const storeBalance = balances?.store_balance_cents ?? 0;
+  const walletBalance = balances?.wallet_balance_cents ?? 0;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTx, setLoadingTx] = useState(true);
   const [txPage, setTxPage] = useState(0);
@@ -176,10 +205,7 @@ const Payments = () => {
 
   const fmtBig = (cents: number) =>
     (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", { minimumFractionDigits: 2 });
-  const fmt = (cents: number) => {
-    const v = cents / 100;
-    return isAr ? `${v.toLocaleString("ar-EG")} ج.م` : `EGP ${v.toLocaleString()}`;
-  };
+  const fmt = (cents: number) => formatMoney(cents, { fromCents: true, locale: isAr ? "ar" : "en" });
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" });
   const fmtTime = (d: string) =>
@@ -187,13 +213,8 @@ const Payments = () => {
 
   useEffect(() => {
     if (!storeId) return;
-    apiClient<{ wallet_balance_cents: number; store_balance_cents: number }>(
-      `/stores/${storeId}/payments/balances`,
-    )
-      .then((b) => {
-        setStoreBalance(b.store_balance_cents);
-        setWalletBalance(b.wallet_balance_cents);
-      })
+    apiClient<Balances>(`/stores/${storeId}/payments/balances`)
+      .then(setBalances)
       .catch(() => {});
     setLoadingInvoices(true);
     apiClient<Invoice[]>(`/stores/${storeId}/payments/invoices`)
@@ -213,82 +234,68 @@ const Payments = () => {
       .finally(() => setLoadingTx(false));
   }, [storeId, txPage]);
 
-  // Derived: pending clearance + COD-in-transit sums for the stat
-  // tiles. Best-effort from the transactions page we already fetched
-  // — a backend aggregation endpoint would be more accurate, but
-  // this gives the merchant a directional figure today.
-  const pendingClearance = useMemo(
+  // Pending clearance + COD-in-transit come from the balances endpoint
+  // (server-side aggregates). They used to be summed from whichever 20
+  // transactions were on the current page, so paginating changed both
+  // KPIs. The page-derived numbers remain only as a fallback for a
+  // backend that doesn't send the fields yet.
+  const derivedPending = useMemo(
     () =>
       transactions
-        .filter((t) => PENDING_STATUSES.has((t.status || "").toLowerCase()))
-        .reduce((sum, t) => sum + t.amount_cents, 0),
+        .filter((tx) => PENDING_STATUSES.has((tx.status || "").toLowerCase()))
+        .reduce((sum, tx) => sum + tx.amount_cents, 0),
     [transactions],
   );
-  const codInTransit = useMemo(
-    () =>
-      transactions
-        .filter(
-          (t) =>
-            t.payment_method === "cod"
-            && !PAID_STATUSES.has((t.status || "").toLowerCase()),
-        )
-        .reduce((sum, t) => sum + t.amount_cents, 0),
-    [transactions],
-  );
-  const codCount = useMemo(
-    () =>
-      transactions.filter(
-        (t) =>
-          t.payment_method === "cod"
-          && !PAID_STATUSES.has((t.status || "").toLowerCase()),
-      ).length,
-    [transactions],
-  );
+  const derivedCod = useMemo(() => {
+    const rows = transactions.filter(
+      (tx) => tx.payment_method === "cod" && !PAID_STATUSES.has((tx.status || "").toLowerCase()),
+    );
+    return { cents: rows.reduce((sum, tx) => sum + tx.amount_cents, 0), count: rows.length };
+  }, [transactions]);
+  const pendingClearance = balances?.pending_clearance_cents ?? derivedPending;
+  const codInTransit = balances?.cod_in_transit_cents ?? derivedCod.cents;
+  const codCount = balances?.cod_in_transit_count ?? derivedCod.count;
 
   return (
     <div className="p-6 max-w-[1200px] mx-auto space-y-6">
-      {/* ─── Page head ───────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
-            {isAr ? "المالية" : "Finance"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {isAr ? "فلوسك، تحويلاتك، والدفع عند الاستلام" : "Your money, payouts, and cash-on-delivery"}
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => navigate("/payment-setup")}
-        >
-          <Settings2 className="h-4 w-4" strokeWidth={2.2} />
-          {isAr ? "إعداد المدفوعات" : "Payment Setup"}
-        </Button>
-      </div>
+      <PageHeader
+        title={isAr ? "المالية" : "Finance"}
+        subtitle={isAr ? "فلوسك، تحويلاتك، والدفع عند الاستلام" : "Your money, payouts, and cash-on-delivery"}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => navigate("/payment-setup")}
+          >
+            <Settings2 className="h-4 w-4" strokeWidth={2.2} />
+            {isAr ? "إعداد المدفوعات" : "Payment Setup"}
+          </Button>
+        }
+      />
 
-      {/* ─── Balance hero + stat tiles ──────────────────────────────
-          Honest version: the wire-out / auto-payout feature isn't
-          live yet, so the hero shows the store balance with a
-          "Coming soon" pill where the action button used to sit.
-          The View details link → /store-balance still works (read-only).*/}
+      {/* ─── Ledger hero + stat tiles ───────────────────────────────
+          The hero used to be titled "Store balance" with a "Payouts
+          soon" pill — a spendable-sounding number on a finance page for
+          a feature that isn't live. It is a LEDGER total (sum of
+          successful payments recorded), and it says so. The payouts
+          note moved to a muted footnote under the tiles. */}
       <div className="grid gap-4 lg:[grid-template-columns:1.5fr_1fr_1fr]">
         <div className="souq-hero-navy p-5 flex flex-col">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[13px] font-semibold text-white/70">
-              {isAr ? "رصيد المتجر" : "Store balance"}
-            </span>
-            <span className="souq-pill bg-white/10 text-white/80 border border-white/10 text-[10.5px] font-bold uppercase tracking-wider">
-              {isAr ? "التحويل قريباً" : "Payouts soon"}
-            </span>
-          </div>
+          <span className="text-[13px] font-semibold text-white/70">
+            {t("payments.ledgerTotal")}
+          </span>
           <div className="text-[34px] font-extrabold tabular-nums tracking-tight leading-none mt-3 text-white">
             {fmtBig(storeBalance)}
             <span className="text-base font-bold text-white/50 ms-2">
-              {isAr ? "ج.م" : "EGP"}
+              {currencyLabel(undefined, isAr ? "ar" : "en")}
             </span>
           </div>
+          <p className="text-[12px] text-white/60 mt-2 leading-snug">
+            {balances?.store_balance_source === "orders"
+              ? t("payments.ledgerFromOrders")
+              : t("payments.ledgerDefinition")}
+          </p>
           <div className="flex items-center gap-3 mt-auto pt-4 flex-wrap">
             <Button
               variant="outline"
@@ -299,46 +306,29 @@ const Payments = () => {
               <ArrowUpRight className="h-4 w-4" strokeWidth={2.4} />
               {isAr ? "تفاصيل الرصيد" : "View details"}
             </Button>
-            <span className="text-[12px] text-white/55">
-              {isAr
-                ? "التحويل الأوتوماتيكي والمحفظة قريباً"
-                : "Auto-payouts & wallet are launching soon"}
-            </span>
           </div>
         </div>
 
-        <Card>
-          <CardContent className="p-5 flex flex-col gap-3 h-full">
-            <div className="ichip ichip-saffron">
-              <Hourglass className="h-5 w-5" strokeWidth={2.2} />
-            </div>
-            <div>
-              <div className="text-[12.5px] font-semibold text-muted-foreground">
-                {isAr ? "تحت التحصيل" : "Pending clearance"}
-              </div>
-              <div className="text-[23px] font-extrabold tabular-nums leading-none mt-1">
-                {fmt(pendingClearance)}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5 flex flex-col gap-3 h-full">
-            <div className="ichip ichip-navy">
-              <Banknote className="h-5 w-5" strokeWidth={2.2} />
-            </div>
-            <div>
-              <div className="text-[12.5px] font-semibold text-muted-foreground">
-                {isAr ? "استلام في الطريق" : "COD in transit"}
-              </div>
-              <div className="text-[23px] font-extrabold tabular-nums leading-none mt-1">
-                {fmt(codInTransit)}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatTile
+          icon={Hourglass}
+          tone="saffron"
+          label={t("payments.pendingClearance")}
+          value={fmt(pendingClearance)}
+          loading={balances === null && loadingTx}
+          className="h-full"
+        />
+        <StatTile
+          icon={Banknote}
+          tone="navy"
+          label={t("payments.codInTransit")}
+          value={fmt(codInTransit)}
+          sub={codCount > 0 ? t("payments.codInTransitSub", { count: codCount }) : undefined}
+          loading={balances === null && loadingTx}
+          href="/cod"
+          className="h-full"
+        />
       </div>
+      <p className="text-[11.5px] text-muted-foreground -mt-2">{t("payments.payoutsFootnote")}</p>
 
       {/* ─── COD reconcile callout ──────────────────────────────────
           Surfaces the unreconciled COD bucket as an actionable row
@@ -503,11 +493,15 @@ const Payments = () => {
                 ? isAr ? "التحويلات" : "Payouts"
                 : isAr ? "الحركات" : "Transactions"}
             </h2>
-            <span className="text-xs text-muted-foreground">
-              {isAr
-                ? `محفظة: ${fmt(walletBalance)}`
-                : `Wallet: ${fmt(walletBalance)}`}
-            </span>
+            {/* This is the TENANT's prepaid platform wallet (fees), not
+                store money — "Wallet: EGP 0" beside a balance hero read as
+                a contradiction. Named, and linked to its own page. */}
+            <Link
+              to="/wallet"
+              className="text-xs text-muted-foreground underline-offset-2 hover:underline hover:text-foreground"
+            >
+              {t("payments.platformWallet")}: <span className="tabular-nums">{fmt(walletBalance)}</span>
+            </Link>
           </div>
           <ResponsiveTable
             mobile={

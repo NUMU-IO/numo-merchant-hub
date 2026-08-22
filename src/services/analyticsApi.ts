@@ -291,6 +291,8 @@ export interface HealthScoreData {
   window_days?: number;
   /** Localised reason a score is withheld (no activity vs still settling). */
   empty_state_message?: string | null;
+  /** What's still missing before a grade is published (see health_score_service). */
+  requirements?: { key: string; needed: number; have: number }[];
   calculated_at: string | null;
 }
 

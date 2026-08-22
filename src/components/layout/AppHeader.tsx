@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   Languages,
+  Loader2,
   LogOut,
   Moon,
   Plus,
@@ -30,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { useEffect, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "next-themes";
 import { getPublicStoreUrl } from "@/lib/storefront";
 import { SearchPalette } from "@/components/layout/SearchPalette";
 import WalletHeaderChip from "@/components/wallet/WalletHeaderChip";
@@ -38,14 +40,15 @@ import { getRealtimeSnapshot } from "@/services/analyticsApi";
 
 const AppHeader = () => {
   const { t } = useTranslation();
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, isSwitching } = useLanguage();
   const { user, logout } = useAuth();
   const { currentStore, stores, switchStore } = useDashboardStore();
   const navigate = useNavigate();
   const storeId = currentStore?.id;
-  const [isDark, setIsDark] = useState(() =>
-    document.documentElement.classList.contains("dark"),
-  );
+  // next-themes owns the `.dark` class + `localStorage.theme`; the
+  // blocking script in index.html applies it before first paint.
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const [searchOpen, setSearchOpen] = useState(false);
 
   // Bell-badge count = unread notifications, computed from the SAME data
@@ -68,20 +71,7 @@ const AppHeader = () => {
   });
   const liveVisitors = realtimeQuery.data?.active_now ?? 0;
 
-  const toggleDark = () => {
-    const next = !isDark;
-    setIsDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("theme", next ? "dark" : "light");
-  };
-
-  useEffect(() => {
-    const saved = localStorage.getItem("theme");
-    if (saved === "dark") {
-      document.documentElement.classList.add("dark");
-      setIsDark(true);
-    }
-  }, []);
+  const toggleDark = () => setTheme(isDark ? "light" : "dark");
 
   // ⌘K / Ctrl+K shortcut + programmatic open via window CustomEvent.
   // The MobileBottomNav uses `window.dispatchEvent(new CustomEvent("numu:open-search"))`
@@ -203,11 +193,17 @@ const AppHeader = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setLanguage(language === "en" ? "ar" : "en")}
+            onClick={() => void setLanguage(language === "en" ? "ar" : "en")}
+            disabled={isSwitching}
+            aria-busy={isSwitching}
             className="gap-1.5 text-sm font-bold h-[42px] rounded-xl px-3 bg-card border border-border hover:bg-muted"
             aria-label={language === "en" ? "Switch to Arabic" : "تبديل إلى الإنجليزية"}
           >
-            <Languages className="h-[18px] w-[18px]" />
+            {isSwitching ? (
+              <Loader2 className="h-[18px] w-[18px] animate-spin" />
+            ) : (
+              <Languages className="h-[18px] w-[18px]" />
+            )}
             <span>{language === "en" ? "ع" : "EN"}</span>
           </Button>
 

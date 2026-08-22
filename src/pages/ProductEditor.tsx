@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -144,7 +144,28 @@ const ProductEditor = () => {
   const storeId = currentStore?.id;
   const isEditMode = !!productId;
 
+  // `?focus=cost|stock` — the products list deep-links here from "Set cost"
+  // and "Fix stock". Without a target the merchant landed at the top of a
+  // long form and had to hunt for the field.
+  const [editorParams] = useSearchParams();
+  const focusField = editorParams.get("focus");
+  const costInputRef = useRef<HTMLInputElement>(null);
+  const stockInputRef = useRef<HTMLInputElement>(null);
+
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
+
+  useEffect(() => {
+    if (isLoadingProduct || !focusField) return;
+    const el =
+      focusField === "cost" ? costInputRef.current : focusField === "stock" ? stockInputRef.current : null;
+    if (!el) return;
+    const id = window.setTimeout(() => {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.focus();
+      el.select();
+    }, 50);
+    return () => window.clearTimeout(id);
+  }, [focusField, isLoadingProduct]);
   const [isSaving, setIsSaving] = useState(false);
   const [apiCategories, setApiCategories] = useState<Category[]>([]);
   const [formName, setFormName] = useState("");
@@ -825,7 +846,7 @@ const ProductEditor = () => {
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.costPrice")}</Label>
               <div className="relative">
-                <Input type="number" value={formCostPrice} onChange={e => setFormCostPrice(e.target.value)} placeholder="0.00" className={`h-10 rounded-lg ps-8 ${fieldErrors.costPrice ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <Input ref={costInputRef} type="number" value={formCostPrice} onChange={e => setFormCostPrice(e.target.value)} placeholder="0.00" className={`h-10 rounded-lg ps-8 ${fieldErrors.costPrice ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
                 <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">$</span>
               </div>
               {fieldErrors.costPrice ? (
@@ -839,7 +860,7 @@ const ProductEditor = () => {
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.stock")}</Label>
               <div className="relative">
-                <Input type="number" value={formStock} onChange={e => setFormStock(e.target.value)} placeholder="0" className={`h-10 rounded-lg ps-8 ${fieldErrors.stock ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <Input ref={stockInputRef} type="number" value={formStock} onChange={e => setFormStock(e.target.value)} placeholder="0" className={`h-10 rounded-lg ps-8 ${fieldErrors.stock ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
                 <Hash className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40" />
               </div>
               {fieldErrors.stock && <p className="text-[11px] text-destructive">{fieldErrors.stock}</p>}

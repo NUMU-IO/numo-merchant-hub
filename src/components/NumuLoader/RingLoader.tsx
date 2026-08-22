@@ -6,6 +6,9 @@
  * spinner on a warm cream track. Keep both in sync when tweaking.
  */
 
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+
 interface RingLoaderProps {
   size?: number;
   /**
@@ -74,18 +77,60 @@ export function RingLoader({ size = 104, scheme = "app" }: RingLoaderProps) {
   );
 }
 
+interface NumuRingScreenProps {
+  /** Show the "taking longer than usual" affordance after this many ms. */
+  slowAfterMs?: number;
+  /** Boot failed (no network, no cached session) — show an error + retry. */
+  error?: boolean;
+  onRetry?: () => void;
+}
+
 /**
  * Full-screen ring loader — auth/session/store resolution. Styled to be
  * indistinguishable from the index.html `#numu-splash` it takes over
- * from (white background always, track follows the OS color scheme).
+ * from. Background follows the `.dark` class, which the blocking script
+ * in index.html applies before first paint from the stored theme (or the
+ * OS scheme), so the splash → React handoff never flashes.
+ *
+ * The reviewer's complaint was that this screen "gives no progress,
+ * fallback, or error state" — a hung /auth/me meant an infinite ring.
+ * After `slowAfterMs` it offers a Retry; with `error` it says so plainly.
  */
-export function NumuRingScreen() {
+export function NumuRingScreen({ slowAfterMs = 8000, error = false, onRetry }: NumuRingScreenProps) {
+  const { t } = useTranslation();
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    if (error) return;
+    const id = window.setTimeout(() => setSlow(true), slowAfterMs);
+    return () => window.clearTimeout(id);
+  }, [slowAfterMs, error]);
+
+  const retry = onRetry ?? (() => window.location.reload());
+  const showHelp = error || slow;
+
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center"
-      style={{ background: "#FFFFFF" }}
+      className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-white dark:bg-[#0B1420]"
+      role={error ? "alert" : undefined}
     >
-      <RingLoader scheme="system" />
+      <RingLoader scheme="app" />
+      {showHelp && (
+        <div className="mt-7 max-w-xs px-6 text-center text-[#6B7280] dark:text-[#C7D0DC]">
+          <p className={`text-sm font-semibold ${error ? "text-[#14253D] dark:text-white" : ""}`}>
+            {error ? t("shell.offlineTitle") : t("shell.slowLoad")}
+          </p>
+          {error && <p className="mt-1 text-[13px] leading-relaxed">{t("shell.offlineBody")}</p>}
+          <button
+            type="button"
+            onClick={retry}
+            className="mt-4 inline-flex h-9 items-center rounded-lg px-4 text-[13px] font-bold shadow-sm"
+            style={{ background: "#E89A2C", color: "#14253D" }}
+          >
+            {t("shell.retry")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

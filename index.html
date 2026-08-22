@@ -45,6 +45,30 @@
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preload" href="/numu-n-mark.jpg" as="image" type="image/jpeg" />
 
+    <!-- Theme bootstrap — MUST run before first paint. next-themes owns
+         `localStorage.theme` ("light" | "dark" | "system") and the `.dark`
+         class once React mounts, but in a Vite SPA it can only do that
+         after the bundle loads; without this the dark-mode dashboard
+         flashed white on every load. Same resolution rules as next-themes
+         with enableSystem: explicit value wins, else the OS scheme. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          var dark =
+            t === "dark" ||
+            ((!t || t === "system") && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var root = document.documentElement;
+          if (dark) {
+            root.classList.add("dark");
+            root.style.colorScheme = "dark";
+          } else {
+            root.style.colorScheme = "light";
+          }
+        } catch (e) {}
+      })();
+    </script>
+
     <!-- Dashboard + brand fonts.
          Dashboard surfaces: IBM Plex Sans Arabic (Arabic body), Inter (Latin body, system fallback OK).
          Brand surfaces (auth, onboarding, marketing-adjacent):
@@ -78,10 +102,12 @@
         <style>
           @keyframes nl-spin { to { transform: rotate(360deg) } }
           @keyframes nl-breathe { 0%,100% { transform: scale(1) } 50% { transform: scale(1.06) } }
-          @media (prefers-color-scheme: dark) {
-            #numu-splash { background: #0B1420 }
-            #numu-splash svg circle:first-of-type { stroke: #25344A }
-          }
+          /* Follows the `.dark` class the bootstrap script above sets from
+             the STORED theme (falling back to the OS scheme) — not the raw
+             media query — so a merchant who chose dark on a light OS, or
+             vice-versa, gets a splash that matches the app that follows. */
+          .dark #numu-splash { background: #0B1420 }
+          .dark #numu-splash svg circle:first-of-type { stroke: #25344A }
         </style>
       </div>
     </div>

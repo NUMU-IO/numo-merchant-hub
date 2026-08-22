@@ -207,17 +207,33 @@ export async function refreshSession(): Promise<boolean> {
   }
 }
 
+/** How long the boot-time session check may hang before we give up. */
+export const AUTH_BOOT_TIMEOUT_MS = 10_000;
+
 export async function getMe(): Promise<User> {
   // Use raw fetch — NOT apiClient — to avoid the 401 → redirect loop.
   // This is called on mount to check session validity; a 401 here simply
   // means "not logged in", not "redirect now".
-  const res = await fetch(`${API_BASE}/auth/me`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-  });
+  //
+  // Throws ApiError, not a bare Error: AuthContext distinguishes "the
+  // server said no" (status 401 → /login) from "there is no server"
+  // (status 0 → restore the cached session / show the offline screen).
+  // It used to throw `new Error("Not authenticated")` for BOTH, which made
+  // the offline-boot branch unreachable and a hung request an infinite
+  // splash with no way out.
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/auth/me`, {
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(AUTH_BOOT_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw apiErrorFromNetwork(err);
+  }
 
   if (!res.ok) {
-    throw new Error("Not authenticated");
+    throw await apiErrorFromResponse(res);
   }
 
   const json = await res.json();

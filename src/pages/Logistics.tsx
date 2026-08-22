@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { formatMoney } from "@/lib/format-money";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -23,9 +25,12 @@ import {
   listShipments, getShipmentStats, getCodSummary,
   createShipment, bulkCreateShipments, cancelShipment, trackShipment,
   getAwbUrl, fetchBostaCredentials, saveBostaCredentials, deleteBostaCredentials,
-  getShipment,
+  getShipment, getBostaCities,
   type Shipment, type BostaCredentials, type TrackingInfo, type BulkShipmentResult,
 } from "@/services/shipmentApi";
+import { StatTile } from "@/components/ui/stat-tile";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   fetchShippingSettings, addShippingZone, deleteShippingZone, updateShippingSettings,
   type ShippingSettings,
@@ -115,6 +120,58 @@ const CARRIERS: CarrierMeta[] = [
 ];
 
 /* ═══════════════════════════════════════════════════════════════════════
+   BOSTA VERIFICATION + "NOTIFY ME" INTEREST (local, per browser)
+
+   Saving Bosta credentials marks the account `is_configured` on the
+   server without ever calling Bosta, so a typo'd key showed a green
+   pulsing "Live". We probe `GET /shipments/bosta/cities` after a save
+   (and once per browser for an already-configured store) and only call
+   it Live when that succeeds. Persisted in localStorage so a reload
+   doesn't re-probe every time.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const bostaVerifiedKey = (storeId: string) => `numu:bosta-verified:${storeId}`;
+const readBostaVerified = (storeId: string): boolean | null => {
+  try {
+    const v = localStorage.getItem(bostaVerifiedKey(storeId));
+    return v === null ? null : v === "1";
+  } catch {
+    return null;
+  }
+};
+const writeBostaVerified = (storeId: string, ok: boolean) => {
+  try { localStorage.setItem(bostaVerifiedKey(storeId), ok ? "1" : "0"); } catch { /* private mode */ }
+};
+const clearBostaVerified = (storeId: string) => {
+  try { localStorage.removeItem(bostaVerifiedKey(storeId)); } catch { /* noop */ }
+};
+async function probeBosta(storeId: string): Promise<boolean> {
+  try {
+    await getBostaCities(storeId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// "Soon" couriers: the public waitlist endpoint is email-keyed and 409s on
+// duplicates, so interest is simply remembered locally and surfaced as a
+// "Noted" state — enough to stop "Soon" being a dead end.
+const COURIER_INTEREST_KEY = "numu:courier-interest";
+const readCourierInterest = (): string[] => {
+  try { return JSON.parse(localStorage.getItem(COURIER_INTEREST_KEY) || "[]") as string[]; } catch { return []; }
+};
+const addCourierInterest = (key: string) => {
+  try {
+    const next = Array.from(new Set([...readCourierInterest(), key]));
+    localStorage.setItem(COURIER_INTEREST_KEY, JSON.stringify(next));
+    return next;
+  } catch {
+    return readCourierInterest();
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
    STATUS
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -148,6 +205,7 @@ type PageView = "hub" | "bosta";
 
 const Logistics = () => {
   const { language } = useLanguage();
+  const { t } = useTranslation();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const isAr = language === "ar";
@@ -155,16 +213,37 @@ const Logistics = () => {
   const navigate = useNavigate();
 
   const [view, setView] = useState<PageView>("hub");
+  // Which status the Bosta shipments list opens on (set by the KPI tiles).
+  const [bostaInitialStatus, setBostaInitialStatus] = useState<StatusFilter>("all");
+  const openBosta = (status: StatusFilter = "all") => { setBostaInitialStatus(status); setView("bosta"); };
 
   /* ── Carriers state ── */
   const [bostaCreds, setBostaCreds] = useState<BostaCredentials | null>(null);
   const [shippingData, setShippingData] = useState<ShippingSettings | null>(null);
+  // null = unknown / probing, true = Bosta answered, false = credentials rejected.
+  const [bostaVerified, setBostaVerified] = useState<boolean | null>(() => (storeId ? readBostaVerified(storeId) : null));
+  const [courierInterest, setCourierInterest] = useState<string[]>(() => readCourierInterest());
 
   useEffect(() => {
     if (!storeId) return;
     fetchBostaCredentials(storeId).then(setBostaCreds).catch(() => {});
     fetchShippingSettings(storeId).then(setShippingData).catch(() => {});
   }, [storeId]);
+
+  // One silent probe per browser for a store that was configured before
+  // verification existed.
+  useEffect(() => {
+    if (!storeId || !bostaCreds?.is_configured) return;
+    const known = readBostaVerified(storeId);
+    if (known !== null) { setBostaVerified(known); return; }
+    let cancelled = false;
+    probeBosta(storeId).then((ok) => {
+      if (cancelled) return;
+      writeBostaVerified(storeId, ok);
+      setBostaVerified(ok);
+    });
+    return () => { cancelled = true; };
+  }, [storeId, bostaCreds?.is_configured]);
 
   /* ── Hub-level shipment stats for the 4-tile Souq KPI row.
      Previously only fetched inside BostaDetailView, but the spec calls
@@ -191,8 +270,11 @@ const Logistics = () => {
     try { const r = await updateShippingSettings(storeId, { manual_enabled: enabled }); setShippingData(r); toast.success(isAr ? "تم التحديث" : "Updated"); } catch (e) { showError(e, language); }
   };
 
-  const carrierStatus = (key: string) => {
-    if (key === "bosta") return bostaCreds?.is_configured ? "connected" : "not_configured";
+  const carrierStatus = (key: string): "connected" | "unverified" | "not_configured" | "coming_soon" => {
+    if (key === "bosta") {
+      if (!bostaCreds?.is_configured) return "not_configured";
+      return bostaVerified === false ? "unverified" : "connected";
+    }
     if (key === "manual") return shippingData?.manual?.enabled ? "connected" : "not_configured";
     return "coming_soon";
   };
@@ -211,6 +293,9 @@ const Logistics = () => {
         shippingData={shippingData}
         setShippingData={setShippingData}
         onBack={() => setView("hub")}
+        initialStatus={bostaInitialStatus}
+        bostaVerified={bostaVerified}
+        setBostaVerified={setBostaVerified}
       />
     );
   }
@@ -221,85 +306,103 @@ const Logistics = () => {
      ═══════════════════════════════════════════════════════════════════ */
   return (
     <div className="p-6 max-w-[1200px] mx-auto space-y-6">
-      {/* ─── Page head ─────────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
-            {isAr ? "الشحن والتوصيل" : "Logistics"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {isAr ? "تابع الشحنات وادِر شركات الشحن" : "Track shipments and manage couriers"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+      <PageHeader
+        title={isAr ? "الشحن والتوصيل" : "Logistics"}
+        subtitle={isAr ? "تابع الشحنات وادِر شركات الشحن" : "Track shipments and manage couriers"}
+        actions={<>
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate("/orders/shipping-labels")}>
             <Printer className="h-4 w-4" strokeWidth={2.2} />
             {isAr ? "اطبع البوالص" : "Print labels"}
           </Button>
           {bostaCreds?.is_configured && (
-            <Button variant="accent" size="sm" className="gap-1.5" onClick={() => setView("bosta")}>
+            <Button variant="accent" size="sm" className="gap-1.5" onClick={() => openBosta("all")}>
               <Plus className="h-4 w-4" strokeWidth={2.4} />
               {isAr ? "شحنة جديدة" : "New shipment"}
             </Button>
           )}
-        </div>
-      </div>
+        </>}
+      />
 
-      {/* ─── 4 stat tiles (Souq spec) ──────────────────────────── */}
+      {/* ─── 4 stat tiles — every tile is a link, even at zero ──── */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card><CardContent className="p-5 flex flex-col gap-3">
-          <div className="ichip ichip-saffron"><Package className="h-5 w-5" strokeWidth={2.2} /></div>
-          <div>
-            <p className="text-[12.5px] font-semibold text-muted-foreground">{isAr ? "جاهز للشحن" : "Ready to ship"}</p>
-            <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">{fmtN(tileReadyToShip)}</p>
-          </div>
-        </CardContent></Card>
-        <Card><CardContent className="p-5 flex flex-col gap-3">
-          <div className="ichip ichip-navy"><Truck className="h-5 w-5" strokeWidth={2.2} /></div>
-          <div>
-            <p className="text-[12.5px] font-semibold text-muted-foreground">{isAr ? "في الطريق" : "In transit"}</p>
-            <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">{fmtN(tileInTransit)}</p>
-          </div>
-        </CardContent></Card>
-        <Card><CardContent className="p-5 flex flex-col gap-3">
-          <div className="ichip ichip-sage"><MapPin className="h-5 w-5" strokeWidth={2.2} /></div>
-          <div>
-            <p className="text-[12.5px] font-semibold text-muted-foreground">{isAr ? "خرج للتوصيل" : "Out for delivery"}</p>
-            <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">{fmtN(tileOutForDelivery)}</p>
-          </div>
-        </CardContent></Card>
-        <Card><CardContent className="p-5 flex flex-col gap-3">
-          <div className="ichip ichip-terra"><PackageCheck className="h-5 w-5" strokeWidth={2.2} /></div>
-          <div>
-            <p className="text-[12.5px] font-semibold text-muted-foreground">{isAr ? "مرتجعات" : "Returns"}</p>
-            <p className="text-[23px] font-extrabold tabular-nums leading-none mt-1">{fmtN(tileReturns)}</p>
-          </div>
-        </CardContent></Card>
+        <StatTile
+          icon={Package}
+          tone="saffron"
+          label={isAr ? "جاهز للشحن" : "Ready to ship"}
+          value={fmtN(tileReadyToShip)}
+          loading={hubStatsQ.isLoading}
+          onClick={() => (bostaCreds?.is_configured ? openBosta("created") : navigate("/orders/shipping-labels"))}
+        />
+        <StatTile
+          icon={Truck}
+          tone="navy"
+          label={isAr ? "في الطريق" : "In transit"}
+          value={fmtN(tileInTransit)}
+          loading={hubStatsQ.isLoading}
+          onClick={() => openBosta("in_transit")}
+        />
+        <StatTile
+          icon={MapPin}
+          tone="sage"
+          label={isAr ? "خرج للتوصيل" : "Out for delivery"}
+          value={fmtN(tileOutForDelivery)}
+          loading={hubStatsQ.isLoading}
+          onClick={() => openBosta("all")}
+        />
+        <StatTile
+          icon={PackageCheck}
+          tone="terra"
+          label={isAr ? "مرتجعات" : "Returns"}
+          value={fmtN(tileReturns)}
+          loading={hubStatsQ.isLoading}
+          onClick={() => openBosta("returned")}
+        />
       </div>
 
-      {/* ─── Segmented control: Shipments / Zones / Couriers ────
-          "Shipments" and "Zones" jump to the dedicated routes already
-          wired into the sidebar; "Couriers" stays in place as the
-          carrier cards below. */}
-      <div className="flex items-center bg-muted/50 rounded-full p-1 w-fit">
-        {[
-          { key: "couriers", en: "Couriers", ar: "شركات الشحن", onClick: () => {} },
-          { key: "shipments", en: "Shipments", ar: "الشحنات", onClick: () => bostaCreds?.is_configured && setView("bosta") },
-          { key: "zones", en: "Zones", ar: "المناطق", onClick: () => navigate("/shipping/zones") },
-        ].map(s => (
+      {/* ─── Segmented control — honest version. "Couriers" is this
+          view; "Shipments" is disabled (with a reason) until a courier
+          is connected; "Zones" is a real link to its own page, styled
+          as one, instead of a tab that navigates away. */}
+      <div className="flex items-center gap-1 bg-muted/50 rounded-full p-1 w-fit">
+        <button
+          type="button"
+          aria-current="page"
+          className="h-9 px-4 text-[13px] font-bold rounded-full bg-card shadow-sm text-foreground"
+        >
+          {isAr ? "شركات الشحن" : "Couriers"}
+        </button>
+        {bostaCreds?.is_configured ? (
           <button
-            key={s.key}
             type="button"
-            onClick={s.onClick}
-            className={`h-9 px-4 text-[13px] font-bold rounded-full transition-all ${
-              s.key === "couriers"
-                ? "bg-card shadow-sm text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+            onClick={() => openBosta("all")}
+            className="h-9 px-4 text-[13px] font-bold rounded-full text-muted-foreground hover:text-foreground transition-all"
           >
-            {isAr ? s.ar : s.en}
+            {isAr ? "الشحنات" : "Shipments"}
           </button>
-        ))}
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <button
+                  type="button"
+                  disabled
+                  aria-disabled="true"
+                  className="h-9 px-4 text-[13px] font-bold rounded-full text-muted-foreground/50 cursor-not-allowed"
+                >
+                  {isAr ? "الشحنات" : "Shipments"}
+                </button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{t("logistics.connectFirst")}</TooltipContent>
+          </Tooltip>
+        )}
+        <Link
+          to="/shipping/zones"
+          className="inline-flex h-9 items-center gap-1 px-4 text-[13px] font-bold rounded-full text-muted-foreground hover:text-foreground transition-all"
+        >
+          {isAr ? "المناطق" : "Zones"}
+          <ArrowUpRight className="h-3.5 w-3.5 opacity-60" />
+        </Link>
       </div>
 
       {/* ─── Carrier cards ────────────────────────────────────── */}
@@ -307,16 +410,18 @@ const Logistics = () => {
         {CARRIERS.map(carrier => {
           const status = carrierStatus(carrier.key);
           const isConnected = status === "connected";
+          const isUnverified = status === "unverified";
           const isComingSoon = status === "coming_soon";
+          const interested = courierInterest.includes(carrier.key);
 
           return (
             <div
               key={carrier.key}
               className={`group relative rounded-xl border bg-card overflow-hidden transition-all ${
-                isComingSoon ? "opacity-60" : "hover:shadow-md hover:border-border/80 cursor-pointer"
+                isComingSoon ? "opacity-75" : "hover:shadow-md hover:border-border/80 cursor-pointer"
               }`}
               onClick={() => {
-                if (carrier.key === "bosta") setView("bosta");
+                if (carrier.key === "bosta") openBosta("all");
               }}
             >
               {/* Top accent line */}
@@ -369,14 +474,44 @@ const Logistics = () => {
                     {isConnected && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        {isAr ? "متصل" : "Live"}
+                        {carrier.key === "bosta" && bostaVerified === null ? t("logistics.verifying") : t("logistics.live")}
                       </span>
                     )}
-                    {isComingSoon && (
-                      <Badge variant="secondary" className="text-[10px]">{isAr ? "قريبًا" : "Soon"}</Badge>
+                    {isUnverified && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                            {t("logistics.savedUnverified")}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">{t("logistics.bostaUnreachable")}</TooltipContent>
+                      </Tooltip>
                     )}
-                    {!isConnected && !isComingSoon && carrier.key !== "manual" && (
-                      <span className="text-[10px] text-muted-foreground">{isAr ? "غير مربوط" : "Not connected"}</span>
+                    {isComingSoon && (
+                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="secondary" className="text-[10px] cursor-help">{isAr ? "قريبًا" : "Soon"}</Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("logistics.planned")}</TooltipContent>
+                        </Tooltip>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[10px]"
+                          disabled={interested}
+                          onClick={() => {
+                            setCourierInterest(addCourierInterest(carrier.key));
+                            toast.success(t("logistics.noted"));
+                          }}
+                        >
+                          {interested ? t("logistics.notedShort") : t("logistics.notifyMe")}
+                        </Button>
+                      </div>
+                    )}
+                    {!isConnected && !isUnverified && !isComingSoon && carrier.key !== "manual" && (
+                      <span className="text-[10px] text-muted-foreground">{t("logistics.notConnected")}</span>
                     )}
                     {carrier.key === "manual" && (
                       <Switch
@@ -427,12 +562,17 @@ interface BostaDetailProps {
   shippingData: ShippingSettings | null;
   setShippingData: (fn: ShippingSettings | ((p: ShippingSettings | null) => ShippingSettings | null)) => void;
   onBack: () => void;
+  /** Status the shipments list opens on (KPI tiles pass theirs). */
+  initialStatus?: StatusFilter;
+  bostaVerified: boolean | null;
+  setBostaVerified: (v: boolean | null) => void;
 }
 
-const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, shippingData, setShippingData, onBack }: BostaDetailProps) => {
+const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, shippingData, setShippingData, onBack, initialStatus = "all", bostaVerified, setBostaVerified }: BostaDetailProps) => {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<BostaTab>("shipments");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const { t } = useTranslation();
+  const [tab, setTab] = useState<BostaTab>(bostaCreds?.is_configured ? "shipments" : "config");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus);
   const [page, setPage] = useState(0);
 
   // Shipment detail
@@ -464,7 +604,7 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
   const [showAddZone, setShowAddZone] = useState(false);
   const [newZone, setNewZone] = useState({ zone: "", governorates: "", rate: 0, estimated_days: "" });
 
-  const fmt = (cents: number) => { const v = cents / 100; return isAr ? `${v.toLocaleString("ar-EG")} ج.م` : `EGP ${v.toLocaleString()}`; };
+  const fmt = (cents: number) => formatMoney(cents, { fromCents: true, locale: isAr ? "ar" : "en" });
   const fmtDate = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-GB", { day: "numeric", month: "short", year: "numeric" });
   const fmtShort = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-GB", { day: "numeric", month: "short" });
   const fmtFull = (d: string) => new Date(d).toLocaleString(isAr ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -490,8 +630,41 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
   const handleCancel = async (id: string) => { if (!storeId) return; setActionLoading(id); try { const u = await cancelShipment(storeId, id); toast.success(isAr ? "تم إلغاء الشحنة" : "Cancelled"); if (selectedShipment?.id === id) setSelectedShipment(u); invalidate(); } catch (e) { showError(e, language); } finally { setActionLoading(null); } };
   const handleCreate = async () => { if (!storeId || !createOrderId.trim()) return; setCreating(true); try { await createShipment(storeId, { order_id: createOrderId.trim(), shipping_method: createMethod, notes: createNotes || undefined }); toast.success(isAr ? "تم إنشاء الشحنة" : "Shipment created"); setShowCreate(false); setCreateOrderId(""); setCreateNotes(""); invalidate(); } catch (e) { showError(e, language); } finally { setCreating(false); } };
   const handleBulk = async () => { if (!storeId) return; const ids = bulkIds.split(/[\n,]+/).map(s => s.trim()).filter(Boolean); if (!ids.length) return; setBulking(true); try { const r = await bulkCreateShipments(storeId, ids); setBulkResult(r); toast.success(`${r.succeeded}/${r.total}`); invalidate(); } catch (e) { showError(e, language); } finally { setBulking(false); } };
-  const handleSaveBosta = async () => { if (!storeId) return; setBostaSaving(true); try { const r = await saveBostaCredentials(storeId, { api_key: bostaForm.api_key, business_id: bostaForm.business_id, webhook_secret: bostaForm.webhook_secret || undefined, auto_create_shipment: bostaForm.auto_create_shipment }); setBostaCreds(r); setEditing(false); toast.success(isAr ? "تم الحفظ" : "Saved"); } catch (e) { showError(e, language); } finally { setBostaSaving(false); } };
-  const handleDeleteBosta = async () => { if (!storeId) return; try { await deleteBostaCredentials(storeId); setBostaCreds({ is_configured: false, api_key_masked: null, business_id: null, auto_create_shipment: false, last_configured: null }); toast.success(isAr ? "تم قطع الاتصال" : "Disconnected"); } catch (e) { showError(e, language); } };
+  // Save, then PROBE. The backend marks the account configured without
+  // calling Bosta, so this is the only place a bad key gets caught.
+  const handleSaveBosta = async () => {
+    if (!storeId) return;
+    setBostaSaving(true);
+    try {
+      const r = await saveBostaCredentials(storeId, { api_key: bostaForm.api_key, business_id: bostaForm.business_id, webhook_secret: bostaForm.webhook_secret || undefined, auto_create_shipment: bostaForm.auto_create_shipment });
+      setBostaCreds(r);
+      setEditing(false);
+      setBostaVerified(null);
+      const ok = await probeBosta(storeId);
+      writeBostaVerified(storeId, ok);
+      setBostaVerified(ok);
+      if (ok) toast.success(t("logistics.bostaVerified"));
+      else toast.warning(t("logistics.bostaUnreachable"));
+    } catch (e) {
+      showError(e, language);
+    } finally {
+      setBostaSaving(false);
+    }
+  };
+  const handleDeleteBosta = async () => { if (!storeId) return; try { await deleteBostaCredentials(storeId); clearBostaVerified(storeId); setBostaVerified(null); setBostaCreds({ is_configured: false, api_key_masked: null, business_id: null, auto_create_shipment: false, last_configured: null }); toast.success(isAr ? "تم قطع الاتصال" : "Disconnected"); } catch (e) { showError(e, language); } };
+  const livePill = bostaCreds?.is_configured ? (
+    bostaVerified === false ? (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+        {t("logistics.savedUnverified")}
+      </span>
+    ) : (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        {bostaVerified === null ? t("logistics.verifying") : t("logistics.live")}
+      </span>
+    )
+  ) : null;
   const handleAddZone = async () => { if (!storeId || !newZone.zone) return; try { const z = await addShippingZone(storeId, newZone); setShippingData((p: ShippingSettings | null) => p ? { ...p, zones: [...p.zones, z] } : p); setNewZone({ zone: "", governorates: "", rate: 0, estimated_days: "" }); setShowAddZone(false); toast.success(isAr ? "تم الإضافة" : "Added"); } catch (e) { showError(e, language); } };
   const handleDeleteZone = async (zoneId: string) => { if (!storeId) return; try { await deleteShippingZone(storeId, zoneId); setShippingData((p: ShippingSettings | null) => p ? { ...p, zones: p.zones.filter(z => z.id !== zoneId) } : p); } catch (e) { showError(e, language); } };
 
@@ -555,12 +728,7 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
             <div>
               <div className="flex items-center gap-2">
                 <BostaLogo height={18} />
-                {bostaCreds?.is_configured && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    {isAr ? "متصل" : "LIVE"}
-                  </span>
-                )}
+                {livePill}
               </div>
               <p className="text-[11px] text-muted-foreground mt-0.5">{isAr ? "شحن وتوصيل سريع في مصر" : "Egypt's fastest last-mile delivery"}</p>
             </div>
@@ -672,14 +840,15 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
                   <p className="text-[10px] text-muted-foreground mt-0.5">{isAr ? "إعدادات الاتصال" : "Connection settings"}</p>
                 </div>
               </div>
-              {bostaCreds?.is_configured && !editing && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  {isAr ? "متصل" : "LIVE"}
-                </span>
-              )}
+              {!editing && livePill}
             </div>
             <div className="p-5">
+              {bostaCreds?.is_configured && bostaVerified === false && !editing && (
+                <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300/60 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300">
+                  <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>{t("logistics.bostaUnreachable")}</span>
+                </div>
+              )}
               {bostaCreds?.is_configured && !editing ? (
                 <div className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-2">

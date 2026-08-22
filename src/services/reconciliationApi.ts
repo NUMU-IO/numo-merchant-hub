@@ -7,6 +7,9 @@ import { apiClient } from "./api";
 
 export interface ReconciliationRun {
   id: string;
+  /** Rail this run covered (paymob / instapay / cod / …). A store with
+      several gateways gets several runs per day. */
+  gateway?: string;
   period_start: string;
   period_end: string;
   status: string;
