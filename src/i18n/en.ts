@@ -440,6 +440,13 @@ export default {
     offlineTitle: "Can't reach NUMU",
     offlineBody: "Check your connection and try again. If you're online, our servers may be briefly unavailable.",
   },
+  settings: {
+    ownerOnly: "Store owner only",
+    flag: {
+      advanced: "Advanced",
+      danger: "Sensitive",
+    },
+  },
   common: {
     currency: "EGP",
     currencySymbol: "ج.م",

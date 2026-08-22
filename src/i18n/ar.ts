@@ -440,6 +440,13 @@
     offlineTitle: "مش قادرين نوصل لنُمُو",
     offlineBody: "اتأكد من الاتصال بالإنترنت وحاول تاني. لو الإنترنت شغال، يمكن السيرفر مشغول لحظة.",
   },
+  settings: {
+    ownerOnly: "لصاحب المتجر فقط",
+    flag: {
+      advanced: "متقدم",
+      danger: "حساس",
+    },
+  },
   common: {
     currency: "ج.م",
     currencySymbol: "ج.م",
