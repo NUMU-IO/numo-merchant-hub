@@ -50,6 +50,8 @@ export interface NotificationPreferences {
   muted_categories: NotificationCategory[];
   email_new_order: boolean;
   push_new_order: boolean;
+  /** Web-push for important rows (cancelled / payment failed / returned / kill-switch). */
+  push_important: boolean;
 }
 
 export interface ListNotificationsParams {

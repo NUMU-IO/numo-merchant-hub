@@ -18,6 +18,8 @@ import { ImpersonationBanner } from "./ImpersonationBanner";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { useAppBadge } from "@/hooks/useAppBadge";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
+import { useNotificationStream } from "@/hooks/useNotificationStream";
+import { useFaviconBadge } from "@/hooks/useFaviconBadge";
 import { NewOrderNotifier } from "@/components/NewOrderNotifier";
 import { AgentPanel } from "@/features/agent";
 import { useNavConfig } from "@/hooks/useNavConfig";
@@ -41,7 +43,13 @@ const DashboardLayout = () => {
   // store id the header bell uses, so the badge and the bell can never
   // disagree. No-ops where the Badging API is unsupported — notably Chrome
   // for Android.
-  useAppBadge(useUnreadNotificationCount(currentStore?.id));
+  const unreadNotifications = useUnreadNotificationCount(currentStore?.id);
+  useAppBadge(unreadNotifications);
+  // Same count on the browser tab: numbered favicon + "(n) " title prefix.
+  useFaviconBadge(unreadNotifications);
+  // SSE stream — invalidates the notification queries the moment the API
+  // commits a feed row, so the 45 s poll is only the fallback.
+  useNotificationStream(currentStore?.id);
 
   const trialDaysLeft = useMemo(() => {
     if (!user?.trial_ends_at) return null;
