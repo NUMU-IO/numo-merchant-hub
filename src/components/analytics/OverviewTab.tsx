@@ -11,12 +11,15 @@ import {
 } from "lucide-react";
 import {
   AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Cell,
+  ResponsiveContainer,
 } from "recharts";
+import { TrapezoidFunnel } from "./TrapezoidFunnel";
+import { FUNNEL_COLORS } from "./chart-palette";
+import { BreakdownPie } from "./BreakdownPie";
 import type {
   SalesOverview, SalesDataPoint, TopProduct,
   LocationSales, CustomerAnalytics, ConversionStats,
-  CodRejectionStats, FunnelData,
+  CodRejectionStats, FunnelData, TrafficSourceData, OrdersBreakdown,
 } from "@/services/analyticsApi";
 
 interface OverviewTabProps {
@@ -28,12 +31,15 @@ interface OverviewTabProps {
   conversion: ConversionStats | null;
   codRejection: CodRejectionStats | null;
   funnel: FunnelData | null;
+  trafficSources: TrafficSourceData[];
+  ordersBreakdown: OrdersBreakdown | null;
   formatCurrency: (cents: number) => string;
 }
 
 export function OverviewTab({
   overview, chartData, topProducts, locations,
-  customerStats, conversion, codRejection, funnel, formatCurrency,
+  customerStats, conversion, codRejection, funnel,
+  trafficSources, ordersBreakdown, formatCurrency,
 }: OverviewTabProps) {
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -67,53 +73,103 @@ export function OverviewTab({
     );
   };
 
+  const locale = isAr ? "ar-EG" : undefined;
+  const fmtNum = (n: number) => n.toLocaleString(locale);
+
+  // ── Funnel stages (Zid order) from the real /analytics/funnel counts ──
+  const stepCount = (name: string) => funnel?.steps.find((s) => s.step === name)?.count ?? 0;
+  const funnelStages = [
+    { key: "page_view", label: isAr ? "زيارة" : "Visit", value: stepCount("page_view") },
+    { key: "product_view", label: isAr ? "شاف منتج" : "View product", value: stepCount("product_view") },
+    { key: "add_to_cart", label: isAr ? "ضاف للسلة" : "Add to cart", value: stepCount("add_to_cart") },
+    { key: "checkout_started", label: isAr ? "بدأ الدفع" : "Checkout started", value: stepCount("checkout_started") },
+    { key: "order_completed", label: isAr ? "اشترى" : "Purchase done", value: stepCount("order_completed") },
+  ];
+  const visits = funnelStages[0].value || conversion?.total_visitors || 0;
+  const midFunnel = funnelStages.some((s, i) => i > 0 && s.value > funnelStages[i - 1].value);
+
+  // ── Pie data ──
+  const PAYMENT_LABELS: Record<string, string> = {
+    cod: isAr ? "الدفع عند الاستلام" : "Cash on delivery",
+    cash_on_delivery: isAr ? "الدفع عند الاستلام" : "Cash on delivery",
+    cash: isAr ? "كاش" : "Cash",
+    instapay: "InstaPay",
+    vodafone_cash: isAr ? "فودافون كاش" : "Vodafone Cash",
+    card: isAr ? "بطاقة" : "Card",
+    credit_card: isAr ? "بطاقة" : "Card",
+    wallet: isAr ? "محفظة" : "Wallet",
+    unknown: isAr ? "غير محدد" : "Undefined",
+  };
+  const pretty = (raw: string, map?: Record<string, string>) => {
+    const k = raw.toLowerCase();
+    if (map?.[k]) return map[k];
+    if (k === "unknown" || k === "") return isAr ? "غير محدد" : "Undefined";
+    return raw.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+  const paymentPie = (ordersBreakdown?.by_payment_method ?? [])
+    .filter((m) => m.count > 0)
+    .map((m) => ({ name: pretty(m.method, PAYMENT_LABELS), value: m.count }));
+  const shippingPie = (ordersBreakdown?.by_shipping_method ?? [])
+    .filter((m) => m.count > 0)
+    .map((m) => ({ name: pretty(m.method), value: m.count }));
+  const sourcesPie = trafficSources
+    .filter((s) => s.orders > 0)
+    .map((s) => ({ name: pretty(s.source || "direct"), value: s.orders }));
+
+  const tooltipStyle = { background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", boxShadow: "var(--shadow-pop)", fontSize: "12px" } as const;
+  const axisTick = { fill: "hsl(var(--muted-foreground))", fontSize: 10 };
+
+  const SectionHead = ({ title, sub, aside }: { title: string; sub?: string; aside?: React.ReactNode }) => (
+    <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-1">
+      <div>
+        <h2 className="text-[15px] font-bold tracking-tight">{title}</h2>
+        {sub && <p className="mt-0.5 text-[11.5px] text-muted-foreground">{sub}</p>}
+      </div>
+      {aside}
+    </div>
+  );
+
   return (
     <>
-      {/* Souq KPI tiles — brand-tinted ichip + soft delta pill +
-          tabular display value. */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      {/* KPI strip — Zid-style: label, value + unit, icon box */}
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         {[
-          // Booked vs collected split (Shopify-style gross/net): the
-          // headline stays booked revenue — in a COD market an order
-          // booked today is usually collected on delivery days later —
-          // with the actually-received money right under it so
-          // merchants see both realities.
           {
-            label: isAr ? "المبيعات المسجلة" : "Booked Sales",
+            label: isAr ? "إجمالي المبيعات" : "Total sales",
             value: overview ? formatCurrency(overview.total_sales) : "—",
             sub: overview?.collected_revenue !== undefined
               ? `${isAr ? "المحصّل: " : "Collected: "}${formatCurrency(overview.collected_revenue)}`
               : undefined,
-            trend: overview?.sales_change_percent, icon: DollarSign, chip: "ichip-navy",
+            trend: overview?.sales_change_percent, icon: DollarSign,
           },
-          { label: isAr ? "إجمالي الطلبات" : "Total Orders", value: overview?.total_orders ?? "—", trend: overview?.orders_change_percent, icon: ShoppingCart, chip: "ichip-sage" },
-          { label: isAr ? "متوسط قيمة الطلب" : "Avg Order Value", value: overview ? formatCurrency(overview.avg_order_value) : "—", trend: aovChange, icon: TrendingUp, chip: "ichip-saffron" },
-          { label: isAr ? "معدل التحويل" : "Conversion Rate", value: conversion ? `${conversion.conversion_rate.toFixed(1)}%` : "—", trend: undefined, icon: BarChart3, chip: "ichip-terra" },
+          { label: isAr ? "عدد الطلبات" : "Number of orders", value: overview ? `${fmtNum(overview.total_orders)} ${isAr ? "طلب" : "Orders"}` : "—", sub: undefined, trend: overview?.orders_change_percent, icon: ShoppingCart },
+          { label: isAr ? "الجلسات" : "Sessions", value: `${fmtNum(visits)} ${isAr ? "زيارة" : "Visit"}`, sub: undefined, trend: undefined, icon: Filter },
+          { label: isAr ? "العملاء" : "Customers", value: customerStats ? `${fmtNum(customerStats.total_customers)} ${isAr ? "عميل" : "Customers"}` : "—", sub: undefined, trend: undefined, icon: Users },
         ].map((kpi) => (
           <Card key={kpi.label} className="overflow-hidden">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between mb-4">
-                <div className={`ichip ${kpi.chip}`}><kpi.icon className="h-5 w-5" strokeWidth={2.2} /></div>
-                {kpi.trend !== undefined && <TrendBadge value={kpi.trend} />}
+            <CardContent className="flex items-center justify-between gap-3 p-4">
+              <div className="min-w-0">
+                <p className="text-[11.5px] font-semibold text-muted-foreground">{kpi.label}</p>
+                <p className="mt-1 truncate text-[17px] font-extrabold tracking-tight tabular-nums leading-none">{kpi.value}</p>
+                {(kpi.sub || kpi.trend !== undefined) && (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    {kpi.trend !== undefined && <TrendBadge value={kpi.trend} />}
+                    {kpi.sub && <span className="truncate text-[11px] font-semibold text-muted-foreground tabular-nums">{kpi.sub}</span>}
+                  </div>
+                )}
               </div>
-              <p className="text-[12.5px] font-semibold text-muted-foreground mb-1">{kpi.label}</p>
-              <p className="text-[23px] font-extrabold tracking-tight tabular-nums leading-none">{kpi.value}</p>
-              {"sub" in kpi && kpi.sub && (
-                <p className="text-[11.5px] font-semibold text-muted-foreground mt-1.5 tabular-nums">
-                  {kpi.sub}
-                </p>
-              )}
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground">
+                <kpi.icon className="h-4 w-4" strokeWidth={2} />
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Charts */}
+      {/* Row 1: Sales over time · Customer funnel */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <div className="souq-section-head px-5 pt-5 pb-2">
-            <h2 className="text-[17px] font-bold tracking-tight">{isAr ? "المبيعات" : "Sales"}</h2>
-          </div>
+          <SectionHead title={isAr ? "قيمة المبيعات عبر الوقت" : "Sales value over time"} />
           <CardContent>
             <div className="h-[260px]">
               {chartData.length > 0 ? (
@@ -121,36 +177,24 @@ export function OverviewTab({
                   <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="colorSalesNavy" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--navy))" stopOpacity={0.18} />
-                        <stop offset="95%" stopColor="hsl(var(--navy))" stopOpacity={0} />
+                        <stop offset="5%" stopColor="hsl(var(--navy))" stopOpacity={0.22} />
+                        <stop offset="95%" stopColor="hsl(var(--navy))" stopOpacity={0.02} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 5" className="stroke-border/40" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 100).toLocaleString()}`} />
+                    <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
+                    <YAxis tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 100).toLocaleString()}`} />
                     <Tooltip
-                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", boxShadow: "var(--shadow-pop)", fontSize: "12px" }}
+                      contentStyle={tooltipStyle}
                       formatter={(value: number, name: string) => [
                         formatCurrency(value),
-                        name === "prev_sales"
-                          ? (isAr ? "الفترة السابقة" : "Previous period")
-                          : (isAr ? "المبيعات" : "Sales"),
+                        name === "prev_sales" ? (isAr ? "الفترة السابقة" : "Previous period") : (isAr ? "المبيعات" : "Sales"),
                       ]}
                     />
-                    {/* Previous-period overlay (Compare toggle) — dashed,
-                        muted, no fill so the current series stays primary. */}
                     {hasCompare && (
-                      <Line
-                        type="monotone"
-                        dataKey="prev_sales"
-                        stroke="hsl(var(--muted-foreground))"
-                        strokeWidth={1.5}
-                        strokeDasharray="5 4"
-                        dot={false}
-                        opacity={0.7}
-                      />
+                      <Line type="monotone" dataKey="prev_sales" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="5 4" dot={false} opacity={0.7} />
                     )}
-                    <Area type="monotone" dataKey="sales" stroke="hsl(var(--navy))" fill="url(#colorSalesNavy)" strokeWidth={2.5} dot={false} />
+                    <Area type="monotone" dataKey="sales" stroke="hsl(var(--navy))" fill="url(#colorSalesNavy)" strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
@@ -161,49 +205,69 @@ export function OverviewTab({
         </Card>
 
         <Card>
-          <div className="souq-section-head px-5 pt-5 pb-2">
-            <h2 className="text-[17px] font-bold tracking-tight">{isAr ? "الطلبات" : "Orders"}</h2>
-            <span className="text-xs text-muted-foreground">
-              {isAr ? "آخر فترة" : "Current period"}
-            </span>
-          </div>
+          <SectionHead
+            title={isAr ? "مسار العميل" : "Customer funnel"}
+            sub={isAr ? "عدد الزيارات في كل مرحلة من رحلة العميل" : "Number of visits at each stage in customer funnel"}
+          />
+          <CardContent className="pb-4">
+            {funnel && visits > 0 ? (
+              <>
+                <TrapezoidFunnel stages={funnelStages} locale={locale} rtl={isAr} className="max-h-[240px]" />
+                <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1">
+                  {funnelStages.map((s, i) => (
+                    <div key={s.key} className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: FUNNEL_COLORS[i] }} />
+                      <span className="text-[11px] text-muted-foreground">{s.label}</span>
+                    </div>
+                  ))}
+                </div>
+                {midFunnel && (
+                  <HelpTip title={t("analytics.funnel.midFunnel")} className="mt-3">
+                    <p className="px-4 pb-3 text-xs text-blue-900/80 dark:text-blue-200/80">
+                      {t("analytics.funnel.stepRateHint")}
+                    </p>
+                  </HelpTip>
+                )}
+              </>
+            ) : (
+              <div className="h-[240px]">
+                <EmptyState icon={Filter} title={isAr ? "مفيش زيارات في الفترة دي" : "No visits in this range"} />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Row 2: Orders over time · Visit sources */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <SectionHead title={isAr ? "الطلبات عبر الوقت" : "Orders over time"} />
           <CardContent>
             <div className="h-[260px]">
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="colorOrdersNavy" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--navy))" stopOpacity={0.22} />
+                        <stop offset="95%" stopColor="hsl(var(--navy))" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 5" className="stroke-border/40" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
+                    <YAxis tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip
-                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", boxShadow: "var(--shadow-pop)", fontSize: "12px" }}
+                      contentStyle={tooltipStyle}
                       formatter={(value: number, name: string) => [
                         value,
-                        name === "prev_orders"
-                          ? (isAr ? "الفترة السابقة" : "Previous period")
-                          : (isAr ? "الطلبات" : "Orders"),
+                        name === "prev_orders" ? (isAr ? "الفترة السابقة" : "Previous period") : (isAr ? "الطلبات" : "Orders"),
                       ]}
                     />
-                    {/* Previous-period overlay — thin muted bars beside
-                        the current ones. */}
                     {hasCompare && (
-                      <Bar
-                        dataKey="prev_orders"
-                        radius={[4, 4, 0, 0]}
-                        fill="hsl(var(--muted-foreground))"
-                        opacity={0.35}
-                      />
+                      <Line type="monotone" dataKey="prev_orders" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="5 4" dot={false} opacity={0.7} />
                     )}
-                    {/* Souq spec: last bar saffron to highlight current, rest navy. */}
-                    <Bar dataKey="orders" radius={[6, 6, 0, 0]}>
-                      {chartData.map((_, i) => (
-                        <Cell
-                          key={`bar-${i}`}
-                          fill={i === chartData.length - 1 ? "hsl(var(--saffron))" : "hsl(var(--navy))"}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
+                    <Area type="monotone" dataKey="orders" stroke="hsl(var(--navy))" fill="url(#colorOrdersNavy)" strokeWidth={2} dot={false} />
+                  </AreaChart>
                 </ResponsiveContainer>
               ) : (
                 <EmptyState icon={ShoppingCart} title={isAr ? "مفيش بيانات" : "No data available"} />
@@ -211,89 +275,51 @@ export function OverviewTab({
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <SectionHead
+            title={isAr ? "مصادر الزيارات" : "Visit sources"}
+            sub={isAr ? "العملاء اللي طلبوا جم منين" : "Where your ordering customers come from"}
+          />
+          <CardContent>
+            {sourcesPie.length > 0 ? (
+              <BreakdownPie data={sourcesPie} locale={locale} />
+            ) : (
+              <div className="h-[240px]"><EmptyState icon={TrendingUp} title={isAr ? "مفيش بيانات" : "No data"} /></div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Conversion funnel — Souq spec: navy-gradient bars with the
-          count inside + % at the end. Real event counts from the same
-          /analytics/funnel endpoint FunnelTab uses — this card used to
-          FABRICATE the cart stage from a hardcoded 25%-of-visits guess
-          when abandonment data was absent. If there's no funnel data,
-          the card hides instead of inventing numbers. */}
-      {(() => {
-        const stepCount = (name: string) =>
-          funnel?.steps.find((s) => s.step === name)?.count ?? 0;
-        const visits = stepCount("page_view");
-        const carts = stepCount("add_to_cart");
-        const purchases = stepCount("order_completed");
-        const stages = [
-          { label: isAr ? "زيارات" : "Visits", value: visits },
-          { label: isAr ? "ضافوا للسلة" : "Added to cart", value: carts },
-          { label: isAr ? "اشتروا" : "Purchased", value: purchases },
-        ];
-        const top = Math.max(stages[0].value, 1);
-        if (!funnel || top <= 1) return null;
-        return (
-          <Card>
-            <div className="souq-section-head px-5 pt-5 pb-2">
-              <h2 className="text-[17px] font-bold tracking-tight flex items-center gap-2">
-                <Filter className="h-4 w-4 text-ink-faint" strokeWidth={2.2} />
-                {isAr ? "مسار التحويل" : "Conversion funnel"}
-              </h2>
-            </div>
-            <CardContent className="pb-4">
-              <div className="space-y-2.5">
-                {stages.map((s, i) => {
-                  const pct = (s.value / top) * 100;
-                  // % of the PREVIOUS stage (real step-to-step
-                  // conversion), not share-of-visits. Each step is a
-                  // distinct-session count computed independently over
-                  // the window, so a later step CAN exceed the earlier one
-                  // (a session whose page_view fell outside the range, a
-                  // theme that doesn't emit page_view). That used to print
-                  // "166.7%"; it's now capped and flagged instead.
-                  const prev = i === 0 ? s.value : stages[i - 1].value;
-                  const raw = i === 0 ? 100 : prev > 0 ? (s.value / prev) * 100 : 0;
-                  const exceeds = i > 0 && s.value > prev;
-                  const conversionPct = Math.min(raw, 100);
-                  return (
-                    <div key={s.label} className="flex items-center gap-3">
-                      <div className="w-28 sm:w-36 text-[12.5px] font-bold text-muted-foreground shrink-0">
-                        {s.label}
-                      </div>
-                      <div className="flex-1 h-9 rounded-xl bg-muted/50 overflow-hidden relative">
-                        <div
-                          className="h-full rounded-xl flex items-center px-3 transition-all duration-700"
-                          style={{
-                            width: `${Math.max(pct, 14)}%`,
-                            background: "linear-gradient(90deg, hsl(var(--navy-700)), hsl(var(--navy)))",
-                          }}
-                        >
-                          <span className="text-[12.5px] font-extrabold tabular-nums text-white ltr-nums">
-                            {s.value.toLocaleString(isAr ? "ar-EG" : undefined)}
-                          </span>
-                        </div>
-                      </div>
-                      <div
-                        className={`w-14 text-end text-[12.5px] font-extrabold tabular-nums ltr-nums shrink-0 ${exceeds ? "text-amber-600 dark:text-amber-400" : ""}`}
-                        title={exceeds ? t("analytics.funnel.midFunnel") : undefined}
-                      >
-                        {exceeds ? t("analytics.funnel.overCapped") : `${conversionPct.toFixed(1)}%`}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {stages.some((s, i) => i > 0 && s.value > stages[i - 1].value) && (
-                <HelpTip title={t("analytics.funnel.midFunnel")} className="mt-4">
-                  <p className="px-4 pb-3 text-xs text-blue-900/80 dark:text-blue-200/80">
-                    {t("analytics.funnel.stepRateHint")}
-                  </p>
-                </HelpTip>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })()}
+      {/* Row 3: Payment method · Shipping method */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <SectionHead
+            title={isAr ? "طريقة الدفع" : "Payment method"}
+            sub={isAr ? "توزيع طرق الدفع المستخدمة" : "Distribution of payment methods used"}
+          />
+          <CardContent>
+            {paymentPie.length > 0 ? (
+              <BreakdownPie data={paymentPie} locale={locale} />
+            ) : (
+              <div className="h-[240px]"><EmptyState icon={DollarSign} title={isAr ? "مفيش بيانات" : "No data"} /></div>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <SectionHead
+            title={isAr ? "طريقة الشحن" : "Shipping method"}
+            sub={isAr ? "عدد الطلبات حسب طريقة الشحن" : "Share of orders by shipping method"}
+          />
+          <CardContent>
+            {shippingPie.length > 0 ? (
+              <BreakdownPie data={shippingPie} locale={locale} />
+            ) : (
+              <div className="h-[240px]"><EmptyState icon={Package} title={isAr ? "مفيش بيانات" : "No data"} /></div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Bottom section */}
       <div className="grid gap-4 lg:grid-cols-3">
