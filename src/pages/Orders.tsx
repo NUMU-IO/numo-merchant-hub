@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   ArrowLeft, CheckCircle2, Circle, Clock, Package, Truck, XCircle,
-  MoreHorizontal, Printer, FileDown, FileUp, ChevronRight, ArrowRightCircle, Loader2,
+  MoreHorizontal, Printer, FileDown, FileUp, ChevronRight, ChevronDown, ArrowRightCircle, Loader2,
   RotateCcw, AlertCircle, FileText, Search, X,
   RefreshCw,
 } from "lucide-react";
@@ -52,7 +52,7 @@ import AutopilotExceptions from "@/components/orders/AutopilotExceptions";
 import {
   DateRangePicker, useDateRangeUrlState,
 } from "@/components/filters/DateRangePicker";
-import OrderDrawer from "@/components/orders/OrderDrawer";
+import { OrderRowExpansion } from "@/components/orders/OrderRowExpansion";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
 import { orderStateHint } from "@/lib/orders/order-state-hint";
@@ -238,12 +238,11 @@ const Orders = () => {
     queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
-  // Souq drawer-first flow: clicking a row opens the side OrderDrawer
-  // (quick summary + items + payment + timeline). The drawer header
-  // and footer both link through to the full /orders/:id page for
-  // edit-grade work. Holding ⌘/Ctrl on click bypasses the drawer
-  // (power-user shortcut to jump straight to the full page).
-  const [drawerOrderId, setDrawerOrderId] = useState<string | null>(null);
+  // Zid-style inline expansion: clicking a desktop row toggles a summary
+  // panel (products · bill · customer) right under it; "View" inside the
+  // panel — or ⌘/Ctrl+click on the row — goes to the full /orders/:id
+  // page. Mobile cards go straight to the full page.
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const openOrderDetail = (
     orderId: string,
     e?: React.MouseEvent<HTMLElement>,
@@ -253,7 +252,7 @@ const Orders = () => {
       navigate(`/orders/${orderId}`);
       return;
     }
-    setDrawerOrderId(orderId);
+    setExpandedOrderId((prev) => (prev === orderId ? null : orderId));
   };
 
   const statusColor: Record<string, string> = {
@@ -1256,7 +1255,7 @@ const Orders = () => {
                 <button
                   key={o.id}
                   type="button"
-                  onClick={(e) => openOrderDetail(o.id, e)}
+                  onClick={() => navigate(`/orders/${o.id}`)}
                   className="w-full flex items-start gap-3 px-4 py-3 text-start hover:bg-muted/20 transition-colors"
                 >
                   <div onClick={e => { e.stopPropagation(); }} className="pt-0.5">
@@ -1312,6 +1311,7 @@ const Orders = () => {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/20 hover:bg-muted/20">
+                  <TableHead className="w-8" />
                   <TableHead className="w-10">
                     <Checkbox
                       checked={orders.length > 0 && selected.size === orders.length}
@@ -1339,8 +1339,20 @@ const Orders = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orders.map((o) => (
-                  <TableRow key={o.id} className="group cursor-pointer" onClick={(e) => openOrderDetail(o.id, e)}>
+                {orders.map((o) => {
+                  const expanded = expandedOrderId === o.id;
+                  return (
+                  <Fragment key={o.id}>
+                  <TableRow
+                    className={`group cursor-pointer ${expanded ? "bg-muted/20 hover:bg-muted/20" : ""}`}
+                    onClick={(e) => openOrderDetail(o.id, e)}
+                    aria-expanded={expanded}
+                  >
+                    <TableCell className="pe-0">
+                      <ChevronDown
+                        className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`}
+                      />
+                    </TableCell>
                     <TableCell onClick={e => e.stopPropagation()}>
                       <Checkbox checked={selected.has(o.id)} onCheckedChange={() => toggleSelect(o.id)} />
                     </TableCell>
@@ -1407,7 +1419,16 @@ const Orders = () => {
                       <div className="text-[10px] text-muted-foreground">{fmtTime(o.created_at)}</div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  {expanded && storeId && (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={10} className="bg-muted/10 p-3">
+                        <OrderRowExpansion storeId={storeId} orderId={o.id} />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  </Fragment>
+                  );
+                })}
               </TableBody>
             </Table>
             </div>
@@ -1431,13 +1452,6 @@ const Orders = () => {
 
       {rtoDialog}
 
-      {/* Souq order drawer — slides in on row click. Header/footer
-          buttons navigate to the full /orders/:id page. ⌘/Ctrl+click
-          on a row bypasses the drawer entirely. */}
-      <OrderDrawer
-        orderId={drawerOrderId}
-        onClose={() => setDrawerOrderId(null)}
-      />
     </div>
   );
 };
