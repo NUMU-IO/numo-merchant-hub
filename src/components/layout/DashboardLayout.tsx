@@ -16,6 +16,7 @@ import GoLiveBanner from "@/components/wallet/GoLiveBanner";
 import LowBalanceBanner from "@/components/wallet/LowBalanceBanner";
 import { ImpersonationBanner } from "./ImpersonationBanner";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
+import { PullToRefresh } from "@/components/pwa/PullToRefresh";
 import { useAppBadge } from "@/hooks/useAppBadge";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
@@ -92,6 +93,8 @@ const DashboardLayout = () => {
               {/* PWA install nudge. Self-gating: mobile only, dashboard route
                   only, and only once the merchant has had a real order. */}
               <InstallPrompt />
+              {/* Touch-only pull-to-refresh (installed PWAs have no native one). */}
+              <PullToRefresh />
               {/* Store status alerts */}
               {currentStore?.status === "suspended" && (
                 <Alert className="mb-5 rounded-xl border-red-200 bg-red-50/80 dark:border-red-500/30 dark:bg-red-950/40">

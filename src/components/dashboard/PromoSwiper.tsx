@@ -26,7 +26,14 @@ function readDismissed(): string[] {
  * tab and honours reduced-motion, real pagination dots, and a per-slide
  * dismiss that's remembered in this browser. Each slide is one link.
  */
-export function PromoSwiper({ className }: { className?: string }) {
+export function PromoSwiper({
+  className,
+  fallback = null,
+}: {
+  className?: string;
+  /** Rendered when every slide has been dismissed (e.g. the Store-health card). */
+  fallback?: React.ReactNode;
+}) {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const isAr = language === "ar";
@@ -75,11 +82,11 @@ export function PromoSwiper({ className }: { className?: string }) {
     });
   }, []);
 
-  if (slides.length === 0) return null;
+  if (slides.length === 0) return <>{fallback}</>;
 
   return (
     <section
-      className={cn("relative", className)}
+      className={cn("group/swiper relative", className)}
       aria-roledescription="carousel"
       aria-label={t("promo.label")}
       onMouseEnter={() => setPaused(true)}
@@ -138,15 +145,16 @@ function ArrowButton({ side, onClick, label }: { side: "prev" | "next"; onClick:
       type="button"
       onClick={onClick}
       className={cn(
-        "absolute top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/30 text-white/90 backdrop-blur-sm transition-colors hover:bg-black/55 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
-        side === "prev" ? "start-3" : "end-3",
+        "absolute top-1/2 z-10 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-navy-900 shadow-md ring-1 ring-black/10 transition-opacity md:flex",
+        "opacity-0 group-hover/swiper:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saffron",
+        side === "prev" ? "start-2" : "end-2",
       )}
       aria-label={label}
     >
       {side === "prev" ? (
-        <ChevronLeft className="h-5 w-5 rtl:rotate-180" />
+        <ChevronLeft className="h-4 w-4 rtl:rotate-180" strokeWidth={2.5} />
       ) : (
-        <ChevronRight className="h-5 w-5 rtl:rotate-180" />
+        <ChevronRight className="h-4 w-4 rtl:rotate-180" strokeWidth={2.5} />
       )}
     </button>
   );
