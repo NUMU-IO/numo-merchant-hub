@@ -25,6 +25,7 @@ import {
 import { CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { NavItemGate } from "./NavItemGate";
+import { StoreHealthBanner } from "./StoreHealthBanner";
 import { NavCollapsible } from "./NavCollapsible";
 
 /**
@@ -450,6 +451,7 @@ const AppSidebar = () => {
 
       {/* ─── FOOTER — store switcher card ─────────────────────────── */}
       <SidebarFooter>
+        <StoreHealthBanner />
         {currentStore && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { PROMO_SLIDES, type PromoSlide } from "@/lib/dashboard/promo-slides";
+import { PROMO_SLIDES, slideImage, type PromoSlide } from "@/lib/dashboard/promo-slides";
 import { cn } from "@/lib/utils";
 
 const DISMISS_KEY = "numu:promo-dismissed";
@@ -102,6 +102,13 @@ export function PromoSwiper({ className }: { className?: string }) {
       </Carousel>
 
       {slides.length > 1 && (
+        <>
+          <ArrowButton side="prev" onClick={() => api?.scrollPrev()} label={t("promo.prev")} />
+          <ArrowButton side="next" onClick={() => api?.scrollNext()} label={t("promo.next")} />
+        </>
+      )}
+
+      {slides.length > 1 && (
         <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
           <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-black/25 px-2.5 py-1.5 backdrop-blur-sm">
             {slides.map((s, i) => (
@@ -124,6 +131,27 @@ export function PromoSwiper({ className }: { className?: string }) {
   );
 }
 
+/** Prev/next chevrons on the slide edges; flip sides for RTL via logical start/end. */
+function ArrowButton({ side, onClick, label }: { side: "prev" | "next"; onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "absolute top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/30 text-white/90 backdrop-blur-sm transition-colors hover:bg-black/55 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+        side === "prev" ? "start-3" : "end-3",
+      )}
+      aria-label={label}
+    >
+      {side === "prev" ? (
+        <ChevronLeft className="h-5 w-5 rtl:rotate-180" />
+      ) : (
+        <ChevronRight className="h-5 w-5 rtl:rotate-180" />
+      )}
+    </button>
+  );
+}
+
 function Slide({
   slide,
   isAr,
@@ -139,14 +167,18 @@ function Slide({
   const [loaded, setLoaded] = useState(false);
   const external = /^(https?:|mailto:)/.test(slide.href);
   const alt = isAr ? slide.alt.ar : slide.alt.en;
+  const { src, placeholder } = slideImage(slide, isAr ? "ar" : "en");
+  // Language switch swaps the creative — fade the new one in from the placeholder.
+  useEffect(() => setLoaded(false), [src]);
 
   const img = (
     <div
       className="relative aspect-[2/1] w-full bg-[#0B1E3B] bg-cover bg-center"
-      style={{ backgroundImage: `url(${slide.placeholder})` }}
+      style={{ backgroundImage: `url(${placeholder})` }}
     >
       <img
-        src={slide.image}
+        key={src}
+        src={src}
         alt={alt}
         width={1600}
         height={797}

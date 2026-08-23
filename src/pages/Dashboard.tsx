@@ -26,11 +26,9 @@ import {
   getDashboardStats,
   getRevenueChart,
   getTopProducts,
-  getHealthScore,
   getOrderStreak,
   getConversionStats,
 } from "@/services/analyticsApi";
-import type { HealthScoreData } from "@/services/analyticsApi";
 import { dateRangeKey } from "@/services/dateRangeParams";
 import {
   DateRangePicker,
@@ -77,7 +75,6 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
 import { ActiveThemeCard } from "@/components/dashboard/ActiveThemeCard";
 import { PromoSwiper } from "@/components/dashboard/PromoSwiper";
-import { MetricTargetsCard } from "@/components/analytics/MetricTargetsCard";
 import { RecentlyViewed } from "@/components/dashboard/RecentlyViewed";
 
 /* ─── Zone head — § eyebrow + question + hairline rule ──────────────── */
@@ -184,14 +181,6 @@ const Dashboard = () => {
     enabled: !!storeId,
   });
 
-  const healthScoreQuery = useQuery({
-    // `language` in the key — the payload carries localised copy.
-    queryKey: ["dashboard", "healthScore", storeId, language],
-    queryFn: () => getHealthScore(storeId!, false, language),
-    enabled: !!storeId,
-    staleTime: 1000 * 60 * 60,
-  });
-
   // Consecutive-days-with-orders streak (computed server-side, store tz).
   // Not range-scoped — independent of the date picker. Cache 30 min.
   const streakQuery = useQuery({
@@ -202,7 +191,6 @@ const Dashboard = () => {
   });
   const streak = streakQuery.data ?? null;
 
-  const healthScore: HealthScoreData | null = healthScoreQuery.data ?? null;
   const stats = statsQuery.data ?? null;
   const chartData = chartQuery.data ?? [];
   const topProducts = topProductsQuery.data ?? [];
@@ -562,14 +550,6 @@ const Dashboard = () => {
             {isAr ? "ضيف منتج" : "Add product"}
           </Button>
         </div>
-      </div>
-
-      {/* ─── Promo swiper + goals (Zid-style pair) ───────────────────── */}
-      <div className="grid gap-4 lg:[grid-template-columns:1.35fr_1fr]">
-        <PromoSwiper className="self-start" />
-        {currentStore?.id && (
-          <MetricTargetsCard storeId={currentStore.id} formatCurrency={formatCurrency} />
-        )}
       </div>
 
       {/* ─── Compact onboarding strip (first-time merchants) ──────────── */}
@@ -1032,7 +1012,7 @@ const Dashboard = () => {
           question={isAr ? "فيه حاجة وقفت؟" : "Is anything broken?"}
         />
 
-        <div className="grid gap-4 lg:[grid-template-columns:1.6fr_1fr]">
+        <div className="grid gap-4 lg:[grid-template-columns:1.2fr_1fr] lg:items-start">
           {/* Triage list */}
           <Card>
             <CardContent className="p-2">
@@ -1078,86 +1058,8 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Store-health card — navy hero with watermark N (matches the
-              Sales hero KPI). Ring uses `.on-navy` variant so the inner
-              hole and score colors read white-on-navy. */}
-          <button
-            type="button"
-            onClick={() => navigate("/health-score")}
-            className="souq-hero-navy text-start p-5 hover-lift flex flex-col items-center text-center gap-2 min-h-[170px]"
-          >
-            <div className="souq-eyebrow self-start" style={{ color: "rgba(255,255,255,0.55)" }}>
-              {isAr ? "صحة المتجر" : "Store health"}
-            </div>
-            {healthScoreQuery.isLoading ? (
-              <div className="py-8 flex items-center justify-center flex-1">
-                <div className="h-5 w-5 rounded-full border-2 border-white/30 border-t-transparent animate-spin" />
-              </div>
-            ) : healthScore &&
-              !healthScore.insufficient_data &&
-              healthScore.score !== null ? (
-              <>
-                <div
-                  className="souq-health-ring on-navy my-1"
-                  style={{
-                    background: `conic-gradient(hsl(var(--sage)) ${healthScore.score * 3.6}deg, rgba(255,255,255,0.12) 0)`,
-                  }}
-                >
-                  <div className="hole" />
-                  <div className="score">
-                    <b>
-                      {isAr
-                        ? healthScore.score.toLocaleString("ar-EG")
-                        : healthScore.score}
-                    </b>
-                    <span>/{isAr ? "١٠٠" : "100"}</span>
-                  </div>
-                </div>
-                <div
-                  className="text-sm font-extrabold"
-                  style={{ color: "#9FD89C" }}
-                >
-                  {healthScore.grade === "A"
-                    ? isAr
-                      ? "ممتاز"
-                      : "Excellent"
-                    : healthScore.grade === "B"
-                      ? isAr
-                        ? "كويس"
-                        : "Great"
-                      : healthScore.grade === "C"
-                        ? isAr
-                          ? "مقبول"
-                          : "Okay"
-                        : isAr
-                          ? "محتاج تحسين"
-                          : "Needs work"}
-                </div>
-                <p className="text-[11.5px] text-white/55 max-w-[180px]">
-                  {isAr
-                    ? "الشحن والدفع شغّالين تمام"
-                    : "Shipping & payments are healthy"}
-                </p>
-              </>
-            ) : (
-              <div className="py-6 flex flex-col items-center gap-1.5 flex-1 justify-center">
-                <div
-                  className="souq-health-ring on-navy"
-                  style={{ background: "rgba(255,255,255,0.10)" }}
-                >
-                  <div className="hole" />
-                  <div className="score">
-                    <b className="text-white/40">—</b>
-                  </div>
-                </div>
-                <p className="text-[11.5px] text-white/55 max-w-[180px] mt-2">
-                  {isAr
-                    ? "هيظهر بعد أول طلب"
-                    : "Shows after your first order"}
-                </p>
-              </div>
-            )}
-          </button>
+          {/* Promo swiper — Store health moved to the sidebar footer banner. */}
+          <PromoSwiper className="self-start" />
         </div>
       </section>
 
