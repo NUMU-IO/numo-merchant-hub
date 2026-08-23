@@ -32,6 +32,7 @@ import { SearchPalette } from "@/components/layout/SearchPalette";
 import WalletHeaderChip from "@/components/wallet/WalletHeaderChip";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { AddMenu } from "@/components/layout/AddMenu";
+import { PagesMenu } from "@/components/layout/PagesMenu";
 import { getRealtimeSnapshot } from "@/services/analyticsApi";
 import { cn } from "@/lib/utils";
 
@@ -187,6 +188,8 @@ const AppHeader = () => {
               )}
               <span>{isAr ? "EN" : "ع"}</span>
             </Button>
+            <span className="mx-0.5 hidden h-5 w-px bg-white/15 sm:block" aria-hidden />
+            <PagesMenu className={cn(topbarBtn, "hidden sm:inline-flex")} />
             <span className="mx-0.5 h-5 w-px bg-white/15" aria-hidden />
             <NotificationBell className={topbarBtn} />
             {storeUrl && (

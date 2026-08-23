@@ -76,6 +76,7 @@ import { useNavigate } from "react-router-dom";
 import { useCountUp } from "@/hooks/useCountUp";
 import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
 import { ActiveThemeCard } from "@/components/dashboard/ActiveThemeCard";
+import { RecentlyViewed } from "@/components/dashboard/RecentlyViewed";
 
 /* ─── Zone head — § eyebrow + question + hairline rule ──────────────── */
 function ZoneHead({
@@ -470,6 +471,8 @@ const Dashboard = () => {
       />
       {/* Active theme card — surfaces the store's current V3 theme */}
       <ActiveThemeCard />
+      {/* Zid-style pinned + recently opened pages */}
+      <RecentlyViewed />
       {/* ─── Greeting strip — sits above the zones ────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
