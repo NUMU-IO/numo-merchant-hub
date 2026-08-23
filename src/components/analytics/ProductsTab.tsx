@@ -3,8 +3,9 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
-  Package, FolderOpen, AlertTriangle, ArrowUpDown,
+  Package, FolderOpen, AlertTriangle, ArrowUpDown, Search,
   Crown, TrendingDown, BarChart3, Receipt,
   Percent, PackagePlus, ScatterChart as ScatterIcon,
 } from "lucide-react";
@@ -29,7 +30,6 @@ interface ProductsTabProps {
   formatCurrency: (cents: number) => string;
 }
 
-type SortBy = "revenue" | "quantity" | "name";
 
 const INVENTORY_COLORS = {
   in_stock: "#10b981",
@@ -69,18 +69,19 @@ function MiniSparkline({ data }: { data: number[] }) {
   );
 }
 
+type TableSort = "gross" | "discounts" | "tax" | "net" | "qty" | "orders";
+
 export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const isAr = language === "ar";
-  const [sortBy, setSortBy] = useState<SortBy>("revenue");
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("product");
 
   const perfQuery = useQuery({
-    queryKey: ["analytics", "product-performance", storeId, ...dateRangeKey(range), sortBy],
-    queryFn: () => getProductPerformance(storeId!, range, sortBy),
+    queryKey: ["analytics", "product-performance", storeId, ...dateRangeKey(range)],
+    queryFn: () => getProductPerformance(storeId!, range),
     enabled: !!storeId,
     placeholderData: keepPreviousData,
     // 3 SQL aggregations + a catalog fetch — not free. The data lags by
@@ -98,6 +99,30 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
 
   const data = perfQuery.data ?? null;
   const inv = invQuery.data ?? null;
+
+  // Zid-style table: client-side search + column sort over the SQL top set.
+  const [search, setSearch] = useState("");
+  const [tableSort, setTableSort] = useState<{ key: TableSort; dir: "asc" | "desc" }>({ key: "gross", dir: "desc" });
+  const toggleSort = (key: TableSort) =>
+    setTableSort((prev) => ({ key, dir: prev.key === key && prev.dir === "desc" ? "asc" : "desc" }));
+  const tableRows = useMemo(() => {
+    const rows = data?.products ?? [];
+    const q = search.trim().toLowerCase();
+    const filtered = q
+      ? rows.filter((p) => p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q))
+      : rows;
+    const pick = (p: ProductPerformanceItem): number =>
+      ({
+        gross: p.gross_sales ?? p.revenue,
+        discounts: p.discounts ?? 0,
+        tax: p.tax ?? 0,
+        net: p.net_sales ?? p.revenue,
+        qty: p.quantity_sold,
+        orders: p.orders_count ?? 0,
+      })[tableSort.key];
+    const dir = tableSort.dir === "desc" ? -1 : 1;
+    return [...filtered].sort((a, b) => (pick(a) - pick(b)) * dir);
+  }, [data, search, tableSort]);
 
   // Drawer wiring: the open product is driven by the ?product=<id> URL param
   // so the dashboard Top Sellers widget can deep-link straight into a
@@ -138,12 +163,16 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
     registerExport(() => {
       downloadCsv(
         `products-${new Date().toISOString().slice(0, 10)}`,
-        ["Product", "SKU", "Revenue (cents)", "Units sold", "In stock", "Profit (cents)"],
+        ["Product", "SKU", "Gross sales (cents)", "Discounts (cents)", "Tax (cents)", "Total sales (cents)", "Units sold", "Times ordered", "In stock", "Profit (cents)"],
         data.products.map((p) => [
           p.name,
           p.sku ?? "",
-          p.revenue,
+          p.gross_sales ?? p.revenue,
+          p.discounts ?? 0,
+          p.tax ?? 0,
+          p.net_sales ?? p.revenue,
           p.quantity_sold,
+          p.orders_count ?? 0,
           p.current_stock,
           p.profit ?? "",
         ]),
@@ -229,12 +258,6 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
       units: p.quantity_sold,
       revenue: p.revenue,
     }));
-
-  const sortLabels: Record<SortBy, string> = {
-    revenue: isAr ? "الإيرادات" : "Revenue",
-    quantity: isAr ? "الكمية" : "Quantity",
-    name: isAr ? "الاسم" : "Name",
-  };
 
   return (
     <div className="space-y-4">
@@ -334,103 +357,98 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
         </div>
       )}
 
-      {/* Product Performance Table */}
-      <Card className="border-border/60">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
-              <Package className="h-3.5 w-3.5 text-muted-foreground" />
-              {isAr ? "أداء المنتجات" : "Product Performance"}
-            </CardTitle>
-            <div className="flex gap-0.5 rounded-lg bg-muted/60 p-0.5">
-              {(["revenue", "quantity", "name"] as SortBy[]).map((s) => (
-                <Button
-                  key={s}
-                  variant={sortBy === s ? "default" : "ghost"}
-                  size="sm"
-                  className={`h-6 text-[10px] px-2 rounded-md gap-1 ${sortBy === s ? "" : "text-muted-foreground"}`}
-                  onClick={() => setSortBy(s)}
-                >
-                  <ArrowUpDown className="h-2.5 w-2.5" />
-                  {sortLabels[s]}
-                </Button>
-              ))}
-            </div>
+      {/* Product sales table — Zid-style: search, then one row per product
+          with the money columns split into gross / discounts / tax / net. */}
+      <Card className="border-border/60 overflow-hidden">
+        <div className="flex items-center justify-end gap-3 border-b border-border/60 px-4 py-3">
+          <div className="relative w-full max-w-[300px]">
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={isAr ? "ابحث" : "Search"}
+              className="h-9 rounded-full ps-9 text-[13px]"
+              aria-label={isAr ? "ابحث في المنتجات" : "Search products"}
+            />
           </div>
-        </CardHeader>
-        <CardContent>
-          {data && data.products.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-[12px]">
-                <thead>
-                  <tr className="border-b border-border/60">
-                    <th className="text-start font-medium text-muted-foreground p-2">{isAr ? "المنتج" : "Product"}</th>
-                    <th className="text-end font-medium text-muted-foreground p-2">{isAr ? "الإيرادات" : "Revenue"}</th>
-                    <th className="text-end font-medium text-muted-foreground p-2">{isAr ? "الربح" : "Profit"}</th>
-                    <th className="text-end font-medium text-muted-foreground p-2">{isAr ? "هامش" : "Margin"}</th>
-                    <th className="text-end font-medium text-muted-foreground p-2">{isAr ? "المبيع" : "Sold"}</th>
-                    <th className="text-end font-medium text-muted-foreground p-2">{isAr ? "المخزون" : "Stock"}</th>
-                    <th className="text-center font-medium text-muted-foreground p-2">{isAr ? "الاتجاه" : "Trend"}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.products.map((p) => (
-                    <tr
-                      key={p.id}
-                      className="border-b border-border/30 hover:bg-muted/30 transition-colors cursor-pointer"
-                      onClick={() => openProduct(p.id)}
-                      title={isAr ? "اعرض تحليلات المنتج" : "View product analytics"}
-                    >
-                      <td className="p-2">
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 shrink-0 overflow-hidden rounded-md bg-muted grid place-items-center ring-1 ring-border/30">
-                            {p.image_url ? (
-                              <img src={p.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />
-                            ) : (
-                              <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium truncate max-w-[180px]">{p.name}</p>
-                            {p.sku && <p className="text-[10px] text-muted-foreground font-mono">{p.sku}</p>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="text-end p-2 font-semibold tabular-nums">{formatCurrency(p.revenue)}</td>
-                      <td className="text-end p-2 tabular-nums">
-                        {p.profit !== null ? (
-                          <span className={p.profit >= 0 ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-destructive font-medium"}>
-                            {formatCurrency(p.profit)}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/50">—</span>
-                        )}
-                      </td>
-                      <td className="text-end p-2 tabular-nums">
-                        {p.margin_percent !== null ? (
-                          <span className="text-muted-foreground">{p.margin_percent.toFixed(1)}%</span>
-                        ) : (
-                          <span className="text-muted-foreground/50">—</span>
-                        )}
-                      </td>
-                      <td className="text-end p-2 tabular-nums">{p.quantity_sold}</td>
-                      <td className="text-end p-2">
-                        <span className={`tabular-nums font-medium ${p.current_stock <= 0 ? "text-destructive" : p.current_stock <= 5 ? "text-amber-600 dark:text-amber-400" : ""}`}>
-                          {p.current_stock}
+        </div>
+        {tableRows.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12.5px]">
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/20">
+                  <th className="p-3 text-start align-top font-semibold">
+                    <div>{isAr ? "المنتج" : "Product"}</div>
+                    <div className="mt-0.5 text-[10.5px] font-medium text-muted-foreground">SKU</div>
+                  </th>
+                  {(
+                    [
+                      { key: "gross", title: isAr ? "إجمالي المبيعات" : "Gross sales", sub: isAr ? "قبل الخصومات والضريبة" : "Before discounts & tax" },
+                      { key: "discounts", title: isAr ? "إجمالي الخصومات" : "Total discounts", sub: "" },
+                      { key: "tax", title: isAr ? "الضريبة" : "Tax", sub: isAr ? "بعد الخصومات" : "After discounts" },
+                      { key: "net", title: isAr ? "صافي المبيعات" : "Total sales", sub: isAr ? "بعد الخصومات والضريبة" : "After discounts & tax" },
+                      { key: "qty", title: isAr ? "الكمية المباعة" : "Total sold quantity", sub: "" },
+                      { key: "orders", title: isAr ? "عدد مرات الطلب" : "Number of times ordered", sub: "" },
+                    ] as { key: TableSort; title: string; sub: string }[]
+                  ).map((col) => (
+                    <th key={col.key} className="p-3 text-end align-top font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(col.key)}
+                        className="inline-flex flex-col items-end hover:text-foreground"
+                        aria-sort={tableSort.key === col.key ? (tableSort.dir === "desc" ? "descending" : "ascending") : "none"}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          {col.title}
+                          <ArrowUpDown className={`h-3 w-3 ${tableSort.key === col.key ? "text-foreground" : "text-muted-foreground/50"}`} />
                         </span>
-                      </td>
-                      <td className="text-center p-2">
-                        <MiniSparkline data={p.revenue_trend} />
-                      </td>
-                    </tr>
+                        {col.sub && <span className="mt-0.5 text-[10.5px] font-medium text-muted-foreground">{col.sub}</span>}
+                      </button>
+                    </th>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <EmptyState icon={Package} title={isAr ? "مفيش بيانات منتجات" : "No product data"} className="py-6" />
-          )}
-        </CardContent>
+                </tr>
+              </thead>
+              <tbody>
+                {tableRows.map((p) => (
+                  <tr
+                    key={p.id}
+                    className="cursor-pointer border-b border-border/40 transition-colors hover:bg-muted/30"
+                    onClick={() => openProduct(p.id)}
+                    title={isAr ? "اعرض تحليلات المنتج" : "View product analytics"}
+                  >
+                    <td className="p-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-md bg-muted ring-1 ring-border/30">
+                          {p.image_url ? (
+                            <img src={p.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                          ) : (
+                            <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="max-w-[220px] truncate font-semibold">{p.name}</p>
+                          <p className="font-mono text-[10.5px] text-muted-foreground">{p.sku || "—"}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-3 text-end tabular-nums font-medium">{formatCurrency(p.gross_sales ?? p.revenue)}</td>
+                    <td className="p-3 text-end tabular-nums text-muted-foreground">{formatCurrency(p.discounts ?? 0)}</td>
+                    <td className="p-3 text-end tabular-nums text-muted-foreground">{formatCurrency(p.tax ?? 0)}</td>
+                    <td className="p-3 text-end tabular-nums font-semibold">{formatCurrency(p.net_sales ?? p.revenue)}</td>
+                    <td className="p-3 text-end tabular-nums">{p.quantity_sold.toLocaleString(isAr ? "ar-EG" : undefined)}</td>
+                    <td className="p-3 text-end tabular-nums">{(p.orders_count ?? 0).toLocaleString(isAr ? "ar-EG" : undefined)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState
+            icon={Package}
+            title={search ? (isAr ? "مفيش نتائج" : "No matching products") : (isAr ? "مفيش بيانات منتجات" : "No product data")}
+            className="py-8"
+          />
+        )}
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">

@@ -445,6 +445,13 @@ export interface ProductPerformanceItem {
   cost_price: number | null; // cents
   profit: number | null; // cents
   margin_percent: number | null;
+  /** Zid/Shopify-style money split (cents). Optional on older backends. */
+  gross_sales?: number;
+  discounts?: number;
+  tax?: number;
+  net_sales?: number;
+  /** Distinct orders containing the product. */
+  orders_count?: number;
 }
 
 export interface CategoryPerformanceItem {
