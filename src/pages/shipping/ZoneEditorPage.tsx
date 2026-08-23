@@ -32,6 +32,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { GovernoratePicker } from "@/components/shipping/GovernoratePicker";
@@ -384,15 +385,11 @@ export default function ZoneEditorPage() {
                   <Label className="mb-1 block text-xs">
                     {ar ? `رسوم الدفع عند الاستلام (${currency})` : `COD fee (${currency})`}
                   </Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={(codFee / 100).toFixed(2)}
-                    onChange={(e) =>
-                      setCodFee(Math.round(Number(e.target.value || 0) * 100))
-                    }
-                    className="w-28"
+                  <MoneyInput
+                    cents={codFee}
+                    onChangeCents={setCodFee}
+                    currency={currency}
+                    className="w-36"
                   />
                 </div>
               </div>
