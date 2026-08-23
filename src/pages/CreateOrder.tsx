@@ -20,6 +20,11 @@ import {
 } from "lucide-react";
 import { listProducts, type ApiProductResponse } from "@/services/productApi";
 import { listCustomers, type Customer } from "@/services/customerApi";
+import { useQuery } from "@tanstack/react-query";
+import { fetchPaymentSettings, type PaymentSettings } from "@/services/storeApi";
+import { calculateShippingPreview, type ShippingOption } from "@/services/shippingApi";
+import { useReferenceGovernorates } from "@/hooks/useShippingZones";
+import { MoneyInput } from "@/components/ui/money-input";
 import {
   createDraftOrder,
   createManualOrder,
@@ -30,6 +35,22 @@ import {
 
 type Step = 1 | 2 | 3 | 4;
 interface CartItem { product: ApiProductResponse; quantity: number; }
+
+/** Store-enabled rails → selectable options. Order mirrors the storefront checkout. */
+function enabledPaymentOptions(ps: PaymentSettings | undefined, isAr: boolean) {
+  if (!ps) return [];
+  const defs: { key: keyof PaymentSettings; value: string; label: string; hint: string }[] = [
+    { key: "cod", value: "cod", label: isAr ? "الدفع عند الاستلام" : "Cash on delivery", hint: isAr ? "يتحصّل عند التوصيل" : "Collected at the door" },
+    { key: "instapay", value: "instapay", label: "InstaPay", hint: isAr ? "تحويل فوري — يتأكد يدويًا" : "Instant transfer — confirmed manually" },
+    { key: "vodafone_cash", value: "vodafone_cash", label: isAr ? "فودافون كاش" : "Vodafone Cash", hint: isAr ? "محفظة — يتأكد يدويًا" : "Wallet — confirmed manually" },
+    { key: "bank_transfer", value: "bank_transfer", label: isAr ? "تحويل بنكي" : "Bank transfer", hint: isAr ? "يتأكد يدويًا" : "Confirmed manually" },
+    { key: "paymob", value: "paymob", label: isAr ? "بطاقة (Paymob)" : "Card (Paymob)", hint: isAr ? "لينك دفع أونلاين" : "Online payment link" },
+    { key: "kashier", value: "kashier", label: isAr ? "بطاقة (Kashier)" : "Card (Kashier)", hint: isAr ? "لينك دفع أونلاين" : "Online payment link" },
+    { key: "fawaterak", value: "fawaterak", label: "Fawaterak", hint: isAr ? "لينك دفع أونلاين" : "Online payment link" },
+    { key: "fawry", value: "fawry", label: "Fawry", hint: isAr ? "كود دفع" : "Payment code" },
+  ];
+  return defs.filter((d) => (ps[d.key] as { enabled?: boolean } | undefined)?.enabled);
+}
 
 const CreateOrder = () => {
   const { language } = useLanguage();
@@ -64,6 +85,14 @@ const CreateOrder = () => {
   const [address, setAddress] = useState({ line1: "", line2: "", city: "", state: "", postal_code: "", country: "EG" });
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [shippingMethod, setShippingMethod] = useState("standard");
+  // Zone-driven shipping: governorate → resolver options → picked rate →
+  // shipping_cost (merchant can override the amount).
+  const [governorate, setGovernorate] = useState("");
+  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
+  const [loadingShipping, setLoadingShipping] = useState(false);
+  const [selectedRateId, setSelectedRateId] = useState<string | null>(null);
+  const [shippingCost, setShippingCost] = useState(0);
+  const [shippingOverridden, setShippingOverridden] = useState(false);
   const [notes, setNotes] = useState("");
 
   /* ── Step 4: Submit ── */
@@ -106,11 +135,64 @@ const CreateOrder = () => {
   const removeFromCart = (id: string) => setCart(prev => prev.filter(c => c.product.id !== id));
 
   const subtotal = cart.reduce((s, c) => s + Number(c.product.price) * 100 * c.quantity, 0);
+  const total = subtotal + shippingCost;
+
+  // Only the rails the store actually switched on in Settings → Payments.
+  const paymentSettingsQ = useQuery({
+    queryKey: ["payment-settings", storeId],
+    queryFn: () => fetchPaymentSettings(storeId!),
+    enabled: !!storeId,
+    staleTime: 5 * 60_000,
+  });
+  const paymentOptions = enabledPaymentOptions(paymentSettingsQ.data, isAr);
+  useEffect(() => {
+    if (paymentOptions.length && !paymentOptions.some((o) => o.value === paymentMethod)) {
+      setPaymentMethod(paymentOptions[0].value);
+    }
+  }, [paymentOptions, paymentMethod]);
+
+  const govsQ = useReferenceGovernorates(isAr ? "ar" : "en");
+
+  // Re-resolve shipping whenever the governorate, cart or COD choice changes.
+  useEffect(() => {
+    if (!storeId || !governorate) { setShippingOptions([]); return; }
+    let cancelled = false;
+    setLoadingShipping(true);
+    calculateShippingPreview(storeId, {
+      governorate_code: governorate,
+      cart_subtotal_cents: subtotal,
+      cod_requested: paymentMethod === "cod",
+    })
+      .then((res) => {
+        if (cancelled) return;
+        setShippingOptions(res.options);
+        const keep = res.options.find((o) => o.rate_id === selectedRateId) ?? res.options[0] ?? null;
+        setSelectedRateId(keep?.rate_id ?? null);
+        if (keep) {
+          setShippingMethod(keep.label);
+          if (!shippingOverridden) setShippingCost(keep.amount_cents);
+        }
+      })
+      .catch(() => { if (!cancelled) setShippingOptions([]); })
+      .finally(() => { if (!cancelled) setLoadingShipping(false); });
+    return () => { cancelled = true; };
+    // selectedRateId/shippingOverridden intentionally excluded: they are outputs of this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, governorate, subtotal, paymentMethod]);
+
+  const pickRate = (rateId: string) => {
+    const opt = shippingOptions.find((o) => o.rate_id === rateId);
+    if (!opt) return;
+    setSelectedRateId(rateId);
+    setShippingMethod(opt.label);
+    setShippingOverridden(false);
+    setShippingCost(opt.amount_cents);
+  };
 
   const canNext = () => {
     if (step === 1) return cart.length > 0;
     if (step === 2) return !!selectedCustomer;
-    if (step === 3) return address.line1.trim() !== "" && address.city.trim() !== "";
+    if (step === 3) return address.line1.trim() !== "" && address.city.trim() !== "" && governorate !== "";
     return true;
   };
 
@@ -132,12 +214,12 @@ const CreateOrder = () => {
         address_line1: address.line1,
         address_line2: address.line2 || undefined,
         city: address.city,
-        state: address.state || undefined,
+        state: (govsQ.data?.find((g) => g.code === governorate)?.name_en ?? address.state) || undefined,
         postal_code: address.postal_code || undefined,
         country: address.country,
         phone: selectedCustomer.phone || undefined,
       },
-      shipping_cost: 0,
+      shipping_cost: shippingCost,
       currency: "EGP",
       payment_method: paymentMethod,
       shipping_method: shippingMethod,
@@ -337,8 +419,18 @@ const CreateOrder = () => {
               <div className="space-y-1.5"><Label className="text-[11px] text-muted-foreground">{isAr ? "العنوان" : "Address"} *</Label><Input value={address.line1} onChange={e => setAddress(p => ({ ...p, line1: e.target.value }))} className="h-10 text-sm rounded-lg" /></div>
               <div className="space-y-1.5"><Label className="text-[11px] text-muted-foreground">{isAr ? "العنوان 2" : "Address Line 2"}</Label><Input value={address.line2} onChange={e => setAddress(p => ({ ...p, line2: e.target.value }))} className="h-10 text-sm rounded-lg" /></div>
               <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-1.5"><Label className="text-[11px] text-muted-foreground">{isAr ? "المدينة" : "City"} *</Label><Input value={address.city} onChange={e => setAddress(p => ({ ...p, city: e.target.value }))} className="h-10 text-sm rounded-lg" /></div>
-                <div className="space-y-1.5"><Label className="text-[11px] text-muted-foreground">{isAr ? "المنطقة" : "State"}</Label><Input value={address.state} onChange={e => setAddress(p => ({ ...p, state: e.target.value }))} className="h-10 text-sm rounded-lg" /></div>
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-muted-foreground">{isAr ? "المحافظة" : "Governorate"} *</Label>
+                  <Select value={governorate} onValueChange={setGovernorate}>
+                    <SelectTrigger className="h-10 text-sm rounded-lg"><SelectValue placeholder={isAr ? "اختر المحافظة" : "Choose governorate"} /></SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {(govsQ.data ?? []).map((g) => (
+                        <SelectItem key={g.code} value={g.code}>{g.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5"><Label className="text-[11px] text-muted-foreground">{isAr ? "المدينة / الحي" : "City / area"} *</Label><Input value={address.city} onChange={e => setAddress(p => ({ ...p, city: e.target.value }))} className="h-10 text-sm rounded-lg" /></div>
                 <div className="space-y-1.5"><Label className="text-[11px] text-muted-foreground">{isAr ? "الرمز البريدي" : "Postal"}</Label><Input value={address.postal_code} onChange={e => setAddress(p => ({ ...p, postal_code: e.target.value }))} className="h-10 text-sm rounded-lg" /></div>
               </div>
             </div>
@@ -346,9 +438,92 @@ const CreateOrder = () => {
           <div className="rounded-xl border bg-card">
             <div className="px-5 py-4 border-b"><h2 className="text-base font-bold">{isAr ? "طريقة الدفع والشحن" : "Payment & Shipping"}</h2></div>
             <div className="p-5 space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5"><Label className="text-[11px] text-muted-foreground">{isAr ? "طريقة الدفع" : "Payment"}</Label><Select value={paymentMethod} onValueChange={setPaymentMethod}><SelectTrigger className="h-10 text-sm rounded-lg"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="cod">{isAr ? "دفع عند الاستلام" : "COD"}</SelectItem><SelectItem value="card">{isAr ? "بطاقة" : "Card"}</SelectItem><SelectItem value="bank_transfer">{isAr ? "تحويل بنكي" : "Transfer"}</SelectItem></SelectContent></Select></div>
-                <div className="space-y-1.5"><Label className="text-[11px] text-muted-foreground">{isAr ? "طريقة الشحن" : "Shipping"}</Label><Select value={shippingMethod} onValueChange={setShippingMethod}><SelectTrigger className="h-10 text-sm rounded-lg"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="standard">{isAr ? "عادي" : "Standard"}</SelectItem><SelectItem value="express">{isAr ? "سريع" : "Express"}</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground">{isAr ? "طريقة الدفع" : "Payment method"}</Label>
+                {paymentOptions.length === 0 ? (
+                  <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                    {isAr ? "مفيش طرق دفع مفعّلة — فعّلها من الإعدادات ← المدفوعات." : "No payment methods enabled — turn them on in Settings → Payments."}
+                  </p>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {paymentOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setPaymentMethod(opt.value)}
+                        className={`flex items-center gap-2.5 rounded-lg border p-3 text-start transition-colors ${
+                          paymentMethod === opt.value ? "border-navy bg-navy/[0.04] dark:border-saffron" : "border-border hover:bg-muted/40"
+                        }`}
+                      >
+                        <span className={`h-4 w-4 shrink-0 rounded-full border-2 ${paymentMethod === opt.value ? "border-navy bg-navy dark:border-saffron dark:bg-saffron" : "border-muted-foreground/40"}`} />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold">{opt.label}</span>
+                          <span className="block text-[11px] text-muted-foreground">{opt.hint}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground">{isAr ? "طريقة الشحن" : "Shipping"}</Label>
+                {!governorate ? (
+                  <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                    {isAr ? "اختر المحافظة فوق عشان نجيب سعر الشحن من مناطقك." : "Pick the governorate above to price shipping from your zones."}
+                  </p>
+                ) : loadingShipping ? (
+                  <div className="flex items-center gap-2 rounded-lg border p-3 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{isAr ? "بنحسب الشحن…" : "Pricing shipping…"}</div>
+                ) : shippingOptions.length === 0 ? (
+                  <p className="rounded-lg border border-amber-300/50 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
+                    {isAr ? "المحافظة دي مش في أي منطقة شحن مفعّلة — اكتب سعر الشحن يدويًا تحت." : "This governorate isn't in any active shipping zone — enter the shipping cost manually below."}
+                  </p>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {shippingOptions.map((opt) => (
+                      <button
+                        key={opt.rate_id}
+                        type="button"
+                        onClick={() => pickRate(opt.rate_id)}
+                        className={`flex items-center gap-2.5 rounded-lg border p-3 text-start transition-colors ${
+                          selectedRateId === opt.rate_id ? "border-navy bg-navy/[0.04] dark:border-saffron" : "border-border hover:bg-muted/40"
+                        }`}
+                      >
+                        <span className={`h-4 w-4 shrink-0 rounded-full border-2 ${selectedRateId === opt.rate_id ? "border-navy bg-navy dark:border-saffron dark:bg-saffron" : "border-muted-foreground/40"}`} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold">{isAr ? opt.label_ar || opt.label : opt.label}</span>
+                          <span className="block text-[11px] text-muted-foreground">
+                            {isAr ? `${opt.estimated_days_min}–${opt.estimated_days_max} يوم` : `${opt.estimated_days_min}–${opt.estimated_days_max} days`}
+                          </span>
+                        </span>
+                        <span className="text-sm font-bold tabular-nums">{opt.amount_cents === 0 ? (isAr ? "مجاني" : "Free") : fmt(opt.amount_cents)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex flex-wrap items-end gap-3 pt-1">
+                  <div className="w-44 space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">{isAr ? "سعر الشحن على الطلب" : "Shipping charged"}</Label>
+                    <MoneyInput
+                      cents={shippingCost}
+                      onChangeCents={(c) => { setShippingCost(c); setShippingOverridden(true); }}
+                      currency="EGP"
+                      className="h-10 rounded-lg text-sm"
+                    />
+                  </div>
+                  {shippingOverridden && selectedRateId && (
+                    <button
+                      type="button"
+                      className="h-10 text-xs font-semibold text-navy hover:underline dark:text-saffron"
+                      onClick={() => pickRate(selectedRateId)}
+                    >
+                      {isAr ? "رجّع سعر المنطقة" : "Reset to zone rate"}
+                    </button>
+                  )}
+                  <p className="text-[11px] text-muted-foreground">
+                    {isAr ? "تقدر تغيّر المبلغ لو اتفقت مع العميل على سعر مختلف." : "Override it if you agreed a different amount with the customer."}
+                  </p>
+                </div>
               </div>
               <div className="space-y-1.5"><Label className="text-[11px] text-muted-foreground">{isAr ? "ملاحظات" : "Notes"}</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="text-sm rounded-lg" /></div>
             </div>
@@ -373,7 +548,9 @@ const CreateOrder = () => {
                   <span className="text-xs font-semibold tabular-nums">{fmt(Number(c.product.price) * 100 * c.quantity)}</span>
                 </div>
               ))}
-              <div className="flex justify-between pt-2 border-t"><span className="text-sm font-bold">{isAr ? "الإجمالي" : "Total"}</span><span className="text-sm font-bold tabular-nums">{fmt(subtotal)}</span></div>
+              <div className="flex justify-between pt-2 border-t"><span className="text-xs text-muted-foreground">{isAr ? "المجموع الفرعي" : "Subtotal"}</span><span className="text-xs tabular-nums">{fmt(subtotal)}</span></div>
+              <div className="flex justify-between"><span className="text-xs text-muted-foreground">{isAr ? "الشحن" : "Shipping"}{shippingMethod ? ` · ${shippingMethod}` : ""}</span><span className="text-xs tabular-nums">{shippingCost === 0 ? (isAr ? "مجاني" : "Free") : fmt(shippingCost)}</span></div>
+              <div className="flex justify-between pt-2 border-t"><span className="text-sm font-bold">{isAr ? "الإجمالي" : "Total"}</span><span className="text-sm font-bold tabular-nums">{fmt(total)}</span></div>
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -388,7 +565,7 @@ const CreateOrder = () => {
               <p className="text-xs">{address.line1}</p>
               <p className="text-xs text-muted-foreground">{address.city}{address.state ? `, ${address.state}` : ""}</p>
               <div className="flex gap-2 mt-2">
-                <Badge variant="secondary" className="text-[10px]">{paymentMethod === "cod" ? "COD" : paymentMethod}</Badge>
+                <Badge variant="secondary" className="text-[10px]">{paymentOptions.find((o) => o.value === paymentMethod)?.label ?? paymentMethod}</Badge>
                 <Badge variant="secondary" className="text-[10px]">{shippingMethod}</Badge>
               </div>
             </div>
