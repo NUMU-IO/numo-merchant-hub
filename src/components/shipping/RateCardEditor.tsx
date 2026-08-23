@@ -18,6 +18,7 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -232,14 +233,10 @@ function FlatFields({
       <Label className="mb-1 block text-xs">
         {ar ? `المبلغ (${currency})` : `Amount (${currency})`}
       </Label>
-      <Input
-        type="number"
-        min={0}
-        step="0.01"
-        value={(config.amount_cents / 100).toFixed(2)}
-        onChange={(e) =>
-          onPatch({ amount_cents: Math.round(Number(e.target.value || 0) * 100) })
-        }
+      <MoneyInput
+        cents={config.amount_cents}
+        onChangeCents={(c) => onPatch({ amount_cents: c })}
+        currency={currency}
       />
     </div>
   );
@@ -257,7 +254,6 @@ function FreeOverFields({
   const { language } = useLanguage();
   const ar = language === "ar";
   const thresholdMajor = (config.free_when_subtotal_gte_cents / 100).toFixed(2);
-  const amountMajor = (config.amount_cents / 100).toFixed(2);
   return (
     <div className="space-y-2">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -265,32 +261,20 @@ function FreeOverFields({
           <Label className="mb-1 block text-xs">
             {ar ? `الشحن تحت الحد (${currency})` : `Shipping below threshold (${currency})`}
           </Label>
-          <Input
-            type="number"
-            min={0}
-            step="0.01"
-            value={amountMajor}
-            onChange={(e) =>
-              onPatch({ amount_cents: Math.round(Number(e.target.value || 0) * 100) })
-            }
+          <MoneyInput
+            cents={config.amount_cents}
+            onChangeCents={(c) => onPatch({ amount_cents: c })}
+            currency={currency}
           />
         </div>
         <div>
           <Label className="mb-1 block text-xs">
             {ar ? `حد الشحن المجاني (${currency})` : `Free-shipping threshold (${currency})`}
           </Label>
-          <Input
-            type="number"
-            min={0}
-            step="0.01"
-            value={thresholdMajor}
-            onChange={(e) =>
-              onPatch({
-                free_when_subtotal_gte_cents: Math.round(
-                  Number(e.target.value || 0) * 100,
-                ),
-              })
-            }
+          <MoneyInput
+            cents={config.free_when_subtotal_gte_cents}
+            onChangeCents={(c) => onPatch({ free_when_subtotal_gte_cents: c })}
+            currency={currency}
           />
         </div>
       </div>
@@ -400,35 +384,17 @@ function WeightBandFields({
                     </div>
                   </td>
                   <td className="py-1 pr-2">
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={(b.amount_cents / 100).toFixed(2)}
-                      onChange={(e) =>
-                        setBand(i, {
-                          ...b,
-                          amount_cents: Math.round(Number(e.target.value || 0) * 100),
-                        })
-                      }
+                    <MoneyInput
+                      cents={b.amount_cents}
+                      onChangeCents={(c) => setBand(i, { ...b, amount_cents: c })}
                       className="h-8 w-24"
                     />
                   </td>
                   <td className="py-1 pr-2">
                     {isOpenEnded ? (
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={((b.per_extra_kg_cents ?? 0) / 100).toFixed(2)}
-                        onChange={(e) =>
-                          setBand(i, {
-                            ...b,
-                            per_extra_kg_cents: Math.round(
-                              Number(e.target.value || 0) * 100,
-                            ),
-                          })
-                        }
+                      <MoneyInput
+                        cents={b.per_extra_kg_cents ?? 0}
+                        onChangeCents={(c) => setBand(i, { ...b, per_extra_kg_cents: c })}
                         className="h-8 w-24"
                       />
                     ) : (

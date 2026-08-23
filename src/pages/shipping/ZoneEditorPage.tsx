@@ -32,9 +32,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { GovernoratePicker } from "@/components/shipping/GovernoratePicker";
+import { formatMoney } from "@/lib/format-money";
 import {
   RateCardEditor,
   type RateDraft,
@@ -244,38 +246,43 @@ export default function ZoneEditorPage() {
     );
   }
 
+  const displayName = (ar ? nameAr || name : name) || (isNew ? (ar ? "منطقة شحن جديدة" : "New shipping zone") : "");
+
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <Button variant="ghost" size="sm" asChild className="mb-2">
-            <Link to="/shipping/zones">
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              {ar ? "العودة" : "Back"}
-            </Link>
-          </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {isNew
-              ? ar
-                ? "منطقة شحن جديدة"
-                : "New shipping zone"
-              : ar
-              ? "تعديل منطقة الشحن"
-              : "Edit shipping zone"}
-          </h1>
+    <div className="p-6">
+      {/* Sticky action bar — title follows the name field, Save is always in reach. */}
+      <div className="sticky top-[var(--topbar-h)] z-20 -mx-6 mb-6 flex items-center gap-3 border-b border-border bg-background/90 px-6 py-3 backdrop-blur">
+        <Button variant="ghost" size="icon" asChild className="h-9 w-9 shrink-0 rounded-lg">
+          <Link to="/shipping/zones" aria-label={ar ? "العودة" : "Back"}>
+            <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
+          </Link>
+        </Button>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[17px] font-extrabold tracking-tight">{displayName}</div>
+          <div className="text-[11.5px] text-muted-foreground">
+            {isNew ? (ar ? "منطقة شحن جديدة" : "New shipping zone") : (ar ? "تعديل منطقة الشحن" : "Edit shipping zone")}
+          </div>
         </div>
-        <Button onClick={handleSave} disabled={isSaving}>
+        <span
+          className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold sm:inline-flex ${
+            isActive ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"
+          }`}
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${isActive ? "bg-emerald-500" : "bg-muted-foreground/50"}`} />
+          {isActive ? (ar ? "مفعّلة" : "Active") : (ar ? "متوقفة" : "Inactive")}
+        </span>
+        <Button onClick={handleSave} disabled={isSaving} className="rounded-lg">
           {isSaving ? (
-            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            <Loader2 className="me-1 h-4 w-4 animate-spin" />
           ) : (
-            <Save className="mr-1 h-4 w-4" />
+            <Save className="me-1 h-4 w-4" />
           )}
           {ar ? "حفظ" : "Save"}
         </Button>
       </div>
 
       {errors.length > 0 && (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
+        <div className="mb-6 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
           <ul className="list-disc space-y-0.5 ps-5">
             {errors.map((e, i) => (
               <li key={i}>{e}</li>
@@ -284,6 +291,8 @@ export default function ZoneEditorPage() {
         </div>
       )}
 
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
+      <div className="space-y-6">
       {/* A. Identity */}
       <Card>
         <CardHeader>
@@ -384,15 +393,11 @@ export default function ZoneEditorPage() {
                   <Label className="mb-1 block text-xs">
                     {ar ? `رسوم الدفع عند الاستلام (${currency})` : `COD fee (${currency})`}
                   </Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={(codFee / 100).toFixed(2)}
-                    onChange={(e) =>
-                      setCodFee(Math.round(Number(e.target.value || 0) * 100))
-                    }
-                    className="w-28"
+                  <MoneyInput
+                    cents={codFee}
+                    onChangeCents={setCodFee}
+                    currency={currency}
+                    className="w-36"
                   />
                 </div>
               </div>
@@ -473,6 +478,96 @@ export default function ZoneEditorPage() {
           </Button>
         </CardContent>
       </Card>
+      </div>
+
+      {/* Live checkout preview — what the customer in this zone will see. */}
+      <aside className="lg:sticky lg:top-[calc(var(--topbar-h)+72px)]">
+        <ZoneCheckoutPreview
+          ar={ar}
+          currency={currency}
+          name={displayName}
+          govCount={govCodes.length}
+          etaMin={etaMin}
+          etaMax={etaMax}
+          codEnabled={codEnabled}
+          codFee={codFee}
+          rates={rateDrafts}
+          isActive={isActive}
+        />
+      </aside>
+      </div>
+    </div>
+  );
+}
+
+function rateDraftPrice(d: RateDraft, ar: boolean, money: (c: number) => string): string {
+  const c = d.config as { type: string; amount_cents?: number; free_when_subtotal_gte_cents?: number; bands?: { amount_cents: number }[] };
+  switch (c.type) {
+    case "flat":
+      return money(c.amount_cents ?? 0);
+    case "free_over":
+      return `${money(c.amount_cents ?? 0)} · ${ar ? "مجاني فوق" : "free over"} ${money(c.free_when_subtotal_gte_cents ?? 0)}`;
+    case "weight_band":
+      return c.bands?.length ? `${ar ? "من" : "from"} ${money(Math.min(...c.bands.map((b) => b.amount_cents)))}` : "—";
+    default:
+      return ar ? "يحسبها الناقل" : "Calculated by courier";
+  }
+}
+
+function ZoneCheckoutPreview({
+  ar, currency, name, govCount, etaMin, etaMax, codEnabled, codFee, rates, isActive,
+}: {
+  ar: boolean; currency: string; name: string; govCount: number; etaMin: number; etaMax: number;
+  codEnabled: boolean; codFee: number; rates: RateDraft[]; isActive: boolean;
+}) {
+  const money = (c: number) => formatMoney(c, { fromCents: true, locale: ar ? "ar" : "en", currency });
+  const n = (v: number) => (ar ? v.toLocaleString("ar-EG") : String(v));
+  const active = rates.filter((r) => r.is_active);
+  return (
+    <div className="rounded-2xl border border-border bg-card">
+      <div className="px-4 pt-4 pb-2">
+        <div className="souq-eyebrow text-muted-foreground">{ar ? "معاينة الدفع" : "Checkout preview"}</div>
+        <p className="mt-1 text-[12px] text-muted-foreground">
+          {ar ? "كده العميل هيشوف خيارات الشحن في المنطقة دي." : "This is what a customer in this zone sees at checkout."}
+        </p>
+      </div>
+      <div className="mx-4 mb-4 rounded-xl border border-border bg-background p-3">
+        <div className="mb-2 text-[11px] font-semibold text-muted-foreground">{ar ? "طريقة الشحن" : "Shipping method"}</div>
+        {active.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border p-3 text-center text-[12px] text-muted-foreground">
+            {ar ? "أضف سعر عشان يظهر خيار للعميل" : "Add a rate to show an option"}
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {active.map((r, i) => (
+              <li key={r.id ?? i} className={`flex items-center gap-2.5 rounded-lg border p-2.5 ${i === 0 ? "border-navy bg-navy/[0.04] dark:border-saffron" : "border-border"}`}>
+                <span className={`h-4 w-4 shrink-0 rounded-full border-2 ${i === 0 ? "border-navy bg-navy dark:border-saffron dark:bg-saffron" : "border-muted-foreground/40"}`} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-semibold">{(ar ? r.label_ar || r.label : r.label) || (ar ? "بدون اسم" : "Untitled")}</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {ar ? `${n(etaMin)}–${n(etaMax)} يوم` : `${n(etaMin)}–${n(etaMax)} days`}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[12.5px] font-bold tabular-nums">{rateDraftPrice(r, ar, money)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {codEnabled && (
+          <p className="mt-2.5 text-[11px] text-muted-foreground">
+            {ar ? "الدفع عند الاستلام متاح" : "Cash on delivery available"}
+            {codFee > 0 ? ` · ${ar ? "رسوم" : "fee"} ${money(codFee)}` : ""}
+          </p>
+        )}
+      </div>
+      <dl className="grid grid-cols-2 gap-2 border-t border-border/60 px-4 py-3 text-[12px]">
+        <dt className="text-muted-foreground">{ar ? "المنطقة" : "Zone"}</dt>
+        <dd className="truncate text-end font-semibold">{name || "—"}</dd>
+        <dt className="text-muted-foreground">{ar ? "المحافظات" : "Governorates"}</dt>
+        <dd className={`text-end font-semibold ${govCount === 0 ? "text-destructive" : ""}`}>{n(govCount)}</dd>
+        <dt className="text-muted-foreground">{ar ? "الحالة" : "Status"}</dt>
+        <dd className="text-end font-semibold">{isActive ? (ar ? "مفعّلة" : "Active") : (ar ? "متوقفة" : "Inactive")}</dd>
+      </dl>
     </div>
   );
 }

@@ -29,6 +29,9 @@ import {
   type Shipment, type BostaCredentials, type TrackingInfo, type BulkShipmentResult,
 } from "@/services/shipmentApi";
 import { StatTile } from "@/components/ui/stat-tile";
+import { ShippingSetupHero, type SetupStep } from "@/components/logistics/ShippingSetupHero";
+import { ZonesOverviewCard } from "@/components/logistics/ZonesOverviewCard";
+import { useShippingZones, useShippingCoverage, useReferenceGovernorates } from "@/hooks/useShippingZones";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -265,6 +268,18 @@ const Logistics = () => {
     + (hubStats?.by_status?.failed ?? 0);
   const fmtN = (n: number) => (isAr ? n.toLocaleString("ar-EG") : n.toLocaleString());
 
+  /* ── Landing data: zones, coverage, governorate count ── */
+  const zonesQ = useShippingZones(view === "hub" ? storeId : undefined);
+  const coverageQ = useShippingCoverage(view === "hub" ? storeId : undefined);
+  const govsQ = useReferenceGovernorates(isAr ? "ar" : "en");
+  const zones = zonesQ.data ?? [];
+  const activeZones = zones.filter((z) => z.is_active);
+  const zonesWithRates = activeZones.filter((z) => z.rates.some((r) => r.is_active));
+  const totalGovs = govsQ.data?.length ?? 0;
+  const storeCurrency = (currentStore as { currency?: string | null; default_currency?: string | null } | null)?.currency
+    ?? (currentStore as { default_currency?: string | null } | null)?.default_currency
+    ?? "EGP";
+
   const handleToggleManual = async (enabled: boolean) => {
     if (!storeId) return;
     try { const r = await updateShippingSettings(storeId, { manual_enabled: enabled }); setShippingData(r); toast.success(isAr ? "تم التحديث" : "Updated"); } catch (e) { showError(e, language); }
@@ -301,29 +316,73 @@ const Logistics = () => {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     HUB VIEW — Souq spec: page head + 4 KPI tiles + segmented nav +
-     carrier cards.
+     LANDING — setup hero · KPI tiles · zones & rates · couriers · tools
      ═══════════════════════════════════════════════════════════════════ */
+  const courierReady = !!bostaCreds?.is_configured || !!shippingData?.manual?.enabled;
+  const setupSteps: SetupStep[] = [
+    {
+      key: "zones",
+      title: isAr ? "مناطق الشحن" : "Shipping zones",
+      detail: activeZones.length
+        ? (isAr ? `${fmtN(coverageQ.data?.covered.length ?? 0)} من ${fmtN(totalGovs)} محافظة` : `${fmtN(coverageQ.data?.covered.length ?? 0)} of ${fmtN(totalGovs)} governorates`)
+        : (isAr ? "فين بتوصّل؟" : "Where do you deliver?"),
+      done: activeZones.length > 0,
+      cta: isAr ? "أضف" : "Add",
+      to: "/shipping/zones",
+    },
+    {
+      key: "rates",
+      title: isAr ? "أسعار الشحن" : "Shipping rates",
+      detail: zonesWithRates.length
+        ? (isAr ? `${fmtN(zonesWithRates.length)} منطقة بسعر` : `${fmtN(zonesWithRates.length)} zone${zonesWithRates.length === 1 ? "" : "s"} priced`)
+        : (isAr ? "العميل بيدفع كام؟" : "What does the customer pay?"),
+      done: zonesWithRates.length > 0 && zonesWithRates.length === activeZones.length,
+      cta: isAr ? "حدّد" : "Set",
+      to: activeZones.length ? `/shipping/zones/${(activeZones.find((z) => !z.rates.some((r) => r.is_active)) ?? activeZones[0]).id}` : "/shipping/zones",
+    },
+    {
+      key: "courier",
+      title: isAr ? "شركة الشحن" : "Courier",
+      detail: bostaCreds?.is_configured
+        ? (bostaVerified === false ? t("logistics.savedUnverified") : (isAr ? "بوسطة متصلة" : "Bosta connected"))
+        : shippingData?.manual?.enabled
+          ? (isAr ? "شحن يدوي" : "Manual fulfilment")
+          : (isAr ? "اربط بوسطة أو فعّل اليدوي" : "Connect Bosta or go manual"),
+      done: courierReady,
+      cta: isAr ? "اربط" : "Connect",
+      onClick: () => openBosta("all"),
+    },
+  ];
+
   return (
     <div className="p-6 max-w-[1200px] mx-auto space-y-6">
       <PageHeader
-        title={isAr ? "الشحن والتوصيل" : "Logistics"}
-        subtitle={isAr ? "تابع الشحنات وادِر شركات الشحن" : "Track shipments and manage couriers"}
+        title={isAr ? "الشحن والتوصيل" : "Shipping & delivery"}
+        subtitle={isAr ? "المناطق والأسعار وشركات الشحن والشحنات — في مكان واحد" : "Zones, rates, couriers and shipments — in one place"}
         actions={<>
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate("/orders/shipping-labels")}>
             <Printer className="h-4 w-4" strokeWidth={2.2} />
             {isAr ? "اطبع البوالص" : "Print labels"}
           </Button>
-          {bostaCreds?.is_configured && (
+          {bostaCreds?.is_configured ? (
             <Button variant="accent" size="sm" className="gap-1.5" onClick={() => openBosta("all")}>
               <Plus className="h-4 w-4" strokeWidth={2.4} />
               {isAr ? "شحنة جديدة" : "New shipment"}
+            </Button>
+          ) : (
+            <Button variant="accent" size="sm" className="gap-1.5" onClick={() => navigate("/shipping/zones/new")}>
+              <Plus className="h-4 w-4" strokeWidth={2.4} />
+              {isAr ? "منطقة جديدة" : "New zone"}
             </Button>
           )}
         </>}
       />
 
-      {/* ─── 4 stat tiles — every tile is a link, even at zero ──── */}
+      {!(zonesQ.isLoading || coverageQ.isLoading) && (
+        <ShippingSetupHero steps={setupSteps} isAr={isAr} />
+      )}
+
+      {/* ─── KPI tiles — every tile is a link, even at zero ──── */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <StatTile
           icon={Package}
@@ -359,187 +418,135 @@ const Logistics = () => {
         />
       </div>
 
-      {/* ─── Segmented control — honest version. "Couriers" is this
-          view; "Shipments" is disabled (with a reason) until a courier
-          is connected; "Zones" is a real link to its own page, styled
-          as one, instead of a tab that navigates away. */}
-      <div className="flex items-center gap-1 bg-muted/50 rounded-full p-1 w-fit">
-        <button
-          type="button"
-          aria-current="page"
-          className="h-9 px-4 text-[13px] font-bold rounded-full bg-card shadow-sm text-foreground"
-        >
-          {isAr ? "شركات الشحن" : "Couriers"}
-        </button>
-        {bostaCreds?.is_configured ? (
-          <button
-            type="button"
-            onClick={() => openBosta("all")}
-            className="h-9 px-4 text-[13px] font-bold rounded-full text-muted-foreground hover:text-foreground transition-all"
-          >
-            {isAr ? "الشحنات" : "Shipments"}
-          </button>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex">
-                <button
-                  type="button"
-                  disabled
-                  aria-disabled="true"
-                  className="h-9 px-4 text-[13px] font-bold rounded-full text-muted-foreground/50 cursor-not-allowed"
-                >
-                  {isAr ? "الشحنات" : "Shipments"}
-                </button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>{t("logistics.connectFirst")}</TooltipContent>
-          </Tooltip>
-        )}
-        <Link
-          to="/shipping/zones"
-          className="inline-flex h-9 items-center gap-1 px-4 text-[13px] font-bold rounded-full text-muted-foreground hover:text-foreground transition-all"
-        >
-          {isAr ? "المناطق" : "Zones"}
-          <ArrowUpRight className="h-3.5 w-3.5 opacity-60" />
-        </Link>
-      </div>
+      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+        {/* ─── Zones & rates ─── */}
+        <ZonesOverviewCard
+          zones={zones}
+          coverage={coverageQ.data}
+          totalGovernorates={totalGovs}
+          loading={zonesQ.isLoading || govsQ.isLoading}
+          isAr={isAr}
+          currency={storeCurrency}
+        />
 
-      {/* ─── Carrier cards ────────────────────────────────────── */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {CARRIERS.map(carrier => {
-          const status = carrierStatus(carrier.key);
-          const isConnected = status === "connected";
-          const isUnverified = status === "unverified";
-          const isComingSoon = status === "coming_soon";
-          const interested = courierInterest.includes(carrier.key);
-
-          return (
-            <div
-              key={carrier.key}
-              className={`group relative rounded-xl border bg-card overflow-hidden transition-all ${
-                isComingSoon ? "opacity-75" : "hover:shadow-md hover:border-border/80 cursor-pointer"
-              }`}
-              onClick={() => {
-                if (carrier.key === "bosta") openBosta("all");
-              }}
-            >
-              {/* Top accent line */}
-              <div className="h-1" style={{ background: isConnected ? carrier.color : "transparent" }} />
-
-              <div className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    {/* Carrier icon */}
-                    <div
-                      className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: `${carrier.color}0A` }}
+        <div className="space-y-4">
+          {/* ─── Couriers — compact rows ─── */}
+          <div className="rounded-2xl border border-border bg-card">
+            <div className="px-5 pt-4 pb-2">
+              <h2 className="flex items-center gap-2 text-[15px] font-extrabold tracking-tight">
+                <Truck className="h-4 w-4 text-muted-foreground" />
+                {isAr ? "شركات الشحن" : "Couriers"}
+              </h2>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                {isAr ? "مين بيوصّل الطلبات ويطبع البوالص" : "Who delivers the parcels and prints the labels"}
+              </p>
+            </div>
+            <ul className="divide-y divide-border/60 border-t border-border/60">
+              {CARRIERS.map((carrier) => {
+                const status = carrierStatus(carrier.key);
+                const isConnected = status === "connected";
+                const isUnverified = status === "unverified";
+                const isComingSoon = status === "coming_soon";
+                const interested = courierInterest.includes(carrier.key);
+                const clickable = carrier.key === "bosta";
+                const Row = clickable ? "button" : "div";
+                return (
+                  <li key={carrier.key}>
+                    <Row
+                      {...(clickable ? { type: "button" as const, onClick: () => openBosta("all") } : {})}
+                      className={`flex w-full items-center gap-3 px-5 py-3 text-start ${clickable ? "transition-colors hover:bg-muted/40" : ""} ${isComingSoon ? "opacity-70" : ""}`}
                     >
-                      {carrier.key === "bosta" ? (
-                        <BostaIcon size={24} />
-                      ) : carrier.key === "aramex" ? (
-                        <AramexLogo height={10} />
-                      ) : carrier.key === "mylerz" ? (
-                        <MylerzLogo height={10} />
-                      ) : carrier.key === "manual" ? (
-                        <Truck className="h-5 w-5 text-zinc-500" />
-                      ) : (
-                        <span className="text-base font-black" style={{ color: carrier.color }}>
-                          {carrier.name.charAt(0)}
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        {carrier.key === "bosta" ? (
-                          <BostaLogo height={14} />
-                        ) : carrier.key === "aramex" ? (
-                          <AramexLogo height={14} />
-                        ) : carrier.key === "mylerz" ? (
-                          <MylerzLogo height={14} />
-                        ) : (
-                          <span className="text-sm font-bold" style={{ color: isComingSoon ? undefined : carrier.color }}>
-                            {carrier.name}
+                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: `${carrier.color}12` }}>
+                        {carrier.key === "bosta" ? <BostaIcon size={22} /> : carrier.key === "aramex" ? <AramexLogo height={9} /> : carrier.key === "mylerz" ? <MylerzLogo height={9} /> : <Truck className="h-4.5 w-4.5 text-zinc-500" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-bold">{isAr ? carrier.nameAr : carrier.name}</span>
+                          {isConnected && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              {carrier.key === "bosta" && bostaVerified === null ? t("logistics.verifying") : t("logistics.live")}
+                            </span>
+                          )}
+                          {isUnverified && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                  {t("logistics.savedUnverified")}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">{t("logistics.bostaUnreachable")}</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {isComingSoon && <Badge variant="secondary" className="h-5 text-[10px]">{isAr ? "قريبًا" : "Soon"}</Badge>}
+                        </div>
+                        <p className="truncate text-[11.5px] text-muted-foreground">{isAr ? carrier.descriptionAr : carrier.description}</p>
+                      </div>
+                      <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                        {carrier.key === "manual" && (
+                          <Switch checked={shippingData?.manual?.enabled ?? false} onCheckedChange={handleToggleManual} />
+                        )}
+                        {carrier.key === "bosta" && (
+                          <span className="inline-flex items-center gap-0.5 text-[12px] font-bold text-navy dark:text-saffron">
+                            {isConnected || isUnverified ? (isAr ? "إدارة" : "Manage") : (isAr ? "اربط" : "Connect")}
+                            <ChevronRight className="h-3.5 w-3.5 rtl:rotate-180" />
                           </span>
                         )}
+                        {isComingSoon && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-[11px]"
+                            disabled={interested}
+                            onClick={() => {
+                              setCourierInterest(addCourierInterest(carrier.key));
+                              toast.success(t("logistics.noted"));
+                            }}
+                          >
+                            {interested ? t("logistics.notedShort") : t("logistics.notifyMe")}
+                          </Button>
+                        )}
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
-                        {isAr ? carrier.descriptionAr : carrier.description}
-                      </p>
-                    </div>
-                  </div>
+                    </Row>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
 
-                  {/* Status / Action */}
-                  <div className="flex-shrink-0">
-                    {isConnected && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        {carrier.key === "bosta" && bostaVerified === null ? t("logistics.verifying") : t("logistics.live")}
-                      </span>
-                    )}
-                    {isUnverified && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                            {t("logistics.savedUnverified")}
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">{t("logistics.bostaUnreachable")}</TooltipContent>
-                      </Tooltip>
-                    )}
-                    {isComingSoon && (
-                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Badge variant="secondary" className="text-[10px] cursor-help">{isAr ? "قريبًا" : "Soon"}</Badge>
-                          </TooltipTrigger>
-                          <TooltipContent>{t("logistics.planned")}</TooltipContent>
-                        </Tooltip>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-[10px]"
-                          disabled={interested}
-                          onClick={() => {
-                            setCourierInterest(addCourierInterest(carrier.key));
-                            toast.success(t("logistics.noted"));
-                          }}
-                        >
-                          {interested ? t("logistics.notedShort") : t("logistics.notifyMe")}
-                        </Button>
-                      </div>
-                    )}
-                    {!isConnected && !isUnverified && !isComingSoon && carrier.key !== "manual" && (
-                      <span className="text-[10px] text-muted-foreground">{t("logistics.notConnected")}</span>
-                    )}
-                    {carrier.key === "manual" && (
-                      <Switch
-                        checked={shippingData?.manual?.enabled ?? false}
-                        onCheckedChange={handleToggleManual}
-                        onClick={e => e.stopPropagation()}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Quick stats for connected carriers */}
-                {carrier.key === "bosta" && isConnected && (
-                  <div className="flex items-center gap-1.5 mt-2 pt-3 border-t">
-                    <span className="text-[10px] text-muted-foreground">{isAr ? "اضغط لإدارة الشحنات والإعدادات" : "Click to manage shipments & settings"}</span>
-                    <ArrowUpRight className="h-3 w-3 text-muted-foreground/40 group-hover:text-foreground transition-colors" />
-                  </div>
-                )}
-                {carrier.key === "bosta" && !isConnected && (
-                  <div className="flex items-center gap-1.5 mt-2 pt-3 border-t">
-                    <span className="text-[10px] text-muted-foreground">{isAr ? "اضغط لربط حساب بوسطة" : "Click to connect your Bosta account"}</span>
-                    <ArrowUpRight className="h-3 w-3 text-muted-foreground/40 group-hover:text-foreground transition-colors" />
-                  </div>
-                )}
-              </div>
+          {/* ─── Tools ─── */}
+          <div className="rounded-2xl border border-border bg-card">
+            <div className="px-5 pt-4 pb-2">
+              <h2 className="text-[15px] font-extrabold tracking-tight">{isAr ? "أدوات" : "Tools"}</h2>
             </div>
-          );
-        })}
+            <ul className="divide-y divide-border/60 border-t border-border/60">
+              {[
+                { key: "shipments", icon: Package, title: isAr ? "الشحنات" : "Shipments", sub: isAr ? "تتبّع وإلغاء وبوالص" : "Track, cancel, AWBs", onClick: () => openBosta("all"), disabled: !bostaCreds?.is_configured },
+                { key: "labels", icon: Printer, title: isAr ? "طباعة البوالص" : "Print labels", sub: isAr ? "بوالص الطلبات الجاهزة" : "Labels for ready orders", onClick: () => navigate("/orders/shipping-labels") },
+                { key: "calc", icon: CircleDollarSign, title: isAr ? "حاسبة الشحن" : "Rate calculator", sub: isAr ? "جرّب محافظة ووزن وشوف السعر" : "Try a governorate & weight", onClick: () => navigate("/logistics/rate-calculator") },
+                { key: "cod", icon: Zap, title: isAr ? "أوتوبايلوت الدفع عند الاستلام" : "COD autopilot", sub: isAr ? "رسايل واتساب تلقائية للتوصيل" : "Automatic WhatsApp delivery updates", onClick: () => navigate("/cod-autopilot") },
+              ].map((tool) => (
+                <li key={tool.key}>
+                  <button
+                    type="button"
+                    onClick={tool.onClick}
+                    disabled={tool.disabled}
+                    title={tool.disabled ? t("logistics.connectFirst") : undefined}
+                    className="flex w-full items-center gap-3 px-5 py-2.5 text-start transition-colors hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <tool.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-semibold">{tool.title}</span>
+                      <span className="block truncate text-[11.5px] text-muted-foreground">{tool.sub}</span>
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 rtl:rotate-180" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   );
