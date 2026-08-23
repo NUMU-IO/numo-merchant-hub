@@ -20,6 +20,7 @@ import { useAppBadge } from "@/hooks/useAppBadge";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { useFaviconBadge } from "@/hooks/useFaviconBadge";
+import { usePageVisitTracker } from "@/hooks/usePageVisitTracker";
 import { NewOrderNotifier } from "@/components/NewOrderNotifier";
 import { AgentPanel } from "@/features/agent";
 import { useNavConfig } from "@/hooks/useNavConfig";
@@ -50,6 +51,8 @@ const DashboardLayout = () => {
   // SSE stream — invalidates the notification queries the moment the API
   // commits a feed row, so the 45 s poll is only the fallback.
   useNotificationStream(currentStore?.id);
+  // Feeds the "My pages" popover + dashboard "Recently viewed" strip.
+  usePageVisitTracker();
 
   const trialDaysLeft = useMemo(() => {
     if (!user?.trial_ends_at) return null;
