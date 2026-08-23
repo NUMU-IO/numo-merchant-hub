@@ -523,3 +523,16 @@ export async function resolveAutopilotException(
     { method: "POST", body: JSON.stringify({ action: "dismiss" }) },
   );
 }
+
+/** Send the order summary + /pay link into a linked conversation. */
+export async function sendOrderPaymentLink(
+  storeId: string,
+  orderId: string,
+  threadId: string,
+  note?: string,
+): Promise<{ message_id: string; channel: string; pay_url: string }> {
+  return apiClient<{ message_id: string; channel: string; pay_url: string }>(
+    `/stores/${storeId}/orders/${orderId}/send-payment-link`,
+    { method: "POST", body: JSON.stringify({ thread_id: threadId, note }) },
+  );
+}

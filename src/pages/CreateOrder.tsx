@@ -25,6 +25,8 @@ import { fetchPaymentSettings, type PaymentSettings } from "@/services/storeApi"
 import { calculateShippingPreview, type ShippingOption } from "@/services/shippingApi";
 import { useReferenceGovernorates } from "@/hooks/useShippingZones";
 import { MoneyInput } from "@/components/ui/money-input";
+import { SendPaymentLinkPicker } from "@/components/orders/SendPaymentLinkPicker";
+import { sendOrderPaymentLink } from "@/services/orderApi";
 import {
   createDraftOrder,
   createManualOrder,
@@ -94,6 +96,8 @@ const CreateOrder = () => {
   const [shippingCost, setShippingCost] = useState(0);
   const [shippingOverridden, setShippingOverridden] = useState(false);
   const [shippingError, setShippingError] = useState<string | null>(null);
+  // Thread to send the payment request into after the order is created.
+  const [payLinkThreadId, setPayLinkThreadId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
 
   /* ── Step 4: Submit ── */
@@ -239,8 +243,23 @@ const CreateOrder = () => {
     if (!payload) return;
     setCreating(true);
     try {
-      await createManualOrder(storeId, payload);
+      const order = await createManualOrder(storeId, payload);
       toast.success(isAr ? "تم إنشاء الطلب بنجاح" : "Order created");
+      if (payLinkThreadId && order?.id) {
+        try {
+          const res = await sendOrderPaymentLink(storeId, order.id, payLinkThreadId);
+          toast.success(
+            isAr
+              ? `تم إرسال لينك الدفع على ${res.channel === "instagram" ? "إنستجرام" : res.channel === "facebook" ? "ماسنجر" : "واتساب"}`
+              : `Payment link sent on ${res.channel === "instagram" ? "Instagram" : res.channel === "facebook" ? "Messenger" : "WhatsApp"}`,
+          );
+        } catch (e) {
+          // The order exists either way — tell the merchant the send failed
+          // and where to retry (order page has a Send payment link action).
+          showError(e, language);
+          toast.info(isAr ? "الطلب اتعمل — تقدر تبعت اللينك من صفحة الطلب" : "Order created — resend the link from the order page");
+        }
+      }
       navigate("/orders");
     } catch (e) { showError(e, language); }
     finally { setCreating(false); }
@@ -471,6 +490,16 @@ const CreateOrder = () => {
                   </div>
                 )}
               </div>
+
+              {selectedCustomer && storeId && (
+                <SendPaymentLinkPicker
+                  storeId={storeId}
+                  customerId={selectedCustomer.id}
+                  isAr={isAr}
+                  enabled={paymentMethod !== "cod"}
+                  onChange={setPayLinkThreadId}
+                />
+              )}
 
               <div className="space-y-1.5">
                 <Label className="text-[11px] text-muted-foreground">{isAr ? "طريقة الشحن" : "Shipping"}</Label>

@@ -12,6 +12,7 @@ import { downloadInvoicePdf, getInvoiceForOrder } from "@/services/invoiceApi";
 import type { Order } from "@/services/orderApi";
 import type { RefundListItem } from "@/services/refundApi";
 import InstapayProofReview from "@/components/payments/InstapayProofReview";
+import { SendPaymentLinkButton } from "@/components/orders/SendPaymentLinkPicker";
 import { formatOrderCurrency, PAYMENT_STATUS_COLORS } from "./_shared";
 
 interface Props {
@@ -170,6 +171,14 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
               <CheckCircle2 className="h-3.5 w-3.5" />
               {language === "ar" ? "تأكيد الدفع" : "Mark as Paid"}
             </Button>
+          )}
+          {order.payment_status !== "paid" && currentStore?.id && (
+            <SendPaymentLinkButton
+              storeId={currentStore.id}
+              orderId={order.id}
+              customerId={order.customer_id}
+              isAr={language === "ar"}
+            />
           )}
           {order.payment_status === "paid" && currentStore?.id && (
             <Button
