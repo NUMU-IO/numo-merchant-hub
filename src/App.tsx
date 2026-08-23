@@ -66,6 +66,7 @@ const StoreBalancePage = lazyWithRetry(() => import("@/pages/StoreBalance"));
 const PaymentSetup = lazyWithRetry(() => import("@/pages/PaymentSetup"));
 const TrustNetwork = lazyWithRetry(() => import("@/pages/TrustNetwork"));
 const CodAutopilot = lazyWithRetry(() => import("@/pages/CodAutopilot"));
+const RateCalculator = lazyWithRetry(() => import("@/pages/logistics/RateCalculator"));
 const Logistics = lazyWithRetry(() => import("@/pages/Logistics"));
 const ShippingZones = lazyWithRetry(() => import("@/pages/shipping/ZonesPage"));
 const ShippingZoneEditor = lazyWithRetry(() => import("@/pages/shipping/ZoneEditorPage"));
@@ -367,6 +368,7 @@ const App = () => (
                     <Route path="/trust-network" element={<TrustNetwork />} />
                     <Route path="/cod-autopilot" element={<CodAutopilot />} />
                     <Route path="/logistics" element={<Logistics />} />
+                    <Route path="/logistics/rate-calculator" element={<RateCalculator />} />
                     <Route path="/shipping/zones" element={<ShippingZones />} />
                     <Route path="/shipping/zones/new" element={<ShippingZoneEditor />} />
                     <Route path="/shipping/zones/:zoneId" element={<ShippingZoneEditor />} />
