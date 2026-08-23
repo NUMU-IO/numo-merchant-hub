@@ -496,10 +496,10 @@ export default {
       items: "{{count}} items",
     },
     phase: {
-      cart: "Cart",
-      contact: "Contact info",
-      shipping: "Shipping",
-      converted: "Converted",
+      cart: "Added to cart",
+      contact: "Entered contact",
+      shipping: "Entered address",
+      converted: "Converted to order",
     },
     col: {
       customer: "Customer name",
@@ -508,7 +508,7 @@ export default {
       cartPrice: "Cart price",
       currency: "Currency",
       products: "Products count",
-      phase: "Phase",
+      phase: "Reached step",
       created: "Created date",
       updated: "Updated date",
     },

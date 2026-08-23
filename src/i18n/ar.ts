@@ -496,9 +496,9 @@
       items: "{{count}} منتج",
     },
     phase: {
-      cart: "السلة",
-      contact: "بيانات التواصل",
-      shipping: "الشحن",
+      cart: "أضاف للسلة",
+      contact: "دخّل بيانات التواصل",
+      shipping: "دخّل العنوان",
       converted: "اتحولت لطلب",
     },
     col: {
@@ -508,7 +508,7 @@
       cartPrice: "قيمة السلة",
       currency: "العملة",
       products: "عدد المنتجات",
-      phase: "المرحلة",
+      phase: "وصل لخطوة",
       created: "تاريخ الإنشاء",
       updated: "آخر تحديث",
     },
