@@ -143,6 +143,8 @@ export default {
     label: "What's new in NUMU",
     goTo: "Go to slide {{n}}",
     dismiss: "Hide this",
+    prev: "Previous slide",
+    next: "Next slide",
   },
   pages: {
     title: "My pages",
