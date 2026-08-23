@@ -3,7 +3,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   getSalesOverview, getSalesChart, getAnalyticsTopProducts,
   getSalesByLocation, getCustomerAnalytics, getConversionStats,
-  getCodRejectionStats, getFunnel,
+  getCodRejectionStats, getFunnel, getTrafficSources, getOrdersBreakdown,
 } from "@/services/analyticsApi";
 import { dateRangeKey } from "@/services/dateRangeParams";
 import { AnalyticsSkeleton } from "@/components/skeletons/AnalyticsSkeleton";
@@ -82,6 +82,20 @@ function OverviewContent() {
     placeholderData: keepPreviousData,
   });
 
+  const trafficQuery = useQuery({
+    queryKey: ["analytics", "traffic-sources", storeId, ...rangeKey],
+    queryFn: () => getTrafficSources(storeId!, range),
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+  });
+
+  const breakdownQuery = useQuery({
+    queryKey: ["analytics", "orders-breakdown", storeId, ...rangeKey],
+    queryFn: () => getOrdersBreakdown(storeId!, range),
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+  });
+
   const overview = overviewQuery.data ?? null;
   const isLoading = overviewQuery.isLoading;
 
@@ -104,6 +118,8 @@ function OverviewContent() {
         conversion={conversionQuery.data ?? null}
         codRejection={codRejectionQuery.data ?? null}
         funnel={funnelQuery.data ?? null}
+        trafficSources={trafficQuery.data ?? []}
+        ordersBreakdown={breakdownQuery.data ?? null}
         formatCurrency={formatCurrency}
       />
     </div>

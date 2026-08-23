@@ -320,6 +320,12 @@ export interface OrdersByPaymentMethodItem {
   revenue: number; // cents
 }
 
+export interface OrdersByShippingMethodItem {
+  method: string;
+  count: number;
+  percentage: number;
+}
+
 export interface FulfillmentTimeStats {
   avg_hours: number;
   p50_hours: number;
@@ -340,6 +346,8 @@ export interface OrdersByHourItem {
 export interface OrdersBreakdown {
   by_status: OrdersByStatusItem[];
   by_payment_method: OrdersByPaymentMethodItem[];
+  /** Optional: older backends don't send it. */
+  by_shipping_method?: OrdersByShippingMethodItem[];
   fulfillment_time: FulfillmentTimeStats;
   by_day_of_week: OrdersByDayOfWeekItem[];
   by_hour_of_day: OrdersByHourItem[];
