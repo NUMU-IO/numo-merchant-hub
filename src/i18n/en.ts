@@ -139,6 +139,11 @@ export default {
     addMarketing: "Discount",
     addMarketingHint: "Create a new promotion or coupon",
   },
+  promo: {
+    label: "What's new in NUMU",
+    goTo: "Go to slide {{n}}",
+    dismiss: "Hide this",
+  },
   notifications: {
     title: "Notifications",
     subtitle: "Orders, payments, carts and shipments — everything that needs your eyes.",

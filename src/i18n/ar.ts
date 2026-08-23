@@ -139,6 +139,11 @@
     addMarketing: "خصم",
     addMarketingHint: "إنشاء عرض أو كوبون جديد",
   },
+  promo: {
+    label: "جديد في نمو",
+    goTo: "الشريحة {{n}}",
+    dismiss: "إخفاء",
+  },
   notifications: {
     title: "الإشعارات",
     subtitle: "الطلبات والمدفوعات والسلال والشحنات — كل اللي محتاج نظرة منك.",
