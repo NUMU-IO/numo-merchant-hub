@@ -32,6 +32,8 @@ export function OrderLineItemsCard({ order }: Props) {
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const fmt = (cents: number) => formatOrderCurrency(cents, language);
+  const returnedQty = (index: number) =>
+    order.partial_acceptance?.lines.find((l) => l.order_line_index === index)?.returned_quantity ?? 0;
 
   const uniqueProductIds = useMemo(() => {
     const seen = new Set<string>();
@@ -118,6 +120,11 @@ export function OrderLineItemsCard({ order }: Props) {
                   {item.quantity > 1 && (
                     <span className="absolute -top-1.5 -end-1.5 min-w-[20px] h-5 px-1.5 rounded-full bg-foreground text-background text-[10px] font-semibold flex items-center justify-center tabular-nums">
                       {item.quantity}
+                    </span>
+                  )}
+                  {returnedQty(i) > 0 && (
+                    <span className="absolute -bottom-1.5 -end-1.5 rounded-full bg-terracotta px-1.5 h-5 min-w-[20px] text-[10px] font-semibold text-white flex items-center justify-center tabular-nums" title={t("orders.partial.returnedBadge", { count: returnedQty(i) })}>
+                      −{returnedQty(i)}
                     </span>
                   )}
                 </div>

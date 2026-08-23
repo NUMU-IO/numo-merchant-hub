@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, FileText } from "lucide-react";
+import { CheckCircle2, FileText, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { downloadInvoicePdf, getInvoiceForOrder } from "@/services/invoiceApi";
 import type { Order } from "@/services/orderApi";
@@ -18,6 +18,7 @@ interface Props {
   order: Order;
   refunds: RefundListItem[];
   onMarkPaid: () => void;
+  onUnmarkPaid?: () => void;
 }
 
 /**
@@ -28,7 +29,7 @@ interface Props {
  * mark-paid / invoice download / InstaPay proof review). One card, four
  * sections: line totals → paid/refunded/balance → status pill → actions.
  */
-export function PaymentSummaryCard({ order, refunds, onMarkPaid }: Props) {
+export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }: Props) {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
@@ -38,8 +39,11 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid }: Props) {
   const refunded = refunds
     .filter((r) => r.status === "completed")
     .reduce((sum, r) => sum + r.amount, 0);
-  const paid = order.is_paid ? order.total : 0;
-  const balance = order.total - paid - refunded;
+  // After a partial acceptance the collectible amount is what was kept.
+  const collectible = order.collected_total ?? order.total;
+  const paid = order.is_paid ? collectible : 0;
+  const balance = collectible - paid - refunded;
+  const returnedValue = order.partial_acceptance?.returned_value_cents ?? 0;
 
   const handleDownloadInvoice = async () => {
     if (!currentStore?.id) return;
@@ -115,6 +119,16 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid }: Props) {
             value={fmt(paid)}
             valueClassName="text-primary"
           />
+          {returnedValue > 0 && (
+            <Row
+              label={t("orders.partial.returnedValue")}
+              value={`-${fmt(returnedValue)}`}
+              valueClassName="text-terracotta"
+            />
+          )}
+          {order.collected_total != null && order.collected_total !== order.total && (
+            <Row label={t("orders.partial.collected")} value={fmt(order.collected_total)} />
+          )}
           {refunded > 0 && (
             <Row
               label={t("orders.refunded")}
@@ -166,6 +180,17 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid }: Props) {
             >
               <FileText className="h-3.5 w-3.5" />
               {language === "ar" ? "تحميل الفاتورة" : "Download Invoice"}
+            </Button>
+          )}
+          {order.payment_status === "paid" && onUnmarkPaid && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="w-full gap-1.5 text-muted-foreground hover:text-terracotta"
+              onClick={onUnmarkPaid}
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              {t("orders.unmark.action")}
             </Button>
           )}
         </div>

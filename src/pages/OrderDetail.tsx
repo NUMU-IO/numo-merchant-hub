@@ -26,6 +26,9 @@ import {
   markOrderPaid,
   updateOrderStatus,
   type Order,
+  recordPartialAcceptance,
+  unmarkOrderPaid,
+  type PartialAcceptanceLineInput,
 } from "@/services/orderApi";
 import { listOrderRefunds } from "@/services/refundApi";
 import { showError } from "@/lib/show-error";
@@ -33,13 +36,15 @@ import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
 import { OrderHeader } from "@/components/orders/OrderHeader";
 import { OrderLineItemsCard } from "@/components/orders/OrderLineItemsCard";
 import { PaymentSummaryCard } from "@/components/orders/PaymentSummaryCard";
+import { UnmarkPaidDialog } from "@/components/orders/UnmarkPaidDialog";
+import { PartialAcceptanceDialog } from "@/components/orders/PartialAcceptanceDialog";
+import { formatOrderCurrency } from "@/components/orders/_shared";
 import { FulfillmentCard } from "@/components/orders/FulfillmentCard";
 import { RefundsCard } from "@/components/orders/RefundsCard";
 import { CustomerPanel } from "@/components/orders/CustomerPanel";
 import { ShippingAddressCard } from "@/components/orders/ShippingAddressCard";
 import { NotesCard } from "@/components/orders/NotesCard";
 import { OrderTimeline } from "@/components/orders/OrderTimeline";
-import { formatOrderCurrency } from "@/components/orders/_shared";
 
 /**
  * Order detail page — Shopify-style layout.
@@ -108,6 +113,33 @@ const OrderDetail = () => {
         showError(err, language);
       }
     },
+  });
+
+  const [unpaidOpen, setUnpaidOpen] = useState(false);
+  const unmarkPaid = useMutation({
+    mutationFn: (reason: string) => unmarkOrderPaid(storeId!, orderId!, reason),
+    onSuccess: () => {
+      toast.success(t("orders.unmark.done"));
+      setUnpaidOpen(false);
+      invalidateOrder();
+    },
+    onError: (err) => showError(err, language),
+  });
+
+  const [partialOpen, setPartialOpen] = useState(false);
+  const partialAcceptance = useMutation({
+    mutationFn: (payload: { lines: PartialAcceptanceLineInput[]; reason?: string; restock: boolean }) =>
+      recordPartialAcceptance(storeId!, orderId!, payload),
+    onSuccess: (res) => {
+      toast.success(
+        res.refund_due_cents > 0
+          ? t("orders.partial.doneRefundDue", { amount: formatOrderCurrency(res.refund_due_cents, language) })
+          : t("orders.partial.done", { amount: formatOrderCurrency(res.collected_total_cents, language) }),
+      );
+      setPartialOpen(false);
+      invalidateOrder();
+    },
+    onError: (err) => showError(err, language),
   });
 
   const markPaid = useMutation({
@@ -187,6 +219,7 @@ const OrderDetail = () => {
         order={order}
         onAdvanceStatus={(next) => updateStatus.mutate(next)}
         onMarkReturned={() => setRtoOpen(true)}
+        onPartialAcceptance={() => setPartialOpen(true)}
         onPrint={() => handlePrint(order)}
       />
 
@@ -197,6 +230,7 @@ const OrderDetail = () => {
             order={order}
             refunds={refunds}
             onMarkPaid={() => markPaid.mutate()}
+            onUnmarkPaid={() => setUnpaidOpen(true)}
           />
           <FulfillmentCard
             storeId={storeId}
@@ -213,6 +247,20 @@ const OrderDetail = () => {
           <NotesCard storeId={storeId} order={order} />
         </div>
       </div>
+
+      <UnmarkPaidDialog
+        open={unpaidOpen}
+        onOpenChange={setUnpaidOpen}
+        submitting={unmarkPaid.isPending}
+        onConfirm={(reason) => unmarkPaid.mutate(reason)}
+      />
+      <PartialAcceptanceDialog
+        order={order}
+        open={partialOpen}
+        onOpenChange={setPartialOpen}
+        submitting={partialAcceptance.isPending}
+        onSubmit={(payload) => partialAcceptance.mutate(payload)}
+      />
 
       <AlertDialog
         open={rtoOpen}

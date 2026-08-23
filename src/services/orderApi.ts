@@ -30,6 +30,33 @@ export interface OrderAddress {
   phone: string | null;
 }
 
+export interface PartialAcceptanceRecordLine {
+  order_line_index: number;
+  returned_quantity: number;
+  value_cents: number;
+}
+
+export interface PartialAcceptanceRecord {
+  lines: PartialAcceptanceRecordLine[];
+  returned_value_cents: number;
+  collected_total_cents: number;
+  reason?: string | null;
+  at?: string;
+}
+
+export interface PartialAcceptanceLineInput {
+  order_line_index: number;
+  returned_quantity: number;
+}
+
+export interface PartialAcceptanceResult {
+  order: Order;
+  returned_value_cents: number;
+  collected_total_cents: number;
+  refund_due_cents: number;
+  restocked_lines: number;
+}
+
 export interface Order {
   id: string;
   store_id: string;
@@ -46,6 +73,9 @@ export interface Order {
   tax_amount: number;
   discount_amount: number;
   total: number;
+  /** Cash actually collected after a partial acceptance; null = total. */
+  collected_total?: number | null;
+  partial_acceptance?: PartialAcceptanceRecord | null;
   currency: string;
   payment_method: string | null;
   payment_id: string | null;
@@ -290,6 +320,30 @@ export async function markOrderPaid(
   return apiClient<Order>(`/stores/${storeId}/orders/${orderId}/mark-paid`, {
     method: "POST",
   });
+}
+
+/** Undo a manual mark-paid. 409 when a gateway payment or refund exists. */
+export async function unmarkOrderPaid(
+  storeId: string,
+  orderId: string,
+  reason?: string,
+): Promise<Order> {
+  return apiClient<Order>(`/stores/${storeId}/orders/${orderId}/unmark-paid`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason ?? null }),
+  });
+}
+
+/** Customer kept part of the order at the door. */
+export async function recordPartialAcceptance(
+  storeId: string,
+  orderId: string,
+  payload: { lines: PartialAcceptanceLineInput[]; reason?: string; restock?: boolean },
+): Promise<PartialAcceptanceResult> {
+  return apiClient<PartialAcceptanceResult>(
+    `/stores/${storeId}/orders/${orderId}/partial-acceptance`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
 }
 
 // ── Manual Order Creation ──
