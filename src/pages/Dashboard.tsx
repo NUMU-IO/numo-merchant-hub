@@ -1013,12 +1013,13 @@ const Dashboard = () => {
           question={isAr ? "فيه حاجة وقفت؟" : "Is anything broken?"}
         />
 
-        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-          {/* Triage list */}
-          <Card>
-            <CardContent className="p-2">
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+          {/* Triage list — stretches to the swiper's height; rows spread
+              evenly so the card never ends in dead space. */}
+          <Card className="flex flex-col">
+            <CardContent className="flex flex-1 flex-col p-2">
               {triageRows.length === 0 ? (
-                <div className="py-8 text-center">
+                <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
                   <CheckCircle2 className="h-8 w-8 text-sage mx-auto mb-2" />
                   <p className="text-sm font-bold">
                     {isAr ? "كل حاجة شغّالة تمام" : "Everything looks good"}
@@ -1035,7 +1036,7 @@ const Dashboard = () => {
                     key={i}
                     type="button"
                     onClick={row.onClick}
-                    className="souq-triage-row w-full text-start"
+                    className="souq-triage-row w-full flex-1 text-start"
                   >
                     <div className={`ichip ${row.tone}`}>
                       <row.Icon className="h-5 w-5" />
@@ -1061,7 +1062,7 @@ const Dashboard = () => {
 
           {/* Promo swiper; once every slide is dismissed the Store-health
               hero takes the slot back. */}
-          <PromoSwiper className="self-start" fallback={<StoreHealthCard />} />
+          <PromoSwiper className="self-stretch" fallback={<StoreHealthCard className="h-full" />} />
         </div>
       </section>
 
