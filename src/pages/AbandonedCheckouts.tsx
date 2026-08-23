@@ -212,7 +212,18 @@ const AbandonedCheckouts = () => {
     if (!iso) return "—";
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString(isAr ? "ar-EG" : "en-GB", { year: "numeric", month: "2-digit", day: "2-digit" });
+    // Date AND time (to the minute): "when did they leave" matters for
+    // timing a reminder, and two carts on the same day are otherwise identical.
+    return (
+      <span className="tabular-nums">
+        <span className="block">
+          {d.toLocaleDateString(isAr ? "ar-EG" : "en-GB", { year: "numeric", month: "2-digit", day: "2-digit" })}
+        </span>
+        <span className="block text-[10.5px] text-muted-foreground/80">
+          {d.toLocaleTimeString(isAr ? "ar-EG" : "en-GB", { hour: "2-digit", minute: "2-digit" })}
+        </span>
+      </span>
+    );
   };
 
   const phaseBadge = (c: AbandonedCheckout) => {
