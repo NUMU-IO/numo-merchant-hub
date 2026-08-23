@@ -234,12 +234,20 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* 2. Keep over-scroll inside scrollable panes instead of bubbling up to
-        the browser's pull-to-refresh. In an installed PWA a stray
-        pull-to-refresh reads as the app randomly reloading itself. */
+  /* 2. No root over-scroll at all. `contain` only stopped scroll CHAINING —
+        the document itself still rubber-banded, so a trackpad flick at the
+        top dragged the sticky top bar down while the fixed sidebar stayed
+        put and peeked out above it over a white band. `none` removes the
+        bounce (and the browser's native pull-to-refresh, which installed
+        PWAs never get anyway — <PullToRefresh /> provides our own on touch).
+        The root is painted navy so any residual bounce on older Safari
+        reveals top-bar colour, never white. */
   html,
   body {
-    overscroll-behavior-y: contain;
+    overscroll-behavior-y: none;
+  }
+  html {
+    background: hsl(var(--topbar));
   }
 
   /* 3. iOS zooms the whole page when a focused input's font-size is under
