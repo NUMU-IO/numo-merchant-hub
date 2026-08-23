@@ -76,6 +76,8 @@ import { useNavigate } from "react-router-dom";
 import { useCountUp } from "@/hooks/useCountUp";
 import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
 import { ActiveThemeCard } from "@/components/dashboard/ActiveThemeCard";
+import { PromoSwiper } from "@/components/dashboard/PromoSwiper";
+import { MetricTargetsCard } from "@/components/analytics/MetricTargetsCard";
 import { RecentlyViewed } from "@/components/dashboard/RecentlyViewed";
 
 /* ─── Zone head — § eyebrow + question + hairline rule ──────────────── */
@@ -560,6 +562,14 @@ const Dashboard = () => {
             {isAr ? "ضيف منتج" : "Add product"}
           </Button>
         </div>
+      </div>
+
+      {/* ─── Promo swiper + goals (Zid-style pair) ───────────────────── */}
+      <div className="grid gap-4 lg:[grid-template-columns:1.35fr_1fr]">
+        <PromoSwiper className="self-start" />
+        {currentStore?.id && (
+          <MetricTargetsCard storeId={currentStore.id} formatCurrency={formatCurrency} />
+        )}
       </div>
 
       {/* ─── Compact onboarding strip (first-time merchants) ──────────── */}
