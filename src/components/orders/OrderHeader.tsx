@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
   ArrowRightCircle,
+  PackageOpen,
   Printer,
   RotateCcw,
 } from "lucide-react";
@@ -16,6 +17,7 @@ interface Props {
   order: Order;
   onAdvanceStatus: (next: string) => void;
   onMarkReturned: () => void;
+  onPartialAcceptance?: () => void;
   onPrint: () => void;
 }
 
@@ -23,6 +25,7 @@ export function OrderHeader({
   order,
   onAdvanceStatus,
   onMarkReturned,
+  onPartialAcceptance,
   onPrint,
 }: Props) {
   const { t } = useTranslation();
@@ -61,6 +64,19 @@ export function OrderHeader({
               {t("orders.moveTo")} {t(`orders.${nextStatus}`)}
             </Button>
           )}
+          {onPartialAcceptance &&
+            (order.status === "shipped" || order.status === "delivered") &&
+            !order.partial_acceptance && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={onPartialAcceptance}
+              >
+                <PackageOpen className="h-3.5 w-3.5" />
+                {t("orders.partial.action")}
+              </Button>
+            )}
           {order.status === "shipped" && (
             <Button
               size="sm"
