@@ -16,7 +16,9 @@
 
 /* iOS safe area for bottom nav */
 .safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* The home-indicator inset (34 px) is more than a tab bar needs below
+     its labels — native iOS bars overlap it by a few px. */
+  padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) - 6px), 0px);
 }
 
 /* Top safe area — mirrors .safe-bottom. Needed in installed/standalone mode,

@@ -264,7 +264,10 @@ const MobileBottomNav = () => {
   return (
     <>
       <nav className="fixed bottom-0 inset-x-0 z-50 md:hidden border-t border-border bg-background/90 backdrop-blur-lg safe-bottom">
-        <div className="flex items-stretch justify-around h-[76px] px-2 pt-2 pb-3">
+        {/* 60 px row, minimal bottom padding: the iOS home-indicator inset
+            (.safe-bottom, 34 px) already provides the gap below the labels.
+            76 px + pb-3 on top of it left the items floating mid-bar. */}
+        <div className="flex items-stretch justify-around h-[60px] px-2 pt-1.5 pb-0.5">
           {tabs.map((tabItem) => {
             const active = tabItem.path ? isActive(tabItem.path) : false;
             const onTap = tabItem.onClick ?? (() => tabItem.path && navigate(tabItem.path));

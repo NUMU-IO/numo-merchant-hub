@@ -383,10 +383,10 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
                   </th>
                   {(
                     [
-                      { key: "gross", title: isAr ? "إجمالي المبيعات" : "Gross sales", sub: isAr ? "قبل الخصومات والضريبة" : "Before discounts & tax" },
+                      { key: "gross", title: isAr ? "إجمالي المبيعات" : "Gross sales", sub: isAr ? "قبل الخصومات · بدون الضريبة" : "Before discounts · excl. VAT" },
                       { key: "discounts", title: isAr ? "إجمالي الخصومات" : "Total discounts", sub: "" },
-                      { key: "tax", title: isAr ? "الضريبة" : "Tax", sub: isAr ? "بعد الخصومات" : "After discounts" },
-                      { key: "net", title: isAr ? "صافي المبيعات" : "Total sales", sub: isAr ? "بعد الخصومات والضريبة" : "After discounts & tax" },
+                      { key: "tax", title: isAr ? "الضريبة" : "VAT", sub: isAr ? "مضمّنة في السعر" : "Included in the price" },
+                      { key: "net", title: isAr ? "صافي المبيعات" : "Total sales", sub: isAr ? "بعد الخصومات · اللي العملاء دفعوه" : "After discounts · what customers paid" },
                       { key: "qty", title: isAr ? "الكمية المباعة" : "Total sold quantity", sub: "" },
                       { key: "orders", title: isAr ? "عدد مرات الطلب" : "Number of times ordered", sub: "" },
                     ] as { key: TableSort; title: string; sub: string }[]
