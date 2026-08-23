@@ -84,8 +84,12 @@ export function OrderRowExpansion({ storeId, orderId }: Props) {
                 <tr key={`${li.product_id}-${i}`} className="border-t border-border/60">
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2.5">
-                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground ring-1 ring-border/40">
-                        <Package className="h-4 w-4" />
+                      <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md bg-muted text-muted-foreground ring-1 ring-border/40">
+                        {li.image_url ? (
+                          <img src={li.image_url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                        ) : (
+                          <Package className="h-4 w-4" />
+                        )}
                       </div>
                       <div className="min-w-0">
                         <button

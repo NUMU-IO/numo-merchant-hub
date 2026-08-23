@@ -15,6 +15,8 @@ export interface OrderLineItem {
   quantity: number;
   unit_price: number; // cents
   total_price: number; // cents
+  /** Product's current image, resolved on GET /orders/{id}. Optional on older backends. */
+  image_url?: string | null;
 }
 
 export interface OrderAddress {

@@ -93,6 +93,7 @@ const CreateOrder = () => {
   const [selectedRateId, setSelectedRateId] = useState<string | null>(null);
   const [shippingCost, setShippingCost] = useState(0);
   const [shippingOverridden, setShippingOverridden] = useState(false);
+  const [shippingError, setShippingError] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
 
   /* ── Step 4: Submit ── */
@@ -158,6 +159,7 @@ const CreateOrder = () => {
     if (!storeId || !governorate) { setShippingOptions([]); return; }
     let cancelled = false;
     setLoadingShipping(true);
+    setShippingError(null);
     calculateShippingPreview(storeId, {
       governorate_code: governorate,
       cart_subtotal_cents: subtotal,
@@ -173,7 +175,11 @@ const CreateOrder = () => {
           if (!shippingOverridden) setShippingCost(keep.amount_cents);
         }
       })
-      .catch(() => { if (!cancelled) setShippingOptions([]); })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setShippingOptions([]);
+        setShippingError(err instanceof Error && err.message ? err.message : (isAr ? "تعذر حساب الشحن" : "Couldn't price shipping"));
+      })
       .finally(() => { if (!cancelled) setLoadingShipping(false); });
     return () => { cancelled = true; };
     // selectedRateId/shippingOverridden intentionally excluded: they are outputs of this effect.
@@ -474,6 +480,10 @@ const CreateOrder = () => {
                   </p>
                 ) : loadingShipping ? (
                   <div className="flex items-center gap-2 rounded-lg border p-3 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{isAr ? "بنحسب الشحن…" : "Pricing shipping…"}</div>
+                ) : shippingError ? (
+                  <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
+                    {(isAr ? "تعذر حساب الشحن: " : "Couldn't price shipping: ") + shippingError + (isAr ? " — اكتب السعر يدويًا تحت." : " — enter the cost manually below.")}
+                  </p>
                 ) : shippingOptions.length === 0 ? (
                   <p className="rounded-lg border border-amber-300/50 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
                     {isAr ? "المحافظة دي مش في أي منطقة شحن مفعّلة — اكتب سعر الشحن يدويًا تحت." : "This governorate isn't in any active shipping zone — enter the shipping cost manually below."}
