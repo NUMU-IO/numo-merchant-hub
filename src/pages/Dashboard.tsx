@@ -75,6 +75,7 @@ import { useCountUp } from "@/hooks/useCountUp";
 import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
 import { ActiveThemeCard } from "@/components/dashboard/ActiveThemeCard";
 import { PromoSwiper } from "@/components/dashboard/PromoSwiper";
+import { StoreHealthCard } from "@/components/dashboard/StoreHealthCard";
 import { RecentlyViewed } from "@/components/dashboard/RecentlyViewed";
 
 /* ─── Zone head — § eyebrow + question + hairline rule ──────────────── */
@@ -1012,7 +1013,7 @@ const Dashboard = () => {
           question={isAr ? "فيه حاجة وقفت؟" : "Is anything broken?"}
         />
 
-        <div className="grid gap-4 lg:[grid-template-columns:1.2fr_1fr] lg:items-start">
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
           {/* Triage list */}
           <Card>
             <CardContent className="p-2">
@@ -1058,8 +1059,9 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Promo swiper — Store health moved to the sidebar footer banner. */}
-          <PromoSwiper className="self-start" />
+          {/* Promo swiper; once every slide is dismissed the Store-health
+              hero takes the slot back. */}
+          <PromoSwiper className="self-start" fallback={<StoreHealthCard />} />
         </div>
       </section>
 

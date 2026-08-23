@@ -228,6 +228,24 @@ export async function recoverFromStaleAssets(): Promise<void> {
     registration = (await navigator.serviceWorker.getRegistration()) ?? registration;
     if (registration.waiting) return takeOver(registration);
 
+    // update() resolves as soon as the new script is fetched — the worker
+    // is usually still INSTALLING (precaching the new shell). Give it a
+    // moment to reach `waiting`; handing over to it beats purging and
+    // refetching the whole shell over mobile data.
+    const installing = registration.installing;
+    if (installing) {
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 3_000);
+        installing.addEventListener("statechange", () => {
+          if (installing.state !== "installing") {
+            clearTimeout(timer);
+            resolve();
+          }
+        });
+      });
+      if (registration.waiting) return takeOver(registration);
+    }
+
     // Still nothing to hand over to, so the precache itself is the problem.
     await purgePrecache();
   } catch {
