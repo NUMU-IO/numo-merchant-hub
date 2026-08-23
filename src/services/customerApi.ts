@@ -15,6 +15,8 @@ export interface Customer {
   accepts_marketing: boolean;
   is_verified: boolean;
   location: string | null;
+  /** Customer photo adopted from a linked conversation (nullable). */
+  avatar_url?: string | null;
   total_orders: number;
   total_spent: number; // cents
   default_address_id: string | null;
@@ -154,5 +156,43 @@ export async function getCustomerJourney(
 ): Promise<CustomerJourney> {
   return apiClient<CustomerJourney>(
     `/stores/${storeId}/customers/${customerId}/journey?limit=${limit}`
+  );
+}
+
+// ── Social profiles (linked inbox conversations) ────────────────────
+
+export interface SocialProfile {
+  kind: "thread" | "whatsapp";
+  id: string;
+  channel: "facebook" | "instagram" | "whatsapp";
+  name: string | null;
+  avatar_url: string | null;
+  phone: string | null;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  status: string | null;
+  /** Hub route that opens the conversation. */
+  inbox_path: string;
+}
+
+export async function getCustomerSocialProfiles(
+  storeId: string,
+  customerId: string,
+): Promise<SocialProfile[]> {
+  const res = await apiClient<{ profiles: SocialProfile[] }>(
+    `/stores/${storeId}/customers/${customerId}/social-profiles`,
+  );
+  return res.profiles;
+}
+
+/** Adopt a linked conversation's profile picture as the customer photo. */
+export async function setCustomerAvatarFromThread(
+  storeId: string,
+  customerId: string,
+  threadId: string,
+): Promise<{ avatar_url: string }> {
+  return apiClient<{ avatar_url: string }>(
+    `/stores/${storeId}/customers/${customerId}/avatar`,
+    { method: "POST", body: JSON.stringify({ thread_id: threadId }) },
   );
 }

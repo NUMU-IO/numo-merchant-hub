@@ -20,6 +20,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { listCustomers, getCustomer, getCustomerTrustStats, getNetworkStats } from "@/services/customerApi";
 import { CustomerJourneyTimeline } from "@/components/customers/CustomerJourneyTimeline";
 import { AddCustomerDialog } from "@/components/customers/AddCustomerDialog";
+import { ConnectedChannelsCard } from "@/components/customers/ConnectedChannelsCard";
 import type { Customer } from "@/services/customerApi";
 import { listOrders } from "@/services/orderApi";
 import type { OrderListItem } from "@/services/orderApi";
@@ -158,6 +159,13 @@ export default function Customers() {
           <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={closeDetail}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
+          {c.avatar_url ? (
+            <img src={c.avatar_url} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-border" />
+          ) : (
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/8 text-lg font-bold text-primary">
+              {(c.full_name || c.first_name || "?").charAt(0).toUpperCase()}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{c.full_name || `${c.first_name} ${c.last_name}`}</h1>
             <p className="text-sm text-muted-foreground mt-0.5">{displayEmail(c.email)}</p>
@@ -199,6 +207,7 @@ export default function Customers() {
         {storeId && <TrustStatsCard storeId={storeId} customerId={c.id} isAr={isAr} />}
 
         <div className="grid gap-4 lg:grid-cols-3">
+          <div className="space-y-4">
           {/* Contact Info */}
           <Card>
             <CardHeader className="pb-2">
@@ -242,6 +251,11 @@ export default function Customers() {
               </div>
             </CardContent>
           </Card>
+
+          {storeId && (
+            <ConnectedChannelsCard storeId={storeId} customerId={c.id} isAr={isAr} />
+          )}
+          </div>
 
           {/* Order History */}
           <Card className="lg:col-span-2">
@@ -374,9 +388,13 @@ export default function Customers() {
                         key={c.id}
                         onClick={() => openCustomerDetail(c)}
                         leading={
+                          c.avatar_url ? (
+                            <img src={c.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" loading="lazy" />
+                          ) : (
                           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/8 text-[12px] font-bold text-primary">
                             {(c.full_name || c.first_name || "?").charAt(0).toUpperCase()}
                           </div>
+                          )
                         }
                         title={c.full_name || `${c.first_name} ${c.last_name}`}
                         subtitle={
@@ -432,9 +450,13 @@ export default function Customers() {
                     >
                       <TableCell className="font-medium text-[13px] py-3 ps-5">
                         <div className="flex items-center gap-2.5">
+                          {c.avatar_url ? (
+                            <img src={c.avatar_url} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" loading="lazy" />
+                          ) : (
                           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/8 text-[10px] font-bold text-primary shrink-0">
                             {(c.full_name || c.first_name || "?").charAt(0).toUpperCase()}
                           </div>
+                          )}
                           {c.full_name || `${c.first_name} ${c.last_name}`}
                         </div>
                       </TableCell>
