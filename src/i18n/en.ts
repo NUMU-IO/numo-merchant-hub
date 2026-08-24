@@ -322,6 +322,7 @@ export default {
     search: "Search products...",
     all: "All",
     published: "Published",
+    unlisted: "Link only",
     draft: "Draft",
     archived: "Archived",
     name: "Name",

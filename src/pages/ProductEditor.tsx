@@ -17,6 +17,74 @@ import {
   productToApiUpdate,
 } from "@/services/productApi";
 import { prepareImageForUpload } from "@/lib/image-validation";
+import { SortableImageGrid } from "@/components/products/SortableImageGrid";
+import { ProductSection } from "@/components/products/ProductSection";
+import { RelatedProductsPicker } from "@/components/products/RelatedProductsPicker";
+import { getStoreUrl } from "@/lib/storefront";
+
+/** ISO instant -> the "YYYY-MM-DDTHH:mm" a `datetime-local` input wants.
+ *  Rendered in the merchant's own timezone, which is the one they think
+ *  in when they say "this sale ends Friday at 6". */
+function toLocalInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
+/** The inverse: a local wall-clock string back to an ISO instant. */
+function fromLocalInput(value: string): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** The commerce fields, in wire shape.
+ *
+ *  Applied to the built payload rather than passed through
+ *  `productToApiCreate` / `productToApiUpdate`: those mappers copy a fixed
+ *  set of `ProductFormData` keys into a fresh object, so anything they
+ *  don't know about is silently dropped.
+ */
+function commercePayload(args: {
+  weight: string;
+  requiresShipping: boolean;
+  taxExempt: boolean;
+  saleEnabled: boolean;
+  salePrice: string;
+  saleScheduled: boolean;
+  saleStart: string;
+  saleEnd: string;
+  relatedIds: string[];
+}) {
+  const saleOn = args.saleEnabled && Boolean(args.salePrice.trim());
+  return {
+    weight: args.weight.trim() ? args.weight.trim() : null,
+    requires_shipping: args.requiresShipping,
+    tax_exempt: args.taxExempt,
+    // The sale travels as a group. A null price is what ENDS a running
+    // sale — omitting the keys would leave it live, so the merchant could
+    // never switch a discount off.
+    sale_price: saleOn ? args.salePrice.trim() : null,
+    sale_starts_at:
+      saleOn && args.saleScheduled ? fromLocalInput(args.saleStart) : null,
+    sale_ends_at:
+      saleOn && args.saleScheduled ? fromLocalInput(args.saleEnd) : null,
+    related_product_ids: args.relatedIds,
+  };
+}
+
+/** An image chosen for a product that does not exist yet. `url` is an
+ *  object URL created once at add time and revoked when the editor
+ *  unmounts or the image is dropped — never on a reorder. */
+interface PendingImage {
+  url: string;
+  file: File;
+}
 import { updateStore } from "@/services/storeApi";
 import {
   getProductLabels,
@@ -54,6 +122,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, X, ImagePlus, Loader2, Save, Undo2, Layers, Hash,
+  Copy, ExternalLink,
   Minus, Pencil, ShoppingCart, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -234,17 +303,43 @@ const ProductEditor = () => {
   const [savingStoreDefault, setSavingStoreDefault] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formImages, setFormImages] = useState<string[]>([]);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  // Each pending upload carries the object URL created for it ONCE, at add
+  // time. Deriving previews from the file list instead (a useMemo over
+  // pendingFiles) revoked and recreated every URL on any change to the
+  // list — including a reorder — so dragging an image made the whole grid
+  // blink and briefly lose its `src`.
+  const [pendingFiles, setPendingFiles] = useState<PendingImage[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [validatingImage, setValidatingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [previewIdx, setPreviewIdx] = useState(0);
 
-  const pendingPreviews = useMemo(() => pendingFiles.map(f => URL.createObjectURL(f)), [pendingFiles]);
+  // ── Commerce controls (API: feat/product-commerce-controls) ──────────
+  const [formWeight, setFormWeight] = useState("");
+  const [formRequiresShipping, setFormRequiresShipping] = useState(true);
+  const [formTaxExempt, setFormTaxExempt] = useState(false);
+  // The sale is one unit: the toggle owns whether a sale exists at all,
+  // and the schedule sub-toggle owns whether it has a window. Turning the
+  // discount off must send the group with a null price to END the sale —
+  // just clearing the input would leave the running sale in place.
+  const [formSaleEnabled, setFormSaleEnabled] = useState(false);
+  const [formSalePrice, setFormSalePrice] = useState("");
+  const [formSaleScheduled, setFormSaleScheduled] = useState(false);
+  const [formSaleStart, setFormSaleStart] = useState("");
+  const [formSaleEnd, setFormSaleEnd] = useState("");
+  const [formRelatedIds, setFormRelatedIds] = useState<string[]>([]);
+
+  const pendingPreviews = useMemo(() => pendingFiles.map(p => p.url), [pendingFiles]);
+  // Revoke only on unmount. Per-image revocation happens where an image is
+  // actually removed; revoking on every list change is what broke reorder.
+  const pendingFilesRef = useRef(pendingFiles);
+  pendingFilesRef.current = pendingFiles;
   useEffect(() => {
-    return () => { pendingPreviews.forEach(url => URL.revokeObjectURL(url)); };
-  }, [pendingPreviews]);
+    return () => {
+      pendingFilesRef.current.forEach(p => URL.revokeObjectURL(p.url));
+    };
+  }, []);
 
   useEffect(() => {
     if (!storeId) return;
@@ -275,6 +370,18 @@ const ProductEditor = () => {
         setFormImages(p.images.filter(img => img !== "📦"));
         setFormBrand(api.brand || "");
         setImageAlts((api.image_alts as Record<string, string>) || {});
+        setFormWeight(api.weight != null ? String(api.weight) : "");
+        setFormRequiresShipping(api.requires_shipping !== false);
+        setFormTaxExempt(Boolean(api.tax_exempt));
+        setFormSaleEnabled(api.sale_price != null);
+        setFormSalePrice(api.sale_price != null ? String(api.sale_price) : "");
+        // `datetime-local` wants "YYYY-MM-DDTHH:mm" with no zone or seconds.
+        setFormSaleStart(toLocalInput(api.sale_starts_at));
+        setFormSaleEnd(toLocalInput(api.sale_ends_at));
+        setFormSaleScheduled(
+          Boolean(api.sale_starts_at) || Boolean(api.sale_ends_at),
+        );
+        setFormRelatedIds(api.related_product_ids || []);
         setFormSeoTitle(api.seo_title || "");
         setFormNoindex(Boolean(api.robots_noindex));
         setFormCanonical(api.canonical_url || "");
@@ -382,7 +489,10 @@ const ProductEditor = () => {
         setUploadingImage(false);
       }
     } else {
-      setPendingFiles(prev => [...prev, fileToUpload]);
+      setPendingFiles(prev => [
+        ...prev,
+        { url: URL.createObjectURL(fileToUpload), file: fileToUpload },
+      ]);
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -517,6 +627,7 @@ const ProductEditor = () => {
           options: canonicalOptions,
           serverVariants: canonicalVariants,
           images: formImages.length > 0 ? formImages : undefined,
+
           brand: formBrand.trim() || undefined,
           seoTitle: formSeoTitle || undefined,
           robotsNoindex: formNoindex,
@@ -527,6 +638,20 @@ const ProductEditor = () => {
           slug: formSlug || undefined,
           templateSuffix: formTemplateSuffix,
         });
+        Object.assign(
+          payload,
+          commercePayload({
+            weight: formWeight,
+            requiresShipping: formRequiresShipping,
+            taxExempt: formTaxExempt,
+            saleEnabled: formSaleEnabled,
+            salePrice: formSalePrice,
+            saleScheduled: formSaleScheduled,
+            saleStart: formSaleStart,
+            saleEnd: formSaleEnd,
+            relatedIds: formRelatedIds,
+          }),
+        );
         if (variantMeta && payload.attributes) {
           (payload.attributes as Record<string, unknown>).variant_meta = variantMeta;
         }
@@ -575,6 +700,20 @@ const ProductEditor = () => {
           slug: formSlug || undefined,
           templateSuffix: formTemplateSuffix,
         });
+        Object.assign(
+          payload,
+          commercePayload({
+            weight: formWeight,
+            requiresShipping: formRequiresShipping,
+            taxExempt: formTaxExempt,
+            saleEnabled: formSaleEnabled,
+            salePrice: formSalePrice,
+            saleScheduled: formSaleScheduled,
+            saleStart: formSaleStart,
+            saleEnd: formSaleEnd,
+            relatedIds: formRelatedIds,
+          }),
+        );
         if (variantMeta && payload.attributes) {
           (payload.attributes as Record<string, unknown>).variant_meta = variantMeta;
         }
@@ -589,9 +728,12 @@ const ProductEditor = () => {
           (payload.attributes as Record<string, unknown>).label = formLabel;
         }
         const created = await apiCreateProduct(storeId, payload);
-        for (const file of pendingFiles) {
+        // Sequential, not Promise.all: the server appends, so concurrent
+        // uploads would land in completion order and throw away the order
+        // the merchant just arranged.
+        for (const pending of pendingFiles) {
           try {
-            await uploadProductImage(storeId, created.id, file);
+            await uploadProductImage(storeId, created.id, pending.file);
           } catch { /* image upload failure is non-blocking */ }
         }
         toast.success(language === "ar" ? "المنتج اتضاف!" : "Product added successfully!");
@@ -602,7 +744,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formBrand, formSeoTitle, formSeoDesc, formNoindex, formCanonical, formSitemapExclude, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formBrand, formSeoTitle, formSeoDesc, formNoindex, formCanonical, formSitemapExclude, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched, formWeight, formRequiresShipping, formTaxExempt, formSaleEnabled, formSalePrice, formSaleScheduled, formSaleStart, formSaleEnd, formRelatedIds]);
 
   const allLabels = useMemo(
     () => [...PRESET_LABELS, ...customLabels],
@@ -662,6 +804,13 @@ const ProductEditor = () => {
       </div>
     );
   }
+
+  // The public URL of this product. Built from the store's subdomain the
+  // same way ThemePreview does, so a custom domain that has not propagated
+  // yet still yields a link that works.
+  const storefrontUrl = currentStore?.subdomain && formSlug
+    ? `${getStoreUrl(currentStore.subdomain)}/products/${formSlug}`
+    : "";
 
   const totalImages = formImages.length + pendingPreviews.length;
 
@@ -746,21 +895,13 @@ const ProductEditor = () => {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-            {formImages.map((url) => (
-              <div key={url} className="space-y-1.5">
-                <div className="relative group aspect-square">
-                  <img src={url} alt={imageAlts[url] || ""} className="h-full w-full rounded-xl object-cover bg-muted ring-1 ring-border/20" />
-                  {isEditMode && (
-                    <button
-                      type="button"
-                      onClick={() => handleImageDelete(url)}
-                      className="absolute top-1.5 right-1.5 h-6 w-6 rounded-lg bg-black/60 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-black/80"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-                {isEditMode && productId && (
+            <SortableImageGrid
+              images={formImages}
+              onReorder={setFormImages}
+              onRemove={isEditMode ? handleImageDelete : undefined}
+              isAr={language === "ar"}
+              renderMeta={(url) =>
+                isEditMode && productId ? (
                   <Input
                     value={imageAlts[url] ?? ""}
                     onChange={(e) => setImageAlts(prev => ({ ...prev, [url]: e.target.value }))}
@@ -772,21 +913,30 @@ const ProductEditor = () => {
                     maxLength={250}
                     className="h-7 text-[11px] rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border"
                   />
-                )}
-              </div>
-            ))}
-            {!isEditMode && pendingPreviews.map((previewUrl, i) => (
-              <div key={i} className="relative group aspect-square">
-                <img src={previewUrl} alt="" className="h-full w-full rounded-xl object-cover bg-muted ring-1 ring-border/20" />
-                <button
-                  type="button"
-                  onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))}
-                  className="absolute top-1.5 right-1.5 h-6 w-6 rounded-lg bg-black/60 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-black/80"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
+                ) : null
+              }
+            />
+            {!isEditMode && (
+              <SortableImageGrid
+                images={pendingPreviews}
+                onReorder={(next) =>
+                  setPendingFiles(prev =>
+                    // Reorder the files to match; upload order is what the
+                    // storefront ends up showing.
+                    next
+                      .map(url => prev.find(p => p.url === url))
+                      .filter((p): p is PendingImage => Boolean(p)),
+                  )
+                }
+                onRemove={(url) =>
+                  setPendingFiles(prev => {
+                    URL.revokeObjectURL(url);
+                    return prev.filter(p => p.url !== url);
+                  })
+                }
+                isAr={language === "ar"}
+              />
+            )}
             {/* Upload button */}
             <button
               type="button"
@@ -980,17 +1130,10 @@ const ProductEditor = () => {
         </CardContent>
       </Card>
 
-      {/* ── Template (قالب العرض) ── */}
-      <Card className="overflow-hidden">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-bold">{language === "ar" ? "قالب العرض" : "Template"}</CardTitle>
-          <CardDescription className="text-xs">
-            {language === "ar"
-              ? "اختر قالب عرض بديل لهذا المنتج. القوالب تُنشأ من محرر الثيم."
-              : "Pick an alternate storefront template for this product. Variants are created in the theme editor."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+            <ProductSection
+        title={language === "ar" ? "قالب العرض" : "Display template"}
+        description={language === "ar" ? "اختيار قالب مختلف لصفحة هذا المنتج" : "Use a different page template for this product"}
+      >
           <Select
             value={formTemplateSuffix ?? DEFAULT_TEMPLATE_VALUE}
             onValueChange={(v) => setFormTemplateSuffix(v === DEFAULT_TEMPLATE_VALUE ? null : v)}
@@ -1009,20 +1152,12 @@ const ProductEditor = () => {
               ))}
             </SelectContent>
           </Select>
-        </CardContent>
-      </Card>
+      </ProductSection>
 
-      {/* ── Product Label (ملصق المنتج) ── */}
-      <Card className="overflow-hidden">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-bold">{language === "ar" ? "ملصق المنتج" : "Product Label"}</CardTitle>
-          <CardDescription className="text-xs">
-            {language === "ar"
-              ? "شارة نصية تظهر على كارت المنتج في المتجر"
-              : "A text badge shown on the product card in your storefront"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+            <ProductSection
+        title={language === "ar" ? "ملصق المنتج" : "Product label"}
+        description={language === "ar" ? "شارة تظهر على صورة المنتج مثل «جديد» أو «الأكثر مبيعاً»" : "A badge on the product image — “New”, “Best seller”"}
+      >
           <div className="flex items-center gap-2">
             <Select value={formLabel?.key ?? NO_LABEL_VALUE} onValueChange={handleLabelSelect}>
               <SelectTrigger className="h-10 rounded-lg bg-muted/30 border-transparent flex-1"><SelectValue placeholder={language === "ar" ? "اختر..." : "Choose..."} /></SelectTrigger>
@@ -1063,8 +1198,7 @@ const ProductEditor = () => {
               </Button>
             )}
           </div>
-        </CardContent>
-      </Card>
+      </ProductSection>
 
       {storeId && (
         <ManageLabelsDialog
@@ -1151,13 +1285,10 @@ const ProductEditor = () => {
         </CardContent>
       </Card>
 
-      {/* ── Similar Products (تخصيص المنتجات المشابهة) ── */}
-      <Card className="overflow-hidden">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-bold">{language === "ar" ? "تخصيص المنتجات المشابهة" : "Similar Products"}</CardTitle>
-          <CardDescription className="text-xs">{language === "ar" ? "يتم توليد المنتجات المشابهة تلقائياً، ولكن يمكنك تخصيصها حسب رغبتك." : "Similar products are auto-generated, but you can customize them."}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+            <ProductSection
+        title={language === "ar" ? "المنتجات المشابهة" : "Similar products"}
+        description={language === "ar" ? "المنتجات التي تظهر أسفل صفحة هذا المنتج" : "The products shown at the bottom of this product's page"}
+      >
           <div className="flex items-center justify-between">
             <span className="text-xs">{language === "ar" ? "اختيار المنتجات" : "Choose products"}</span>
             <Button variant="outline" size="sm" className="h-7 text-[11px] rounded-lg">{language === "ar" ? "اختيار المنتجات" : "Select"}</Button>
@@ -1166,16 +1297,12 @@ const ProductEditor = () => {
             <span className="text-primary text-sm mt-0.5">ⓘ</span>
             <p className="text-[11px] text-muted-foreground">{language === "ar" ? "يمكنك إدارة إعدادات المنتجات المشابهة من خلال خصائص المنتج" : "Manage similar products settings from product properties"}</p>
           </div>
-        </CardContent>
-      </Card>
+      </ProductSection>
 
-      {/* ── SEO (تحسين محركات البحث) ── */}
-      <Card className="overflow-hidden">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-bold">{language === "ar" ? "تحسين محركات البحث" : "SEO Optimization"}</CardTitle>
-          <CardDescription className="text-xs">{language === "ar" ? "سيساعد هذا منتجاتك في الوصول إلى المزيد من العملاء عبر محركات البحث المختلفة والذكاء الاصطناعي." : "Help your products reach more customers through search engines and AI."}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+            <ProductSection
+        title={language === "ar" ? "تحسين محركات البحث" : "SEO & visibility"}
+        description={language === "ar" ? "عنوان ووصف البحث، الرابط، وفهرسة المنتج" : "Search title and description, URL, and indexing"}
+      >
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "الماركة" : "Brand"}</Label>
             <Input value={formBrand} onChange={(e) => setFormBrand(e.target.value)} placeholder={language === "ar" ? "الشركة المصنّعة" : "Manufacturer"} className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
@@ -1234,8 +1361,7 @@ const ProductEditor = () => {
                 : "If you've synced your product catalog to Meta Business Manager, paste the Catalog product ID here so dynamic-product-ads can match conversions to a catalog row."}
             </p>
           </div>
-        </CardContent>
-      </Card>
+      </ProductSection>
 
       {/* ── Variants (Wave C: single merged editor, Shopify-style opt-in) ── */}
       <Card className="overflow-hidden">
@@ -1690,6 +1816,250 @@ const ProductEditor = () => {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* ── Online store ───────────────────────────────────────────
+              Three genuinely different states, not two with a label. The
+              API backs each: "active" is listed and reachable, "unlisted"
+              is reachable ONLY by link (absent from the catalogue, search,
+              feeds and the sitemap), "draft" is reachable by nobody. */}
+          <div className="mt-4 rounded-xl border border-border/60 bg-card p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] font-semibold">
+                {language === "ar" ? "عرض المنتج" : "Show product"}
+              </span>
+              <Switch
+                checked={formStatus !== "draft"}
+                onCheckedChange={(on) =>
+                  // Turning it back on returns to fully published rather than
+                  // guessing at unlisted — the segmented control below is
+                  // where "link only" is chosen deliberately.
+                  setFormStatus(on ? "published" : "draft")
+                }
+                aria-label={language === "ar" ? "عرض المنتج" : "Show product"}
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted/50 p-1">
+              {([
+                { value: "draft", ar: "مخفي", en: "Hidden" },
+                { value: "unlisted", ar: "برابط", en: "Link" },
+                { value: "published", ar: "منشور", en: "Published" },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setFormStatus(opt.value)}
+                  aria-pressed={formStatus === opt.value}
+                  className={`rounded-md py-1.5 text-[11px] font-semibold transition-colors ${
+                    formStatus === opt.value
+                      ? "bg-background shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {language === "ar" ? opt.ar : opt.en}
+                </button>
+              ))}
+            </div>
+
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              {formStatus === "unlisted"
+                ? language === "ar"
+                  ? "يفتح بالرابط المباشر فقط — مش هيظهر في المتجر ولا نتائج البحث."
+                  : "Opens only with the direct link — hidden from your store and from search."
+                : formStatus === "draft"
+                  ? language === "ar"
+                    ? "مش ظاهر لأي حد."
+                    : "Not visible to anyone."
+                  : language === "ar"
+                    ? "ظاهر في المتجر وفي نتائج البحث."
+                    : "Listed in your store and in search."}
+            </p>
+
+            {isEditMode && formSlug && (
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] rounded-lg"
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(storefrontUrl)
+                      .then(() =>
+                        toast.success(
+                          language === "ar" ? "اتنسخ الرابط" : "Link copied",
+                        ),
+                      )
+                      .catch(() => showError(new Error("clipboard"), language));
+                  }}
+                >
+                  <Copy className="h-3 w-3 me-1" />
+                  {language === "ar" ? "نسخ الرابط" : "Copy link"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] rounded-lg"
+                  asChild
+                >
+                  <a href={storefrontUrl} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-3 w-3 me-1" />
+                    {language === "ar" ? "معاينة" : "Preview"}
+                  </a>
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Additional details ─────────────────────────────────────
+              Every switch here changes what the storefront and checkout
+              actually do — see NUMU-api feat/product-commerce-controls. */}
+          <div className="mt-4 rounded-xl border border-border/60 bg-card p-4 space-y-4">
+            <p className="text-[13px] font-bold">
+              {language === "ar" ? "تفاصيل إضافية" : "Additional details"}
+            </p>
+
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[12px]">
+                  {language === "ar" ? "المنتج يحتاج شحن" : "Product requires shipping"}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {language === "ar"
+                    ? "لو قفلته، الطلب اللي فيه المنتج ده بس مش هياخد عنوان ولا مصاريف شحن."
+                    : "Off means an order of only this product collects no address and charges no shipping."}
+                </p>
+              </div>
+              <Switch
+                checked={formRequiresShipping}
+                onCheckedChange={setFormRequiresShipping}
+                aria-label={language === "ar" ? "المنتج يحتاج شحن" : "Requires shipping"}
+              />
+            </div>
+
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[12px]">
+                  {language === "ar" ? "المنتج معفى من الضريبة" : "Exempt from tax"}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {language === "ar"
+                    ? "السطر ده مش هيتحسب عليه ضريبة، وهيظهر معفى في الفاتورة."
+                    : "This line is excluded from the taxable base and shows as exempt on the invoice."}
+                </p>
+              </div>
+              <Switch
+                checked={formTaxExempt}
+                onCheckedChange={setFormTaxExempt}
+                aria-label={language === "ar" ? "معفى من الضريبة" : "Tax exempt"}
+              />
+            </div>
+
+            <div className="space-y-3 border-t border-border/40 pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[12px]">
+                  {language === "ar" ? "تفعيل خصم" : "Enable discount"}
+                </p>
+                <Switch
+                  checked={formSaleEnabled}
+                  onCheckedChange={setFormSaleEnabled}
+                  aria-label={language === "ar" ? "تفعيل خصم" : "Enable discount"}
+                />
+              </div>
+
+              {formSaleEnabled && (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">
+                      {language === "ar" ? "سعر الخصم" : "Discount price"}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formSalePrice}
+                      onChange={(e) => setFormSalePrice(e.target.value)}
+                      placeholder={formPrice || "0"}
+                      className="h-9"
+                    />
+                    {formSalePrice &&
+                      formPrice &&
+                      Number(formSalePrice) >= Number(formPrice) && (
+                        <p className="text-[10px] text-amber-600">
+                          {language === "ar"
+                            ? "سعر الخصم لازم يكون أقل من السعر الأساسي."
+                            : "A discount price should be below the regular price."}
+                        </p>
+                      )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[12px]">
+                      {language === "ar" ? "جدولة الخصم" : "Schedule discount"}
+                    </p>
+                    <Switch
+                      checked={formSaleScheduled}
+                      onCheckedChange={setFormSaleScheduled}
+                      aria-label={language === "ar" ? "جدولة الخصم" : "Schedule discount"}
+                    />
+                  </div>
+
+                  {formSaleScheduled && (
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">
+                          {language === "ar" ? "يبدأ" : "Starts"}
+                        </Label>
+                        <Input
+                          type="datetime-local"
+                          value={formSaleStart}
+                          onChange={(e) => setFormSaleStart(e.target.value)}
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">
+                          {language === "ar" ? "ينتهي" : "Ends"}
+                        </Label>
+                        <Input
+                          type="datetime-local"
+                          value={formSaleEnd}
+                          onChange={(e) => setFormSaleEnd(e.target.value)}
+                          className="h-9"
+                        />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {language === "ar"
+                          ? "سيبها فاضية يعني بدون حد — الخصم يفضل شغال لحد ما توقفه."
+                          : "Leave either empty for no bound — the discount runs until you end it."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2 border-t border-border/40 pt-3">
+              <div className="min-w-0">
+                <p className="text-[12px]">
+                  {language === "ar" ? "المنتجات المشابهة" : "Customize similar products"}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {language === "ar"
+                    ? "اللي تختاره هيظهر أسفل صفحة المنتج بدل الاقتراح التلقائي."
+                    : "What you choose replaces the automatic suggestions at the bottom of the page."}
+                </p>
+              </div>
+              <RelatedProductsPicker
+                storeId={storeId}
+                currentProductId={productId}
+                value={formRelatedIds}
+                onChange={setFormRelatedIds}
+                isAr={language === "ar"}
+              />
             </div>
           </div>
         </div>

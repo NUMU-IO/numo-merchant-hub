@@ -263,6 +263,9 @@ const Products = () => {
 
   const statusConfig: Record<ProductStatus, { bg: string; dot: string }> = {
     published: { bg: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-800/40", dot: "bg-emerald-500" },
+    // Live, but reachable only by direct link. Blue rather than a shade of
+    // the published green — it is a different state, not a weaker one.
+    unlisted: { bg: "bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-200/60 dark:border-sky-800/40", dot: "bg-sky-500" },
     draft: { bg: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200/60 dark:border-amber-800/40", dot: "bg-amber-500" },
     archived: { bg: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-700/40", dot: "bg-zinc-400" },
   };

@@ -1,4 +1,7 @@
-export type ProductStatus = "published" | "draft" | "archived";
+/** "unlisted" = reachable by direct link but absent from the catalogue,
+ *  search and feeds. The API calls the published state "active"; the hub
+ *  has always said "published", and `toDisplayStatus` bridges the two. */
+export type ProductStatus = "published" | "unlisted" | "draft" | "archived";
 
 export interface ProductVariant {
   id: string;
