@@ -14,7 +14,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { DesktopOnlyRoute } from "@/components/layout/DesktopOnlyRoute";
 import { QueryPersistGate } from "@/components/QueryPersistGate";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { NumuRingScreen } from "@/components/NumuLoader/RingLoader";
+import { BrandLoadingScreen } from "@/components/NumuLoader/BrandLoader";
 import { FirstLoginGate } from "@/components/NumuLoader/FirstLoginGate";
 import { PageLoader } from "@/components/PageLoader";
 import { Suspense } from "react";
@@ -187,10 +187,10 @@ for (const key of [["dashboard"], ["products"]]) {
 /** Redirects unauthenticated users to /login */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, bootError } = useAuth();
-  if (isLoading) return <NumuRingScreen />;
+  if (isLoading) return <BrandLoadingScreen />;
   // Server unreachable with no cached session: offline screen + Retry,
   // not a bounce to /login (whose chunk may not even be cached).
-  if (bootError && !isAuthenticated) return <NumuRingScreen error />;
+  if (bootError && !isAuthenticated) return <BrandLoadingScreen error />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -209,10 +209,10 @@ function RouteResolver({ children }: { children: React.ReactNode }) {
 
   // Single loading state for all checks
   if (authLoading || (isAuthenticated && storeLoading)) {
-    return <NumuRingScreen />;
+    return <BrandLoadingScreen />;
   }
 
-  if (bootError && !isAuthenticated) return <NumuRingScreen error />;
+  if (bootError && !isAuthenticated) return <BrandLoadingScreen error />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user && !user.is_verified) return <Navigate to="/verify-email" replace />;
   if (!hasStores) return <Navigate to="/create-store" replace />;

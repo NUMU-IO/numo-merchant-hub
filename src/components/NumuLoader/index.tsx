@@ -1,7 +1,7 @@
 /**
  * NUMU Welcome Screen — full-screen tapping-hand animation.
  * Shown ONCE per account: the first login of a freshly registered user
- * (see FirstLoginGate). All routine loading uses RingLoader instead.
+ * (see FirstLoginGate). All routine loading uses BrandLoader instead.
  * Credit: adapted from Uiverse.io by Pradeepsaranbishnoi.
  */
 
