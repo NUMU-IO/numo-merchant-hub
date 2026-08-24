@@ -2,6 +2,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { NumuLoaderPanel } from "@/components/ui/numu-loader";
 import { Users, Crown, Heart, AlertTriangle, UserX, UserPlus, Sparkles, DollarSign } from "lucide-react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { getCustomerSegments } from "@/services/analyticsApi";
@@ -49,6 +51,7 @@ export function CustomersTab({ range, formatCurrency }: CustomersTabProps) {
   });
 
   const data = segmentsQuery.data ?? null;
+  const isLoading = segmentsQuery.isLoading && !data;
 
   return (
     <div className="space-y-4">
@@ -59,7 +62,23 @@ export function CustomersTab({ range, formatCurrency }: CustomersTabProps) {
 
       {/* RFM Segment Cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {data && data.segments.length > 0 ? (
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i} className="border-border/60">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-9 w-9 rounded-lg" />
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-3.5 w-24" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                </div>
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-full" />
+              </CardContent>
+            </Card>
+          ))
+        ) : data && data.segments.length > 0 ? (
           data.segments.map((seg) => {
             const config = SEGMENT_CONFIG[seg.segment] || SEGMENT_CONFIG.Potential;
             const Icon = config.icon;
@@ -112,7 +131,13 @@ export function CustomersTab({ range, formatCurrency }: CustomersTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {data && data.cohorts.length > 0 ? (
+            {isLoading ? (
+              <div className="space-y-2 py-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-6 w-full" />
+                ))}
+              </div>
+            ) : data && data.cohorts.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
                   <thead>
@@ -138,7 +163,17 @@ export function CustomersTab({ range, formatCurrency }: CustomersTabProps) {
                         {[0, 1, 2, 3, 4, 5].map((i) => {
                           const val = cohort.retention[i];
                           if (val === undefined) {
-                            return <td key={i} className="p-1.5" />;
+                            // A month that hasn't happened yet. An empty <td>
+                            // left the newest cohort as a row of blanks that
+                            // read as a broken table rather than "not due".
+                            return (
+                              <td
+                                key={i}
+                                className="text-center p-1.5 text-muted-foreground/50"
+                              >
+                                —
+                              </td>
+                            );
                           }
                           const intensity = Math.min(val / 50, 1);
                           return (
@@ -146,8 +181,13 @@ export function CustomersTab({ range, formatCurrency }: CustomersTabProps) {
                               <div
                                 className="rounded px-1.5 py-0.5 font-semibold tabular-nums mx-auto w-fit"
                                 style={{
+                                  // Tint only. The old rule flipped the text
+                                  // to `primary-foreground` above intensity
+                                  // 0.4, but the background peaks at 43%
+                                  // alpha — never dark enough to carry it, so
+                                  // the strongest cohorts rendered as white
+                                  // text on a pale wash.
                                   backgroundColor: `hsl(var(--primary) / ${0.08 + intensity * 0.35})`,
-                                  color: intensity > 0.4 ? "hsl(var(--primary-foreground))" : undefined,
                                 }}
                               >
                                 {val}%
@@ -175,7 +215,12 @@ export function CustomersTab({ range, formatCurrency }: CustomersTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {data ? (
+            {isLoading ? (
+              <NumuLoaderPanel
+                minHeight={190}
+                caption={isAr ? "جارِ حساب القيمة" : "Calculating"}
+              />
+            ) : data ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   {[

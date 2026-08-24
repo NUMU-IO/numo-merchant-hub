@@ -2,6 +2,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { NumuLoaderPanel } from "@/components/ui/numu-loader";
 import {
   ShoppingCart, Clock, Calendar, CreditCard,
 } from "lucide-react";
@@ -65,6 +66,10 @@ export function OrdersTab({ range, formatCurrency }: OrdersTabProps) {
   });
 
   const breakdown = breakdownQuery.data ?? null;
+  // `breakdown` is null for the whole first fetch, and every card below
+  // treats null as "no data" — so the page opened on five simultaneous
+  // "مفيش بيانات" panels before the response landed.
+  const isLoading = breakdownQuery.isLoading && !breakdown;
 
   const statusChartData = breakdown?.by_status.map((s) => ({
     name: isAr ? (STATUS_LABELS_AR[s.status] || s.status) : s.status.replace("_", " "),
@@ -123,7 +128,7 @@ export function OrdersTab({ range, formatCurrency }: OrdersTabProps) {
                 </div>
               </div>
             ) : (
-              <EmptyState icon={ShoppingCart} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
+              <ChartPlaceholder loading={isLoading} icon={ShoppingCart} isAr={isAr} />
             )}
           </CardContent>
         </Card>
@@ -140,6 +145,8 @@ export function OrdersTab({ range, formatCurrency }: OrdersTabProps) {
             {breakdown && breakdown.by_payment_method.length > 0 ? (
               <div className="space-y-3">
                 {breakdown.by_payment_method.map((pm) => {
+                  // by_payment_method arrives revenue-sorted, so the first
+                  // row is the scale for every bar.
                   const maxRevenue = breakdown.by_payment_method[0]?.revenue || 1;
                   const width = (pm.revenue / maxRevenue) * 100;
                   return (
@@ -164,7 +171,7 @@ export function OrdersTab({ range, formatCurrency }: OrdersTabProps) {
                 })}
               </div>
             ) : (
-              <EmptyState icon={CreditCard} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
+              <ChartPlaceholder loading={isLoading} icon={CreditCard} isAr={isAr} />
             )}
           </CardContent>
         </Card>
@@ -194,7 +201,7 @@ export function OrdersTab({ range, formatCurrency }: OrdersTabProps) {
                 ))}
               </div>
             ) : (
-              <EmptyState icon={Clock} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
+              <ChartPlaceholder loading={isLoading} icon={Clock} isAr={isAr} />
             )}
           </CardContent>
         </Card>
@@ -213,33 +220,43 @@ export function OrdersTab({ range, formatCurrency }: OrdersTabProps) {
           <CardContent>
             {breakdown && breakdown.by_day_of_week.length > 0 ? (
               <div className="space-y-2">
-                {breakdown.by_day_of_week.map((d) => {
-                  const maxOrders = Math.max(...breakdown.by_day_of_week.map((x) => x.orders));
-                  const intensity = maxOrders > 0 ? d.orders / maxOrders : 0;
-                  return (
-                    <div key={d.day} className="flex items-center gap-3">
-                      <span className="text-[11px] font-medium text-muted-foreground w-16 shrink-0 truncate">
-                        {isAr ? (DAY_LABELS_AR[d.day] || d.day) : d.day.slice(0, 3)}
-                      </span>
-                      <div className="flex-1 h-6 bg-muted rounded overflow-hidden relative">
-                        <div
-                          className="h-full rounded transition-all duration-500"
-                          style={{
-                            width: `${intensity * 100}%`,
-                            backgroundColor: `hsl(var(--primary) / ${0.3 + intensity * 0.7})`,
-                          }}
-                        />
-                      </div>
-                      <div className="text-end shrink-0 w-20">
-                        <span className="text-[12px] font-semibold tabular-nums">{d.orders}</span>
-                        <span className="text-[10px] text-muted-foreground ml-1">{formatCurrency(d.revenue)}</span>
-                      </div>
-                    </div>
+                {(() => {
+                  // Hoisted: this was a full re-scan of the array inside the
+                  // row map, recomputing the same maximum seven times.
+                  const maxOrders = Math.max(
+                    ...breakdown.by_day_of_week.map((x) => x.orders),
                   );
-                })}
+                  return breakdown.by_day_of_week.map((d) => {
+                    const intensity = maxOrders > 0 ? d.orders / maxOrders : 0;
+                    return (
+                      <div key={d.day} className="flex items-center gap-3">
+                        <span className="text-[11px] font-medium text-muted-foreground w-16 shrink-0 truncate">
+                          {isAr ? (DAY_LABELS_AR[d.day] || d.day) : d.day.slice(0, 3)}
+                        </span>
+                        <div className="flex-1 h-6 bg-muted rounded overflow-hidden relative">
+                          <div
+                            className="h-full rounded transition-all duration-500"
+                            style={{
+                              width: `${intensity * 100}%`,
+                              backgroundColor: `hsl(var(--primary) / ${0.3 + intensity * 0.7})`,
+                            }}
+                          />
+                        </div>
+                        {/* w-20 was too narrow for a count AND a currency
+                            amount, so the revenue spilled over the bar.
+                            `ml-1` is a PHYSICAL margin: in Arabic it put the
+                            gap on the wrong side of the number. */}
+                        <div className="text-end shrink-0 w-28 whitespace-nowrap">
+                          <span className="text-[12px] font-semibold tabular-nums">{d.orders}</span>
+                          <span className="text-[10px] text-muted-foreground ms-1">{formatCurrency(d.revenue)}</span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             ) : (
-              <EmptyState icon={Calendar} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
+              <ChartPlaceholder loading={isLoading} icon={Calendar} isAr={isAr} />
             )}
           </CardContent>
         </Card>
@@ -270,6 +287,10 @@ export function OrdersTab({ range, formatCurrency }: OrdersTabProps) {
                       tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
                       axisLine={false}
                       tickLine={false}
+                      // Orders are whole things. On a low-volume store the
+                      // busiest hour is 2 and recharts drew 0, 0.5, 1, 1.5, 2
+                      // — half an order is not a quantity that exists.
+                      allowDecimals={false}
                     />
                     <Tooltip
                       contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", fontSize: "12px" }}
@@ -281,11 +302,44 @@ export function OrdersTab({ range, formatCurrency }: OrdersTabProps) {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <EmptyState icon={Clock} title={isAr ? "مفيش بيانات" : "No data"} className="py-6" />
+              <ChartPlaceholder loading={isLoading} icon={Clock} isAr={isAr} />
             )}
           </CardContent>
         </Card>
       </div>
     </div>
+  );
+}
+
+/**
+ * One card's body while it has nothing to draw: the brand loader during
+ * the first fetch, the empty state only once we know the answer is
+ * genuinely "none". A chart's skeleton was never informative — the bar
+ * shapes it drew bore no relation to the chart that replaced them — so
+ * the mark carries the wait instead.
+ */
+function ChartPlaceholder({
+  loading,
+  icon,
+  isAr,
+}: {
+  loading: boolean;
+  icon: typeof ShoppingCart;
+  isAr: boolean;
+}) {
+  if (loading) {
+    return (
+      <NumuLoaderPanel
+        minHeight={150}
+        caption={isAr ? "جارِ التحميل" : "Loading"}
+      />
+    );
+  }
+  return (
+    <EmptyState
+      icon={icon}
+      title={isAr ? "مفيش بيانات" : "No data"}
+      className="py-6"
+    />
   );
 }

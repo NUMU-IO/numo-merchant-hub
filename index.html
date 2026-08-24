@@ -38,12 +38,58 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="NUMU" />
 
+    <!-- iOS launch screens. Unlike Android, iOS does NOT derive a launch
+         screen from the web app manifest — an installed PWA with no
+         `apple-touch-startup-image` launches to a blank screen. Each image
+         must match a device's EXACT pixel dimensions or iOS silently
+         ignores it and falls back to blank, which is why these are
+         enumerated per device rather than generated from a formula.
+         Only the one matching entry is ever downloaded (~19 KB).
+         Light and dark both ship because the app boots into the merchant's
+         stored theme; a dark-theme merchant would otherwise get a white
+         flash before first paint. Regenerate with
+         scripts/gen-ios-splash.py after changing the mark or backgrounds. -->
+    <link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-1170x2532-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-1170x2532-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-1179x2556-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-1179x2556-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-1206x2622-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-1206x2622-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-1284x2778-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-1284x2778-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-1290x2796-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-1290x2796-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-1320x2868-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-1320x2868-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-1125x2436-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-1125x2436-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-1242x2688-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-1242x2688-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-828x1792-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-828x1792-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-750x1334-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-750x1334-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-1536x2048-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-1536x2048-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-1668x2224-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-1668x2224-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-1668x2388-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-1668x2388-dark.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: light)" href="/pwa/ios/splash-2048x2732-light.png" />
+    <link rel="apple-touch-startup-image" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)" href="/pwa/ios/splash-2048x2732-dark.png" />
+
     <meta property="og:title" content="NUMU - Merchant Dashboard" />
     <meta property="og:description" content="NUMU Merchant Dashboard — manage your e-commerce store" />
     <meta property="og:type" content="website" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="preload" href="/numu-n-mark.jpg" as="image" type="image/jpeg" />
+    <!-- The splash mark below is drawn with `mask-image`, and an element
+         whose mask has not loaded yet paints UNMASKED — a saffron rectangle
+         for a frame or two on first visit. Preloading it is what keeps the
+         very first paint the letterform. (This slot used to preload
+         `numu-n-mark.jpg` for the old ring splash; that asset is still used
+         by the dashboard hero card, but it is no longer first paint.) -->
+    <link rel="preload" href="/numu-mark-mask.webp" as="image" type="image/webp" />
 
     <!-- Theme bootstrap — MUST run before first paint. next-themes owns
          `localStorage.theme` ("light" | "dark" | "system") and the `.dark`
@@ -91,23 +137,51 @@
            spinner on a warm cream track. Replaced by React on mount. -->
       <div id="numu-splash" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#FFFFFF;z-index:200">
         <div style="position:relative;width:104px;height:104px;display:grid;place-items:center">
-          <div style="width:60px;height:60px;border-radius:17px;overflow:hidden;box-shadow:0 1px 3px rgba(20,37,61,.05),0 12px 28px -16px rgba(20,37,61,.32);animation:nl-breathe 1.8s ease-in-out infinite">
-            <img src="/numu-n-mark.jpg" alt="NUMU" width="60" height="60" style="display:block;width:100%;height:100%;object-fit:cover">
-          </div>
-          <svg style="position:absolute;inset:0;transform:rotate(-90deg)" viewBox="0 0 104 104">
-            <circle cx="52" cy="52" r="50" fill="none" stroke="#ECEAE3" stroke-width="4"/>
-            <circle cx="52" cy="52" r="50" fill="none" stroke="#E89A2C" stroke-width="4" stroke-linecap="round" stroke-dasharray="80 220" style="transform-origin:center;animation:nl-spin 1.05s cubic-bezier(.5,.15,.4,.9) infinite"/>
-          </svg>
+          <div id="numu-splash-mark"></div>
         </div>
         <style>
-          @keyframes nl-spin { to { transform: rotate(360deg) } }
-          @keyframes nl-breathe { 0%,100% { transform: scale(1) } 50% { transform: scale(1.06) } }
+          /* The N is applied as a MASK, so the div's own background is what
+             gets clipped to the letterform — that is what lets the saffron
+             fill climb through the mark. Duplicated from `.numu-mark` in
+             src/index.css because this paints before the CSS bundle loads;
+             the React BrandLoader must stay identical or the splash-to-app
+             handoff jumps. 496:528 is the asset's aspect ratio. */
+          #numu-splash-mark {
+            width: 69px;
+            height: 73px;
+            -webkit-mask-image: url("/numu-mark-mask.webp");
+            mask-image: url("/numu-mark-mask.webp");
+            -webkit-mask-size: contain;
+            mask-size: contain;
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+            -webkit-mask-position: center;
+            mask-position: center;
+            background-image: linear-gradient(to top, #E89A2C 50%, #DDD6C8 50%);
+            background-size: 100% 200%;
+            animation: numu-mark-rise 1.6s cubic-bezier(.4, 0, .2, 1) infinite;
+          }
+          @keyframes numu-mark-rise {
+            0%   { background-position: 0 0%; }
+            62%  { background-position: 0 100%; }
+            100% { background-position: 0 100%; }
+          }
           /* Follows the `.dark` class the bootstrap script above sets from
              the STORED theme (falling back to the OS scheme) — not the raw
              media query — so a merchant who chose dark on a light OS, or
              vice-versa, gets a splash that matches the app that follows. */
           .dark #numu-splash { background: #0B1420 }
-          .dark #numu-splash svg circle:first-of-type { stroke: #25344A }
+          .dark #numu-splash-mark {
+            background-image: linear-gradient(to top, #E89A2C 50%, #25344A 50%);
+          }
+          @media (prefers-reduced-motion: reduce) {
+            #numu-splash-mark {
+              animation: none;
+              background-image: none;
+              background-color: #E89A2C;
+              opacity: .75;
+            }
+          }
         </style>
       </div>
     </div>

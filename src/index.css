@@ -1335,6 +1335,80 @@
     }
   }
 
+  /* ── Brand loading mark ────────────────────────────────────────────
+     The N is applied as a MASK, not an image, so the element's own
+     background is what gets clipped to the silhouette — that is what
+     lets a fill animate through the letterform. `numu-mark-mask.webp`
+     is kept as a separate asset from the other marks precisely because
+     its alpha channel is load-bearing here: swapping in a version with
+     a baked background would silently turn every loader into a square.
+
+     Aspect ratio is 496:528 — the height is derived from the width so a
+     caller only ever sets `--numu-mark-size`. */
+  .numu-mark {
+    width: var(--numu-mark-size, 44px);
+    height: calc(var(--numu-mark-size, 44px) * 1.0645);
+    flex: none;
+    -webkit-mask-image: url("/numu-mark-mask.webp");
+    mask-image: url("/numu-mark-mask.webp");
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+
+  /* Saffron floods bottom-to-top, holds, resets. The hard colour stop at
+     50% of a 200%-tall gradient means moving background-position moves a
+     crisp fill line. */
+  .numu-mark--rise {
+    background-image: linear-gradient(
+      to top,
+      hsl(var(--saffron)) 50%,
+      hsl(var(--muted-foreground) / 0.28) 50%
+    );
+    background-size: 100% 200%;
+    animation: numu-mark-rise 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  @keyframes numu-mark-rise {
+    0%   { background-position: 0 0%; }
+    62%  { background-position: 0 100%; }
+    100% { background-position: 0 100%; }
+  }
+
+  /* Opacity only. Below ~28px a rising fill line is two pixels of travel
+     and reads as flicker, so small sizes pulse instead. */
+  .numu-mark--breathe {
+    background-color: hsl(var(--saffron));
+    animation: numu-mark-breathe 1.5s ease-in-out infinite;
+  }
+  @keyframes numu-mark-breathe {
+    0%, 100% { opacity: 0.28; }
+    50%      { opacity: 1; }
+  }
+
+  /* Determinate: same fill, driven by --numu-mark-progress instead of a
+     clock. Transitioned so an updating percentage climbs rather than jumps. */
+  .numu-mark--progress {
+    background-image: linear-gradient(
+      to top,
+      hsl(var(--saffron)) var(--numu-mark-progress, 0%),
+      hsl(var(--muted-foreground) / 0.28) var(--numu-mark-progress, 0%)
+    );
+    transition: background-image 0.3s linear;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .numu-mark--rise,
+    .numu-mark--breathe {
+      animation: none;
+      background-image: none;
+      background-color: hsl(var(--saffron));
+      opacity: 0.75;
+    }
+  }
+
   /* Floating save pill must clear the mobile bottom tab bar. */
   @media (max-width: 768px) {
     .settings-save-bar {
