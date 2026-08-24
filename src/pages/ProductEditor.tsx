@@ -17,6 +17,15 @@ import {
   productToApiUpdate,
 } from "@/services/productApi";
 import { prepareImageForUpload } from "@/lib/image-validation";
+import { SortableImageGrid } from "@/components/products/SortableImageGrid";
+
+/** An image chosen for a product that does not exist yet. `url` is an
+ *  object URL created once at add time and revoked when the editor
+ *  unmounts or the image is dropped — never on a reorder. */
+interface PendingImage {
+  url: string;
+  file: File;
+}
 import { updateStore } from "@/services/storeApi";
 import {
   getProductLabels,
@@ -234,17 +243,28 @@ const ProductEditor = () => {
   const [savingStoreDefault, setSavingStoreDefault] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formImages, setFormImages] = useState<string[]>([]);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  // Each pending upload carries the object URL created for it ONCE, at add
+  // time. Deriving previews from the file list instead (a useMemo over
+  // pendingFiles) revoked and recreated every URL on any change to the
+  // list — including a reorder — so dragging an image made the whole grid
+  // blink and briefly lose its `src`.
+  const [pendingFiles, setPendingFiles] = useState<PendingImage[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [validatingImage, setValidatingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [previewIdx, setPreviewIdx] = useState(0);
 
-  const pendingPreviews = useMemo(() => pendingFiles.map(f => URL.createObjectURL(f)), [pendingFiles]);
+  const pendingPreviews = useMemo(() => pendingFiles.map(p => p.url), [pendingFiles]);
+  // Revoke only on unmount. Per-image revocation happens where an image is
+  // actually removed; revoking on every list change is what broke reorder.
+  const pendingFilesRef = useRef(pendingFiles);
+  pendingFilesRef.current = pendingFiles;
   useEffect(() => {
-    return () => { pendingPreviews.forEach(url => URL.revokeObjectURL(url)); };
-  }, [pendingPreviews]);
+    return () => {
+      pendingFilesRef.current.forEach(p => URL.revokeObjectURL(p.url));
+    };
+  }, []);
 
   useEffect(() => {
     if (!storeId) return;
@@ -382,7 +402,10 @@ const ProductEditor = () => {
         setUploadingImage(false);
       }
     } else {
-      setPendingFiles(prev => [...prev, fileToUpload]);
+      setPendingFiles(prev => [
+        ...prev,
+        { url: URL.createObjectURL(fileToUpload), file: fileToUpload },
+      ]);
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -589,9 +612,12 @@ const ProductEditor = () => {
           (payload.attributes as Record<string, unknown>).label = formLabel;
         }
         const created = await apiCreateProduct(storeId, payload);
-        for (const file of pendingFiles) {
+        // Sequential, not Promise.all: the server appends, so concurrent
+        // uploads would land in completion order and throw away the order
+        // the merchant just arranged.
+        for (const pending of pendingFiles) {
           try {
-            await uploadProductImage(storeId, created.id, file);
+            await uploadProductImage(storeId, created.id, pending.file);
           } catch { /* image upload failure is non-blocking */ }
         }
         toast.success(language === "ar" ? "المنتج اتضاف!" : "Product added successfully!");
@@ -746,21 +772,13 @@ const ProductEditor = () => {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-            {formImages.map((url) => (
-              <div key={url} className="space-y-1.5">
-                <div className="relative group aspect-square">
-                  <img src={url} alt={imageAlts[url] || ""} className="h-full w-full rounded-xl object-cover bg-muted ring-1 ring-border/20" />
-                  {isEditMode && (
-                    <button
-                      type="button"
-                      onClick={() => handleImageDelete(url)}
-                      className="absolute top-1.5 right-1.5 h-6 w-6 rounded-lg bg-black/60 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-black/80"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-                {isEditMode && productId && (
+            <SortableImageGrid
+              images={formImages}
+              onReorder={setFormImages}
+              onRemove={isEditMode ? handleImageDelete : undefined}
+              isAr={language === "ar"}
+              renderMeta={(url) =>
+                isEditMode && productId ? (
                   <Input
                     value={imageAlts[url] ?? ""}
                     onChange={(e) => setImageAlts(prev => ({ ...prev, [url]: e.target.value }))}
@@ -772,21 +790,30 @@ const ProductEditor = () => {
                     maxLength={250}
                     className="h-7 text-[11px] rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border"
                   />
-                )}
-              </div>
-            ))}
-            {!isEditMode && pendingPreviews.map((previewUrl, i) => (
-              <div key={i} className="relative group aspect-square">
-                <img src={previewUrl} alt="" className="h-full w-full rounded-xl object-cover bg-muted ring-1 ring-border/20" />
-                <button
-                  type="button"
-                  onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))}
-                  className="absolute top-1.5 right-1.5 h-6 w-6 rounded-lg bg-black/60 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-black/80"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
+                ) : null
+              }
+            />
+            {!isEditMode && (
+              <SortableImageGrid
+                images={pendingPreviews}
+                onReorder={(next) =>
+                  setPendingFiles(prev =>
+                    // Reorder the files to match; upload order is what the
+                    // storefront ends up showing.
+                    next
+                      .map(url => prev.find(p => p.url === url))
+                      .filter((p): p is PendingImage => Boolean(p)),
+                  )
+                }
+                onRemove={(url) =>
+                  setPendingFiles(prev => {
+                    URL.revokeObjectURL(url);
+                    return prev.filter(p => p.url !== url);
+                  })
+                }
+                isAr={language === "ar"}
+              />
+            )}
             {/* Upload button */}
             <button
               type="button"
