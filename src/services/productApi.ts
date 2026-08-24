@@ -19,7 +19,7 @@ export interface ApiProductResponse {
   description: string | null;
   short_description: string | null;
   product_type: string;
-  status: "active" | "draft" | "archived";
+  status: "active" | "unlisted" | "draft" | "archived";
   price: string;
   price_currency: string;
   compare_at_price: string | null;
@@ -36,6 +36,22 @@ export interface ApiProductResponse {
   image_alts?: Record<string, string> | null;
   seo_title?: string | null;
   seo_description?: string | null;
+  /** Shipping weight in kg. */
+  weight?: string | number | null;
+  /** False for digital goods — checkout collects no address, charges no
+   *  shipping. */
+  requires_shipping?: boolean;
+  /** Zero-rated: the line is excluded from the taxable base. */
+  tax_exempt?: boolean;
+  /** Scheduled sale. `effective_price` is what a customer pays right now;
+   *  `price` stays the list price so it can be struck through. */
+  effective_price?: string | null;
+  sale_price?: string | null;
+  sale_starts_at?: string | null;
+  sale_ends_at?: string | null;
+  sale_is_active?: boolean;
+  /** Curated similar products, replacing the automatic list. */
+  related_product_ids?: string[] | null;
   /** Meta Commerce Catalog product ID — surfaced in ProductEditor's
    *  Marketing pane so merchants can pin their Catalog row IDs. */
   meta_catalog_id?: string | null;
@@ -132,6 +148,18 @@ export interface CreateProductData {
    *  Meta Pixel events as `content_ids` when set, so dynamic ads can
    *  match conversions to a catalog row. Empty string clears the value. */
   meta_catalog_id?: string;
+  /** Shipping weight in kg. Send null to clear it. */
+  weight?: string | number | null;
+  requires_shipping?: boolean;
+  tax_exempt?: boolean;
+  /** Scheduled sale. The three sale fields travel together: send a price
+   *  to start or change one, send them with a null price to end it.
+   *  Omit all three to leave a running sale untouched. */
+  sale_price?: string | null;
+  sale_starts_at?: string | null;
+  sale_ends_at?: string | null;
+  /** Curated similar products. [] falls back to the automatic list. */
+  related_product_ids?: string[];
   /** Shopify-style alternate-template key (e.g. `"wholesale"` →
    *  `product.wholesale`). `null`/omitted = the default `product` template. */
   template_suffix?: string | null;

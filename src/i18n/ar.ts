@@ -322,6 +322,7 @@
     search: "دوّر على منتجات...",
     all: "الكل",
     published: "منشور",
+    unlisted: "برابط فقط",
     draft: "مسودة",
     archived: "مؤرشف",
     name: "الاسم",

@@ -19,6 +19,64 @@ import {
 import { prepareImageForUpload } from "@/lib/image-validation";
 import { SortableImageGrid } from "@/components/products/SortableImageGrid";
 import { ProductSection } from "@/components/products/ProductSection";
+import { RelatedProductsPicker } from "@/components/products/RelatedProductsPicker";
+import { getStoreUrl } from "@/lib/storefront";
+
+/** ISO instant -> the "YYYY-MM-DDTHH:mm" a `datetime-local` input wants.
+ *  Rendered in the merchant's own timezone, which is the one they think
+ *  in when they say "this sale ends Friday at 6". */
+function toLocalInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
+/** The inverse: a local wall-clock string back to an ISO instant. */
+function fromLocalInput(value: string): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** The commerce fields, in wire shape.
+ *
+ *  Applied to the built payload rather than passed through
+ *  `productToApiCreate` / `productToApiUpdate`: those mappers copy a fixed
+ *  set of `ProductFormData` keys into a fresh object, so anything they
+ *  don't know about is silently dropped.
+ */
+function commercePayload(args: {
+  weight: string;
+  requiresShipping: boolean;
+  taxExempt: boolean;
+  saleEnabled: boolean;
+  salePrice: string;
+  saleScheduled: boolean;
+  saleStart: string;
+  saleEnd: string;
+  relatedIds: string[];
+}) {
+  const saleOn = args.saleEnabled && Boolean(args.salePrice.trim());
+  return {
+    weight: args.weight.trim() ? args.weight.trim() : null,
+    requires_shipping: args.requiresShipping,
+    tax_exempt: args.taxExempt,
+    // The sale travels as a group. A null price is what ENDS a running
+    // sale — omitting the keys would leave it live, so the merchant could
+    // never switch a discount off.
+    sale_price: saleOn ? args.salePrice.trim() : null,
+    sale_starts_at:
+      saleOn && args.saleScheduled ? fromLocalInput(args.saleStart) : null,
+    sale_ends_at:
+      saleOn && args.saleScheduled ? fromLocalInput(args.saleEnd) : null,
+    related_product_ids: args.relatedIds,
+  };
+}
 
 /** An image chosen for a product that does not exist yet. `url` is an
  *  object URL created once at add time and revoked when the editor
@@ -64,6 +122,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, X, ImagePlus, Loader2, Save, Undo2, Layers, Hash,
+  Copy, ExternalLink,
   Minus, Pencil, ShoppingCart, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -256,6 +315,21 @@ const ProductEditor = () => {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [previewIdx, setPreviewIdx] = useState(0);
 
+  // ── Commerce controls (API: feat/product-commerce-controls) ──────────
+  const [formWeight, setFormWeight] = useState("");
+  const [formRequiresShipping, setFormRequiresShipping] = useState(true);
+  const [formTaxExempt, setFormTaxExempt] = useState(false);
+  // The sale is one unit: the toggle owns whether a sale exists at all,
+  // and the schedule sub-toggle owns whether it has a window. Turning the
+  // discount off must send the group with a null price to END the sale —
+  // just clearing the input would leave the running sale in place.
+  const [formSaleEnabled, setFormSaleEnabled] = useState(false);
+  const [formSalePrice, setFormSalePrice] = useState("");
+  const [formSaleScheduled, setFormSaleScheduled] = useState(false);
+  const [formSaleStart, setFormSaleStart] = useState("");
+  const [formSaleEnd, setFormSaleEnd] = useState("");
+  const [formRelatedIds, setFormRelatedIds] = useState<string[]>([]);
+
   const pendingPreviews = useMemo(() => pendingFiles.map(p => p.url), [pendingFiles]);
   // Revoke only on unmount. Per-image revocation happens where an image is
   // actually removed; revoking on every list change is what broke reorder.
@@ -296,6 +370,18 @@ const ProductEditor = () => {
         setFormImages(p.images.filter(img => img !== "📦"));
         setFormBrand(api.brand || "");
         setImageAlts((api.image_alts as Record<string, string>) || {});
+        setFormWeight(api.weight != null ? String(api.weight) : "");
+        setFormRequiresShipping(api.requires_shipping !== false);
+        setFormTaxExempt(Boolean(api.tax_exempt));
+        setFormSaleEnabled(api.sale_price != null);
+        setFormSalePrice(api.sale_price != null ? String(api.sale_price) : "");
+        // `datetime-local` wants "YYYY-MM-DDTHH:mm" with no zone or seconds.
+        setFormSaleStart(toLocalInput(api.sale_starts_at));
+        setFormSaleEnd(toLocalInput(api.sale_ends_at));
+        setFormSaleScheduled(
+          Boolean(api.sale_starts_at) || Boolean(api.sale_ends_at),
+        );
+        setFormRelatedIds(api.related_product_ids || []);
         setFormSeoTitle(api.seo_title || "");
         setFormNoindex(Boolean(api.robots_noindex));
         setFormCanonical(api.canonical_url || "");
@@ -541,6 +627,7 @@ const ProductEditor = () => {
           options: canonicalOptions,
           serverVariants: canonicalVariants,
           images: formImages.length > 0 ? formImages : undefined,
+
           brand: formBrand.trim() || undefined,
           seoTitle: formSeoTitle || undefined,
           robotsNoindex: formNoindex,
@@ -551,6 +638,20 @@ const ProductEditor = () => {
           slug: formSlug || undefined,
           templateSuffix: formTemplateSuffix,
         });
+        Object.assign(
+          payload,
+          commercePayload({
+            weight: formWeight,
+            requiresShipping: formRequiresShipping,
+            taxExempt: formTaxExempt,
+            saleEnabled: formSaleEnabled,
+            salePrice: formSalePrice,
+            saleScheduled: formSaleScheduled,
+            saleStart: formSaleStart,
+            saleEnd: formSaleEnd,
+            relatedIds: formRelatedIds,
+          }),
+        );
         if (variantMeta && payload.attributes) {
           (payload.attributes as Record<string, unknown>).variant_meta = variantMeta;
         }
@@ -599,6 +700,20 @@ const ProductEditor = () => {
           slug: formSlug || undefined,
           templateSuffix: formTemplateSuffix,
         });
+        Object.assign(
+          payload,
+          commercePayload({
+            weight: formWeight,
+            requiresShipping: formRequiresShipping,
+            taxExempt: formTaxExempt,
+            saleEnabled: formSaleEnabled,
+            salePrice: formSalePrice,
+            saleScheduled: formSaleScheduled,
+            saleStart: formSaleStart,
+            saleEnd: formSaleEnd,
+            relatedIds: formRelatedIds,
+          }),
+        );
         if (variantMeta && payload.attributes) {
           (payload.attributes as Record<string, unknown>).variant_meta = variantMeta;
         }
@@ -629,7 +744,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formBrand, formSeoTitle, formSeoDesc, formNoindex, formCanonical, formSitemapExclude, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formBrand, formSeoTitle, formSeoDesc, formNoindex, formCanonical, formSitemapExclude, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched, formWeight, formRequiresShipping, formTaxExempt, formSaleEnabled, formSalePrice, formSaleScheduled, formSaleStart, formSaleEnd, formRelatedIds]);
 
   const allLabels = useMemo(
     () => [...PRESET_LABELS, ...customLabels],
@@ -689,6 +804,13 @@ const ProductEditor = () => {
       </div>
     );
   }
+
+  // The public URL of this product. Built from the store's subdomain the
+  // same way ThemePreview does, so a custom domain that has not propagated
+  // yet still yields a link that works.
+  const storefrontUrl = currentStore?.subdomain && formSlug
+    ? `${getStoreUrl(currentStore.subdomain)}/products/${formSlug}`
+    : "";
 
   const totalImages = formImages.length + pendingPreviews.length;
 
@@ -1694,6 +1816,250 @@ const ProductEditor = () => {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* ── Online store ───────────────────────────────────────────
+              Three genuinely different states, not two with a label. The
+              API backs each: "active" is listed and reachable, "unlisted"
+              is reachable ONLY by link (absent from the catalogue, search,
+              feeds and the sitemap), "draft" is reachable by nobody. */}
+          <div className="mt-4 rounded-xl border border-border/60 bg-card p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] font-semibold">
+                {language === "ar" ? "عرض المنتج" : "Show product"}
+              </span>
+              <Switch
+                checked={formStatus !== "draft"}
+                onCheckedChange={(on) =>
+                  // Turning it back on returns to fully published rather than
+                  // guessing at unlisted — the segmented control below is
+                  // where "link only" is chosen deliberately.
+                  setFormStatus(on ? "published" : "draft")
+                }
+                aria-label={language === "ar" ? "عرض المنتج" : "Show product"}
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted/50 p-1">
+              {([
+                { value: "draft", ar: "مخفي", en: "Hidden" },
+                { value: "unlisted", ar: "برابط", en: "Link" },
+                { value: "published", ar: "منشور", en: "Published" },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setFormStatus(opt.value)}
+                  aria-pressed={formStatus === opt.value}
+                  className={`rounded-md py-1.5 text-[11px] font-semibold transition-colors ${
+                    formStatus === opt.value
+                      ? "bg-background shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {language === "ar" ? opt.ar : opt.en}
+                </button>
+              ))}
+            </div>
+
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              {formStatus === "unlisted"
+                ? language === "ar"
+                  ? "يفتح بالرابط المباشر فقط — مش هيظهر في المتجر ولا نتائج البحث."
+                  : "Opens only with the direct link — hidden from your store and from search."
+                : formStatus === "draft"
+                  ? language === "ar"
+                    ? "مش ظاهر لأي حد."
+                    : "Not visible to anyone."
+                  : language === "ar"
+                    ? "ظاهر في المتجر وفي نتائج البحث."
+                    : "Listed in your store and in search."}
+            </p>
+
+            {isEditMode && formSlug && (
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] rounded-lg"
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(storefrontUrl)
+                      .then(() =>
+                        toast.success(
+                          language === "ar" ? "اتنسخ الرابط" : "Link copied",
+                        ),
+                      )
+                      .catch(() => showError(new Error("clipboard"), language));
+                  }}
+                >
+                  <Copy className="h-3 w-3 me-1" />
+                  {language === "ar" ? "نسخ الرابط" : "Copy link"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] rounded-lg"
+                  asChild
+                >
+                  <a href={storefrontUrl} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-3 w-3 me-1" />
+                    {language === "ar" ? "معاينة" : "Preview"}
+                  </a>
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Additional details ─────────────────────────────────────
+              Every switch here changes what the storefront and checkout
+              actually do — see NUMU-api feat/product-commerce-controls. */}
+          <div className="mt-4 rounded-xl border border-border/60 bg-card p-4 space-y-4">
+            <p className="text-[13px] font-bold">
+              {language === "ar" ? "تفاصيل إضافية" : "Additional details"}
+            </p>
+
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[12px]">
+                  {language === "ar" ? "المنتج يحتاج شحن" : "Product requires shipping"}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {language === "ar"
+                    ? "لو قفلته، الطلب اللي فيه المنتج ده بس مش هياخد عنوان ولا مصاريف شحن."
+                    : "Off means an order of only this product collects no address and charges no shipping."}
+                </p>
+              </div>
+              <Switch
+                checked={formRequiresShipping}
+                onCheckedChange={setFormRequiresShipping}
+                aria-label={language === "ar" ? "المنتج يحتاج شحن" : "Requires shipping"}
+              />
+            </div>
+
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[12px]">
+                  {language === "ar" ? "المنتج معفى من الضريبة" : "Exempt from tax"}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {language === "ar"
+                    ? "السطر ده مش هيتحسب عليه ضريبة، وهيظهر معفى في الفاتورة."
+                    : "This line is excluded from the taxable base and shows as exempt on the invoice."}
+                </p>
+              </div>
+              <Switch
+                checked={formTaxExempt}
+                onCheckedChange={setFormTaxExempt}
+                aria-label={language === "ar" ? "معفى من الضريبة" : "Tax exempt"}
+              />
+            </div>
+
+            <div className="space-y-3 border-t border-border/40 pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[12px]">
+                  {language === "ar" ? "تفعيل خصم" : "Enable discount"}
+                </p>
+                <Switch
+                  checked={formSaleEnabled}
+                  onCheckedChange={setFormSaleEnabled}
+                  aria-label={language === "ar" ? "تفعيل خصم" : "Enable discount"}
+                />
+              </div>
+
+              {formSaleEnabled && (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">
+                      {language === "ar" ? "سعر الخصم" : "Discount price"}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formSalePrice}
+                      onChange={(e) => setFormSalePrice(e.target.value)}
+                      placeholder={formPrice || "0"}
+                      className="h-9"
+                    />
+                    {formSalePrice &&
+                      formPrice &&
+                      Number(formSalePrice) >= Number(formPrice) && (
+                        <p className="text-[10px] text-amber-600">
+                          {language === "ar"
+                            ? "سعر الخصم لازم يكون أقل من السعر الأساسي."
+                            : "A discount price should be below the regular price."}
+                        </p>
+                      )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[12px]">
+                      {language === "ar" ? "جدولة الخصم" : "Schedule discount"}
+                    </p>
+                    <Switch
+                      checked={formSaleScheduled}
+                      onCheckedChange={setFormSaleScheduled}
+                      aria-label={language === "ar" ? "جدولة الخصم" : "Schedule discount"}
+                    />
+                  </div>
+
+                  {formSaleScheduled && (
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">
+                          {language === "ar" ? "يبدأ" : "Starts"}
+                        </Label>
+                        <Input
+                          type="datetime-local"
+                          value={formSaleStart}
+                          onChange={(e) => setFormSaleStart(e.target.value)}
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">
+                          {language === "ar" ? "ينتهي" : "Ends"}
+                        </Label>
+                        <Input
+                          type="datetime-local"
+                          value={formSaleEnd}
+                          onChange={(e) => setFormSaleEnd(e.target.value)}
+                          className="h-9"
+                        />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {language === "ar"
+                          ? "سيبها فاضية يعني بدون حد — الخصم يفضل شغال لحد ما توقفه."
+                          : "Leave either empty for no bound — the discount runs until you end it."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2 border-t border-border/40 pt-3">
+              <div className="min-w-0">
+                <p className="text-[12px]">
+                  {language === "ar" ? "المنتجات المشابهة" : "Customize similar products"}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {language === "ar"
+                    ? "اللي تختاره هيظهر أسفل صفحة المنتج بدل الاقتراح التلقائي."
+                    : "What you choose replaces the automatic suggestions at the bottom of the page."}
+                </p>
+              </div>
+              <RelatedProductsPicker
+                storeId={storeId}
+                currentProductId={productId}
+                value={formRelatedIds}
+                onChange={setFormRelatedIds}
+                isAr={language === "ar"}
+              />
             </div>
           </div>
         </div>
