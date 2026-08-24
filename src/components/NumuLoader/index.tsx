@@ -7,7 +7,11 @@
 
 export function NumuLoadingScreen() {
   return (
-    <div className="relative flex min-h-screen w-full flex-col items-center justify-center bg-[#0f172a] transition-colors duration-500">
+    // overflow-hidden clips the 500px glow below. Without it the glow is
+    // wider than any phone viewport and, since it only escapes an
+    // `absolute inset-0` parent, it pushed the body sideways — the welcome
+    // screen scrolled horizontally on anything narrower than 500px.
+    <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-[#0f172a] transition-colors duration-500">
       <style>{styles}</style>
 
       {/* Subtle radial glow */}

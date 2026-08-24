@@ -189,6 +189,10 @@ export default defineConfig(({ mode }) => ({
           "**/*.worker-*.js",
           "**/ThemeCodeEditor-*.{js,css}",
           "**/marketplace-thumbs/**",
+          // iOS launch screens ~562 KB across 28 files. iOS fetches only the
+          // ONE matching a device, so precaching the set would cost every
+          // merchant 28x what their phone will ever use.
+          "**/pwa/ios/**",
           "**/vendor-sentry-*.js",
           "**/vendor-charts-*.js",
         ],
