@@ -18,6 +18,7 @@ import {
 } from "@/services/productApi";
 import { prepareImageForUpload } from "@/lib/image-validation";
 import { SortableImageGrid } from "@/components/products/SortableImageGrid";
+import { ProductSection } from "@/components/products/ProductSection";
 
 /** An image chosen for a product that does not exist yet. `url` is an
  *  object URL created once at add time and revoked when the editor
@@ -1007,17 +1008,10 @@ const ProductEditor = () => {
         </CardContent>
       </Card>
 
-      {/* ── Template (قالب العرض) ── */}
-      <Card className="overflow-hidden">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-bold">{language === "ar" ? "قالب العرض" : "Template"}</CardTitle>
-          <CardDescription className="text-xs">
-            {language === "ar"
-              ? "اختر قالب عرض بديل لهذا المنتج. القوالب تُنشأ من محرر الثيم."
-              : "Pick an alternate storefront template for this product. Variants are created in the theme editor."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+            <ProductSection
+        title={language === "ar" ? "قالب العرض" : "Display template"}
+        description={language === "ar" ? "اختيار قالب مختلف لصفحة هذا المنتج" : "Use a different page template for this product"}
+      >
           <Select
             value={formTemplateSuffix ?? DEFAULT_TEMPLATE_VALUE}
             onValueChange={(v) => setFormTemplateSuffix(v === DEFAULT_TEMPLATE_VALUE ? null : v)}
@@ -1036,20 +1030,12 @@ const ProductEditor = () => {
               ))}
             </SelectContent>
           </Select>
-        </CardContent>
-      </Card>
+      </ProductSection>
 
-      {/* ── Product Label (ملصق المنتج) ── */}
-      <Card className="overflow-hidden">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-bold">{language === "ar" ? "ملصق المنتج" : "Product Label"}</CardTitle>
-          <CardDescription className="text-xs">
-            {language === "ar"
-              ? "شارة نصية تظهر على كارت المنتج في المتجر"
-              : "A text badge shown on the product card in your storefront"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+            <ProductSection
+        title={language === "ar" ? "ملصق المنتج" : "Product label"}
+        description={language === "ar" ? "شارة تظهر على صورة المنتج مثل «جديد» أو «الأكثر مبيعاً»" : "A badge on the product image — “New”, “Best seller”"}
+      >
           <div className="flex items-center gap-2">
             <Select value={formLabel?.key ?? NO_LABEL_VALUE} onValueChange={handleLabelSelect}>
               <SelectTrigger className="h-10 rounded-lg bg-muted/30 border-transparent flex-1"><SelectValue placeholder={language === "ar" ? "اختر..." : "Choose..."} /></SelectTrigger>
@@ -1090,8 +1076,7 @@ const ProductEditor = () => {
               </Button>
             )}
           </div>
-        </CardContent>
-      </Card>
+      </ProductSection>
 
       {storeId && (
         <ManageLabelsDialog
@@ -1178,13 +1163,10 @@ const ProductEditor = () => {
         </CardContent>
       </Card>
 
-      {/* ── Similar Products (تخصيص المنتجات المشابهة) ── */}
-      <Card className="overflow-hidden">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-bold">{language === "ar" ? "تخصيص المنتجات المشابهة" : "Similar Products"}</CardTitle>
-          <CardDescription className="text-xs">{language === "ar" ? "يتم توليد المنتجات المشابهة تلقائياً، ولكن يمكنك تخصيصها حسب رغبتك." : "Similar products are auto-generated, but you can customize them."}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+            <ProductSection
+        title={language === "ar" ? "المنتجات المشابهة" : "Similar products"}
+        description={language === "ar" ? "المنتجات التي تظهر أسفل صفحة هذا المنتج" : "The products shown at the bottom of this product's page"}
+      >
           <div className="flex items-center justify-between">
             <span className="text-xs">{language === "ar" ? "اختيار المنتجات" : "Choose products"}</span>
             <Button variant="outline" size="sm" className="h-7 text-[11px] rounded-lg">{language === "ar" ? "اختيار المنتجات" : "Select"}</Button>
@@ -1193,16 +1175,12 @@ const ProductEditor = () => {
             <span className="text-primary text-sm mt-0.5">ⓘ</span>
             <p className="text-[11px] text-muted-foreground">{language === "ar" ? "يمكنك إدارة إعدادات المنتجات المشابهة من خلال خصائص المنتج" : "Manage similar products settings from product properties"}</p>
           </div>
-        </CardContent>
-      </Card>
+      </ProductSection>
 
-      {/* ── SEO (تحسين محركات البحث) ── */}
-      <Card className="overflow-hidden">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-bold">{language === "ar" ? "تحسين محركات البحث" : "SEO Optimization"}</CardTitle>
-          <CardDescription className="text-xs">{language === "ar" ? "سيساعد هذا منتجاتك في الوصول إلى المزيد من العملاء عبر محركات البحث المختلفة والذكاء الاصطناعي." : "Help your products reach more customers through search engines and AI."}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+            <ProductSection
+        title={language === "ar" ? "تحسين محركات البحث" : "SEO & visibility"}
+        description={language === "ar" ? "عنوان ووصف البحث، الرابط، وفهرسة المنتج" : "Search title and description, URL, and indexing"}
+      >
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "الماركة" : "Brand"}</Label>
             <Input value={formBrand} onChange={(e) => setFormBrand(e.target.value)} placeholder={language === "ar" ? "الشركة المصنّعة" : "Manufacturer"} className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
@@ -1261,8 +1239,7 @@ const ProductEditor = () => {
                 : "If you've synced your product catalog to Meta Business Manager, paste the Catalog product ID here so dynamic-product-ads can match conversions to a catalog row."}
             </p>
           </div>
-        </CardContent>
-      </Card>
+      </ProductSection>
 
       {/* ── Variants (Wave C: single merged editor, Shopify-style opt-in) ── */}
       <Card className="overflow-hidden">
