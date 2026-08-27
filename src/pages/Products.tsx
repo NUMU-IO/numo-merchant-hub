@@ -82,7 +82,19 @@ const Products = () => {
       { replace: true },
     );
   const [missingCostCount, setMissingCostCount] = useState<number | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  // Category filter — URL-backed so Categories can deep-link
+  // `/products?category=<id>` ("see what's in this collection").
+  const categoryFilter = searchParams.get("category") || "all";
+  const setCategoryFilter = (value: string) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value && value !== "all") next.set("category", value);
+        else next.delete("category");
+        return next;
+      },
+      { replace: true },
+    );
   // Sort/view state — backed by URL-stable values that map straight to the
   // API's `sort_by`/`sort_order` query params (see backend's PRODUCT_SORT_FIELDS).
   // `newest` is encoded as `sort_by=created_at, sort_order=desc` below.
@@ -255,6 +267,28 @@ const Products = () => {
   // over `productsList` which only ever saw the current 20-item page, so
   // products in matching categories on later pages were invisible).
   const filtered = productsList;
+
+  // Category picker: Arabic names live in `extra_data.name_ar`, and the list
+  // arrives flat — flatten it parent-first so the nesting is readable and the
+  // label matches what the Categories page shows.
+  const catLabel = (c: Category) =>
+    (isAr && (c.extra_data as Record<string, string> | null)?.name_ar) || c.name;
+
+  const orderedCategories = (() => {
+    const out: { cat: Category; depth: number }[] = [];
+    const walk = (parentId: string | null, depth: number) => {
+      for (const c of apiCategories.filter(x => (x.parent_id ?? null) === parentId)) {
+        out.push({ cat: c, depth });
+        walk(c.id, depth + 1);
+      }
+    };
+    walk(null, 0);
+    // Any category whose parent is missing from the list still has to show up.
+    for (const c of apiCategories) {
+      if (!out.some(o => o.cat.id === c.id)) out.push({ cat: c, depth: 0 });
+    }
+    return out;
+  })();
 
   // Product prices are MAJOR units here (see apiToProduct); formatMoney
   // reads the store's default currency so non-EGP stores stop seeing "EGP".
@@ -528,8 +562,10 @@ const Products = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t("products.allCategories")}</SelectItem>
-            {apiCategories.map(c => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            {orderedCategories.map(({ cat, depth }) => (
+              <SelectItem key={cat.id} value={cat.id}>
+                {depth > 0 ? "— " : ""}{catLabel(cat)}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>

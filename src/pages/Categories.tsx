@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -16,6 +17,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   FolderOpen, Plus, Loader2, Pencil, Trash2, Package,
   Search, ChevronRight, ChevronDown, ImagePlus, X, GripVertical, Eye, EyeOff,
+  Layers, ArrowUpRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,17 +69,43 @@ interface CategoryNodeProps {
   onEdit: (cat: Category) => void;
   onDelete: (cat: Category) => void;
   onToggleActive: (cat: Category) => void;
+  onViewProducts: (cat: Category) => void;
+  /** Products sitting on this category itself, excluding its subcategories.
+   *  The API's `product_count` is a subtree rollup (see the backend's
+   *  `get_product_counts`), so a parent repeats what its children already
+   *  show — this is what tells the two numbers apart in the UI. */
+  directCountOf: (catId: string) => number;
   depth?: number;
   sortable?: boolean;
 }
 
 function CategoryNode({
   cat, children, allCategories, language, isAr, expanded, onToggleExpand,
-  onEdit, onDelete, onToggleActive, depth = 0, sortable = false,
+  onEdit, onDelete, onToggleActive, onViewProducts, directCountOf,
+  depth = 0, sortable = false,
 }: CategoryNodeProps) {
   const hasChildren = children.length > 0;
   const isExpanded = expanded.has(cat.id);
   const desc = getCatDesc(cat, language);
+  const total = cat.product_count;
+  const direct = directCountOf(cat.id);
+  // Rolled up from subcategories. Derived from the counts rather than from
+  // `children`, which the search box filters — the label has to stay honest
+  // when a parent matches a query but its children do not.
+  const inSubs = Math.max(0, total - direct);
+  const isEmpty = total === 0;
+
+  const countTitle = isEmpty
+    ? (isAr
+        ? "لا توجد منتجات في هذه الفئة — اضغط لإضافة منتجات إليها"
+        : "No products in this collection — click to add some")
+    : inSubs > 0
+      ? (isAr
+          ? `${total} منتج إجمالاً — ${direct} مباشرة في هذه الفئة و${inSubs} داخل الفئات الفرعية. اضغط لعرضها.`
+          : `${total} products in total — ${direct} directly here, ${inSubs} inside subcategories. Click to view them.`)
+      : (isAr
+          ? `${total} منتج في هذه الفئة — اضغط لعرضها`
+          : `${total} products in this collection — click to view them`);
 
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
@@ -145,11 +173,39 @@ function CategoryNode({
           {desc && <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5">{desc}</p>}
         </div>
 
-        {/* Product count */}
-        <div className="flex items-center gap-1 text-[11px] text-muted-foreground/50 flex-shrink-0 tabular-nums">
+        {/* Subcategory count — makes it obvious the row below is a breakdown
+            of this one, not a second set of products. */}
+        {hasChildren && (
+          <span
+            className="hidden sm:flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground flex-shrink-0 tabular-nums"
+            title={isAr ? "عدد الفئات الفرعية داخل هذه الفئة" : "Subcategories inside this collection"}
+          >
+            <Layers className="h-3 w-3" />
+            {children.length}
+            <span className="opacity-70">{isAr ? "فرعية" : "sub"}</span>
+          </span>
+        )}
+
+        {/* Product count — click through to the catalog filtered on this
+            collection. On a parent the number is the whole subtree, so it is
+            labelled as such; otherwise it reads as a double count against the
+            children listed right underneath. */}
+        <button
+          type="button"
+          onClick={() => onViewProducts(cat)}
+          title={countTitle}
+          className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold flex-shrink-0 tabular-nums transition-colors
+            ${isEmpty
+              ? "border-amber-200/70 dark:border-amber-800/50 bg-amber-500/10 text-amber-700 dark:text-amber-500 hover:bg-amber-500/20"
+              : "border-border/70 bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground hover:bg-primary/5"}`}
+        >
           <Package className="h-3 w-3" />
-          <span>{cat.product_count}</span>
-        </div>
+          {isEmpty ? (isAr ? "فاضية" : "Empty") : total}
+          {!isEmpty && inSubs > 0 && (
+            <span className="font-normal opacity-70">{isAr ? "شامل الفروع" : "incl. sub"}</span>
+          )}
+          {!isEmpty && <ArrowUpRight className="h-2.5 w-2.5 opacity-60" />}
+        </button>
 
         {/* Visibility — always-visible, tappable Published/Hidden pill.
             One tap publishes or hides the whole collection on the storefront. */}
@@ -201,6 +257,8 @@ function CategoryNode({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onToggleActive={onToggleActive}
+                onViewProducts={onViewProducts}
+                directCountOf={directCountOf}
                 depth={depth + 1}
               />
             );
@@ -217,6 +275,7 @@ export default function Categories() {
   const isAr = language === "ar";
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
+  const navigate = useNavigate();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -414,8 +473,29 @@ export default function Categories() {
     });
   };
 
-  const totalProducts = categories.reduce((sum, c) => sum + c.product_count, 0);
+  // `product_count` from the API is a subtree rollup: a parent already
+  // includes everything its children hold. Summing every row therefore counted
+  // nested products twice (34 collections over ~2k products reported ~4k).
+  // Roots alone cover the whole tree exactly once.
+  const totalProducts = categories
+    .filter(c => !c.parent_id)
+    .reduce((sum, c) => sum + c.product_count, 0);
   const activeCount = categories.filter(c => c.is_active).length;
+  const emptyCount = categories.filter(c => c.product_count === 0).length;
+
+  // Products on the category itself, minus what its direct children roll up.
+  const directCountOf = useCallback((catId: string) => {
+    const cat = categories.find(c => c.id === catId);
+    if (!cat) return 0;
+    const childTotal = categories
+      .filter(c => c.parent_id === catId)
+      .reduce((sum, c) => sum + c.product_count, 0);
+    return Math.max(0, cat.product_count - childTotal);
+  }, [categories]);
+
+  const viewProducts = useCallback((cat: Category) => {
+    navigate(`/products?category=${cat.id}`);
+  }, [navigate]);
 
   const getDescendantIds = (catId: string): string[] => {
     const ch = categories.filter(c => c.parent_id === catId);
@@ -433,7 +513,9 @@ export default function Categories() {
           <div className="space-y-1">
             <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "الفئات" : "Categories"}</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {isAr ? "نظّم منتجاتك في فئات" : "Organize your products into categories"}
+              {isAr
+                ? "نظّم منتجاتك في فئات — الفئة الرئيسية تجمع منتجات فروعها"
+                : "Organize your products into collections — a parent totals up its subcategories"}
             </p>
           </div>
 
@@ -442,18 +524,35 @@ export default function Categories() {
             <div className="flex items-center gap-1.5 rounded-full border border-border/80 bg-background/80 backdrop-blur-sm px-3 py-1.5">
               <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-xs font-semibold tabular-nums">{categories.length}</span>
-              <span className="text-[11px] text-muted-foreground">{isAr ? "فئة" : "total"}</span>
+              <span className="text-[11px] text-muted-foreground">{isAr ? "فئة" : "collections"}</span>
             </div>
             <div className="flex items-center gap-1.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-500/5 px-3 py-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               <span className="text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{activeCount}</span>
               <span className="text-[11px] text-emerald-600/70 dark:text-emerald-400/70">{isAr ? "منشورة" : "published"}</span>
             </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-border/80 bg-background/80 backdrop-blur-sm px-3 py-1.5">
+            <div
+              className="flex items-center gap-1.5 rounded-full border border-border/80 bg-background/80 backdrop-blur-sm px-3 py-1.5"
+              title={
+                isAr
+                  ? "إجمالي المنتجات المصنّفة — كل منتج محسوب مرة واحدة، والفئات الفرعية غير مكررة. المنتجات بدون فئة غير محسوبة."
+                  : "Categorized products — each counted once; nested collections are not double counted. Products with no category are excluded."
+              }
+            >
               <Package className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-xs font-semibold tabular-nums">{totalProducts}</span>
-              <span className="text-[11px] text-muted-foreground">{isAr ? "منتج" : "products"}</span>
+              <span className="text-[11px] text-muted-foreground">{isAr ? "منتج مصنّف" : "categorized"}</span>
             </div>
+            {emptyCount > 0 && (
+              <div
+                className="flex items-center gap-1.5 rounded-full border border-amber-200/70 dark:border-amber-800/50 bg-amber-500/5 px-3 py-1.5"
+                title={isAr ? "فئات لا تحتوي على أي منتج" : "Collections with no products in them"}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <span className="text-xs font-semibold tabular-nums text-amber-700 dark:text-amber-500">{emptyCount}</span>
+                <span className="text-[11px] text-amber-600/70 dark:text-amber-500/70">{isAr ? "فاضية" : "empty"}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -526,6 +625,8 @@ export default function Categories() {
                   onEdit={openEditDialog}
                   onDelete={setDeleteTarget}
                   onToggleActive={handleToggleActive}
+                  onViewProducts={viewProducts}
+                  directCountOf={directCountOf}
                   sortable
                 />
               ))}
