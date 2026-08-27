@@ -130,8 +130,21 @@ export function AbandonedCheckoutDetailDialog({
   const name = addressName(c.shipping_address);
   const address = addressLines(c.shipping_address);
 
+  // "Started cart" must describe the cart on screen. `created_at` is when we
+  // first ever saw this shopper: cart/track deliberately stitches a
+  // returning visitor's new session onto their existing recoverable row, so
+  // that date can be weeks older than the cart being shown — which is why a
+  // cart opened tonight read "Started cart 20 Aug". `cart_started_at` is
+  // restamped whenever the session fingerprint changes; older rows have none
+  // and fall back. When the two differ, "First seen" is worth its own line:
+  // it says this is a returning shopper, not a bug.
+  const startedAt = c.cart_started_at || c.created_at;
   const timeline: Array<{ label: string; at: string | null }> = [
-    { label: isAr ? "بدأ السلة" : "Started cart", at: c.created_at },
+    { label: isAr ? "بدأ السلة" : "Started cart", at: startedAt },
+    {
+      label: isAr ? "أول ظهور" : "First seen",
+      at: c.cart_started_at && c.cart_started_at !== c.created_at ? c.created_at : null,
+    },
     { label: isAr ? "آخر نشاط" : "Last activity", at: c.last_activity_at },
     { label: isAr ? "اعتُبرت متروكة" : "Marked abandoned", at: c.abandoned_at },
     { label: isAr ? "أُرسل بريد الاسترداد" : "Recovery email sent", at: c.recovery_email_sent_at },
@@ -305,8 +318,24 @@ export function AbandonedCheckoutDetailDialog({
                 </p>
               ) : (
                 c.line_items.map((li, i) => (
-                  <div key={i} className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                  <div key={i} className="flex items-start gap-3">
+                    {/* The merchant recognises a cart by its pictures long
+                        before its SKUs. Carts tracked before the storefront
+                        started sending images have none — show a neutral
+                        placeholder rather than a broken tile. */}
+                    {li.image_url ? (
+                      <img
+                        src={li.image_url}
+                        alt=""
+                        loading="lazy"
+                        className="h-10 w-10 shrink-0 rounded-md border border-border/60 object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted">
+                        <ShoppingBag className="h-4 w-4 text-muted-foreground/60" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium leading-snug">
                         {li.product_name || (isAr ? "منتج محذوف" : "Deleted product")}
                       </p>
@@ -315,11 +344,17 @@ export function AbandonedCheckoutDetailDialog({
                           .filter(Boolean)
                           .join(" · ") || null}
                         {(li.variant_name || li.sku) && " · "}
-                        {li.quantity} × {fmtMoney(li.unit_price)}
+                        {/* Rows captured before the price fix carry 0 on the
+                            line while the cart total is correct. "—" is
+                            honest about not knowing; "EGP 0" claimed the
+                            product was free. */}
+                        {li.unit_price > 0
+                          ? `${li.quantity} × ${fmtMoney(li.unit_price)}`
+                          : `${li.quantity} × —`}
                       </p>
                     </div>
                     <p className="text-sm font-semibold tabular-nums shrink-0">
-                      {fmtMoney(li.total_price)}
+                      {li.total_price > 0 ? fmtMoney(li.total_price) : "—"}
                     </p>
                   </div>
                 ))

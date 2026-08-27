@@ -27,6 +27,7 @@ import { revokePushSubscription } from "@/services/pushApi";
 import { clearPersistedQueries } from "@/lib/query-persist";
 import type { User, RegisterData, TenantInfo } from "@/services/authApi";
 import { refreshSession } from "@/services/authApi";
+import { ApiError } from "@/lib/api-error";
 
 /**
  * Last known signed-in user, so an OFFLINE boot can render the app instead of
@@ -108,6 +109,37 @@ const AuthContext = createContext<AuthContextType>({
   refreshUser: async () => {},
 });
 
+// Validate session on mount by calling /auth/me.
+//
+// A 401 here is NOT proof the session is over — it is the normal state
+// whenever the short-lived access token has elapsed while the app was
+// closed. That is the everyday case in the installed PWA: the OS kills a
+// backgrounded PWA, so the 20-minute proactive rotation below stops
+// running the moment the merchant switches away. Prod issues a 30-minute
+// access token against a multi-day refresh token, so coming back to the
+// app after lunch used to mean a login screen with a perfectly good
+// refresh cookie sitting unused in the jar. A desktop tab left open never
+// hits this path, which is why it read as "the PWA logs me out".
+//
+// So: spend the refresh cookie ONCE before deciding anything. Only a
+// refresh that comes back "expired" means the session is really over.
+export const bootSession = async (): Promise<User> => {
+  try {
+    return await getMe();
+  } catch (err) {
+    if ((err as { status?: number } | null)?.status !== 401) throw err;
+    const outcome = await refreshSession();
+    if (outcome === "expired") throw err;
+    if (outcome === "transient") {
+      // The refresh itself blipped (offline, 429, 5xx). Report it as a
+      // network failure so the cached-session branch below renders the
+      // app instead of signing the merchant out over a hiccup.
+      throw new ApiError(0, null);
+    }
+    return await getMe();
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -115,9 +147,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [bootError, setBootError] = useState(false);
 
-  // Validate session on mount by calling /auth/me
   useEffect(() => {
-    getMe()
+    bootSession()
       .then(async (u) => {
         setUser(u);
         setBootError(false);

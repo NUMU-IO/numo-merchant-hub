@@ -67,7 +67,7 @@ const Products = () => {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ProductStatus>("all");
   // Profit-readiness filter — `/products?cost=missing` (linked from the
-  // dashboard's Net Profit tile and the banner below) shows only products
+  // dashboard's Gross Profit tile and the banner below) shows only products
   // without a cost so the merchant can fill them in one pass.
   const [searchParams, setSearchParams] = useSearchParams();
   const missingCostOnly = searchParams.get("cost") === "missing";
@@ -237,7 +237,7 @@ const Products = () => {
       listProducts(storeId, { ...common, status: "draft" }),
       listProducts(storeId, { ...common, status: "archived" }),
       // Profit-readiness: how many products (any status, no other filter)
-      // still have no cost. Drives the banner + the Net Profit tile link.
+      // still have no cost. Drives the banner + the Gross Profit tile link.
       listProducts(storeId, { page: 1, limit: 1, has_cost: false }),
     ])
       .then(([all, active, draft, archived, missingCost]) => {
@@ -460,7 +460,7 @@ const Products = () => {
         })}
       </div>
 
-      {/* Profit-readiness. Net Profit on the dashboard is only as good as the
+      {/* Profit-readiness. Gross Profit on the dashboard is only as good as the
           costs behind it; "Set cost" used to be a scattered per-row link with
           no way to see how many were missing. */}
       {missingCostOnly ? (

@@ -61,6 +61,27 @@ export async function listRunMismatches(
   );
 }
 
+/**
+ * Resolve (or reopen) a mismatch.
+ *
+ * `resolved` was readable and filterable from the start but nothing could
+ * set it, so every mismatch sat at "Open" forever and the list only grew.
+ */
+export async function resolveMismatch(
+  storeId: string,
+  mismatchId: string,
+  resolved: boolean,
+  note?: string
+): Promise<ReconciliationMismatch> {
+  return apiClient<ReconciliationMismatch>(
+    `/stores/${storeId}/reconciliation/mismatches/${mismatchId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ resolved, ...(note ? { note } : {}) }),
+    }
+  );
+}
+
 export interface TriggerReconciliationResponse {
   run_id: string;
   status: string;
