@@ -343,7 +343,7 @@ const Dashboard = () => {
         : `${productsWithCost} of ${totalProductsWithCostHint} products have a cost set`
       : undefined;
 
-  // §TODAY KPI tiles — Orders / Visitors / Conversion / Net Profit.
+  // §TODAY KPI tiles — Orders / Visitors / Conversion / Gross Profit.
   // Each tile now carries its own analytics deep-link so the "View
   // Reports" footer link routes the merchant to the relevant page.
   const kpiTiles: Array<{
@@ -354,7 +354,7 @@ const Dashboard = () => {
     data: number[];
     stroke: string;
     hint?: string;
-    /** Makes the hint a link (e.g. Net Profit → products missing a cost). */
+    /** Makes the hint a link (e.g. Gross Profit → products missing a cost). */
     hintHref?: string;
     reportHref: string;
   }> = [
@@ -386,7 +386,11 @@ const Dashboard = () => {
       reportHref: "/analytics/funnel",
     },
     {
-      label: isAr ? "صافي الربح" : "Net Profit",
+      // "Gross", not "Net": this is revenue minus COGS over the same
+      // orders the Sales tile counts. Shipping, gateway fees and platform
+      // commission are not deducted, so calling it net invited merchants
+      // to reconcile it against money in the bank and find it wrong.
+      label: isAr ? "الربح الإجمالي" : "Gross Profit",
       value: formatCurrency(animProfit * 100),
       Icon: Receipt,
       chipClass: "ichip ichip-saffron",
@@ -892,7 +896,7 @@ const Dashboard = () => {
           </Card>
         </div>
 
-        {/* KPI tiles row — Orders / Visitors / Conversion / Net Profit.
+        {/* KPI tiles row — Orders / Visitors / Conversion / Gross Profit.
             Each tile: ichip + label + big value + sparkline (or hint),
             then a footer with the period chip on the left and a
             "View Reports" link on the right that deep-links to the

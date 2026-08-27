@@ -15,6 +15,7 @@ export interface AbandonedCheckoutLineItem {
   quantity: number;
   unit_price: number;
   total_price: number;
+  image_url?: string | null;
 }
 
 export interface AbandonedCheckout {
@@ -42,6 +43,11 @@ export interface AbandonedCheckout {
   recovered_order_id: string | null;
   item_count: number;
   created_at: string;
+  /** When the CURRENT cart session began. Null on rows written before this
+      shipped — fall back to `created_at`. Not the same thing: a returning
+      shopper's new session is stitched onto their existing recoverable row,
+      so `created_at` can be weeks older than the cart on screen. */
+  cart_started_at?: string | null;
   updated_at: string;
 }
 

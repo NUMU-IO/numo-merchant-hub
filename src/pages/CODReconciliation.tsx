@@ -17,6 +17,7 @@ import {
 import {
   listReconciliationRuns,
   listRunMismatches,
+  resolveMismatch,
   triggerReconciliation,
   type ReconciliationRun,
   type ReconciliationMismatch,
@@ -91,6 +92,29 @@ const CODReconciliation = () => {
     }
   };
 
+  const [resolving, setResolving] = useState<string | null>(null);
+
+  const handleResolve = async (runId: string, m: ReconciliationMismatch) => {
+    if (!storeId || resolving) return;
+    setResolving(m.id);
+    const next = !m.resolved;
+    try {
+      const updated = await resolveMismatch(storeId, m.id, next);
+      setMismatches(prev => ({
+        ...prev,
+        [runId]: (prev[runId] ?? []).map(x => (x.id === m.id ? updated : x)),
+      }));
+    } catch (err) {
+      toast({
+        title: isAr ? "مش عارفين نحدّث" : "Couldn't update",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setResolving(null);
+    }
+  };
+
   const fmt = (cents: number) => formatMoney(cents, { fromCents: true, locale: isAr ? "ar" : "en" });
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -102,6 +126,11 @@ const CODReconciliation = () => {
   // They used to sit side by side with no window at all ("Collected this
   // month EGP 0" next to "Reconciled EGP 148"), which read as a
   // contradiction rather than two different time spans.
+  // `actual_amount_cents` is now the courier's own remittance figure for COD
+  // (shipments.cod_collected / cod_amount), falling back to the merchant's
+  // "mark as paid" only where no shipment exists. It used to be a copy of
+  // `expected`, which made every tile below tautological and pinned variance
+  // at zero on exactly the stores this page serves.
   const monthStart = (() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; })();
   const thisMonthRuns = runs.filter(r => new Date(r.period_start) >= monthStart);
   const collectedThisMonth = thisMonthRuns.reduce((s, r) => s + r.actual_amount_cents, 0);
@@ -114,8 +143,20 @@ const CODReconciliation = () => {
 
   // variance_cents = expected − actual. Positive → the courier remitted
   // LESS than the paid orders say (short); negative → more (over).
-  const variancePill = (cents: number) => {
+  const variancePill = (cents: number, openMismatches = 0) => {
     if (cents === 0) {
+      // A zero gap with open findings is not "Matched" — that pairing is
+      // what put a green badge next to "2 mismatches" in red. An amount
+      // mismatch that nets out, or a run whose gaps have been explained
+      // but not resolved, still needs a human.
+      if (openMismatches > 0) {
+        return (
+          <span className="souq-pill bg-amber-500/14 text-amber-700 dark:text-amber-400">
+            <span className="dot" />
+            {isAr ? `${openMismatches} محتاج مراجعة` : `${openMismatches} to review`}
+          </span>
+        );
+      }
       return (
         <span className="souq-pill bg-emerald-500/14 text-emerald-700 dark:text-emerald-400">
           <span className="dot" />
@@ -171,6 +212,11 @@ const CODReconciliation = () => {
       amount_mismatch:          { bg: "bg-amber-500/14",     color: "text-amber-700 dark:text-amber-400", en: "Amount mismatch", ar: "فرق مبلغ" },
       paid_order_no_transaction:{ bg: "bg-destructive/14",   color: "text-destructive",                   en: "Order no txn",    ar: "طلب بدون معاملة" },
       transaction_no_order:     { bg: "bg-purple-500/14",    color: "text-purple-700 dark:text-purple-400", en: "Txn no order",  ar: "معاملة بدون طلب" },
+      // COD's own gap: the parcel moved, the courier still has the cash.
+      // This replaced the old "Order no txn" row that every healthy COD
+      // order used to produce — COD never has a gateway transaction, so
+      // that row said nothing and buried the real gaps.
+      cod_not_remitted:         { bg: "bg-destructive/14",   color: "text-destructive",                   en: "Cash not remitted", ar: "الكاش لسه مع المندوب" },
       // (no `duplicate_transaction` — the reconciliation service never emits it)
     };
     const t = map[type];
@@ -304,7 +350,13 @@ const CODReconciliation = () => {
                             <span>{t("cod.noCodOrders")}</span>
                           ) : (
                             <>
-                              {run.total_orders_checked} {isAr ? "طلب" : "orders"}
+                              {/* "paid" is not decoration: the window filters
+                                  orders on paid_at, so an order placed on the
+                                  10th and settled on the 23rd belongs to the
+                                  23rd's run. Without the word, that row looks
+                                  like the wrong date. */}
+                              {run.total_orders_checked}{" "}
+                              {isAr ? "طلب مدفوع" : "orders paid"}
                               {" · "}
                               {run.total_transactions_checked} {isAr ? "معاملة" : "txns"}
                             </>
@@ -322,7 +374,7 @@ const CODReconciliation = () => {
                           metric name with a status for a value. One pill now
                           carries the state AND the signed gap. */}
                       {run.status === "completed" && (
-                        <div className="hidden sm:block">{variancePill(run.variance_cents)}</div>
+                        <div className="hidden sm:block">{variancePill(run.variance_cents, run.mismatches_found)}</div>
                       )}
                       {expandedRun === run.id
                         ? <ChevronUp className="h-4 w-4 text-muted-foreground" strokeWidth={2.2} />
@@ -406,6 +458,23 @@ const CODReconciliation = () => {
                                       )}
                                     </>
                                   }
+                                  actions={
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 text-xs"
+                                      disabled={resolving === m.id}
+                                      onClick={() => handleResolve(run.id, m)}
+                                    >
+                                      {resolving === m.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : m.resolved ? (
+                                        isAr ? "افتح تاني" : "Reopen"
+                                      ) : (
+                                        isAr ? "علّم اتحلّ" : "Mark resolved"
+                                      )}
+                                    </Button>
+                                  }
                                 />
                               ))}
                             </MobileCardList>
@@ -421,6 +490,7 @@ const CODReconciliation = () => {
                                 <TableHead className="text-[11px] font-semibold">{isAr ? "المتوقع" : "Expected"}</TableHead>
                                 <TableHead className="text-[11px] font-semibold">{isAr ? "الفعلي" : "Actual"}</TableHead>
                                 <TableHead className="text-[11px] font-semibold">{isAr ? "الحالة" : "Status"}</TableHead>
+                                <TableHead className="text-[11px] font-semibold text-right">{isAr ? "إجراء" : "Action"}</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -451,6 +521,23 @@ const CODReconciliation = () => {
                                         {isAr ? "مفتوح" : "Open"}
                                       </span>
                                     )}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 text-xs"
+                                      disabled={resolving === m.id}
+                                      onClick={() => handleResolve(run.id, m)}
+                                    >
+                                      {resolving === m.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : m.resolved ? (
+                                        isAr ? "افتح تاني" : "Reopen"
+                                      ) : (
+                                        isAr ? "علّم اتحلّ" : "Mark resolved"
+                                      )}
+                                    </Button>
                                   </TableCell>
                                 </TableRow>
                               ))}
