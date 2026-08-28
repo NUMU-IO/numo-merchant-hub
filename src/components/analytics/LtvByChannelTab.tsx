@@ -84,6 +84,19 @@ export function LtvByChannelTab({ range, formatCurrency }: LtvByChannelTabProps)
         </Tabs>
       </div>
 
+      {/* The period filters on ACQUISITION, not on orders: a customer first
+          seen before the window is out of the cohort however recently they
+          ordered (see ltv_by_channel in the API). That is what makes this LTV
+          rather than period revenue — but "Attribution · last 30 days" reads
+          as "orders in the last 30 days" to everyone who opens it, and this
+          page will keep reporting fewer customers than the store's order
+          count for the same period. Say so, rather than field the question. */}
+      <p className="text-[11.5px] leading-relaxed text-muted-foreground bg-muted/40 border border-border/50 rounded-lg px-3 py-2">
+        {isAr
+          ? "الأرقام دي للعملاء اللي ظهروا لأول مرة في الفترة المختارة، وكل اللي صرفوه من ساعتها — مش طلبات الفترة. عشان كده عدد العملاء هنا بيقل عن عدد أوردرات المتجر في نفس الفترة."
+          : "These figures cover customers first seen in the selected period and everything they have spent since — not the period's orders. That is why the customer count here is lower than the store's order count for the same dates."}
+      </p>
+
       {/* Top KPIs */}
       <div className="grid gap-3 sm:grid-cols-3">
         <Card className="border-border/60">
