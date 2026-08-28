@@ -1,3 +1,5 @@
+import { currencyLabel } from "@/lib/format-money";
+import { countAr, AR_TIMES_USED } from "@/lib/arabic-plural";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -69,10 +71,17 @@ const MarketingLanding = () => {
   const coupons = couponsQuery.data?.items ?? [];
   const campaigns = campaignsQuery.data ?? [];
 
-  const activeDiscounts = coupons.filter((c) => c.is_active).length;
+  const activeDiscounts = coupons.filter((c) => c.is_usable).length;
   const totalRedeemed = coupons.reduce((sum, c) => sum + (c.usage_count ?? 0), 0);
-  const totalReach = campaigns.reduce(
-    (sum, c) => sum + (c.total_recipients ?? 0),
+  // Reach summed total_recipients, which counts the audience of a campaign
+  // that was never sent — a draft addressed to 5,000 people reported a reach
+  // of 5,000. sent_count is what actually left the building.
+  const totalReach = campaigns.reduce((sum, c) => sum + (c.sent_count ?? 0), 0);
+
+  const whatsappCampaigns = campaigns.filter((c) => c.channel === "whatsapp");
+  const waSent = whatsappCampaigns.reduce((sum, c) => sum + (c.sent_count ?? 0), 0);
+  const waDelivered = whatsappCampaigns.reduce(
+    (sum, c) => sum + (c.delivered_count ?? 0),
     0,
   );
 
@@ -221,22 +230,28 @@ const MarketingLanding = () => {
                             ? (isRTL ? "BOGO" : "BOGO")
                             : c.coupon_type === "tiered"
                               ? (isRTL ? "متدرّج" : "Tiered")
-                              : `${c.value} ${isRTL ? "ج.م خصم" : "EGP off"}`}
+                              : `${c.value} ${currencyLabel(null, isRTL ? "ar" : "en")}${
+                                  isRTL ? " خصم" : " off"
+                                }`}
                     </span>
                     <span className="text-xs tabular-nums text-muted-foreground shrink-0">
-                      {fmtN(c.usage_count ?? 0)} {isRTL ? "مرة" : "used"}
+                      {isRTL
+                        ? countAr(c.usage_count ?? 0, AR_TIMES_USED)
+                        : `${fmtN(c.usage_count ?? 0)} used`}
                     </span>
                     <span
                       className={`souq-pill ${
-                        c.is_active
+                        c.is_usable
                           ? "bg-emerald-500/14 text-emerald-700 dark:text-emerald-400"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
                       <span className="dot" />
-                      {c.is_active
+                      {c.is_usable
                         ? (isRTL ? "شغّال" : "Active")
-                        : (isRTL ? "موقّف" : "Inactive")}
+                        : c.is_expired
+                          ? (isRTL ? "منتهي" : "Expired")
+                          : (isRTL ? "موقّف" : "Inactive")}
                     </span>
                   </button>
                 ))}
@@ -262,11 +277,11 @@ const MarketingLanding = () => {
             <div className="flex items-center gap-5 mt-1 text-[12.5px] tabular-nums">
               <div>
                 <span className="text-muted-foreground">{isRTL ? "اتبعت" : "Sent"}: </span>
-                <span className="font-extrabold">—</span>
+                <span className="font-extrabold">{fmtN(waSent)}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">{isRTL ? "اتفتحت" : "Opened"}: </span>
-                <span className="font-extrabold text-sage">—</span>
+                <span className="text-muted-foreground">{isRTL ? "اتسلمت" : "Delivered"}: </span>
+                <span className="font-extrabold text-sage">{fmtN(waDelivered)}</span>
               </div>
             </div>
             <Button

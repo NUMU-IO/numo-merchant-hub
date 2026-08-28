@@ -14,7 +14,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import {
   Loader2,
   Users,
@@ -42,6 +41,14 @@ import {
   type AudienceStatus,
 } from "@/services/marketingAudiencesApi";
 import { showError } from "@/lib/show-error";
+import {
+  agoAr,
+  countAr,
+  AR_MEMBERS,
+  AR_MINUTES,
+  AR_HOURS,
+  AR_DAYS,
+} from "@/lib/arabic-plural";
 
 const SEGMENT_ICONS: Record<AudienceSegmentKey, React.ComponentType<{ className?: string }>> = {
   high_ltv: Users,
@@ -59,7 +66,6 @@ export default function MarketingAudiences() {
   const isAr = language === "ar";
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
-  const { t: _t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [metaConnected, setMetaConnected] = useState(false);
@@ -106,15 +112,18 @@ export default function MarketingAudiences() {
 
   const formatTimeAgo = (iso: string | null) => {
     if (!iso) return null;
-    const diff = Date.now() - new Date(iso).getTime();
+    const parsed = new Date(iso).getTime();
+    if (Number.isNaN(parsed)) return null;
+    // Clamp: a server clock running ahead of the browser produced a negative
+    // diff and rendered "منذ -3 دقيقة".
+    const diff = Math.max(0, Date.now() - parsed);
     const mins = Math.floor(diff / 60_000);
     if (mins < 1) return isAr ? "الآن" : "Just now";
-    if (mins < 60)
-      return isAr ? `منذ ${mins} دقيقة` : `${mins}m ago`;
+    if (mins < 60) return isAr ? agoAr(mins, AR_MINUTES) : `${mins}m ago`;
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return isAr ? `منذ ${hrs} ساعة` : `${hrs}h ago`;
+    if (hrs < 24) return isAr ? agoAr(hrs, AR_HOURS) : `${hrs}h ago`;
     const days = Math.floor(hrs / 24);
-    return isAr ? `منذ ${days} يوم` : `${days}d ago`;
+    return isAr ? agoAr(days, AR_DAYS) : `${days}d ago`;
   };
 
   return (
@@ -126,7 +135,7 @@ export default function MarketingAudiences() {
           </h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
             {isAr
-              ? "ارفع جماهير مخصصة إلى ميتا للإعلانات الموجهة وبناء جماهير شبيهة."
+              ? "ارفع جماهير مخصصة إلى ميتا للإعلانات الموجهة وبناء جماهير شبيهة. بيانات الأعضاء بتتشفّر بـ SHA-256 قبل ما تخرج من NUMU."
               : "Push Custom Audiences to Meta for targeted retargeting + Lookalike sources. Members are SHA-256 hashed before leaving NUMU."}
           </p>
         </div>
@@ -228,6 +237,11 @@ export default function MarketingAudiences() {
                     onClick={() => handleSync(a.segment_key)}
                     disabled={!metaConnected || isSyncing}
                     className="gap-1.5 shrink-0"
+                    aria-label={`${
+                      isSynced
+                        ? isAr ? "إعادة مزامنة" : "Resync"
+                        : isAr ? "مزامنة" : "Sync"
+                    } — ${isAr ? a.label_ar : a.label_en}`}
                   >
                     {isSyncing ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -249,11 +263,12 @@ export default function MarketingAudiences() {
                 <CardContent className="pt-1 pb-4">
                   <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     {a.member_count !== null && (
-                      <span>
-                        <span className="font-medium text-foreground">
-                          {a.member_count.toLocaleString()}
-                        </span>{" "}
-                        {isAr ? "عضو" : "members"}
+                      <span className="font-medium text-foreground">
+                        {isAr
+                          ? countAr(a.member_count, AR_MEMBERS)
+                          : `${a.member_count.toLocaleString()} ${
+                              a.member_count === 1 ? "member" : "members"
+                            }`}
                       </span>
                     )}
                     {a.last_synced_at && (
