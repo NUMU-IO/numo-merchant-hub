@@ -1,3 +1,4 @@
+import { FounderWelcomeDialog } from "@/components/brand/FounderWelcomeDialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -121,6 +122,12 @@ const DashboardLayout = () => {
               <Suspense fallback={<PageLoader />}>
                 <Outlet />
               </Suspense>
+
+              {/* Mounted at layout level, not per page: the merchant should
+                  see it on the first hub screen they land on, whichever
+                  that is. Renders null unless they are a founder who has
+                  not seen it. */}
+              <FounderWelcomeDialog />
 
               {/* Footer — inline at bottom of content like Zid */}
               <div className="mt-12 mb-6 pt-6 border-t border-border/30 flex items-center justify-between text-xs text-muted-foreground/60">

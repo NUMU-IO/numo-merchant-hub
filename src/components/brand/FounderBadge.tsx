@@ -38,6 +38,50 @@ function Mark({ className }: { className?: string }) {
   );
 }
 
+/**
+ * Wraps a store avatar in the founder ring + khatam notch.
+ *
+ * Renders `children` untouched when there is no cohort, so every caller can
+ * wrap unconditionally instead of branching around it.
+ */
+export function FounderRing({
+  cohort,
+  children,
+  className,
+}: {
+  cohort?: string | null;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const { language } = useLanguage();
+  const label = language === "ar" ? "تاجر مؤسس" : "Founder merchant";
+
+  if (!cohort) return <>{children}</>;
+
+  return (
+    <span className={cn("relative inline-flex shrink-0", className)}>
+      {/* The ring sits OUTSIDE the avatar rather than replacing its border,
+          so a merchant's logo is never cropped to make room for us. */}
+      <span
+        aria-hidden="true"
+        className="absolute -inset-[3px] rounded-[inherit] bg-gradient-to-br from-saffron via-saffron-600 to-saffron"
+        style={{ borderRadius: "inherit" }}
+      />
+      <span className="relative rounded-[inherit] ring-2 ring-background">
+        {children}
+      </span>
+      <span
+        role="img"
+        aria-label={label}
+        title={label}
+        className="absolute -bottom-1 -start-1 grid h-4 w-4 place-items-center rounded-full bg-background text-saffron"
+      >
+        <Mark className="h-3 w-3" />
+      </span>
+    </span>
+  );
+}
+
 export function FounderBadge({
   cohort,
   size = "chip",
