@@ -11,6 +11,7 @@ import {
   Storefront, Gear, Cube as Boxes, Compass,
   CaretUpDown, CaretRight, CaretLeft, ChatsCircle,
 } from "@phosphor-icons/react";
+import { FounderBadge } from "@/components/brand/FounderBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -468,7 +469,14 @@ const AppSidebar = () => {
                   </div>
                 )}
                 <div className="flex-1 min-w-0 text-start group-data-[collapsible=icon]:hidden">
-                  <div className="text-[13px] font-extrabold truncate leading-tight">{currentStore.name}</div>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[13px] font-extrabold truncate leading-tight">{currentStore.name}</span>
+                    {/* Mark only, not the chip: this row truncates the store
+                        name already, and the label would win space the name
+                        needs. The full chip lives in Settings, where there is
+                        room to say what it means. */}
+                    <FounderBadge cohort={tenant?.founder_cohort} size="mark" className="shrink-0" />
+                  </div>
                   <div className="text-[11px] text-muted-foreground truncate mt-0.5">{planLabel}</div>
                 </div>
                 <CaretUpDown size={15} weight="bold" className="text-muted-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
