@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useFounderCohort } from "@/hooks/useFounderCohort";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,7 @@ export function FounderWelcomeDialog() {
   const isAr = language === "ar";
   const [open, setOpen] = useState(false);
 
-  const cohort = tenant?.founder_cohort ?? null;
+  const cohort = useFounderCohort();
   const tenantId = tenant?.id ?? null;
 
   useEffect(() => {

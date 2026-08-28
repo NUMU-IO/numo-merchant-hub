@@ -1,3 +1,4 @@
+import { useFounderCohort } from "@/hooks/useFounderCohort";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -67,6 +68,7 @@ const AppSidebar = () => {
   const navigate = useNavigate();
   const { currentStore, stores, switchStore } = useDashboardStore();
   const { tenant } = useAuth();
+  const founderCohort = useFounderCohort();
   const { isMobile, setOpenMobile } = useSidebar();
 
   const PLAN_LABELS: Record<string, { en: string; ar: string }> = {
@@ -461,7 +463,7 @@ const AppSidebar = () => {
                 className="mt-1 mx-2 mb-1 flex items-center gap-2.5 rounded-xl border border-sidebar-border bg-sidebar-accent/40 hover:bg-sidebar-accent/70 p-2 transition-colors group-data-[collapsible=icon]:mx-1 group-data-[collapsible=icon]:p-1.5 group-data-[collapsible=icon]:border-0"
                 aria-label={currentStore.name}
               >
-                <FounderRing cohort={tenant?.founder_cohort} className="rounded-xl">
+                <FounderRing cohort={founderCohort} className="rounded-xl">
                   {currentStore.logo_url ? (
                     <img src={currentStore.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border" />
                   ) : (
@@ -477,7 +479,7 @@ const AppSidebar = () => {
                         name already, and the label would win space the name
                         needs. The full chip lives in Settings, where there is
                         room to say what it means. */}
-                    <FounderBadge cohort={tenant?.founder_cohort} size="mark" className="shrink-0" />
+                    <FounderBadge cohort={founderCohort} size="mark" className="shrink-0" />
                   </div>
                   <div className="text-[11px] text-muted-foreground truncate mt-0.5">{planLabel}</div>
                 </div>

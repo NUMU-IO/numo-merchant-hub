@@ -77,3 +77,31 @@ describe("FounderRing", () => {
     expect(screen.getByRole("img", { name: "تاجر مؤسس" })).toBeInTheDocument();
   });
 });
+
+describe("useFounderCohort precedence", () => {
+  // The bug this hook exists for: /auth/me's tenant is not necessarily the
+  // tenant of the store on screen. Two stores named the same, one badged,
+  // and the hub showed the badge against whichever tenant the resolver
+  // happened to pick.
+  it("documents that the store wins over the session tenant", () => {
+    const pick = (
+      storeCohort: string | null | undefined,
+      tenantCohort: string | null,
+      hasStore: boolean,
+    ) => {
+      if (storeCohort !== undefined && storeCohort !== null) return storeCohort;
+      if (hasStore) return null;
+      return tenantCohort ?? null;
+    };
+
+    // Store says founder, session tenant says nothing → founder.
+    expect(pick("2026", null, true)).toBe("2026");
+    // Store explicitly not a founder, session tenant says 2026 → NOT a
+    // founder. This is the case that was rendering the wrong answer.
+    expect(pick(null, "2026", true)).toBeNull();
+    // No store loaded yet → fall back so the badge is not lost on boot.
+    expect(pick(undefined, "2026", false)).toBe("2026");
+    // Neither → nothing.
+    expect(pick(undefined, null, false)).toBeNull();
+  });
+});

@@ -31,6 +31,15 @@ export interface StoreData {
   business_hours: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+  /**
+   * Founder cohort year of THIS store's tenant, or null.
+   *
+   * Prefer this over the tenant on /auth/me: that one resolves to the
+   * current-store tenant only when its owner_id matches the caller, and
+   * otherwise falls back to any tenant the user owns. For a merchant with
+   * two stores it answered about the wrong one.
+   */
+  founder_cohort?: string | null;
 }
 
 export interface PaginatedStores {
