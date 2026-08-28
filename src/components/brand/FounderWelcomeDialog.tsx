@@ -38,11 +38,23 @@ export function FounderWelcomeDialog() {
 
   useEffect(() => {
     if (!cohort || !tenantId) return;
-    try {
-      if (localStorage.getItem(seenKey(tenantId)) === "1") return;
-    } catch {
-      // Private mode / storage disabled: show it, don't crash. Seeing this
-      // once per session beats a blank screen.
+
+    // `?founder=welcome` forces it open regardless of the seen flag.
+    // Once-only state is invisible from the outside: when someone reports
+    // "the dialog never appeared", there is otherwise no way to tell a
+    // broken condition from a flag that was already set on a load they
+    // did not notice. This makes it checkable in one URL.
+    const forced =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("founder") === "welcome";
+
+    if (!forced) {
+      try {
+        if (localStorage.getItem(seenKey(tenantId)) === "1") return;
+      } catch {
+        // Private mode / storage disabled: show it, don't crash. Seeing
+        // this once per session beats a blank screen.
+      }
     }
     setOpen(true);
   }, [cohort, tenantId]);
