@@ -34,6 +34,12 @@ export interface TenantInfo {
    * Read with `useFeatureFlag(name)`.
    */
   feature_flags: Record<string, boolean>;
+  /**
+   * Founder-merchant cohort — the join YEAR ("2025"), or null for everyone
+   * else. A year rather than a rank on purpose: a rank would tell merchant
+   * #42 that 41 came before them, which publishes how big the platform is.
+   */
+  founder_cohort: string | null;
 }
 
 export interface User {
