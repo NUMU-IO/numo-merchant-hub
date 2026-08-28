@@ -1,3 +1,5 @@
+import { attributionLabel } from "@/lib/utm-labels";
+import { countAr, AR_CUSTOMERS } from "@/lib/arabic-plural";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -148,11 +150,14 @@ export function LtvByChannelTab({ range, formatCurrency }: LtvByChannelTabProps)
                           style={{ backgroundColor: colorFor(r.channel, i) }}
                         />
                         <span className="font-medium font-mono truncate">
-                          {r.channel}
+                          {attributionLabel(r.channel, groupBy, isAr)}
                         </span>
                         <span className="text-[10px] text-muted-foreground shrink-0">
-                          {r.customer_count.toLocaleString(isAr ? "ar-EG" : undefined)}{" "}
-                          {isAr ? "عميل" : r.customer_count === 1 ? "customer" : "customers"}
+                          {isAr
+                            ? countAr(r.customer_count, AR_CUSTOMERS)
+                            : `${r.customer_count.toLocaleString()} ${
+                                r.customer_count === 1 ? "customer" : "customers"
+                              }`}
                         </span>
                       </div>
                       <span className="font-semibold tabular-nums shrink-0">
@@ -223,7 +228,7 @@ export function LtvByChannelTab({ range, formatCurrency }: LtvByChannelTabProps)
                       {isAr ? "إجمالي الإيرادات" : "Revenue"}
                     </th>
                     <th className="text-end font-medium text-muted-foreground p-2">
-                      {isAr ? "LTV" : "LTV"}
+                      {isAr ? "القيمة مدى الحياة" : "LTV"}
                     </th>
                   </tr>
                 </thead>
@@ -239,7 +244,9 @@ export function LtvByChannelTab({ range, formatCurrency }: LtvByChannelTabProps)
                             className="h-2 w-2 rounded-full shrink-0"
                             style={{ backgroundColor: colorFor(r.channel, i) }}
                           />
-                          <span className="font-medium font-mono">{r.channel}</span>
+                          <span className="font-medium">
+                            {attributionLabel(r.channel, groupBy, isAr)}
+                          </span>
                         </div>
                       </td>
                       <td className="text-end p-2 tabular-nums">
