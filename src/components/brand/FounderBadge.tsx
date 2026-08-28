@@ -59,22 +59,32 @@ export function FounderRing({
   if (!cohort) return <>{children}</>;
 
   return (
-    <span className={cn("relative inline-flex shrink-0", className)}>
-      {/* The ring sits OUTSIDE the avatar rather than replacing its border,
-          so a merchant's logo is never cropped to make room for us. */}
-      <span
-        aria-hidden="true"
-        className="absolute -inset-[3px] rounded-[inherit] bg-gradient-to-br from-saffron via-saffron-600 to-saffron"
-        style={{ borderRadius: "inherit" }}
-      />
-      <span className="relative rounded-[inherit] ring-2 ring-background">
+    // The gold is this wrapper's own background, revealed by its padding.
+    //
+    // The first cut drew it as an absolutely-positioned layer at -inset-3px
+    // and then put `ring-2 ring-background` on the avatar — which paints
+    // OUTSIDE the avatar's box and so covered 2 of those 3 pixels. What
+    // survived was a 1px sliver, invisible against a navy sidebar. Negative
+    // insets are also clipped by any overflow-hidden ancestor, which the
+    // store switcher may grow at any time.
+    //
+    // Padding has neither failure mode: nothing to clip, nothing to cover,
+    // and the merchant's own logo is untouched inside it.
+    <span
+      className={cn(
+        "relative inline-flex shrink-0 p-[2.5px]",
+        "bg-gradient-to-br from-saffron via-saffron-600 to-saffron",
+        className,
+      )}
+    >
+      <span className="inline-flex overflow-hidden rounded-[inherit]">
         {children}
       </span>
       <span
         role="img"
         aria-label={label}
         title={label}
-        className="absolute -bottom-1 -start-1 grid h-4 w-4 place-items-center rounded-full bg-background text-saffron"
+        className="absolute -bottom-1.5 -start-1.5 grid h-4 w-4 place-items-center rounded-full bg-background text-saffron ring-1 ring-background"
       >
         <Mark className="h-3 w-3" />
       </span>

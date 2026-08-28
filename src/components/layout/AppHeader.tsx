@@ -158,6 +158,29 @@ const AppHeader = () => {
             <span className="text-[12.5px] font-semibold text-white/70">{t("header.liveNow")}</span>
           </div>
 
+          {/* Founder chip — on the top bar itself, not inside the profile
+              dropdown. The first cut put it in the dropdown panel, where a
+              merchant would only meet it by opening a menu they have no
+              reason to open. The badge is recognition; it has to be visible
+              without being hunted for.
+
+              Tuned for the navy bar rather than reusing the light-surface
+              chip: saffron-600 text on a dark ground fails contrast. */}
+          {tenant?.founder_cohort && (
+            <span
+              title={isAr ? `تاجر مؤسس · فوج ${tenant.founder_cohort}` : `Founder merchant · class of ${tenant.founder_cohort}`}
+              className="hidden items-center gap-1.5 rounded-lg border border-saffron/35 bg-saffron/15 px-2.5 py-1 text-[12px] font-semibold text-saffron sm:inline-flex"
+            >
+              <svg viewBox="0 0 100 100" aria-hidden="true" className="h-3.5 w-3.5">
+                <path
+                  d="M50.00 2.00 64.06 16.06 83.94 16.06 83.94 35.94 98.00 50.00 83.94 64.06 83.94 83.94 64.06 83.94 50.00 98.00 35.94 83.94 16.06 83.94 16.06 64.06 2.00 50.00 16.06 35.94 16.06 16.06 35.94 16.06Z"
+                  fill="currentColor"
+                />
+              </svg>
+              {isAr ? "تاجر مؤسس" : "Founder"}
+            </span>
+          )}
+
           {/* Wallet chip — payg tenants only */}
           <WalletHeaderChip />
 
