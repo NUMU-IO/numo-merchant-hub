@@ -1,3 +1,4 @@
+import { useFounderCohort } from "@/hooks/useFounderCohort";
 import { FounderBadge, FounderRing } from "@/components/brand/FounderBadge";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -51,6 +52,7 @@ const AppHeader = () => {
   const { t } = useTranslation();
   const { language, setLanguage, isSwitching } = useLanguage();
   const { user, logout, tenant } = useAuth();
+  const founderCohort = useFounderCohort();
   const { currentStore } = useDashboardStore();
   const navigate = useNavigate();
   const storeId = currentStore?.id;
@@ -166,9 +168,9 @@ const AppHeader = () => {
 
               Tuned for the navy bar rather than reusing the light-surface
               chip: saffron-600 text on a dark ground fails contrast. */}
-          {tenant?.founder_cohort && (
+          {founderCohort && (
             <span
-              title={isAr ? `تاجر مؤسس · فوج ${tenant.founder_cohort}` : `Founder merchant · class of ${tenant.founder_cohort}`}
+              title={isAr ? `تاجر مؤسس · فوج ${founderCohort}` : `Founder merchant · class of ${founderCohort}`}
               className="hidden items-center gap-1.5 rounded-lg border border-saffron/35 bg-saffron/15 px-2.5 py-1 text-[12px] font-semibold text-saffron sm:inline-flex"
             >
               <svg viewBox="0 0 100 100" aria-hidden="true" className="h-3.5 w-3.5">
@@ -255,7 +257,7 @@ const AppHeader = () => {
             <DropdownMenuContent align="end" className="w-64 overflow-hidden rounded-xl p-0">
               <div className="border-b bg-muted/30 p-4">
                 <div className="mb-3 flex items-center gap-3">
-                  <FounderRing cohort={tenant?.founder_cohort} className="rounded-xl">
+                  <FounderRing cohort={founderCohort} className="rounded-xl">
                     {currentStore?.logo_url ? (
                       <img src={currentStore.logo_url} alt="" width={40} height={40} loading="lazy" className="h-10 w-10 rounded-xl border object-cover shadow-sm" />
                     ) : (
@@ -267,7 +269,7 @@ const AppHeader = () => {
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-1.5 truncate text-sm font-bold">
                       {currentStore?.name || "Store"}
-                      <FounderBadge cohort={tenant?.founder_cohort} size="mark" />
+                      <FounderBadge cohort={founderCohort} size="mark" />
                     </p>
                     <p className="truncate font-mono text-[10px] text-muted-foreground">{currentStore?.id?.slice(0, 8) || "—"}</p>
                   </div>
