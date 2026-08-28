@@ -11,7 +11,7 @@ import {
   Storefront, Gear, Cube as Boxes, Compass,
   CaretUpDown, CaretRight, CaretLeft, ChatsCircle,
 } from "@phosphor-icons/react";
-import { FounderBadge } from "@/components/brand/FounderBadge";
+import { FounderBadge, FounderRing } from "@/components/brand/FounderBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -461,13 +461,15 @@ const AppSidebar = () => {
                 className="mt-1 mx-2 mb-1 flex items-center gap-2.5 rounded-xl border border-sidebar-border bg-sidebar-accent/40 hover:bg-sidebar-accent/70 p-2 transition-colors group-data-[collapsible=icon]:mx-1 group-data-[collapsible=icon]:p-1.5 group-data-[collapsible=icon]:border-0"
                 aria-label={currentStore.name}
               >
-                {currentStore.logo_url ? (
-                  <img src={currentStore.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border" />
-                ) : (
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-saffron-100 text-saffron-600 text-xs font-extrabold ring-1 ring-saffron-100">
-                    {currentStore.name?.slice(0, 2).toUpperCase() || "ST"}
-                  </div>
-                )}
+                <FounderRing cohort={tenant?.founder_cohort} className="rounded-xl">
+                  {currentStore.logo_url ? (
+                    <img src={currentStore.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-border" />
+                  ) : (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-saffron-100 text-saffron-600 text-xs font-extrabold ring-1 ring-saffron-100">
+                      {currentStore.name?.slice(0, 2).toUpperCase() || "ST"}
+                    </div>
+                  )}
+                </FounderRing>
                 <div className="flex-1 min-w-0 text-start group-data-[collapsible=icon]:hidden">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="text-[13px] font-extrabold truncate leading-tight">{currentStore.name}</span>

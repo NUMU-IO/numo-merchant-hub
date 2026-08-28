@@ -1,3 +1,4 @@
+import { FounderBadge, FounderRing } from "@/components/brand/FounderBadge";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,7 +50,7 @@ const topbarBtn =
 const AppHeader = () => {
   const { t } = useTranslation();
   const { language, setLanguage, isSwitching } = useLanguage();
-  const { user, logout } = useAuth();
+  const { user, logout, tenant } = useAuth();
   const { currentStore } = useDashboardStore();
   const navigate = useNavigate();
   const storeId = currentStore?.id;
@@ -231,15 +232,20 @@ const AppHeader = () => {
             <DropdownMenuContent align="end" className="w-64 overflow-hidden rounded-xl p-0">
               <div className="border-b bg-muted/30 p-4">
                 <div className="mb-3 flex items-center gap-3">
-                  {currentStore?.logo_url ? (
-                    <img src={currentStore.logo_url} alt="" width={40} height={40} loading="lazy" className="h-10 w-10 rounded-xl border object-cover shadow-sm" />
-                  ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-sm">
-                      {currentStore?.name?.charAt(0)?.toUpperCase() || "N"}
-                    </div>
-                  )}
+                  <FounderRing cohort={tenant?.founder_cohort} className="rounded-xl">
+                    {currentStore?.logo_url ? (
+                      <img src={currentStore.logo_url} alt="" width={40} height={40} loading="lazy" className="h-10 w-10 rounded-xl border object-cover shadow-sm" />
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-sm">
+                        {currentStore?.name?.charAt(0)?.toUpperCase() || "N"}
+                      </div>
+                    )}
+                  </FounderRing>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold">{currentStore?.name || "Store"}</p>
+                    <p className="flex items-center gap-1.5 truncate text-sm font-bold">
+                      {currentStore?.name || "Store"}
+                      <FounderBadge cohort={tenant?.founder_cohort} size="mark" />
+                    </p>
                     <p className="truncate font-mono text-[10px] text-muted-foreground">{currentStore?.id?.slice(0, 8) || "—"}</p>
                   </div>
                 </div>

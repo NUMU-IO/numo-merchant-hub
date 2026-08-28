@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { FounderBadge } from "../FounderBadge";
+import { FounderBadge, FounderRing } from "../FounderBadge";
 
 vi.mock("@/contexts/LanguageContext", () => ({
   useLanguage: () => ({ language: "ar" }),
@@ -50,5 +50,30 @@ describe("FounderBadge", () => {
       expect(container.textContent).not.toMatch(/#\s*\d/);
       unmount();
     }
+  });
+});
+
+describe("FounderRing", () => {
+  it("passes the avatar through untouched for a non-founder", () => {
+    // Callers wrap unconditionally, so this must be a no-op — not a ring
+    // with the colour turned off, which would still shift layout.
+    const { container } = render(
+      <FounderRing cohort={null}>
+        <img alt="logo" src="/x.png" />
+      </FounderRing>,
+    );
+    expect(container.querySelector("img")).toBeInTheDocument();
+    expect(container.querySelectorAll("span")).toHaveLength(0);
+  });
+
+  it("keeps the avatar and adds a labelled mark for a founder", () => {
+    render(
+      <FounderRing cohort="2025">
+        <img alt="logo" src="/x.png" />
+      </FounderRing>,
+    );
+    // The logo survives — the ring sits outside it rather than replacing it.
+    expect(screen.getByAltText("logo")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "تاجر مؤسس" })).toBeInTheDocument();
   });
 });
