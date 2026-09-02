@@ -72,6 +72,10 @@ export default function Login() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  // On by default — most merchants read WhatsApp on the number they
+  // just typed, so this is one tick instead of a field for everyone.
+  const [waSame, setWaSame] = useState(true);
+  const [waPhone, setWaPhone] = useState("");
 
   const alreadyRedeemed = searchParams.get("already_redeemed") === "1";
 
@@ -151,10 +155,26 @@ export default function Login() {
       return;
     }
 
+    // Only checked when they said the numbers differ; an untouched field
+    // behind an unticked box is not an error.
+    if (isRegister && !waSame && !isValidE164(waPhone)) {
+      setFieldErrors({ waPhone: isAr ? "رقم الواتساب غير صحيح" : "Please enter a valid WhatsApp number" });
+      return;
+    }
+
     setLoading(true);
     try {
       if (isRegister) {
-        await register({ email, password, first_name: firstName, last_name: lastName, phone });
+        await register({
+          email,
+          password,
+          first_name: firstName,
+          last_name: lastName,
+          phone,
+          whatsapp_same_as_phone: waSame,
+          whatsapp_phone: waSame ? undefined : waPhone,
+          language: isAr ? "ar" : "en",
+        });
         navigate("/verify-email", { replace: true });
       } else {
         await login(email, password);
@@ -459,6 +479,28 @@ export default function Login() {
                             : "We use this for important WhatsApp alerts and account recovery"
                         )}
                       </p>
+                      <label className="flex items-center gap-2 cursor-pointer select-none pt-1">
+                        <input
+                          type="checkbox"
+                          checked={waSame}
+                          onChange={(e) => setWaSame(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded-[2px]"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {isAr
+                            ? "ده نفس رقم الواتساب بتاعي"
+                            : "This is also my WhatsApp number"}
+                        </span>
+                      </label>
+                      {!waSame && (
+                        <PhoneInput
+                          id="whatsapp-phone"
+                          value={waPhone}
+                          onChange={setWaPhone}
+                          defaultCountry="EG"
+                          errorMessage={fieldErrors.waPhone}
+                        />
+                      )}
                     </div>
                   )}
 
