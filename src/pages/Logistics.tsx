@@ -39,6 +39,18 @@ import {
   type ShippingSettings,
 } from "@/services/storeApi";
 import {
+  type Carrier,
+  type CarrierState,
+  deleteCarrierCredentials,
+  saveCarrierCredentials,
+  carrierName,
+  carrierState,
+  listCarriers,
+  verifyCarrier,
+} from "@/services/carrierApi";
+import { CarrierMark } from "@/components/shipping/CarrierMark";
+import { CarrierDetailView } from "@/components/shipping/CarrierDetailView";
+import {
   Package, Truck, Eye, EyeOff, Loader2, Plus, Trash2,
   Check, ExternalLink, Printer, ChevronLeft, ChevronRight, Upload,
   PackageCheck, CircleDollarSign, Search, MapPin, ArrowUpRight,
@@ -105,22 +117,11 @@ const MylerzLogo = ({ height = 16 }: { height?: number }) => {
    CARRIER DEFINITIONS
    ═══════════════════════════════════════════════════════════════════════ */
 
-interface CarrierMeta {
-  key: "bosta" | "aramex" | "mylerz" | "manual";
-  name: string;
-  nameAr: string;
-  color: string;
-  description: string;
-  descriptionAr: string;
-  comingSoon?: boolean;
-}
-
-const CARRIERS: CarrierMeta[] = [
-  { key: "bosta", name: "Bosta", nameAr: "بوسطة", color: "#E30613", description: "Egypt's leading last-mile delivery. COD, next-day, same-day.", descriptionAr: "الشحن والتوصيل السريع في مصر. الدفع عند الاستلام." },
-  { key: "aramex", name: "Aramex", nameAr: "أرامكس", color: "#E85D04", description: "Regional and international shipping with full tracking.", descriptionAr: "شحن محلي ودولي مع تتبع كامل.", comingSoon: true },
-  { key: "mylerz", name: "Mylerz", nameAr: "مايلرز", color: "#FB4F14", description: "E-commerce fulfillment and last-mile delivery.", descriptionAr: "تنفيذ طلبات التجارة الإلكترونية والتوصيل.", comingSoon: true },
-  { key: "manual", name: "Manual", nameAr: "يدوي", color: "#71717A", description: "Handle fulfillment yourself or use a custom carrier.", descriptionAr: "تنفيذ الطلبات يدوياً أو استخدام ناقل مخصص." },
-];
+/* Carrier metadata now comes from the backend carrier registry via
+   `useCarriers` — see services/carrierApi.ts. The hardcoded array that
+   lived here listed four carriers, omitted J&T entirely, and carried its
+   own `comingSoon` flags, so a carrier the backend supported was
+   invisible until someone edited this file. */
 
 /* ═══════════════════════════════════════════════════════════════════════
    BOSTA VERIFICATION + "NOTIFY ME" INTEREST (local, per browser)
@@ -133,29 +134,13 @@ const CARRIERS: CarrierMeta[] = [
    doesn't re-probe every time.
    ═══════════════════════════════════════════════════════════════════════ */
 
-const bostaVerifiedKey = (storeId: string) => `numu:bosta-verified:${storeId}`;
-const readBostaVerified = (storeId: string): boolean | null => {
-  try {
-    const v = localStorage.getItem(bostaVerifiedKey(storeId));
-    return v === null ? null : v === "1";
-  } catch {
-    return null;
-  }
-};
-const writeBostaVerified = (storeId: string, ok: boolean) => {
-  try { localStorage.setItem(bostaVerifiedKey(storeId), ok ? "1" : "0"); } catch { /* private mode */ }
-};
-const clearBostaVerified = (storeId: string) => {
-  try { localStorage.removeItem(bostaVerifiedKey(storeId)); } catch { /* noop */ }
-};
-async function probeBosta(storeId: string): Promise<boolean> {
-  try {
-    await getBostaCities(storeId);
-    return true;
-  } catch {
-    return false;
-  }
-}
+/* The Bosta localStorage probe that used to live here is gone.
+   Saving credentials marked the carrier configured without ever calling
+   Bosta, so a typo'd key showed a green "Live"; the hub compensated by
+   probing after each save and caching the answer per browser — lost on
+   clear, and invisible to anyone helping the merchant. The API now
+   verifies on save and persists the result, so `carrier.status.verified`
+   is the one shared truth. */
 
 // "Soon" couriers: the public waitlist endpoint is email-keyed and 409s on
 // duplicates, so interest is simply remembered locally and surfaced as a
@@ -204,7 +189,32 @@ const StatusBadge = ({ status, isAr }: { status: string; isAr: boolean }) => {
    MAIN PAGE VIEW — "hub" or "carrier detail"
    ═══════════════════════════════════════════════════════════════════════ */
 
+/* Bosta keeps a bespoke screen because it carries a shipments list, COD
+   reconciliation and pickups — none of which is carrier *configuration*.
+   The configuration half is generic now: any other carrier opens
+   `CarrierDetailView`, driven entirely by its registry entry. Folding
+   Bosta's screen in as well means generalising the shipments/COD/pickup
+   UI, which needs the other providers to actually implement those
+   operations first (P4). */
 type PageView = "hub" | "bosta";
+
+/* A carrier's one-line description, derived from what it declares it can
+   do. The old hardcoded array carried hand-written copy per carrier, so a
+   newly registered carrier had none at all. */
+function carrierBlurb(carrier: Carrier, isAr: boolean): string {
+  if (carrier.slug === "manual") {
+    return isAr
+      ? "نفّذ الطلبات بنفسك أو استخدم مندوب خاص."
+      : "Handle fulfilment yourself or use your own courier.";
+  }
+  const bits: string[] = [];
+  if (carrier.capabilities.supports_cod) bits.push(isAr ? "الدفع عند الاستلام" : "COD");
+  if (carrier.capabilities.supports_tracking) bits.push(isAr ? "تتبّع" : "tracking");
+  if (carrier.capabilities.supports_labels) bits.push(isAr ? "بوالص" : "waybills");
+  if (carrier.capabilities.supports_pickup) bits.push(isAr ? "استلام" : "pickups");
+  if (!bits.length) return isAr ? "شركة شحن" : "Shipping carrier";
+  return bits.join(isAr ? " · " : " · ");
+}
 
 const Logistics = () => {
   const { language } = useLanguage();
@@ -220,11 +230,25 @@ const Logistics = () => {
   const [bostaInitialStatus, setBostaInitialStatus] = useState<StatusFilter>("all");
   const openBosta = (status: StatusFilter = "all") => { setBostaInitialStatus(status); setView("bosta"); };
 
-  /* ── Carriers state ── */
+  /* ── Carriers ──
+     The catalog and this store's connection state both come from the
+     backend registry, so a carrier the API supports shows up here without
+     a frontend change — and `status.verified` is the server's answer, not
+     a per-browser guess. */
+  const carriersQ = useQuery({
+    queryKey: ["carriers", storeId],
+    queryFn: () => listCarriers(storeId!),
+    enabled: !!storeId,
+  });
+  const carriers = useMemo(() => carriersQ.data ?? [], [carriersQ.data]);
+  const carrierBySlug = useMemo(
+    () => Object.fromEntries(carriers.map((c) => [c.slug, c])),
+    [carriers],
+  );
+  const bosta = carrierBySlug.bosta;
+
   const [bostaCreds, setBostaCreds] = useState<BostaCredentials | null>(null);
   const [shippingData, setShippingData] = useState<ShippingSettings | null>(null);
-  // null = unknown / probing, true = Bosta answered, false = credentials rejected.
-  const [bostaVerified, setBostaVerified] = useState<boolean | null>(() => (storeId ? readBostaVerified(storeId) : null));
   const [courierInterest, setCourierInterest] = useState<string[]>(() => readCourierInterest());
 
   useEffect(() => {
@@ -233,20 +257,7 @@ const Logistics = () => {
     fetchShippingSettings(storeId).then(setShippingData).catch(() => {});
   }, [storeId]);
 
-  // One silent probe per browser for a store that was configured before
-  // verification existed.
-  useEffect(() => {
-    if (!storeId || !bostaCreds?.is_configured) return;
-    const known = readBostaVerified(storeId);
-    if (known !== null) { setBostaVerified(known); return; }
-    let cancelled = false;
-    probeBosta(storeId).then((ok) => {
-      if (cancelled) return;
-      writeBostaVerified(storeId, ok);
-      setBostaVerified(ok);
-    });
-    return () => { cancelled = true; };
-  }, [storeId, bostaCreds?.is_configured]);
+  const refreshCarriers = () => qc.invalidateQueries({ queryKey: ["carriers", storeId] });
 
   /* ── Hub-level shipment stats for the 4-tile Souq KPI row.
      Previously only fetched inside BostaDetailView, but the spec calls
@@ -285,18 +296,84 @@ const Logistics = () => {
     try { const r = await updateShippingSettings(storeId, { manual_enabled: enabled }); setShippingData(r); toast.success(isAr ? "تم التحديث" : "Updated"); } catch (e) { showError(e, language); }
   };
 
-  const carrierStatus = (key: string): "connected" | "unverified" | "not_configured" | "coming_soon" => {
-    if (key === "bosta") {
-      if (!bostaCreds?.is_configured) return "not_configured";
-      return bostaVerified === false ? "unverified" : "connected";
+  // Server-side verification result. null = the carrier declares no
+  // safe read-only call, so we genuinely cannot tell.
+  const bostaVerified = bosta?.status.verified ?? null;
+
+  /* Generic carrier detail. Bosta keeps its bespoke screen (shipments,
+     COD, pickups); every other carrier renders from the registry, which
+     is what lets a newly registered one be connected without a frontend
+     change. */
+  const [openCarrier, setOpenCarrier] = useState<string | null>(null);
+  const [carrierSaving, setCarrierSaving] = useState(false);
+  const [carrierVerifying, setCarrierVerifying] = useState(false);
+
+  const handleSaveCarrier = async (slug: string, values: Record<string, string>) => {
+    if (!storeId) return;
+    setCarrierSaving(true);
+    try {
+      const status = await saveCarrierCredentials(storeId, slug, values);
+      await refreshCarriers();
+      if (status.verified === false) {
+        toast.warning(isAr ? "الشركة رفضت البيانات دي." : "The carrier rejected these credentials.");
+      } else {
+        toast.success(isAr ? "تم الحفظ" : "Saved");
+      }
+    } catch (e) { showError(e, language); } finally { setCarrierSaving(false); }
+  };
+
+  const handleVerifyCarrier = async (slug: string) => {
+    if (!storeId) return;
+    setCarrierVerifying(true);
+    try {
+      const status = await verifyCarrier(storeId, slug);
+      await refreshCarriers();
+      if (status.verified === true) toast.success(isAr ? "البيانات سليمة" : "Credentials confirmed");
+      else if (status.verified === false) toast.warning(isAr ? "الشركة رفضت البيانات." : "The carrier rejected these credentials.");
+      else toast.info(isAr ? "مفيش طريقة نتأكد من الشركة دي." : "This carrier offers no way to check.");
+    } catch (e) { showError(e, language); } finally { setCarrierVerifying(false); }
+  };
+
+  const handleDisconnectCarrier = async (slug: string) => {
+    if (!storeId) return;
+    try {
+      await deleteCarrierCredentials(storeId, slug);
+      await refreshCarriers();
+      toast.success(isAr ? "تم قطع الاتصال" : "Disconnected");
+    } catch (e) { showError(e, language); }
+  };
+
+  /* A carrier's card state, from the server.
+     `manual` has no credentials to verify — it's on when the merchant
+     switches it on — so it keeps its own rule. Every other carrier goes
+     through `carrierState`, which never reports "connected" on the
+     strength of a save alone. */
+  const carrierStatus = (carrier: Carrier): CarrierState => {
+    if (carrier.slug === "manual") {
+      return shippingData?.manual?.enabled ? "connected" : "not_configured";
     }
-    if (key === "manual") return shippingData?.manual?.enabled ? "connected" : "not_configured";
-    return "coming_soon";
+    return carrierState(carrier);
   };
 
   /* ═══════════════════════════════════════════════════════════════════
      BOSTA DETAIL VIEW
      ═══════════════════════════════════════════════════════════════════ */
+  const openCarrierSpec = openCarrier ? carrierBySlug[openCarrier] : undefined;
+  if (openCarrierSpec) {
+    return (
+      <CarrierDetailView
+        carrier={openCarrierSpec}
+        isAr={isAr}
+        saving={carrierSaving}
+        verifying={carrierVerifying}
+        onBack={() => setOpenCarrier(null)}
+        onSave={(values) => handleSaveCarrier(openCarrierSpec.slug, values)}
+        onVerify={() => handleVerifyCarrier(openCarrierSpec.slug)}
+        onDisconnect={() => handleDisconnectCarrier(openCarrierSpec.slug)}
+      />
+    );
+  }
+
   if (view === "bosta") {
     return (
       <BostaDetailView
@@ -310,7 +387,7 @@ const Logistics = () => {
         onBack={() => setView("hub")}
         initialStatus={bostaInitialStatus}
         bostaVerified={bostaVerified}
-        setBostaVerified={setBostaVerified}
+        onCarriersChanged={refreshCarriers}
       />
     );
   }
@@ -442,30 +519,48 @@ const Logistics = () => {
               </p>
             </div>
             <ul className="divide-y divide-border/60 border-t border-border/60">
-              {CARRIERS.map((carrier) => {
-                const status = carrierStatus(carrier.key);
+              {carriersQ.isLoading && (
+                <li className="px-5 py-4 text-[12px] text-muted-foreground">
+                  {isAr ? "بنحمّل شركات الشحن…" : "Loading couriers…"}
+                </li>
+              )}
+              {carriers.map((carrier) => {
+                const status = carrierStatus(carrier);
                 const isConnected = status === "connected";
                 const isUnverified = status === "unverified";
-                const isComingSoon = status === "coming_soon";
-                const interested = courierInterest.includes(carrier.key);
-                const clickable = carrier.key === "bosta";
+                const name = carrierName(carrier, isAr);
+                /* Only Bosta has a detail view today; the others open it
+                   once their provider is complete (P4). Manual is a
+                   toggle, not a page. */
+                const hasDetail = carrier.slug === "bosta" || carrier.credential_fields.length > 0;
+                const clickable = hasDetail && carrier.slug !== "manual";
                 const Row = clickable ? "button" : "div";
+                const open = () =>
+                  carrier.slug === "bosta" ? openBosta("all") : setOpenCarrier(carrier.slug);
                 return (
-                  <li key={carrier.key}>
+                  <li key={carrier.slug}>
                     <Row
-                      {...(clickable ? { type: "button" as const, onClick: () => openBosta("all") } : {})}
-                      className={`flex w-full items-center gap-3 px-5 py-3 text-start ${clickable ? "transition-colors hover:bg-muted/40" : ""} ${isComingSoon ? "opacity-70" : ""}`}
+                      {...(clickable ? { type: "button" as const, onClick: open } : {})}
+                      className={`flex w-full items-center gap-3 px-5 py-3 text-start ${clickable ? "transition-colors hover:bg-muted/40" : ""}`}
                     >
-                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: `${carrier.color}12` }}>
-                        {carrier.key === "bosta" ? <BostaIcon size={22} /> : carrier.key === "aramex" ? <AramexLogo height={9} /> : carrier.key === "mylerz" ? <MylerzLogo height={9} /> : <Truck className="h-4.5 w-4.5 text-zinc-500" />}
+                      <div
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
+                        style={{ background: `${carrier.brand_color ?? "#71717A"}12` }}
+                      >
+                        <CarrierMark
+                          slug={carrier.slug}
+                          name={carrier.name_en}
+                          brandColor={carrier.brand_color}
+                          size={22}
+                        />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-[13px] font-bold">{isAr ? carrier.nameAr : carrier.name}</span>
+                          <span className="text-[13px] font-bold">{name}</span>
                           {isConnected && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                              {carrier.key === "bosta" && bostaVerified === null ? t("logistics.verifying") : t("logistics.live")}
+                              {t("logistics.live")}
                             </span>
                           )}
                           {isUnverified && (
@@ -476,37 +571,30 @@ const Logistics = () => {
                                   {t("logistics.savedUnverified")}
                                 </span>
                               </TooltipTrigger>
-                              <TooltipContent className="max-w-xs">{t("logistics.bostaUnreachable")}</TooltipContent>
+                              <TooltipContent className="max-w-xs">
+                                {carrier.status.verified === false
+                                  ? (carrier.status.verification_error
+                                      || (isAr ? "الشركة رفضت البيانات." : "The carrier rejected these credentials."))
+                                  : (isAr
+                                      ? "محفوظة، بس مفيش طريقة نتأكد منها من غير شحنة حقيقية."
+                                      : "Saved, but there is no safe way to check these without booking a real shipment.")}
+                              </TooltipContent>
                             </Tooltip>
                           )}
-                          {isComingSoon && <Badge variant="secondary" className="h-5 text-[10px]">{isAr ? "قريبًا" : "Soon"}</Badge>}
                         </div>
-                        <p className="truncate text-[11.5px] text-muted-foreground">{isAr ? carrier.descriptionAr : carrier.description}</p>
+                        <p className="truncate text-[11.5px] text-muted-foreground">
+                          {carrierBlurb(carrier, isAr)}
+                        </p>
                       </div>
                       <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                        {carrier.key === "manual" && (
+                        {carrier.slug === "manual" ? (
                           <Switch checked={shippingData?.manual?.enabled ?? false} onCheckedChange={handleToggleManual} />
-                        )}
-                        {carrier.key === "bosta" && (
+                        ) : clickable ? (
                           <span className="inline-flex items-center gap-0.5 text-[12px] font-bold text-navy dark:text-saffron">
-                            {isConnected || isUnverified ? (isAr ? "إدارة" : "Manage") : (isAr ? "اربط" : "Connect")}
+                            {carrier.status.is_configured ? (isAr ? "إدارة" : "Manage") : (isAr ? "اربط" : "Connect")}
                             <ChevronRight className="h-3.5 w-3.5 rtl:rotate-180" />
                           </span>
-                        )}
-                        {isComingSoon && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-[11px]"
-                            disabled={interested}
-                            onClick={() => {
-                              setCourierInterest(addCourierInterest(carrier.key));
-                              toast.success(t("logistics.noted"));
-                            }}
-                          >
-                            {interested ? t("logistics.notedShort") : t("logistics.notifyMe")}
-                          </Button>
-                        )}
+                        ) : null}
                       </div>
                     </Row>
                   </li>
@@ -571,11 +659,13 @@ interface BostaDetailProps {
   onBack: () => void;
   /** Status the shipments list opens on (KPI tiles pass theirs). */
   initialStatus?: StatusFilter;
+  /** Server-verified state. null = the carrier offers nothing safe to probe. */
   bostaVerified: boolean | null;
-  setBostaVerified: (v: boolean | null) => void;
+  /** Refetch the carrier catalog after a change. */
+  onCarriersChanged?: () => void;
 }
 
-const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, shippingData, setShippingData, onBack, initialStatus = "all", bostaVerified, setBostaVerified }: BostaDetailProps) => {
+const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, shippingData, setShippingData, onBack, initialStatus = "all", bostaVerified, onCarriersChanged }: BostaDetailProps) => {
   const qc = useQueryClient();
   const { t } = useTranslation();
   const [tab, setTab] = useState<BostaTab>(bostaCreds?.is_configured ? "shipments" : "config");
@@ -646,19 +736,19 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
       const r = await saveBostaCredentials(storeId, { api_key: bostaForm.api_key, business_id: bostaForm.business_id, webhook_secret: bostaForm.webhook_secret || undefined, auto_create_shipment: bostaForm.auto_create_shipment });
       setBostaCreds(r);
       setEditing(false);
-      setBostaVerified(null);
-      const ok = await probeBosta(storeId);
-      writeBostaVerified(storeId, ok);
-      setBostaVerified(ok);
-      if (ok) toast.success(t("logistics.bostaVerified"));
-      else toast.warning(t("logistics.bostaUnreachable"));
+      /* The server verifies on save and persists the answer, so we read it
+         back rather than probing from the browser and caching locally. */
+      const status = await verifyCarrier(storeId, "bosta");
+      onCarriersChanged?.();
+      if (status.verified === true) toast.success(t("logistics.bostaVerified"));
+      else if (status.verified === false) toast.warning(t("logistics.bostaUnreachable"));
     } catch (e) {
       showError(e, language);
     } finally {
       setBostaSaving(false);
     }
   };
-  const handleDeleteBosta = async () => { if (!storeId) return; try { await deleteBostaCredentials(storeId); clearBostaVerified(storeId); setBostaVerified(null); setBostaCreds({ is_configured: false, api_key_masked: null, business_id: null, auto_create_shipment: false, last_configured: null }); toast.success(isAr ? "تم قطع الاتصال" : "Disconnected"); } catch (e) { showError(e, language); } };
+  const handleDeleteBosta = async () => { if (!storeId) return; try { await deleteBostaCredentials(storeId); onCarriersChanged?.(); setBostaCreds({ is_configured: false, api_key_masked: null, business_id: null, auto_create_shipment: false, last_configured: null }); toast.success(isAr ? "تم قطع الاتصال" : "Disconnected"); } catch (e) { showError(e, language); } };
   const livePill = bostaCreds?.is_configured ? (
     bostaVerified === false ? (
       <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
