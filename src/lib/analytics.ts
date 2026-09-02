@@ -19,9 +19,14 @@
  * question; "merchant clicked a div" is not.
  *
  * Merchants are identified by account id and grouped by tenant, so a
- * funnel can be read per merchant rather than per browser. The
- * properties we attach are commercial (plan, lifecycle, trial) and never
- * personal.
+ * funnel can be read per merchant rather than per browser.
+ *
+ * Their name, email and phone go with it. That is a different question
+ * from the customer data above and gets a different answer: a merchant is
+ * *our* user, and knowing which merchant abandoned onboarding is the
+ * entire point of asking. A wall of UUIDs is not analytics. Their
+ * customers' details are someone else's data that we merely hold, and
+ * those never leave the database.
  *
  * Disabled entirely when `VITE_POSTHOG_KEY` is unset — local development
  * and CI send nothing.
@@ -88,22 +93,37 @@ export function initAnalytics(): void {
 }
 
 /**
- * Tie this session to a merchant account.
+ * Tie this session to a merchant account, with enough to recognise them.
  *
- * Deliberately excludes name and phone. `email` is passed only to derive
- * the staff flag and to let us find our own test accounts; if that ever
- * feels like too much, the flag can be computed by the caller instead.
+ * `$email` and `$name` are PostHog's conventional property names, so it
+ * shows those in place of the distinct id — the difference between a
+ * person list you can act on and a wall of UUIDs.
+ *
+ * This is our own user's contact detail, not their customers'. The
+ * customer data on these screens is the thing that never leaves the
+ * database, and none of it is here.
  */
 export function identifyMerchant(user: {
   id: string;
   email?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
   role?: string | null;
   is_verified?: boolean;
   created_at?: string;
 }): void {
   if (!client) return;
 
+  const name = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
+
   client.identify(user.id, {
+    // `$email` and `$name` are PostHog's conventional keys — it renders
+    // these in place of the distinct id, which is why a person list shows
+    // a merchant instead of a UUID.
+    $email: user.email ?? null,
+    $name: name || null,
+    phone: user.phone ?? null,
     role: user.role ?? null,
     is_verified: user.is_verified ?? null,
     signed_up_at: user.created_at ?? null,
