@@ -84,7 +84,9 @@ export interface RegisterData {
   password: string;
   first_name: string;
   last_name: string;
-  phone?: string;
+  // Required by the API. A merchant we cannot reach on WhatsApp cannot be
+  // warned about a low wallet or chased when their setup stalls.
+  phone: string;
 }
 
 export async function login(

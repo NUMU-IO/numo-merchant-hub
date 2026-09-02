@@ -48,6 +48,14 @@ interface NicheOption {
   icon: React.ReactNode;
 }
 
+// A plain labelled chip — used for the qualification questions, which
+// need no icon or description.
+interface ChoiceOption {
+  id: string;
+  label: string;
+  labelEn: string;
+}
+
 interface CountryOption {
   code: string;
   label: string;
@@ -68,6 +76,28 @@ interface PaymentOption {
 }
 
 /* ──────────────────────────── Data ──────────────────────────── */
+
+// Qualification answers. These change nothing about the store — they
+// decide whether a human should call this merchant and which pitch they
+// get. A Shopify seller doing 200 orders a month is a migration; an
+// Instagram seller doing five is a first store.
+const SELLS_WHERE: ChoiceOption[] = [
+  { id: "instagram", label: "إنستجرام / فيسبوك", labelEn: "Instagram / Facebook" },
+  { id: "shopify", label: "شوبيفاي", labelEn: "Shopify" },
+  { id: "zid", label: "زد", labelEn: "Zid" },
+  { id: "salla", label: "سلة", labelEn: "Salla" },
+  { id: "own_site", label: "موقع خاص بيا", labelEn: "My own site" },
+  { id: "offline", label: "محل على الأرض", labelEn: "A physical shop" },
+  { id: "nowhere", label: "لسه مبدأتش", labelEn: "Not selling yet" },
+];
+
+const ORDER_BANDS: ChoiceOption[] = [
+  { id: "0", label: "لسه مبدأتش", labelEn: "Not started" },
+  { id: "1-50", label: "أقل من ٥٠", labelEn: "Under 50" },
+  { id: "51-200", label: "٥٠ - ٢٠٠", labelEn: "50 - 200" },
+  { id: "201-1000", label: "٢٠٠ - ١٠٠٠", labelEn: "200 - 1,000" },
+  { id: "1000+", label: "أكتر من ١٠٠٠", labelEn: "Over 1,000" },
+];
 
 const NICHES: NicheOption[] = [
   { id: "fashion", label: "ملابس وأزياء", labelEn: "Fashion & Clothing", icon: <Shirt className="h-7 w-7" /> },
@@ -144,6 +174,9 @@ export default function OnboardingWizard() {
   const [country, setCountry] = useState<string>(
     (currentStore?.country || "EG").toUpperCase(),
   );
+  const [sellsWhereToday, setSellsWhereToday] = useState<string>("");
+  const [monthlyOrdersBand, setMonthlyOrdersBand] = useState<string>("");
+  const [city, setCity] = useState<string>("");
   const [shippingPref, setShippingPref] = useState<string>("");
   const [paymentMethods, setPaymentMethods] = useState<string[]>(["cod"]);
 
@@ -166,7 +199,7 @@ export default function OnboardingWizard() {
   const canAdvance = useCallback(() => {
     switch (step) {
       case 0: return true; // welcome
-      case 1: return !!businessType;
+      case 1: return !!businessType && !!sellsWhereToday && !!monthlyOrdersBand;
       case 2: return !!country;
       case 3: return !!shippingPref;
       case 4: return paymentMethods.length > 0;
@@ -174,7 +207,15 @@ export default function OnboardingWizard() {
       case 6: return true; // preview is always passable
       default: return false;
     }
-  }, [step, businessType, country, shippingPref, paymentMethods]);
+  }, [
+    step,
+    businessType,
+    sellsWhereToday,
+    monthlyOrdersBand,
+    country,
+    shippingPref,
+    paymentMethods,
+  ]);
 
   const togglePayment = (id: string) => {
     if (id === "cod") return;
@@ -243,6 +284,11 @@ export default function OnboardingWizard() {
       shipping_preference: defaults.shippingPref || shippingPref || "manual",
       payment_methods: defaults.paymentMethods || paymentMethods,
       store_language: isAr ? "ar" : "en",
+      // Qualification. Sent as undefined rather than "" when skipped so a
+      // half-answered wizard doesn't overwrite a previous full one.
+      sells_where_today: sellsWhereToday || undefined,
+      monthly_orders_band: monthlyOrdersBand || undefined,
+      city: city.trim() || undefined,
     };
 
     try {
@@ -378,6 +424,73 @@ export default function OnboardingWizard() {
             <span className="text-sm font-medium">{isAr ? niche.label : niche.labelEn}</span>
           </button>
         ))}
+      </div>
+
+      {/* Qualification. Nothing below this line changes a store setting —
+          it tells sales who just walked in. Kept on this step rather than
+          given its own so the merchant answers everything about their
+          business in one pass. */}
+      <div className="space-y-5 pt-2 border-t border-border/50">
+        <div className="space-y-3">
+          <p className="text-sm font-medium">
+            {isAr ? "بتبيع فين دلوقتي؟" : "Where do you sell today?"}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {SELLS_WHERE.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setSellsWhereToday(opt.id)}
+                className={cn(
+                  "px-4 py-2 rounded-lg border-2 text-sm transition-all duration-200",
+                  "hover:border-foreground/30 hover:bg-accent/50",
+                  sellsWhereToday === opt.id
+                    ? "border-foreground bg-accent font-medium"
+                    : "border-border/50 bg-card"
+                )}
+              >
+                {isAr ? opt.label : opt.labelEn}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-sm font-medium">
+            {isAr ? "بتعمل كام أوردر في الشهر؟" : "How many orders a month?"}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {ORDER_BANDS.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setMonthlyOrdersBand(opt.id)}
+                className={cn(
+                  "px-4 py-2 rounded-lg border-2 text-sm transition-all duration-200",
+                  "hover:border-foreground/30 hover:bg-accent/50",
+                  monthlyOrdersBand === opt.id
+                    ? "border-foreground bg-accent font-medium"
+                    : "border-border/50 bg-card"
+                )}
+              >
+                {isAr ? opt.label : opt.labelEn}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2 max-w-sm">
+          <Label htmlFor="wizard-city" className="text-sm font-medium">
+            {isAr ? "المدينة (اختياري)" : "City (optional)"}
+          </Label>
+          <Input
+            id="wizard-city"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            maxLength={80}
+            placeholder={isAr ? "القاهرة" : "Cairo"}
+          />
+        </div>
       </div>
     </div>
   );

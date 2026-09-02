@@ -37,10 +37,11 @@ const registerSchema = z.object({
   lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل").max(50, "اسم العائلة طويل جدًا"),
   email: z.string().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة"),
   password: z.string().min(12, "كلمة المرور يجب أن تكون 12 حرفًا على الأقل"),
-  // Phone is validated via libphonenumber-js inside the PhoneInput
-  // component; the schema just accepts an optional string here so that
-  // typing an in-progress (not-yet-valid) number doesn't trip Zod before
-  // the user has finished. We re-check validity at submit time.
+  // Phone is required on signup, but stays optional *here* on purpose:
+  // this schema runs on every keystroke, and a required rule would show
+  // "phone is required" before the user has reached the field. Presence
+  // and E.164 validity are both enforced at submit, where the message is
+  // useful rather than premature.
   phone: z.string().optional().or(z.literal("")),
 });
 
@@ -137,7 +138,15 @@ export default function Login() {
       return;
     }
 
-    if (isRegister && phone && !isValidE164(phone)) {
+    // Required as of the intake redesign — the API rejects a signup with
+    // no phone, so catching it here is the difference between an inline
+    // message and an opaque 422.
+    if (isRegister && !phone) {
+      setFieldErrors({ phone: isAr ? "رقم الهاتف مطلوب" : "Phone number is required" });
+      return;
+    }
+
+    if (isRegister && !isValidE164(phone)) {
       setFieldErrors({ phone: isAr ? "رقم الهاتف غير صحيح" : "Please enter a valid phone number" });
       return;
     }
@@ -145,7 +154,7 @@ export default function Login() {
     setLoading(true);
     try {
       if (isRegister) {
-        await register({ email, password, first_name: firstName, last_name: lastName, phone: phone || undefined });
+        await register({ email, password, first_name: firstName, last_name: lastName, phone });
         navigate("/verify-email", { replace: true });
       } else {
         await login(email, password);
@@ -434,7 +443,7 @@ export default function Login() {
 
                   {isRegister && (
                     <div className="space-y-2">
-                      <Label htmlFor="phone" className="text-[13px] font-medium">{t("auth.phone", "Phone (optional)")}</Label>
+                      <Label htmlFor="phone" className="text-[13px] font-medium">{t("auth.phone", "Phone")}</Label>
                       <PhoneInput
                         id="phone"
                         value={phone}
@@ -442,6 +451,14 @@ export default function Login() {
                         defaultCountry="EG"
                         errorMessage={fieldErrors.phone}
                       />
+                      <p className="text-xs text-muted-foreground">
+                        {t(
+                          "auth.phoneHelp",
+                          isAr
+                            ? "نستخدمه للتنبيهات المهمة على واتساب واستعادة الحساب"
+                            : "We use this for important WhatsApp alerts and account recovery"
+                        )}
+                      </p>
                     </div>
                   )}
 
