@@ -20,6 +20,13 @@ interface WalletState {
  * the pill into a primary-colored "إدارة المحفظة / Manage wallet" action.
  * Click → /wallet. An amber dot marks money on hold; a negative balance
  * renders red so the merchant can't miss it.
+ *
+ * A pay-as-you-go merchant always gets a wallet entry point here, even
+ * when the balance cannot be fetched. This used to render nothing until
+ * the query resolved, so a slow, failed or not-yet-created wallet left
+ * the header with no route to /wallet at all — worst for exactly the
+ * merchant whose wallet is in trouble, which is when they most need to
+ * reach it. The balance is the enhancement; the way in is the point.
  */
 const WalletHeaderChip = () => {
   const { tenant } = useAuth();
@@ -36,9 +43,24 @@ const WalletHeaderChip = () => {
     staleTime: 55_000,
   });
 
-  if (!isPayg || !walletQuery.data) return null;
+  if (!isPayg) return null;
 
   const w = walletQuery.data;
+
+  // No balance yet — loading, failed, or the wallet has not been created.
+  // Show the icon anyway so the merchant can still get to the page.
+  if (!w) {
+    return (
+      <button
+        type="button"
+        onClick={() => navigate("/wallet")}
+        aria-label={isAr ? "إدارة المحفظة" : "Manage wallet"}
+        className="inline-flex items-center justify-center h-10 w-10 rounded-xl border border-white/15 bg-white/10 text-white transition-colors duration-150 hover:bg-saffron hover:border-saffron hover:text-navy-900"
+      >
+        <Wallet className="h-[18px] w-[18px] opacity-90" />
+      </button>
+    );
+  }
   const negative = w.balance_cents < 0;
   const balance = (w.balance_cents / 100).toLocaleString(
     isAr ? "ar-EG" : "en-EG",
@@ -58,7 +80,7 @@ const WalletHeaderChip = () => {
             : `On hold pending verification: ${(w.pending_balance_cents / 100).toLocaleString()} EGP`
           : undefined
       }
-      className={`group relative hidden sm:inline-flex items-center h-10 px-4 rounded-xl border transition-colors duration-150 text-white
+      className={`group relative inline-flex items-center h-10 px-4 rounded-xl border transition-colors duration-150 text-white
         ${
           w.is_blocked
             ? "bg-red-600 border-red-500 hover:bg-red-500"
