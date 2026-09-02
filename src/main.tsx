@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import * as Sentry from "@sentry/react";
 import App from "./App.tsx";
 import { registerServiceWorker } from "./lib/register-sw";
+import { initAnalytics } from "./lib/analytics";
 import { initInstallPromptCapture } from "./lib/install-prompt";
 import "./i18n";
 import "./index.css";
@@ -119,6 +120,13 @@ Sentry.init({
 });
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+// PostHog — internal product analytics, started after mount so it never
+// competes with first paint. No-ops when VITE_POSTHOG_KEY is unset.
+// Events only: no session replay and no autocapture, because every screen
+// in this app can contain a real customer's name, phone and address.
+// See src/lib/analytics.ts.
+initAnalytics();
 
 // Service worker — registered AFTER mount so the worker fetch never competes
 // with first paint. No-ops in dev and when VITE_PWA_ENABLED=false.

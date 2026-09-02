@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { configureFromWizard, type WizardConfig } from "@/services/storeApi";
+import { track } from "@/lib/analytics";
 import { createProduct, uploadProductImage } from "@/services/productApi";
 import { getPublicStoreUrl } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
@@ -239,6 +240,10 @@ export default function OnboardingWizard() {
   };
 
   const handleNext = () => {
+    // Fired on leaving a step, so the number for step N reads as "finished
+    // N" rather than "saw N". Those differ by exactly the drop-off we are
+    // trying to measure.
+    track("onboarding_step_completed", { step, business_type: businessType || null });
     if (step < TOTAL_STEPS) {
       setStep((s) => s + 1);
     } else {
@@ -251,6 +256,7 @@ export default function OnboardingWizard() {
   };
 
   const handleSkip = () => {
+    track("onboarding_skipped", { step });
     const defaults: Partial<{
       businessType: string;
       country: string;
@@ -293,6 +299,15 @@ export default function OnboardingWizard() {
 
     try {
       await configureFromWizard(currentStore.id, config);
+      // The qualification answers ride along as properties so a funnel can
+      // be split by merchant type without joining anything.
+      track("onboarding_completed", {
+        business_type: config.business_type,
+        country: config.country,
+        sells_where_today: config.sells_where_today ?? null,
+        monthly_orders_band: config.monthly_orders_band ?? null,
+        skipped: Object.keys(defaults).length > 0,
+      });
       // If skipping, go straight to dashboard
       if (Object.keys(defaults).length > 0) {
         navigate("/", { replace: true });
@@ -319,6 +334,10 @@ export default function OnboardingWizard() {
         price: priceInCents,
         status: "active",
       });
+      // The activation milestone the API stamps as `first_product_at`.
+      // Captured here too so the wizard funnel is readable end to end in
+      // one place, rather than half in PostHog and half in our database.
+      track("product_created", { from: "onboarding", has_image: !!productImage });
       // Upload image if provided
       if (productImage && product.id) {
         try {

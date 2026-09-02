@@ -23,6 +23,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { showError } from "@/lib/show-error";
 import { toast } from "sonner";
+import { track } from "@/lib/analytics";
 import {
   getBusinessProfile,
   updateBusinessProfile,
@@ -72,9 +73,18 @@ export default function SettingsBusiness() {
   const save = useMutation({
     mutationFn: (update: BusinessProfileUpdate) =>
       updateBusinessProfile(storeId!, update),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ["business-profile", storeId] });
       setAccountNumber("");
+      // Which sections merchants actually fill in, and whether they ever
+      // reach a complete profile. No field values — only whether each
+      // part is now present.
+      track("business_profile_saved", {
+        is_registered_business: saved.isRegisteredBusiness,
+        has_tax_id: !!saved.taxId,
+        has_payout_account: saved.hasPayoutAccount,
+        is_complete: saved.isComplete,
+      });
       toast.success(isAr ? "تم الحفظ" : "Saved");
     },
     onError: (e) => showError(e),
