@@ -11,7 +11,7 @@ import {
   // general
   Globe, Shield, Monitor, User, Store as StoreIcon, UserCog, Users,
   // billing & finance
-  CreditCard, Wallet, Receipt, Banknote, DollarSign, HandCoins, Zap,
+  CreditCard, Wallet, Receipt, Banknote, DollarSign, HandCoins, Zap, Landmark,
   // communications
   Bell, Inbox, MessageSquare, Megaphone, Share2, PlugZap, Activity,
   // store & ops
@@ -193,6 +193,29 @@ export const SETTINGS_SECTIONS: SettingSection[] = [
         to: "/payments",
         navKey: "payments.overview",
         aliases: ["balance", "wallet", "finance", "money", "الرصيد", "المحفظة", "الفلوس", "المالية"],
+      },
+      {
+        title: { en: "Business details", ar: "بيانات النشاط" },
+        description: {
+          en: "Registration, tax ID and payout account",
+          ar: "التسجيل الضريبي والرقم الضريبي وحساب التحويل",
+        },
+        icon: Landmark,
+        to: "/settings/business",
+        navKey: "payments.invoices",
+        aliases: [
+          "business",
+          "tax",
+          "vat",
+          "payout",
+          "bank",
+          "iban",
+          "kyc",
+          "نشاط",
+          "ضريبة",
+          "بنك",
+          "تحويل",
+        ],
       },
       {
         title: { en: "Invoices", ar: "الفواتير" },

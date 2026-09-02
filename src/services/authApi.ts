@@ -84,7 +84,15 @@ export interface RegisterData {
   password: string;
   first_name: string;
   last_name: string;
-  phone?: string;
+  // Required by the API. A merchant we cannot reach on WhatsApp cannot be
+  // warned about a low wallet or chased when their setup stalls.
+  phone: string;
+  /** Default true. When false, `whatsapp_phone` carries the real number. */
+  whatsapp_same_as_phone?: boolean;
+  /** Only sent when it differs from `phone`; absence means "same". */
+  whatsapp_phone?: string;
+  /** UI locale — picks the language of every merchant-facing message. */
+  language?: "ar" | "en";
 }
 
 export async function login(

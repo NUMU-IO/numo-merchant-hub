@@ -1237,6 +1237,11 @@ export interface WizardConfig {
   shipping_preference: string;
   payment_methods: string[];
   store_language: string;
+  // Qualification — recorded on the merchant lead, applied to nothing.
+  // Optional so an older bundle still configures stores during a rollout.
+  sells_where_today?: string;
+  monthly_orders_band?: string;
+  city?: string;
 }
 
 export interface WizardConfigResult {
