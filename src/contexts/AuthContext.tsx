@@ -28,6 +28,7 @@ import { clearPersistedQueries } from "@/lib/query-persist";
 import type { User, RegisterData, TenantInfo } from "@/services/authApi";
 import { refreshSession } from "@/services/authApi";
 import { ApiError } from "@/lib/api-error";
+import { identifyMerchant, resetAnalytics, setTenantGroup } from "@/lib/analytics";
 
 /**
  * Last known signed-in user, so an OFFLINE boot can render the app instead of
@@ -226,6 +227,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
     const id = window.setInterval(tick, 20 * 60 * 1000);
     return () => window.clearInterval(id);
+  }, [user]);
+
+  // Analytics identity, driven off the user value rather than bolted onto
+  // each of the five call sites that set it. Login, 2FA, register, Google
+  // and the cached-session boot all land here; so does logout, which
+  // clears it. Missing one of those would merge two merchants' events
+  // into a single person on a shared machine.
+  useEffect(() => {
+    if (!user) {
+      resetAnalytics();
+      return;
+    }
+    identifyMerchant(user);
+    if (user.tenant) setTenantGroup(user.tenant);
   }, [user]);
 
   const login = useCallback(async (email: string, password: string) => {
