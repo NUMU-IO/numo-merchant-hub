@@ -50,6 +50,22 @@ import {
 } from "@/services/carrierApi";
 import { CarrierMark } from "@/components/shipping/CarrierMark";
 import { CarrierDetailView } from "@/components/shipping/CarrierDetailView";
+import { CourierManager } from "@/components/shipping/CourierManager";
+import { StatusImport } from "@/components/shipping/StatusImport";
+import {
+  type CourierProfile,
+  type StatusImportPreview,
+  type StatusImportResult,
+  applyStatusImport,
+  createCourier,
+  deleteCourier,
+  downloadBlob,
+  fetchManifest,
+  listCourierSeeds,
+  listCouriers,
+  previewStatusImport,
+  updateCourier,
+} from "@/services/courierApi";
 import {
   Package, Truck, Eye, EyeOff, Loader2, Plus, Trash2,
   Check, ExternalLink, Printer, ChevronLeft, ChevronRight, Upload,
@@ -305,6 +321,86 @@ const Logistics = () => {
      is what lets a newly registered one be connected without a frontend
      change. */
   const [openCarrier, setOpenCarrier] = useState<string | null>(null);
+
+  /* ── Manual couriers, waybills and the CSV round-trip ──
+     A Tier 3 courier supplies none of its own paperwork, so this is
+     where the merchant manages the couriers and does the handover. */
+  const couriersQ = useQuery({
+    queryKey: ["couriers", storeId],
+    queryFn: () => listCouriers(storeId!),
+    enabled: !!storeId,
+  });
+  const seedsQ = useQuery({
+    queryKey: ["courier-seeds", storeId],
+    queryFn: () => listCourierSeeds(storeId!),
+    enabled: !!storeId,
+  });
+  const [courierSaving, setCourierSaving] = useState(false);
+  const [importPreview, setImportPreview] = useState<StatusImportPreview | null>(null);
+  const [importResult, setImportResult] = useState<StatusImportResult | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const refreshCouriers = () => qc.invalidateQueries({ queryKey: ["couriers", storeId] });
+
+  const handleCreateCourier = async (payload: Partial<CourierProfile> & { seed_key?: string }) => {
+    if (!storeId) return;
+    setCourierSaving(true);
+    try {
+      await createCourier(storeId, payload);
+      await refreshCouriers();
+      toast.success(isAr ? "تم إضافة المندوب" : "Courier added");
+    } catch (e) { showError(e, language); } finally { setCourierSaving(false); }
+  };
+
+  const handleUpdateCourier = async (id: string, payload: Partial<CourierProfile>) => {
+    if (!storeId) return;
+    try {
+      await updateCourier(storeId, id, payload);
+      await refreshCouriers();
+    } catch (e) { showError(e, language); }
+  };
+
+  const handleDeleteCourier = async (id: string) => {
+    if (!storeId) return;
+    try {
+      await deleteCourier(storeId, id);
+      await refreshCouriers();
+      toast.success(isAr ? "تم الحذف" : "Removed");
+    } catch (e) { showError(e, language); }
+  };
+
+  const handleDownloadManifest = async () => {
+    if (!storeId) return;
+    try {
+      const blob = await fetchManifest(storeId);
+      downloadBlob(blob, `manifest-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch (e) { showError(e, language); }
+  };
+
+  const handlePreviewImport = async (file: File) => {
+    if (!storeId) return;
+    setImporting(true);
+    try {
+      setImportResult(null);
+      setImportPreview(await previewStatusImport(storeId, file));
+    } catch (e) { showError(e, language); } finally { setImporting(false); }
+  };
+
+  const handleApplyImport = async () => {
+    if (!storeId || !importPreview) return;
+    setImporting(true);
+    try {
+      // Only rows the server marked applicable; the rest were shown to
+      // the merchant with a reason and are deliberately left alone.
+      const rows = importPreview.rows.filter((r) => !r.error);
+      setImportResult(await applyStatusImport(storeId, rows));
+      setImportPreview(null);
+      qc.invalidateQueries({ queryKey: ["shipments", storeId] });
+      qc.invalidateQueries({ queryKey: ["shipment-stats", storeId] });
+    } catch (e) { showError(e, language); } finally { setImporting(false); }
+  };
+
+  const resetImport = () => { setImportPreview(null); setImportResult(null); };
   const [carrierSaving, setCarrierSaving] = useState(false);
   const [carrierVerifying, setCarrierVerifying] = useState(false);
 
@@ -603,6 +699,37 @@ const Logistics = () => {
             </ul>
           </div>
 
+          {/* ─── Your own couriers (Tier 3) ───
+               Separate from the carrier list above: those are companies
+               with an API we connect to, these are couriers the merchant
+               runs themselves and we print the paperwork for. */}
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <CourierManager
+              couriers={couriersQ.data ?? []}
+              seeds={seedsQ.data ?? []}
+              isAr={isAr}
+              saving={courierSaving}
+              onCreate={handleCreateCourier}
+              onUpdate={handleUpdateCourier}
+              onDelete={handleDeleteCourier}
+            />
+
+            {(couriersQ.data?.length ?? 0) > 0 && (
+              <div className="mt-5 border-t border-border/60 pt-4">
+                <StatusImport
+                  isAr={isAr}
+                  preview={importPreview}
+                  result={importResult}
+                  uploading={importing}
+                  applying={importing}
+                  onUpload={handlePreviewImport}
+                  onApply={handleApplyImport}
+                  onReset={resetImport}
+                />
+              </div>
+            )}
+          </div>
+
           {/* ─── Tools ─── */}
           <div className="rounded-2xl border border-border bg-card">
             <div className="px-5 pt-4 pb-2">
@@ -611,6 +738,7 @@ const Logistics = () => {
             <ul className="divide-y divide-border/60 border-t border-border/60">
               {[
                 { key: "shipments", icon: Package, title: isAr ? "الشحنات" : "Shipments", sub: isAr ? "تتبّع وإلغاء وبوالص" : "Track, cancel, AWBs", onClick: () => openBosta("all"), disabled: !bostaCreds?.is_configured },
+                { key: "manifest", icon: Upload, title: isAr ? "كشف التسليم" : "Pickup manifest", sub: isAr ? "نزّل كشف الشحنات للمندوب" : "Download the courier's sheet", onClick: handleDownloadManifest },
                 { key: "labels", icon: Printer, title: isAr ? "طباعة البوالص" : "Print labels", sub: isAr ? "بوالص الطلبات الجاهزة" : "Labels for ready orders", onClick: () => navigate("/orders/shipping-labels") },
                 { key: "calc", icon: CircleDollarSign, title: isAr ? "حاسبة الشحن" : "Rate calculator", sub: isAr ? "جرّب محافظة ووزن وشوف السعر" : "Try a governorate & weight", onClick: () => navigate("/logistics/rate-calculator") },
                 { key: "cod", icon: Zap, title: isAr ? "أوتوبايلوت الدفع عند الاستلام" : "COD autopilot", sub: isAr ? "رسايل واتساب تلقائية للتوصيل" : "Automatic WhatsApp delivery updates", onClick: () => navigate("/cod-autopilot") },
