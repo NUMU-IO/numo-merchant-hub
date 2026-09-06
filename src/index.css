@@ -48,7 +48,14 @@
    All colors in HSL unless otherwise noted. */
 
 @layer base {
-  :root {
+  /* `.dark .brand-surface` is deliberate: the brand (cream paper) pages —
+     auth, onboarding — are a single-theme surface, but the shadcn
+     components inside them read these HSL tokens, and next-themes puts
+     `.dark` on <html> whenever the OS is dark. Without this the page
+     stayed cream while every card, chip and input inside it went navy
+     with navy text. Sharing the selector keeps one source of light values. */
+  :root,
+  .dark .brand-surface {
     /* Core surfaces — white app ground, white cards */
     --background: 0 0% 100%;
     --foreground: 213 51% 16%;          /* ink #14253D */
@@ -351,6 +358,7 @@
 
     background-color: var(--b-cream);
     color: var(--b-ink);
+    color-scheme: light;
     font-family: "Space Grotesk", "Inter", system-ui, -apple-system, sans-serif;
   }
   .brand-surface[dir="rtl"] {
