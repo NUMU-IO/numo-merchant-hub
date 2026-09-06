@@ -14,6 +14,7 @@ import {
 } from "@phosphor-icons/react";
 import { FounderBadge, FounderRing } from "@/components/brand/FounderBadge";
 import { useAuth } from "@/contexts/AuthContext";
+import { planLabel } from "@/lib/planLabel";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { NavLink } from "@/components/NavLink";
@@ -71,23 +72,7 @@ const AppSidebar = () => {
   const founderCohort = useFounderCohort();
   const { isMobile, setOpenMobile } = useSidebar();
 
-  const PLAN_LABELS: Record<string, { en: string; ar: string }> = {
-    trial: { en: "Trial", ar: "تجربة مجانية" },
-    demo: { en: "Trial", ar: "تجربة مجانية" },
-    free: { en: "Free plan", ar: "الباقة المجانية" },
-    beta: { en: "Beta", ar: "بيتا" },
-    payg: { en: "Pay as you Grow", ar: "ادفع وأنت تنمو" },
-    starter: { en: "Starter plan", ar: "باقة Starter" },
-    pro: { en: "Pro plan", ar: "باقة Pro" },
-    enterprise: { en: "Enterprise", ar: "إنتربرايز" },
-  };
-  const planLabel = (() => {
-    const key = tenant?.plan;
-    if (!key) return "…";
-    const entry = PLAN_LABELS[key];
-    if (!entry) return key;
-    return isRTL ? entry.ar : entry.en;
-  })();
+  const planLabelText = planLabel(tenant?.plan, isRTL);
 
   const {
     here, isActive, groups, channelsItems, channelsActive, appsItems,
@@ -481,7 +466,7 @@ const AppSidebar = () => {
                         room to say what it means. */}
                     <FounderBadge cohort={founderCohort} size="mark" className="shrink-0" />
                   </div>
-                  <div className="text-[11px] text-muted-foreground truncate mt-0.5">{planLabel}</div>
+                  <div className="text-[11px] text-muted-foreground truncate mt-0.5">{planLabelText}</div>
                 </div>
                 <CaretUpDown size={15} weight="bold" className="text-muted-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
               </button>

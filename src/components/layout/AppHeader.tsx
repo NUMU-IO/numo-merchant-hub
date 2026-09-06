@@ -3,6 +3,7 @@ import { FounderBadge, FounderRing } from "@/components/brand/FounderBadge";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { planLabel } from "@/lib/planLabel";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import {
   ChevronDown,
@@ -275,10 +276,12 @@ const AppHeader = () => {
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
-                    {t("header.currentPlan")}
+                  {/* The label alone said "Current Plan" and never which one.
+                      Same copy as the sidebar, from one shared source. */}
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold tracking-wider text-primary">
+                    {t("header.currentPlan")}: {planLabel(tenant?.plan, isAr)}
                   </span>
-                  <Button variant="default" size="sm" className="h-7 rounded-lg px-3 text-[11px]" onClick={() => navigate("/store")}>
+                  <Button variant="default" size="sm" className="h-7 rounded-lg px-3 text-[11px]" onClick={() => navigate("/billing")}>
                     {t("header.manage")}
                   </Button>
                 </div>
