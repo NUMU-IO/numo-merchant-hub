@@ -443,7 +443,7 @@ export default function OnboardingWizard() {
             )}
           >
             <div
-              className="p-3 rounded-xl transition-colors dark:brightness-125"
+              className="p-3 rounded-xl transition-colors"
               style={
                 businessType === niche.id
                   ? { background: niche.hue, color: "#fff" }
