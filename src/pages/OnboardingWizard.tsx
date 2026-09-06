@@ -21,13 +21,7 @@ import {
   Loader2,
   ArrowLeft,
   ArrowRight,
-  Shirt,
-  Smartphone,
   Sparkles,
-  Home,
-  UtensilsCrossed,
-  Watch,
-  Package,
   MapPin,
   Truck,
   CreditCard,
@@ -37,7 +31,11 @@ import {
   ExternalLink,
   ImagePlus,
   X,
+  Package,
+  Globe,
+  Store,
 } from "lucide-react";
+import { NicheIcon } from "@/components/onboarding/NicheIcon";
 import { cn } from "@/lib/utils";
 
 /* ──────────────────────────── Types ──────────────────────────── */
@@ -47,6 +45,8 @@ interface NicheOption {
   label: string;
   labelEn: string;
   icon: React.ReactNode;
+  /** Category hue: tints the icon well at rest, fills it when selected. */
+  hue: string;
 }
 
 // A plain labelled chip — used for the qualification questions, which
@@ -55,6 +55,10 @@ interface ChoiceOption {
   id: string;
   label: string;
   labelEn: string;
+  /** Brand domain, rendered as that company's real logo via favicon. */
+  domain?: string;
+  /** Fallback for the options that are not a company (own site, a shop). */
+  icon?: React.ReactNode;
 }
 
 interface CountryOption {
@@ -82,14 +86,19 @@ interface PaymentOption {
 // decide whether a human should call this merchant and which pitch they
 // get. A Shopify seller doing 200 orders a month is a migration; an
 // Instagram seller doing five is a first store.
+// Egyptian platforms first — they are who this funnel actually competes
+// with. `domain` renders the company's own logo; the three that are not a
+// company fall back to an icon.
 const SELLS_WHERE: ChoiceOption[] = [
-  { id: "instagram", label: "إنستجرام / فيسبوك", labelEn: "Instagram / Facebook" },
-  { id: "shopify", label: "شوبيفاي", labelEn: "Shopify" },
-  { id: "zid", label: "زد", labelEn: "Zid" },
-  { id: "salla", label: "سلة", labelEn: "Salla" },
-  { id: "own_site", label: "موقع خاص بيا", labelEn: "My own site" },
-  { id: "offline", label: "محل على الأرض", labelEn: "A physical shop" },
-  { id: "nowhere", label: "لسه مبدأتش", labelEn: "Not selling yet" },
+  { id: "instagram", label: "إنستجرام / فيسبوك", labelEn: "Instagram / Facebook", domain: "instagram.com" },
+  { id: "easyorders", label: "إيزي أوردرز", labelEn: "EasyOrders", domain: "easy-orders.net" },
+  { id: "vondera", label: "فونديرا", labelEn: "Vondera", domain: "vondera.app" },
+  { id: "shopify", label: "شوبيفاي", labelEn: "Shopify", domain: "shopify.com" },
+  { id: "zid", label: "زد", labelEn: "Zid", domain: "zid.sa" },
+  { id: "salla", label: "سلة", labelEn: "Salla", domain: "salla.sa" },
+  { id: "own_site", label: "موقع خاص بيا", labelEn: "My own site", icon: <Globe className="h-4 w-4" /> },
+  { id: "offline", label: "محل على الأرض", labelEn: "A physical shop", icon: <Store className="h-4 w-4" /> },
+  { id: "nowhere", label: "لسه مبدأتش", labelEn: "Not selling yet", icon: <Sparkles className="h-4 w-4" /> },
 ];
 
 const ORDER_BANDS: ChoiceOption[] = [
@@ -100,14 +109,17 @@ const ORDER_BANDS: ChoiceOption[] = [
   { id: "1000+", label: "أكتر من ١٠٠٠", labelEn: "Over 1,000" },
 ];
 
+// Each category gets its own hue and an icon that draws the product itself
+// (a dress, a lipstick, a sofa) — a grid of grey circles with generic glyphs
+// is the look every default icon pack produces.
 const NICHES: NicheOption[] = [
-  { id: "fashion", label: "ملابس وأزياء", labelEn: "Fashion & Clothing", icon: <Shirt className="h-7 w-7" /> },
-  { id: "electronics", label: "إلكترونيات", labelEn: "Electronics", icon: <Smartphone className="h-7 w-7" /> },
-  { id: "beauty", label: "تجميل وعناية", labelEn: "Beauty & Care", icon: <Sparkles className="h-7 w-7" /> },
-  { id: "home", label: "مستلزمات منزلية", labelEn: "Home & Living", icon: <Home className="h-7 w-7" /> },
-  { id: "food", label: "أطعمة ومشروبات", labelEn: "Food & Drinks", icon: <UtensilsCrossed className="h-7 w-7" /> },
-  { id: "accessories", label: "إكسسوارات", labelEn: "Accessories", icon: <Watch className="h-7 w-7" /> },
-  { id: "other", label: "أخرى", labelEn: "Other", icon: <Package className="h-7 w-7" /> },
+  { id: "fashion", label: "ملابس وأزياء", labelEn: "Fashion & Clothing", icon: <NicheIcon kind="fashion" />, hue: "#B94F62" },
+  { id: "electronics", label: "إلكترونيات", labelEn: "Electronics", icon: <NicheIcon kind="electronics" />, hue: "#4657B8" },
+  { id: "beauty", label: "تجميل وعناية", labelEn: "Beauty & Care", icon: <NicheIcon kind="beauty" />, hue: "#A0489B" },
+  { id: "home", label: "مستلزمات منزلية", labelEn: "Home & Living", icon: <NicheIcon kind="home" />, hue: "#BD6538" },
+  { id: "food", label: "أطعمة ومشروبات", labelEn: "Food & Drinks", icon: <NicheIcon kind="food" />, hue: "#5F7D24" },
+  { id: "accessories", label: "إكسسوارات", labelEn: "Accessories", icon: <NicheIcon kind="accessories" />, hue: "#A67A22" },
+  { id: "other", label: "أخرى", labelEn: "Other", icon: <NicheIcon kind="other" />, hue: "#5B6876" },
 ];
 
 const COUNTRIES: CountryOption[] = [
@@ -431,12 +443,12 @@ export default function OnboardingWizard() {
             )}
           >
             <div
-              className={cn(
-                "p-3 rounded-xl transition-colors",
+              className="p-3 rounded-xl transition-colors dark:brightness-125"
+              style={
                 businessType === niche.id
-                  ? "bg-foreground text-background"
-                  : "bg-muted text-muted-foreground"
-              )}
+                  ? { background: niche.hue, color: "#fff" }
+                  : { background: `color-mix(in srgb, ${niche.hue} 12%, transparent)`, color: niche.hue }
+              }
             >
               {niche.icon}
             </div>
@@ -461,13 +473,28 @@ export default function OnboardingWizard() {
                 type="button"
                 onClick={() => setSellsWhereToday(opt.id)}
                 className={cn(
-                  "px-4 py-2 rounded-lg border-2 text-sm transition-all duration-200",
+                  "inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 text-sm transition-all duration-200",
                   "hover:border-foreground/30 hover:bg-accent/50",
                   sellsWhereToday === opt.id
                     ? "border-foreground bg-accent font-medium"
                     : "border-border/50 bg-card"
                 )}
               >
+                {opt.domain ? (
+                  <img
+                    src={`https://www.google.com/s2/favicons?domain=${opt.domain}&sz=64`}
+                    alt=""
+                    width={16}
+                    height={16}
+                    loading="lazy"
+                    className="h-4 w-4 rounded-sm object-contain"
+                    // A blocked or missing favicon must not leave a broken
+                    // image icon sitting in the middle of the chip.
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                  />
+                ) : (
+                  <span className="text-muted-foreground">{opt.icon}</span>
+                )}
                 {isAr ? opt.label : opt.labelEn}
               </button>
             ))}
