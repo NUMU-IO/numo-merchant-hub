@@ -653,11 +653,18 @@ const OnlineStoreLanding = () => {
                 className="w-full flex items-center justify-between px-3 py-2 text-[12.5px] souq-hoverrow text-start"
               >
                 <span className="text-muted-foreground inline-flex items-center gap-1.5">
-                  {passwordStatus?.enabled ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+                  {passwordStatus?.enabled || passwordStatus?.billing_locked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
                   {isRTL ? "حماية بكلمة مرور" : "Password"}
                 </span>
-                <span className={`font-semibold inline-flex items-center gap-1 ${passwordStatus?.enabled ? "text-emerald-600" : "text-muted-foreground"}`}>
-                  {passwordStatus?.enabled ? (isRTL ? "مُفعّلة" : "On") : (isRTL ? "متوقفة" : "Off")}
+                {/* The billing lock gates the storefront regardless of the
+                    merchant's own switch, so reporting "Off" here would be a
+                    lie about what shoppers actually see. */}
+                <span className={`font-semibold inline-flex items-center gap-1 ${passwordStatus?.billing_locked ? "text-amber-600" : passwordStatus?.enabled ? "text-emerald-600" : "text-muted-foreground"}`}>
+                  {passwordStatus?.billing_locked
+                    ? (isRTL ? "مقفول للدفع" : "Locked — unpaid")
+                    : passwordStatus?.enabled
+                      ? (isRTL ? "مُفعّلة" : "On")
+                      : (isRTL ? "متوقفة" : "Off")}
                   <ChevronRight className="h-3.5 w-3.5 rtl:rotate-180 opacity-50" />
                 </span>
               </button>

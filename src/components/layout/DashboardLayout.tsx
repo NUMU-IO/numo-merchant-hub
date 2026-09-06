@@ -15,6 +15,7 @@ import MobileBottomNav from "./MobileBottomNav";
 import DemoBanner from "@/components/demo/DemoBanner";
 import GoLiveBanner from "@/components/wallet/GoLiveBanner";
 import LowBalanceBanner from "@/components/wallet/LowBalanceBanner";
+import StorefrontLockedBanner from "@/components/wallet/StorefrontLockedBanner";
 import { ImpersonationBanner } from "./ImpersonationBanner";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { PullToRefresh } from "@/components/pwa/PullToRefresh";
@@ -91,6 +92,9 @@ const DashboardLayout = () => {
               <GoLiveBanner />
               {/* Pay-as-you-grow wallet warnings (low / negative / blocked) */}
               <LowBalanceBanner />
+              {/* Trial expired / subscription lapsed: the storefront is
+                  gated behind its password until the merchant pays. */}
+              <StorefrontLockedBanner />
               {/* PWA install nudge. Self-gating: mobile only, dashboard route
                   only, and only once the merchant has had a real order. */}
               <InstallPrompt />
