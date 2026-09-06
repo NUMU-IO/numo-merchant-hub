@@ -14,6 +14,18 @@ export interface StorefrontPasswordStatus {
   enabled: boolean;
   /** Whether a password has been set (so the UI can offer "keep current"). */
   has_password: boolean;
+  /**
+   * Platform billing lock, separate from the merchant's own gate above.
+   * Set while the tenant sits in `read_only` — an expired trial, a
+   * cancellation, or a renewal that ran out of retries. The merchant cannot
+   * turn this one off; only a wallet top-up (PAYG) or an activated
+   * subscription clears it, so the UI shows it as state, never a toggle.
+   */
+  billing_locked: boolean;
+  /** `awaiting_topup` for PAYG, `awaiting_subscription` for every other plan. */
+  billing_lock_reason: string | null;
+  /** Returned so the merchant can still open their own storefront. */
+  billing_lock_password: string | null;
 }
 
 export function getStorefrontPassword(
