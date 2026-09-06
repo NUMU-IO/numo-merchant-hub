@@ -708,6 +708,8 @@ const Logistics = () => {
               couriers={couriersQ.data ?? []}
               seeds={seedsQ.data ?? []}
               isAr={isAr}
+              storeName={currentStore?.name ?? (isAr ? "متجرنا" : "our store")}
+              readyParcels={tileReadyToShip}
               saving={courierSaving}
               onCreate={handleCreateCourier}
               onUpdate={handleUpdateCourier}
@@ -836,9 +838,14 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
   const truncId = (id: string) => id.length > 8 ? `${id.slice(0, 8)}…` : id;
 
   const statsQ = useQuery({ queryKey: ["shipment-stats", storeId], queryFn: () => getShipmentStats(storeId!), enabled: !!storeId });
+  /* Every number on this screen — the stat cards, the filter chips, and the
+     KPI tiles that navigate here — comes from store-wide `getShipmentStats`,
+     which has no carrier filter. The list used to pass `carrier: "bosta"`, so
+     a store with any manual / Mylerz / J&T parcel saw "3 in transit" above a
+     table with one row. The carrier is a column instead. */
   const listQ = useQuery({
     queryKey: ["shipments", storeId, statusFilter, page],
-    queryFn: () => listShipments(storeId!, { status: statusFilter === "all" ? undefined : statusFilter, carrier: "bosta", skip: page * PAGE_SIZE, limit: PAGE_SIZE }),
+    queryFn: () => listShipments(storeId!, { status: statusFilter === "all" ? undefined : statusFilter, skip: page * PAGE_SIZE, limit: PAGE_SIZE }),
     enabled: !!storeId,
   });
   const codQ = useQuery({ queryKey: ["cod-summary", storeId], queryFn: () => getCodSummary(storeId!), enabled: !!storeId && tab === "cod" });
@@ -1028,6 +1035,7 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
                 <Table><TableHeader><TableRow className="bg-muted/30 hover:bg-muted/30">
                   <TableHead className="text-[10px] uppercase tracking-wider font-semibold">{isAr ? "رقم التتبع" : "Tracking"}</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider font-semibold">{isAr ? "الحالة" : "Status"}</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider font-semibold">{isAr ? "الشركة" : "Carrier"}</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider font-semibold">{isAr ? "النوع" : "Type"}</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider font-semibold">COD</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider font-semibold">{isAr ? "التاريخ" : "Date"}</TableHead>
@@ -1037,6 +1045,7 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
                     <TableRow key={s.id} className="cursor-pointer group" onClick={() => openDetail(s.id)}>
                       <TableCell className="font-mono text-xs font-medium">{s.tracking_number || <span className="text-muted-foreground/40">—</span>}</TableCell>
                       <TableCell><StatusBadge status={s.status} isAr={isAr} /></TableCell>
+                      <TableCell className="text-xs text-muted-foreground capitalize">{s.carrier}</TableCell>
                       <TableCell className="text-xs text-muted-foreground capitalize">{s.shipment_type}</TableCell>
                       <TableCell className="text-xs tabular-nums">{s.cod_amount > 0 ? <>{fmt(s.cod_amount)}{s.cod_collected && <Check className="inline h-3 w-3 ml-1 text-emerald-500" />}</> : <span className="text-muted-foreground/30">—</span>}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{fmtShort(s.created_at)}</TableCell>

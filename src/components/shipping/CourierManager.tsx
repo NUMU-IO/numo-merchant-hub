@@ -13,13 +13,14 @@
  */
 
 import { useState } from "react";
-import { Loader2, MapPin, Phone, Plus, Trash2 } from "lucide-react";
+import { Loader2, MapPin, MessageCircle, Phone, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { pickupMessage, whatsAppLink } from "@/lib/whatsapp";
 import {
   type CourierProfile,
   type CourierSeed,
@@ -36,6 +37,10 @@ interface Props {
   onCreate: (payload: Partial<CourierProfile> & { seed_key?: string }) => void;
   onUpdate: (id: string, payload: Partial<CourierProfile>) => void;
   onDelete: (id: string) => void;
+  /** Named in the WhatsApp pickup request so the courier knows the store. */
+  storeName: string;
+  /** Shipments in `created` — packed and waiting for a courier. */
+  readyParcels: number;
 }
 
 export const CourierManager = ({
@@ -46,6 +51,8 @@ export const CourierManager = ({
   onCreate,
   onUpdate,
   onDelete,
+  storeName,
+  readyParcels,
 }: Props) => {
   const [adding, setAdding] = useState(false);
 
@@ -92,6 +99,8 @@ export const CourierManager = ({
               isAr={isAr}
               onToggle={(active) => onUpdate(courier.id, { is_active: active })}
               onDelete={() => onDelete(courier.id)}
+              storeName={storeName}
+              readyParcels={readyParcels}
             />
           ))}
         </ul>
@@ -118,12 +127,37 @@ const CourierRow = ({
   isAr,
   onToggle,
   onDelete,
+  storeName,
+  readyParcels,
 }: {
   courier: CourierProfile;
   isAr: boolean;
   onToggle: (active: boolean) => void;
   onDelete: () => void;
-}) => (
+  /** Shown to the courier so they know whose parcels these are. */
+  storeName: string;
+  /** Shipments in `created` — packed, not yet picked up. */
+  readyParcels: number;
+}) => {
+  /* The Tier 3 handoff, in its cheapest honest form. These couriers all
+     work over WhatsApp already; a `wa.me` link needs no Meta template
+     approval and no inbound plumbing. Null when the number is unusable,
+     so the button is absent rather than broken. */
+  const waHref =
+    readyParcels > 0
+      ? whatsAppLink(
+          courier.contact_phone,
+          pickupMessage({
+            courier: courierName(courier, isAr),
+            store: storeName,
+            parcels: readyParcels,
+            cutoff: courier.cutoff_time,
+            isAr,
+          }),
+        )
+      : null;
+
+  return (
   <li className="flex items-center gap-3 px-4 py-3">
     <div className="min-w-0 flex-1">
       <div className="flex items-center gap-2">
@@ -157,6 +191,14 @@ const CourierRow = ({
       </div>
     </div>
 
+    {waHref && (
+      <a href={waHref} target="_blank" rel="noopener noreferrer">
+        <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
+          <MessageCircle className="h-3.5 w-3.5" />
+          {isAr ? "اطلب استلام" : "Request pickup"}
+        </Button>
+      </a>
+    )}
     <Switch checked={courier.is_active} onCheckedChange={onToggle} />
     <Button
       size="sm"
@@ -168,7 +210,8 @@ const CourierRow = ({
       <Trash2 className="h-3.5 w-3.5" />
     </Button>
   </li>
-);
+  );
+};
 
 const AddCourier = ({
   seeds,
