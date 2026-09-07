@@ -174,8 +174,13 @@ export function TikTokTrackingPanel() {
 
   // Saved form values — what "Discard" reverts to and dirty compares against.
   const baseline = useMemo(() => {
+    // The server already computes the effective mode (flags + token row);
+    // re-deriving it from the two flags alone diverges when the token row is
+    // inactive. Fall back to the flags for backends that predate `mode`.
     const derived = settings
-      ? deriveModeFromFlags(settings.pixel_enabled, settings.api_enabled)
+      ? settings.mode && settings.mode !== "off"
+        ? settings.mode
+        : deriveModeFromFlags(settings.pixel_enabled, settings.api_enabled)
       : "off";
     return {
       pixelId: settings?.pixel_id ?? "",
@@ -194,7 +199,10 @@ export function TikTokTrackingPanel() {
     const s: TikTokTrackingSettings | null | undefined = settingsQuery.data;
     if (!s) return;
     setPixelId(s.pixel_id ?? "");
-    const derived = deriveModeFromFlags(s.pixel_enabled, s.api_enabled);
+    const derived =
+      s.mode && s.mode !== "off"
+        ? s.mode
+        : deriveModeFromFlags(s.pixel_enabled, s.api_enabled);
     setMode(derived === "off" ? "both" : derived);
     setTestEventCode(s.test_event_code ?? "");
     setConsentRequired(!!s.consent_required);
@@ -207,8 +215,47 @@ export function TikTokTrackingPanel() {
     if (extras.length > 0) setShowAdvanced(true);
   }, [settingsQuery.data]);
 
-  const hasTokenOnFile = !!settings?.api_access_token_masked;
+  const hasTokenOnFile =
+    settings?.has_token ?? !!settings?.api_access_token_masked;
   const status: TikTokTrackingStatus = settings?.status ?? "disabled";
+  const recentEventCount = statusQuery.data?.recent_event_count ?? null;
+  // The plain answer to "is the Events API working?" — token presence plus
+  // delivery health. Until now the only connection-shaped signals on this
+  // panel were the optional Ads-account OAuth block and a Verify button that
+  // needs an advertiser id, so a store with a working token read as
+  // "not connected".
+  const apiHealthLine = (() => {
+    const token = hasTokenOnFile
+      ? `${isAr ? "Events API: التوكن محفوظ" : "Events API: token on file"}${
+          settings?.api_access_token_masked
+            ? ` (••••${settings.api_access_token_masked.slice(-4)})`
+            : ""
+        }`
+      : isAr
+        ? "Events API: مفيش توكن محفوظ"
+        : "Events API: no token on file";
+    const health =
+      status === "connected"
+        ? isAr
+          ? "متصل وبيوصّل"
+          : "connected"
+        : status === "failing"
+          ? isAr
+            ? "آخر ٥ أحداث فشلت"
+            : "last 5 events failed"
+          : status === "configured_no_events"
+            ? isAr
+              ? "لسه مفيش أحداث"
+              : "no events yet"
+            : isAr
+              ? "متوقف"
+              : "off";
+    const count =
+      typeof recentEventCount === "number"
+        ? ` · ${recentEventCount} ${isAr ? "حدث مؤخرًا" : "recent events"}`
+        : "";
+    return `${token} · ${health}${count}`;
+  })();
 
   const pixelValid = PIXEL_ID_REGEX.test(pixelId);
   const testCodeValid = !testEventCode || TEST_EVENT_REGEX.test(testEventCode);
@@ -327,6 +374,43 @@ export function TikTokTrackingPanel() {
     setVerifying(true);
     setVerifyResult(null);
     try {
+      // TikTok's `pixel/list` can only look a pixel up inside an advertiser
+      // account. Without the (optional) Ads-account link we cannot ask TikTok
+      // — but we can answer from delivery: the recent-events log says whether
+      // TikTok has been accepting this store's server events. That used to
+      // be a disabled button, which read as "not connected".
+      if (!settings?.advertiser_id) {
+        const fresh = await queryClient.fetchQuery({
+          queryKey: ["tiktok-tracking-status", storeId],
+          queryFn: () => fetchTikTokTrackingStatus(storeId),
+          staleTime: 0,
+        });
+        const accepted = fresh.status === "connected";
+        setVerifyResult({
+          verified: accepted,
+          name: accepted
+            ? isAr
+              ? `Events API بيوصّل — TikTok قبل ${fresh.recent_event_count} حدث مؤخرًا`
+              : `Events API delivering — TikTok accepted ${fresh.recent_event_count} recent events`
+            : null,
+          is_active: accepted ? true : null,
+          error: accepted
+            ? null
+            : fresh.status === "failing"
+              ? isAr
+                ? "آخر ٥ أحداث اترفضت — راجع التوكن."
+                : "The last 5 events were refused — check the token."
+              : fresh.status === "configured_no_events"
+                ? isAr
+                  ? "التوكن محفوظ بس لسه مفيش أحداث وصلت. افتح المتجر وحدّث."
+                  : "Token saved, no events received yet. Open the store, then refresh."
+                : isAr
+                  ? "Events API متوقف — اختار وضع فيه Events API واحفظ توكن."
+                  : "Events API is off — pick a mode that includes it and save a token.",
+          platform: "tiktok",
+        });
+        return;
+      }
       // TikTok saying "no" resolves with `verified: false`; only transport or
       // auth failures throw. Both get surfaced, neither is fatal.
       setVerifyResult(await verifyTikTokConnection(storeId));
@@ -477,15 +561,17 @@ export function TikTokTrackingPanel() {
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-[13px] font-extrabold">
-                      {isAr ? "الربط بنقرة واحدة" : "One-click connect"}
+                      {isAr
+                        ? "ربط حساب الإعلانات (اختياري)"
+                        : "Ads account link (optional)"}
                       <span className="souq-pill bg-saffron-100 text-saffron-600 dark:text-saffron">
                         {isAr ? "تجريبي" : "Beta"}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {isAr
-                        ? "اربط حساب TikTok Business لجلب الـ Pixel تلقائيًا"
-                        : "Connect your TikTok Business account to auto-fill your pixel"}
+                        ? "للتقارير وملء الـ Pixel تلقائيًا — مش مطلوب عشان التتبع يشتغل"
+                        : "For reporting and pixel auto-fill — not needed for tracking to work"}
                     </p>
                   </div>
                 </div>
@@ -533,6 +619,19 @@ export function TikTokTrackingPanel() {
               {/* Events API token — only when a server mode is selected */}
               {wantsApi && (
                 <div className="mt-4 border-t border-border pt-4">
+                  <p
+                    className={cn(
+                      "mb-3 text-[11.5px] font-semibold",
+                      status === "connected"
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : status === "failing"
+                          ? "text-destructive"
+                          : "text-muted-foreground",
+                    )}
+                    dir="auto"
+                  >
+                    {apiHealthLine}
+                  </p>
                   <Label htmlFor="tt-api-token" className="text-[12.5px] font-extrabold">
                     {isAr ? "توكن Events API" : "Events API access token"}
                   </Label>
@@ -876,18 +975,16 @@ export function TikTokTrackingPanel() {
                 onVerify={handleVerify}
                 result={verifyResult}
                 verifying={verifying}
-                // TikTok can only look a pixel up inside an advertiser
-                // account, so both the code and the advertiser id are
-                // prerequisites — say which one is missing.
-                disabled={!settings?.pixel_id || !settings?.advertiser_id}
+                // Only the pixel code is a hard prerequisite. Without the
+                // optional Ads-account link, `handleVerify` answers from the
+                // delivery log instead of asking TikTok.
+                disabled={!settings?.pixel_id}
                 disabledHint={
                   !settings?.pixel_id
                     ? isAr
                       ? "احفظ كود الـ Pixel الأول."
                       : "Save your Pixel Code first."
-                    : isAr
-                      ? "محتاج معرّف المعلن (advertiser ID) — تيك توك بتبحث عن الـ Pixel جوّا حساب المعلن."
-                      : "Needs your advertiser ID — TikTok looks a Pixel up inside an advertiser account."
+                    : null
                 }
                 isAr={isAr}
               />

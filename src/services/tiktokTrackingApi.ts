@@ -58,6 +58,13 @@ export interface TikTokTrackingSettings {
   mode: TikTokTrackingMode;
   /** Masked view of the saved token, e.g. `abc1••••••XYZ`. Null if none on file. */
   api_access_token_masked: string | null;
+  /**
+   * Whether an active token row exists. Prefer this over the mask: the mask
+   * is null whenever the server cannot decrypt the token for display, which
+   * this panel used to read as "no token on file" while events were flowing.
+   * Optional until the backend that returns it is promoted.
+   */
+  has_token?: boolean;
   /** Optional debug-only event code from Events Manager → Test Events. */
   test_event_code: string | null;
   /** When true, gate the browser Pixel on consent banner acceptance. */
