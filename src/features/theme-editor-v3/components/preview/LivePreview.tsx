@@ -222,6 +222,14 @@ export function LivePreview() {
         const slug = previewResources.collectionSlug;
         return slug ? `collections/${slug}` : "collections";
       }
+      // The collections INDEX ("all collections"), not a single collection.
+      // `TopBar` already unions the draft's own template keys into the page
+      // menu so a BYOT template like this one is selectable — but this switch
+      // was never told about it, so picking "Collections" fell through to
+      // `default` and previewed the HOME page while the sections panel edited
+      // the collections template. Every edit looked like it did nothing.
+      case "collections":
+        return "collections";
       case "cart":
         return "cart";
       case "search":
