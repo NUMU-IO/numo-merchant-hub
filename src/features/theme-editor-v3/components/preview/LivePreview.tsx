@@ -139,6 +139,10 @@ export function LivePreview() {
    *                              page via the future Page resource
    *                              context selector)
    *   404     → /__not-found
+   *   anything else → /<template id>  (a template the THEME introduced —
+   *                                    `collections`, `faq`, … — which the
+   *                                    page menu offers but this list has
+   *                                    never enumerated)
    *
    * When activePage is product/collection but no preview resource is
    * picked yet, we leave the path as `/product` / `/collections` —
@@ -222,14 +226,6 @@ export function LivePreview() {
         const slug = previewResources.collectionSlug;
         return slug ? `collections/${slug}` : "collections";
       }
-      // The collections INDEX ("all collections"), not a single collection.
-      // `TopBar` already unions the draft's own template keys into the page
-      // menu so a BYOT template like this one is selectable — but this switch
-      // was never told about it, so picking "Collections" fell through to
-      // `default` and previewed the HOME page while the sections panel edited
-      // the collections template. Every edit looked like it did nothing.
-      case "collections":
-        return "collections";
       case "cart":
         return "cart";
       case "search":
@@ -248,8 +244,26 @@ export function LivePreview() {
         return "pages/about";
       case "404":
         return "__numu_404";
+      // Every entry in the canonical PAGES list has a case above, so `default`
+      // is reached ONLY by a template a BYOT theme introduced — the ones
+      // `usePageOptions` unions in from the draft so the hub does not have to
+      // know about them in advance (vionne ships `collections` and `faq`).
+      //
+      // Returning "" sent all of those to the HOME page: the panel edited the
+      // right template while the preview showed a different one, so adding a
+      // section, reordering, or changing a setting all looked like they did
+      // nothing. Silently previewing the wrong page is the worst outcome here,
+      // and a per-template `case` is what let this happen twice — the template
+      // id IS the storefront subpath for these, so use it.
+      //
+      // Safe by construction on the storefront side: `/collections` is a real
+      // route, and `content-pages.ts` renders any handle in KNOWN_PAGE_HANDLES
+      // (`faq`, `size-guide`, `lookbook`, `returns`, …) at 200 through the
+      // catch-all, mapping some of them — faq included — onto a dedicated
+      // theme template. A key outside that set previews the theme's own 404,
+      // which is the honest answer: that template has no reachable URL.
       default:
-        return "";
+        return activePage;
     }
   }, [activePage, previewResources.productId, previewResources.collectionSlug]);
 
