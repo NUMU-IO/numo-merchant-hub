@@ -93,13 +93,13 @@ const MIN_API_TOKEN_LENGTH = 10;
 const MAX_EXTRA_PIXELS = 4; // + the primary = 5 total (backend allows 10)
 
 /** Events the storefront + webhooks fire automatically (mirrors the
- * funnel-step map in tiktok_capi.py — TikTok's purchase event is
- * CompletePayment, and page views ride the ViewContent server rail). */
+ * funnel-step map in tiktok_capi.py). TikTok renamed CompletePayment to
+ * Purchase on 2025-05-01; page views ride the ViewContent server rail. */
 const TIKTOK_AUTO_EVENTS = [
   "ViewContent",
   "AddToCart",
   "InitiateCheckout",
-  "CompletePayment",
+  "Purchase",
 ];
 
 const PURCHASE_TRIGGERS: Array<{
@@ -785,8 +785,8 @@ export function TikTokTrackingPanel() {
                     </Select>
                     <p className="mt-1.5 text-[11px] leading-relaxed text-ink-faint">
                       {isAr
-                        ? "للدفع عند الاستلام: إرسال CompletePayment عند التسليم يخلّي ROAS مظبوط على الإيراد الحقيقي."
-                        : "For COD: firing CompletePayment on delivery keeps ROAS aligned with real revenue."}
+                        ? "للدفع عند الاستلام: إرسال Purchase عند التسليم يخلّي ROAS مظبوط على الإيراد الحقيقي."
+                        : "For COD: firing Purchase on delivery keeps ROAS aligned with real revenue."}
                     </p>
                   </div>
                 </div>
@@ -1052,8 +1052,8 @@ export function TikTokTrackingPanel() {
                   isAr={isAr}
                   note={
                     isAr
-                      ? "حدث الشراء عند TikTok اسمه CompletePayment — بيتبعت حسب توقيت الشراء اللي اخترته."
-                      : "TikTok's purchase event is CompletePayment — it fires per the purchase timing you chose."
+                      ? "حدث الشراء عند TikTok اسمه Purchase — بيتبعت حسب توقيت الشراء اللي اخترته."
+                      : "TikTok's purchase event is Purchase — it fires per the purchase timing you chose."
                   }
                 />
               </div>

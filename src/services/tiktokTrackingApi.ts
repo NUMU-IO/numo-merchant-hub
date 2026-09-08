@@ -34,7 +34,7 @@ export type TikTokTrackingStatus =
   | "failing"
   | "disabled";
 
-/** COD-aware CompletePayment trigger. `null` = fire on payment webhook. */
+/** COD-aware Purchase trigger. `null` = fire on payment webhook. */
 export type OrderStatusTrigger =
   | "confirmed"
   | "processing"
@@ -74,7 +74,7 @@ export interface TikTokTrackingSettings {
   debug_mode_expires_at: string | null;
   last_validated_at: string | null;
   status: TikTokTrackingStatus;
-  /** COD-aware CompletePayment timing (null = fire on payment webhook). */
+  /** COD-aware Purchase timing (null = fire on payment webhook). */
   purchase_trigger?: OrderStatusTrigger | null;
   /** Multi-pixel list (null = legacy single-pixel). */
   pixels?: TikTokPixelEntry[] | null;
