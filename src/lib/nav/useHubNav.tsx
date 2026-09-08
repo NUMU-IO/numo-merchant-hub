@@ -199,6 +199,7 @@ export function useHubNav() {
   ];
 
   const groups: NavGroup[] = [
+    { ...leaf("assistant", t("nav.assistant"), "/assistant", Sparkles, "assistant"), active: isActive("/assistant") },
     { ...leaf("home", t("nav.home"), "/", House, "dashboard", { exact: true }), active: path === "/" },
     { ...leaf("orders", t("nav.orders"), "/orders", ShoppingCart, "orders"), children: ordersSub, active: ordersActive },
     { ...leaf("products", t("nav.products"), "/products", Package, "products"), children: productsSub, active: productsActive },

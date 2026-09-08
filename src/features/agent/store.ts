@@ -4,7 +4,19 @@
  */
 import { create } from "zustand";
 
-import { confirmProposal, streamAgentChat, undoLast, type AgentEvent } from "./api";
+import {
+  confirmProposal,
+  getConversation,
+  listConversations,
+  streamAgentChat,
+  undoLast,
+  type AgentEvent,
+  type ChatAttachment,
+  type ConversationSummary,
+} from "./api";
+
+/** Remember the active thread per store so a refresh resumes it. */
+const convKey = (storeId: string) => `numu-agent-conv-${storeId}`;
 
 export interface AgentProposal {
   proposal_id: string;
@@ -19,6 +31,8 @@ export interface AgentMessage {
   text: string;
   status?: "streaming" | "working" | "done" | "error";
   proposal?: AgentProposal;
+  /** Image URLs attached to a sent message, shown as thumbnails. */
+  images?: string[];
 }
 
 interface AgentState {
@@ -26,14 +40,27 @@ interface AgentState {
   isStreaming: boolean;
   conversationId: string | null;
   messages: AgentMessage[];
+  view: "chat" | "history";
+  history: ConversationSummary[];
+  isLoadingHistory: boolean;
   open: () => void;
   close: () => void;
   toggle: () => void;
   reset: () => void;
-  sendMessage: (storeId: string, text: string, locale: "ar" | "en") => Promise<void>;
+  sendMessage: (
+    storeId: string,
+    text: string,
+    locale: "ar" | "en",
+    attachments?: ChatAttachment[],
+  ) => Promise<void>;
   confirmProposal: (storeId: string, messageId: string) => Promise<void>;
   declineProposal: (storeId: string, messageId: string) => Promise<void>;
   undo: (storeId: string) => Promise<void>;
+  showHistory: (storeId: string) => Promise<void>;
+  backToChat: () => void;
+  openConversation: (storeId: string, conversationId: string) => Promise<void>;
+  newChat: (storeId: string) => void;
+  restoreLastConversation: (storeId: string) => Promise<void>;
 }
 
 let _seq = 0;
@@ -44,17 +71,66 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   isStreaming: false,
   conversationId: null,
   messages: [],
+  view: "chat",
+  history: [],
+  isLoadingHistory: false,
 
   open: () => set({ isOpen: true }),
   close: () => set({ isOpen: false }),
   toggle: () => set((s) => ({ isOpen: !s.isOpen })),
   reset: () => set({ messages: [], conversationId: null, isStreaming: false }),
 
-  sendMessage: async (storeId, text, locale) => {
+  showHistory: async (storeId) => {
+    set({ view: "history", isLoadingHistory: true });
+    try {
+      const history = await listConversations(storeId);
+      set({ history, isLoadingHistory: false });
+    } catch {
+      set({ history: [], isLoadingHistory: false });
+    }
+  },
+
+  backToChat: () => set({ view: "chat" }),
+
+  openConversation: async (storeId, conversationId) => {
+    set({ view: "chat", isStreaming: false });
+    try {
+      const conv = await getConversation(storeId, conversationId);
+      const messages: AgentMessage[] = conv.turns.map((t) => ({
+        id: nextId(),
+        role: t.role,
+        text: t.content,
+        status: "done" as const,
+      }));
+      set({ conversationId: conv.id, messages });
+      localStorage.setItem(convKey(storeId), conv.id);
+    } catch {
+      /* thread gone (or forbidden) — stay on the current chat */
+    }
+  },
+
+  newChat: (storeId) => {
+    localStorage.removeItem(convKey(storeId));
+    set({ messages: [], conversationId: null, view: "chat", isStreaming: false });
+  },
+
+  restoreLastConversation: async (storeId) => {
+    // Called once when the panel first opens: resume where the merchant left off.
+    if (get().conversationId || get().messages.length > 0) return;
+    const saved = localStorage.getItem(convKey(storeId));
+    if (saved) await get().openConversation(storeId, saved);
+  },
+
+  sendMessage: async (storeId, text, locale, attachments) => {
     const trimmed = text.trim();
     if (!trimmed || get().isStreaming) return;
 
-    const userMsg: AgentMessage = { id: nextId(), role: "user", text: trimmed };
+    const userMsg: AgentMessage = {
+      id: nextId(),
+      role: "user",
+      text: trimmed,
+      images: (attachments || []).map((a) => a.url),
+    };
     const agentMsg: AgentMessage = { id: nextId(), role: "agent", text: "", status: "working" };
     set((s) => ({ messages: [...s.messages, userMsg, agentMsg], isStreaming: true }));
 
@@ -66,8 +142,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const onEvent = (ev: AgentEvent) => {
       switch (ev.type) {
         case "meta":
-          if (typeof ev.data.conversation_id === "string")
+          if (typeof ev.data.conversation_id === "string") {
             set({ conversationId: ev.data.conversation_id });
+            localStorage.setItem(convKey(storeId), ev.data.conversation_id);
+          }
           break;
         case "tool_call":
           patchAgent({ status: "working" });
@@ -103,7 +181,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     try {
       await streamAgentChat(
         storeId,
-        { message: trimmed, conversation_id: get().conversationId, locale },
+        {
+          message: trimmed,
+          conversation_id: get().conversationId,
+          locale,
+          ...(attachments?.length ? { attachments } : {}),
+        },
         onEvent,
       );
     } catch {
