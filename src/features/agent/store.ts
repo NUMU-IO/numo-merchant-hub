@@ -11,6 +11,7 @@ import {
   streamAgentChat,
   undoLast,
   type AgentEvent,
+  type ChatAttachment,
   type ConversationSummary,
 } from "./api";
 
@@ -30,6 +31,8 @@ export interface AgentMessage {
   text: string;
   status?: "streaming" | "working" | "done" | "error";
   proposal?: AgentProposal;
+  /** Image URLs attached to a sent message, shown as thumbnails. */
+  images?: string[];
 }
 
 interface AgentState {
@@ -44,7 +47,12 @@ interface AgentState {
   close: () => void;
   toggle: () => void;
   reset: () => void;
-  sendMessage: (storeId: string, text: string, locale: "ar" | "en") => Promise<void>;
+  sendMessage: (
+    storeId: string,
+    text: string,
+    locale: "ar" | "en",
+    attachments?: ChatAttachment[],
+  ) => Promise<void>;
   confirmProposal: (storeId: string, messageId: string) => Promise<void>;
   declineProposal: (storeId: string, messageId: string) => Promise<void>;
   undo: (storeId: string) => Promise<void>;
@@ -113,11 +121,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     if (saved) await get().openConversation(storeId, saved);
   },
 
-  sendMessage: async (storeId, text, locale) => {
+  sendMessage: async (storeId, text, locale, attachments) => {
     const trimmed = text.trim();
     if (!trimmed || get().isStreaming) return;
 
-    const userMsg: AgentMessage = { id: nextId(), role: "user", text: trimmed };
+    const userMsg: AgentMessage = {
+      id: nextId(),
+      role: "user",
+      text: trimmed,
+      images: (attachments || []).map((a) => a.url),
+    };
     const agentMsg: AgentMessage = { id: nextId(), role: "agent", text: "", status: "working" };
     set((s) => ({ messages: [...s.messages, userMsg, agentMsg], isStreaming: true }));
 
@@ -168,7 +181,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     try {
       await streamAgentChat(
         storeId,
-        { message: trimmed, conversation_id: get().conversationId, locale },
+        {
+          message: trimmed,
+          conversation_id: get().conversationId,
+          locale,
+          ...(attachments?.length ? { attachments } : {}),
+        },
         onEvent,
       );
     } catch {

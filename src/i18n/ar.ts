@@ -11,6 +11,8 @@
     unavailable: "المساعد مش متاح دلوقتي.",
     emptyTitle: "اسألني عن متجرك",
     emptyHint: 'مثال: "كام أوردر النهارده؟" أو "أنهي منتجات قربت تخلص؟"',
+    attachImage: "أرفق صورة",
+    removeAttachment: "شيل",
     previewTitle: "التغيير المقترح",
     before: "قبل",
     after: "بعد",

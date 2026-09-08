@@ -11,6 +11,8 @@ export default {
     unavailable: "The assistant is unavailable right now.",
     emptyTitle: "Ask me about your store",
     emptyHint: 'e.g. "How many orders today?" or "Which products are low on stock?"',
+    attachImage: "Attach a photo",
+    removeAttachment: "Remove",
     previewTitle: "Proposed change",
     before: "Before",
     after: "After",
