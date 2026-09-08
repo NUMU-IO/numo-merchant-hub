@@ -1,24 +1,26 @@
 /**
- * AgentPanel — the NUMU merchant copilot chat surface (US1, read-only).
+ * AgentPanel — the NUMU merchant copilot slide-over.
  *
- * A slide-over (shadcn Sheet) that streams the agent's reply over SSE, is fully
- * RTL-aware, and renders in the merchant's language (English / Egyptian Arabic).
- * Mount once inside the dashboard layout; a floating launcher toggles it open.
+ * A shadcn Sheet that streams the agent's reply over SSE, is fully RTL-aware,
+ * and renders in the merchant's language (English / Egyptian Arabic). Mount
+ * once inside the dashboard layout; a floating launcher toggles it open.
+ *
+ * The thread and the composer are shared with the full-page Assistant
+ * (`pages/Assistant.tsx`) — this file owns only the slide-over chrome.
  */
-import { ArrowLeft, History, ImagePlus, Loader2, Plus, Send, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, History, Loader2, Plus } from "lucide-react";
+import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { uploadStoreAsset } from "@/services/storeApi";
 
+import { ChatThread } from "./ChatThread";
+import { Composer } from "./Composer";
 import { DigestCard } from "./DigestCard";
 import { MascotSprite, type MascotState } from "./MascotSprite";
-import { ProposalCard } from "./ProposalCard";
 import { useAgentStore } from "./store";
-import type { ChatAttachment } from "./api";
 
 function currentStoreId(): string | null {
   return localStorage.getItem("numu-current-store");
@@ -45,8 +47,6 @@ export function AgentPanel() {
     newChat,
     restoreLastConversation,
   } = useAgentStore();
-  const [input, setInput] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Resume the last thread once per panel-open so a refresh doesn't wipe context.
   useEffect(() => {
@@ -65,40 +65,10 @@ export function AgentPanel() {
     return "idle";
   }, [messages, isStreaming]);
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
-
-  // Photos the merchant attached but has not sent yet. Uploaded on pick, so
-  // the agent is only ever handed URLs — it never sees bytes.
-  const [pending, setPending] = useState<ChatAttachment[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const handlePick = async (files: FileList | null) => {
+  const send = (text: string, attachments: { type: "image"; url: string }[]) => {
     const storeId = currentStoreId();
-    if (!files?.length || !storeId) return;
-    setUploading(true);
-    try {
-      for (const file of Array.from(files).slice(0, 4 - pending.length)) {
-        // uploadStoreAsset already compresses phone photos under the cap.
-        const res = await uploadStoreAsset(storeId, file, "product_image");
-        setPending((p) => [...p, { type: "image", url: res.url }]);
-      }
-    } catch {
-      // Non-fatal: the merchant can retry or just send the message as text.
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
-  };
-
-  const handleSend = () => {
-    const storeId = currentStoreId();
-    if (!storeId || !input.trim() || isStreaming) return;
-    void sendMessage(storeId, input, locale, pending);
-    setInput("");
-    setPending([]);
+    if (!storeId) return;
+    void sendMessage(storeId, text, locale, attachments);
   };
 
   // A digest chip sends its follow-up prompt straight into the chat.
@@ -211,133 +181,28 @@ export function AgentPanel() {
                 </ul>
               )}
             </div>
-          ) : (
-          <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-            {messages.length === 0 ? (
-              <div className="flex h-full flex-col">
-                <DigestCard
-                  storeId={currentStoreId()}
-                  isOpen={isOpen}
-                  onPrompt={handlePrompt}
-                />
-                <div className="flex flex-1 flex-col items-center justify-center text-center text-sm text-muted-foreground">
-                  <MascotSprite state="wave" size={96} className="mb-3" />
-                  <p className="font-medium">{t("agent.emptyTitle")}</p>
-                  <p className="mt-1 text-xs">{t("agent.emptyHint")}</p>
-                </div>
+          ) : messages.length === 0 ? (
+            <div className="flex flex-1 flex-col overflow-y-auto px-4 py-4">
+              <DigestCard
+                storeId={currentStoreId()}
+                isOpen={isOpen}
+                onPrompt={handlePrompt}
+              />
+              <div className="flex flex-1 flex-col items-center justify-center text-center text-sm text-muted-foreground">
+                <MascotSprite state="wave" size={96} className="mb-3" />
+                <p className="font-medium">{t("agent.emptyTitle")}</p>
+                <p className="mt-1 text-xs">{t("agent.emptyHint")}</p>
               </div>
-            ) : (
-              messages.map((m) => (
-                <div key={m.id} className="space-y-1">
-                  {/* Thumbnails of what the merchant attached, so the sent
-                      message reads the way they composed it. */}
-                  {m.images && m.images.length > 0 && (
-                    <div className="flex flex-wrap justify-end gap-1.5">
-                      {m.images.map((url) => (
-                        <img
-                          key={url}
-                          src={url}
-                          alt=""
-                          className="h-16 w-16 rounded-lg border object-cover"
-                        />
-                      ))}
-                    </div>
-                  )}
-                  <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
-                        m.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-foreground"
-                      }`}
-                    >
-                      {m.text ||
-                        (m.status === "working" ? (
-                          <span className="inline-flex items-center gap-1 text-muted-foreground">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            {t("agent.thinking")}
-                          </span>
-                        ) : null)}
-                    </div>
-                  </div>
-                  {m.role === "agent" && m.proposal && (
-                    <ProposalCard messageId={m.id} proposal={m.proposal} />
-                  )}
-                </div>
-              ))
-            )}
-          </div>
+            </div>
+          ) : (
+            <ChatThread messages={messages} className="flex-1 px-4 py-4" />
           )}
 
-          <div className="border-t p-3">
-            {pending.length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-2">
-                {pending.map((a) => (
-                  <div key={a.url} className="relative">
-                    <img
-                      src={a.url}
-                      alt=""
-                      className="h-14 w-14 rounded border object-cover"
-                    />
-                    <button
-                      type="button"
-                      aria-label={t("agent.removeAttachment")}
-                      onClick={() =>
-                        setPending((p) => p.filter((x) => x.url !== a.url))
-                      }
-                      className="absolute -end-1.5 -top-1.5 rounded-full bg-foreground p-0.5 text-background"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex items-end gap-2">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                multiple
-                hidden
-                onChange={(e) => void handlePick(e.target.files)}
-              />
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={t("agent.attachImage")}
-                disabled={isStreaming || uploading || pending.length >= 4}
-                onClick={() => fileRef.current?.click()}
-              >
-                {uploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ImagePlus className="h-4 w-4" />
-                )}
-              </Button>
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                placeholder={t("agent.placeholder")}
-                dir={isRTL ? "rtl" : "ltr"}
-                rows={1}
-                className="max-h-32 flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-              <Button size="icon" onClick={handleSend} disabled={isStreaming || !input.trim()}>
-                {isStreaming ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          </div>
+          <Composer
+            storeId={currentStoreId()}
+            disabled={isStreaming}
+            onSend={send}
+          />
         </SheetContent>
       </Sheet>
     </>

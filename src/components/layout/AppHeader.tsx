@@ -14,6 +14,7 @@ import {
   Moon,
   Search,
   Settings,
+  Sparkles,
   Sun,
   User,
 } from "lucide-react";
@@ -34,6 +35,7 @@ import { getPublicStoreUrl } from "@/lib/storefront";
 import { SearchPalette } from "@/components/layout/SearchPalette";
 import WalletHeaderChip from "@/components/wallet/WalletHeaderChip";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { useNavConfig } from "@/hooks/useNavConfig";
 import { AddMenu } from "@/components/layout/AddMenu";
 import { PagesMenu } from "@/components/layout/PagesMenu";
 import { getRealtimeSnapshot } from "@/services/analyticsApi";
@@ -56,6 +58,7 @@ const AppHeader = () => {
   const founderCohort = useFounderCohort();
   const { currentStore } = useDashboardStore();
   const navigate = useNavigate();
+  const { isVisible } = useNavConfig();
   const storeId = currentStore?.id;
   const isAr = language === "ar";
   // next-themes owns the `.dark` class + `localStorage.theme`; the
@@ -189,6 +192,24 @@ const AppHeader = () => {
 
           {/* Grouped icon cluster */}
           <div className="flex items-center rounded-xl border border-white/15 bg-white/10 p-0.5">
+            {/* The assistant is one tap from anywhere, on both breakpoints —
+                the sidebar entry is desktop-only and the slide-over launcher
+                sits behind the page content. */}
+            {isVisible("assistant") && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={topbarBtn}
+                  onClick={() => navigate("/assistant")}
+                  aria-label={t("nav.assistant")}
+                  title={t("nav.assistant")}
+                >
+                  <Sparkles className="h-[18px] w-[18px]" />
+                </Button>
+                <span className="mx-0.5 h-5 w-px bg-white/15" aria-hidden />
+              </>
+            )}
             <Button
               variant="ghost"
               size="icon"

@@ -10,7 +10,10 @@ import { PackageX, ShoppingCart, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useLanguage } from "@/contexts/LanguageContext";
+
 import { getDigest, type Digest, type DigestBlock } from "./api";
+import { blockText } from "./digestText";
 
 const ICONS = {
   orders: TrendingUp,
@@ -33,14 +36,6 @@ function useDigest(storeId: string | null, isOpen: boolean): Digest | null {
   return digest;
 }
 
-function blockText(t: (k: string, o?: Record<string, unknown>) => string, b: DigestBlock) {
-  if (b.kind === "orders")
-    return t("agent.digest.orders", { count: b.count, revenue: b.revenue });
-  if (b.kind === "abandoned_carts")
-    return t("agent.digest.carts", { count: b.count, value: b.value_at_stake });
-  return t("agent.digest.lowStock", { count: b.count });
-}
-
 export function DigestCard({
   storeId,
   isOpen,
@@ -51,6 +46,7 @@ export function DigestCard({
   onPrompt: (prompt: string) => void;
 }) {
   const { t } = useTranslation();
+  const { language } = useLanguage();
   const digest = useDigest(storeId, isOpen);
 
   if (!digest || digest.quiet || digest.blocks.length === 0) return null;
@@ -67,7 +63,7 @@ export function DigestCard({
             <li key={b.kind} className="flex items-start gap-2">
               <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm">{blockText(t, b)}</p>
+                <p className="text-sm">{blockText(t, b, language === "ar" ? "ar" : "en")}</p>
                 {b.prompt && (
                   <button
                     type="button"
