@@ -144,6 +144,7 @@ const MetaOAuthCallback = lazyWithRetry(() => import("@/pages/MetaOAuthCallback"
 const EmailTemplates = lazyWithRetry(() => import("@/pages/EmailTemplates"));
 const EmailTemplateEditor = lazyWithRetry(() => import("@/pages/EmailTemplateEditor"));
 const AgentNotes = lazyWithRetry(() => import("@/features/agent-knowledge"));
+const Assistant = lazyWithRetry(() => import("@/pages/Assistant"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -437,6 +438,7 @@ const App = () => (
                     <Route path="/marketing/promotions/new" element={<PromotionForm />} />
                     <Route path="/marketing/promotions/:id" element={<PromotionDetail />} />
                     <Route path="/marketing/promotions/:id/edit" element={<PromotionForm />} />
+                    <Route path="/assistant" element={<Assistant />} />
                     <Route path="/agent-notes" element={<AgentNotes />} />
                     <Route path="/email-templates" element={<EmailTemplates />} />
                     <Route path="/email-templates/new" element={<EmailTemplateEditor />} />

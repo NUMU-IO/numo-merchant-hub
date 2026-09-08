@@ -8,7 +8,7 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { AlertTriangle, Clock, Timer, Zap } from "lucide-react";
 import { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
 import MobileBottomNav from "./MobileBottomNav";
@@ -41,6 +41,7 @@ const DashboardLayout = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const isAr = language === "ar";
 
   // Mirror the unread count onto the installed app icon. Same hook and same
@@ -159,8 +160,9 @@ const DashboardLayout = () => {
           layout level so it runs on every dashboard page. */}
       <NewOrderNotifier />
       {/* NUMU Agent (merchant copilot) — floating launcher + slide-over panel,
-          available on every dashboard route (US1 read-only assistant). */}
-      {assistantEnabled && <AgentPanel />}
+          available on every dashboard route except the assistant's own page,
+          where the launcher would float over the thread it duplicates. */}
+      {assistantEnabled && pathname !== "/assistant" && <AgentPanel />}
     </SidebarProvider>
   );
 };

@@ -145,6 +145,26 @@
        button down 2px (handled in the .btn-tactile rules below). */
     --shadow-depth-navy:    0 2px 0 hsl(213 76% 13%), 0 6px 14px -4px hsl(212 75% 19% / 0.45);
     --shadow-depth-saffron: 0 2px 0 hsl(35 78% 46%), 0 6px 14px -4px hsl(35 78% 46% / 0.45);
+    /* Key edge + step for the light-faced tactile control (.btn-tactile-surface):
+       a hairline border over a solid step the button presses into. */
+    --key-edge:       0 0% 80%;
+    --key-edge-hover: 0 0% 67%;
+    --key-step:       0 6% 87%;
+
+    /* Warm ground for the assistant launcher — the one page that is a room
+       rather than a document, so it sits on surface rather than on white. */
+    --agent-ground:   72 14% 95%;
+
+    /* Capability accents — one hue per agent tool, so a row of chips reads as
+       a set of distinct things rather than eight identical pills. */
+    --cap-blue:     215 95% 58%;
+    --cap-orange:   32 100% 51%;
+    --cap-gold:     40 84% 50%;
+    --cap-red:      0 87% 64%;
+    --cap-violet:   252 100% 70%;
+    --cap-green:    143 54% 45%;
+    --cap-magenta:  288 68% 51%;
+    --cap-cyan:     191 61% 48%;
   }
 
   .dark {
@@ -218,6 +238,13 @@
     --shadow-pop:  0 16px 40px -12px hsl(0 0% 0% / 0.6);
     --shadow-depth-navy:    0 2px 0 hsl(212 62% 35%), 0 6px 14px -4px hsl(0 0% 0% / 0.5);
     --shadow-depth-saffron: 0 2px 0 hsl(35 78% 46%), 0 6px 14px -4px hsl(0 0% 0% / 0.5);
+    --key-edge:       225 7% 31%;
+    --key-edge-hover: 225 7% 45%;
+    --key-step:       0 0% 20%;
+
+    --agent-ground:   216 45% 6%;
+
+    /* Same accents — each already clears contrast on the dark ground. */
   }
 }
 
@@ -969,6 +996,53 @@
   .btn-tactile-saffron:active {
     transform: translateY(2px);
     box-shadow: 0 0 0 hsl(var(--saffron-600));
+  }
+
+  /* Light-surface sibling of the two tactile buttons above: a card-white face
+     on a hairline edge with the same 2px solid step, so a quiet control still
+     reads as a physical key. Use where a chip or secondary action should look
+     pressable without claiming the page's primary action. */
+  .btn-tactile-surface {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--key-edge));
+    border-radius: 0.375rem;
+    /* The step: the same box, 3px lower and 1px narrower, in the frame colour.
+       Hovering lifts the face off it; pressing sinks the face into it. */
+    box-shadow: 0 3px 0 -1px hsl(var(--key-step));
+    transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+  }
+  .btn-tactile-surface:hover:not(:disabled) {
+    transform: translateY(-0.5px);
+    border-color: hsl(var(--key-edge-hover));
+  }
+  .btn-tactile-surface:active:not(:disabled) {
+    transform: translateY(1.5px);
+    box-shadow: 0 1px 0 -1px hsl(var(--key-step));
+  }
+  .btn-tactile-surface:disabled {
+    box-shadow: 0 1px 0 -1px hsl(var(--key-step));
+  }
+
+  /* AI notice — a violet gradient hairline over a 4%-alpha wash of the same
+     two hues. The border is a masked pseudo-element because a gradient cannot
+     be a border-color. */
+  .banner-ai {
+    background: linear-gradient(135deg, #a78bfa0a, #818cf80a);
+    border: none;
+    position: relative;
+  }
+  .banner-ai::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, #a78bfa, #818cf8 50%, #a78bfa);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
   }
 
   /* Saffron accent button — reserved for the single most important
