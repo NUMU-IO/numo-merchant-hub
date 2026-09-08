@@ -28,6 +28,7 @@ export default {
       off: "off",
       minOrder: "Min. order",
       limit: "Usage limit",
+      draftNotice: "Saved as a draft — publish it when you're ready.",
       unlimited: "Unlimited",
       price: "Price",
       compareAt: "Compare-at",

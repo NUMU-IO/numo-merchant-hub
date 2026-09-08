@@ -3,6 +3,7 @@
  *
  * The body is tailored per action via the `diff.action` discriminator:
  *   - create_coupon   → coupon summary (code, discount, conditions)
+ *   - create_product  → the new product: name, price, stock, first image
  *   - update_product  → per-field before → after rows
  *   - theme edits     → section-order / setting before/after (original)
  * Nothing is applied until Confirm (calls /agent/confirm). After apply, Undo.
@@ -84,6 +85,58 @@ function CouponDiff({ diff }: { diff: AnyDiff }) {
   );
 }
 
+function NewProductDiff({ diff }: { diff: AnyDiff }) {
+  const { t } = useTranslation();
+  const p = (diff.product || {}) as Record<string, unknown>;
+  const images = (p.images as string[]) || [];
+  return (
+    <div className="mt-2 flex items-start gap-3">
+      {images[0] && (
+        <img
+          src={images[0]}
+          alt=""
+          className="h-12 w-12 shrink-0 rounded border object-cover"
+          // The URL came from the merchant's own upload, but a broken one
+          // should leave a gap rather than a broken-image icon in the card.
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+      <div className="min-w-0 space-y-1">
+        <div className="text-xs font-medium">{String(p.name ?? "")}</div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+          {/* Prices and counts stay LTR inside an RTL card. */}
+          <span>
+            {t("agent.card.price")}:{" "}
+            <span dir="ltr" className="ltr-nums">
+              {num(p.price)} {String(p.currency ?? "")}
+            </span>
+          </span>
+          {p.compare_at_price != null && (
+            <span>
+              {t("agent.card.compareAt")}:{" "}
+              <span dir="ltr" className="ltr-nums">
+                {num(p.compare_at_price)}
+              </span>
+            </span>
+          )}
+          <span>
+            {t("agent.card.stock")}:{" "}
+            <span dir="ltr" className="ltr-nums">
+              {num(p.quantity ?? 0)}
+            </span>
+          </span>
+        </div>
+        {/* Draft is the whole safety story of this action — say it plainly. */}
+        <div className="text-[11px] text-amber-600 dark:text-amber-500">
+          {t("agent.card.draftNotice")}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProductDiff({ diff }: { diff: AnyDiff }) {
   const { t } = useTranslation();
   const before = (diff.before || {}) as Record<string, unknown>;
@@ -160,6 +213,8 @@ export function ProposalCard({
 
       {diff.action === "create_coupon" ? (
         <CouponDiff diff={diff} />
+      ) : diff.action === "create_product" ? (
+        <NewProductDiff diff={diff} />
       ) : diff.action === "update_product" ? (
         <ProductDiff diff={diff} />
       ) : (
