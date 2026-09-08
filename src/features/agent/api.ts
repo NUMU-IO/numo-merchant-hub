@@ -15,10 +15,17 @@ export interface AgentEvent {
   data: Record<string, unknown>;
 }
 
+export interface ChatAttachment {
+  type: "image";
+  url: string;
+}
+
 export interface ChatRequestBody {
   message: string;
   conversation_id?: string | null;
   locale?: "ar" | "en";
+  /** Already-uploaded files. The agent is handed URLs, never bytes. */
+  attachments?: ChatAttachment[];
 }
 
 /** Stream a turn. Calls `onEvent` for each parsed SSE event. */

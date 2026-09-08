@@ -218,6 +218,7 @@ export type AssetType =
   | "profile_picture"
   | "section_image"
   | "social_image"
+  | "product_image"
   | "generic_file";
 
 export async function uploadStoreAsset(
