@@ -13,6 +13,8 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 
+import { ApiError } from "@/lib/api-error";
+
 import { useAgentStore, type AgentProposal } from "./store";
 
 function currentStoreId(): string | null {
@@ -205,7 +207,7 @@ export function ProposalCard({
   messageId: string;
   proposal: AgentProposal;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { confirmProposal, declineProposal, undo } = useAgentStore();
   const storeId = currentStoreId();
   if (!storeId) return null;
@@ -253,7 +255,13 @@ export function ProposalCard({
         {proposal.status === "declined" && (
           <span className="text-muted-foreground">{t("agent.declined")}</span>
         )}
-        {proposal.status === "error" && <span className="text-red-600">{t("agent.error")}</span>}
+        {proposal.status === "error" && (
+          <span className="text-red-600">
+            {proposal.error instanceof ApiError
+              ? proposal.error.toUserMessage(i18n.language)
+              : t("agent.error")}
+          </span>
+        )}
       </div>
     </div>
   );
