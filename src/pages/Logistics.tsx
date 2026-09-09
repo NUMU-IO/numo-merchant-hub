@@ -369,11 +369,17 @@ const Logistics = () => {
     } catch (e) { showError(e, language); }
   };
 
-  const handleDownloadManifest = async () => {
+  /* The Tier 3 handoff. Waselha, Flextock, Holy Ship, Barashout and the
+     rest publish no API, so the sheet is how a merchant sends them a
+     day's orders. Passing the courier scopes it: a merchant running two
+     of them must not send either one the other's parcels. */
+  const handleDownloadManifest = async (courier?: CourierProfile) => {
     if (!storeId) return;
     try {
-      const blob = await fetchManifest(storeId);
-      downloadBlob(blob, `manifest-${new Date().toISOString().slice(0, 10)}.csv`);
+      const blob = await fetchManifest(storeId, "created", courier?.id);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const who = courier ? `-${(courier.name_en || courier.id).replace(/\s+/g, "-")}` : "";
+      downloadBlob(blob, `manifest${who}-${stamp}.csv`);
     } catch (e) { showError(e, language); }
   };
 
@@ -710,6 +716,7 @@ const Logistics = () => {
               isAr={isAr}
               storeName={currentStore?.name ?? (isAr ? "متجرنا" : "our store")}
               readyParcels={tileReadyToShip}
+              onDownloadSheet={handleDownloadManifest}
               saving={courierSaving}
               onCreate={handleCreateCourier}
               onUpdate={handleUpdateCourier}
@@ -740,7 +747,7 @@ const Logistics = () => {
             <ul className="divide-y divide-border/60 border-t border-border/60">
               {[
                 { key: "shipments", icon: Package, title: isAr ? "الشحنات" : "Shipments", sub: isAr ? "تتبّع وإلغاء وبوالص" : "Track, cancel, AWBs", onClick: () => openBosta("all"), disabled: !bostaCreds?.is_configured },
-                { key: "manifest", icon: Upload, title: isAr ? "كشف التسليم" : "Pickup manifest", sub: isAr ? "نزّل كشف الشحنات للمندوب" : "Download the courier's sheet", onClick: handleDownloadManifest },
+                { key: "manifest", icon: Upload, title: isAr ? "كشف التسليم" : "Pickup manifest", sub: isAr ? "نزّل كشف الشحنات للمندوب" : "Download the courier's sheet", onClick: () => handleDownloadManifest() },
                 { key: "labels", icon: Printer, title: isAr ? "طباعة البوالص" : "Print labels", sub: isAr ? "بوالص الطلبات الجاهزة" : "Labels for ready orders", onClick: () => navigate("/orders/shipping-labels") },
                 { key: "calc", icon: CircleDollarSign, title: isAr ? "حاسبة الشحن" : "Rate calculator", sub: isAr ? "جرّب محافظة ووزن وشوف السعر" : "Try a governorate & weight", onClick: () => navigate("/logistics/rate-calculator") },
                 { key: "cod", icon: Zap, title: isAr ? "أوتوبايلوت الدفع عند الاستلام" : "COD autopilot", sub: isAr ? "رسايل واتساب تلقائية للتوصيل" : "Automatic WhatsApp delivery updates", onClick: () => navigate("/cod-autopilot") },

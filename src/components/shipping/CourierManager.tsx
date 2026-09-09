@@ -13,7 +13,15 @@
  */
 
 import { useState } from "react";
-import { Loader2, MapPin, MessageCircle, Phone, Plus, Trash2 } from "lucide-react";
+import {
+  Download,
+  Loader2,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Plus,
+  Trash2,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { pickupMessage, whatsAppLink } from "@/lib/whatsapp";
+import { CourierLogo } from "./CourierLogo";
 import {
   type CourierProfile,
   type CourierSeed,
@@ -41,6 +50,8 @@ interface Props {
   storeName: string;
   /** Shipments in `created` — packed and waiting for a courier. */
   readyParcels: number;
+  /** Download one courier's parcels as CSV — the Tier 3 handoff. */
+  onDownloadSheet?: (courier: CourierProfile) => void;
 }
 
 export const CourierManager = ({
@@ -53,6 +64,7 @@ export const CourierManager = ({
   onDelete,
   storeName,
   readyParcels,
+  onDownloadSheet,
 }: Props) => {
   const [adding, setAdding] = useState(false);
 
@@ -101,6 +113,9 @@ export const CourierManager = ({
               onDelete={() => onDelete(courier.id)}
               storeName={storeName}
               readyParcels={readyParcels}
+              onDownloadSheet={
+                onDownloadSheet ? () => onDownloadSheet(courier) : undefined
+              }
             />
           ))}
         </ul>
@@ -129,6 +144,7 @@ const CourierRow = ({
   onDelete,
   storeName,
   readyParcels,
+  onDownloadSheet,
 }: {
   courier: CourierProfile;
   isAr: boolean;
@@ -138,6 +154,8 @@ const CourierRow = ({
   storeName: string;
   /** Shipments in `created` — packed, not yet picked up. */
   readyParcels: number;
+  /** Download this courier's parcels as CSV. Absent = no sheet offered. */
+  onDownloadSheet?: () => void;
 }) => {
   /* The Tier 3 handoff, in its cheapest honest form. These couriers all
      work over WhatsApp already; a `wa.me` link needs no Meta template
@@ -161,6 +179,11 @@ const CourierRow = ({
   <li className="flex items-center gap-3 px-4 py-3">
     <div className="min-w-0 flex-1">
       <div className="flex items-center gap-2">
+        <CourierLogo
+          seedKey={courier.seed_key}
+          name={courierName(courier, isAr)}
+          height={16}
+        />
         <span className="text-[13px] font-bold">{courierName(courier, isAr)}</span>
         {!courier.is_active && (
           <Badge variant="secondary" className="h-5 text-[10px]">
@@ -191,6 +214,22 @@ const CourierRow = ({
       </div>
     </div>
 
+    {onDownloadSheet && (
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 gap-1.5 text-xs"
+        onClick={() => onDownloadSheet()}
+        title={
+          isAr
+            ? "ملف CSV بشحنات المندوب ده بس"
+            : "A CSV of this courier's parcels only"
+        }
+      >
+        <Download className="h-3.5 w-3.5" />
+        {isAr ? "نزّل الكشف" : "Download sheet"}
+      </Button>
+    )}
     {waHref && (
       <a href={waHref} target="_blank" rel="noopener noreferrer">
         <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
@@ -267,7 +306,14 @@ const AddCourier = ({
                   : "border-border hover:bg-muted/50"
               }`}
             >
-              {seedName(seed, isAr)}
+              <span className="flex items-center gap-1.5">
+                <CourierLogo
+                  seedKey={seed.key}
+                  name={seedName(seed, isAr)}
+                  height={14}
+                />
+                {seedName(seed, isAr)}
+              </span>
             </button>
           ))}
         </div>

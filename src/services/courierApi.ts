@@ -162,11 +162,22 @@ export async function fetchWaybill(
   return fetchBlob(`/stores/${storeId}/shipments/${shipmentId}/waybill`);
 }
 
+/**
+ * The sheet a merchant sends a courier company.
+ *
+ * `courierId` scopes it to one courier's parcels. Companies like
+ * Waselha, Flextock, Holy Ship and Barashout have no API, so this CSV is
+ * the handoff — and a merchant using two of them at once must not send
+ * either a sheet listing the other's parcels.
+ */
 export async function fetchManifest(
   storeId: string,
   status = "created",
+  courierId?: string,
 ): Promise<Blob> {
-  return fetchBlob(`/stores/${storeId}/shipments/manifest?status=${status}`);
+  const params = new URLSearchParams({ status });
+  if (courierId) params.set("courier", courierId);
+  return fetchBlob(`/stores/${storeId}/shipments/manifest?${params}`);
 }
 
 /**
