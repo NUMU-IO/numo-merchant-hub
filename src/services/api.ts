@@ -29,9 +29,18 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
 const IMPERSONATION_TOKEN_KEY = "numu.impersonation_token";
 const IMPERSONATION_BY_KEY = "numu.impersonating_by";
 
-function getImpersonationToken(): string | null {
+export function getImpersonationToken(): string | null {
   try {
     return sessionStorage.getItem(IMPERSONATION_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** The store the hub is currently scoped to, as `X-Tenant-Id`. */
+export function getCurrentStoreId(): string | null {
+  try {
+    return localStorage.getItem("numu-current-store");
   } catch {
     return null;
   }
