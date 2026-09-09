@@ -59,6 +59,13 @@ export function ChatThread({
               </div>
             )}
             <div
+              // A merchant on the Arabic hub types English half the time
+              // ("Which products are low on stock?"). Inheriting the page's
+              // RTL direction ran that sentence through the bidi algorithm and
+              // threw the question mark to the front — "?Which products are
+              // low on stock". `auto` takes the direction from the text's own
+              // first strong character, so each message reads in its own.
+              dir="auto"
               className={`${userMaxWidth} whitespace-pre-wrap rounded-lg border bg-card px-3 py-2 text-sm font-medium leading-relaxed`}
             >
               {m.text}
@@ -68,7 +75,10 @@ export function ChatThread({
           <div key={m.id} className="flex flex-col items-start gap-1.5 me-4 md:me-10">
             <ToolTrace tools={m.tools} running={m.status === "working"} />
             {(m.text || m.status !== "working") && (
-              <div className="w-full rounded-lg border bg-card px-3 py-2 text-sm leading-relaxed">
+              <div
+                dir="auto"
+                className="w-full rounded-lg border bg-card px-3 py-2 text-sm leading-relaxed"
+              >
                 {m.text ? (
                   <Markdown text={m.text} />
                 ) : (

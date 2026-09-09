@@ -23,6 +23,15 @@ export interface AgentProposal {
   summary?: string;
   diff?: Record<string, unknown>;
   status: "pending" | "applying" | "applied" | "declined" | "error";
+  /**
+   * What actually went wrong, kept so the card can say it. The catch here used
+   * to be bare, so every failed confirm — a product deleted in another tab, a
+   * stale proposal, a permission the merchant does not have — rendered the same
+   * "something went wrong", which tells them nothing about whether retrying
+   * could ever work. Held as the thrown value rather than a string so the card
+   * can ask ApiError for the message in the merchant's own language.
+   */
+  error?: unknown;
 }
 
 export interface AgentMessage {
@@ -241,11 +250,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const proposal = msg?.proposal;
     if (!proposal || proposal.status !== "pending") return;
 
-    const patchProposal = (status: AgentProposal["status"]) =>
+    const patchProposal = (status: AgentProposal["status"], error?: unknown) =>
       set((s) => ({
         messages: s.messages.map((m) =>
           m.id === messageId && m.proposal
-            ? { ...m, proposal: { ...m.proposal, status } }
+            ? { ...m, proposal: { ...m.proposal, status, error } }
             : m,
         ),
       }));
@@ -254,8 +263,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     try {
       await confirmProposal(storeId, proposal.proposal_id, "confirm");
       patchProposal("applied");
-    } catch {
-      patchProposal("error");
+    } catch (err) {
+      patchProposal("error", err);
     }
   },
 
