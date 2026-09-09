@@ -66,7 +66,7 @@ export function useHubNav() {
   const location = useLocation();
   const { currentStore } = useDashboardStore();
   const { user } = useAuth();
-  const { isVisible } = useNavConfig();
+  const { isVisible, labelFor } = useNavConfig();
 
   // ── Live badges ──────────────────────────────────────────────────────
   const { data: inboxData } = useQuery({
@@ -117,8 +117,11 @@ export function useHubNav() {
   const staffActive = isActive("/staff") || isActive("/roles");
   const channelsActive = isActive("/channels") || isActive("/inbox") || isActive("/social");
 
+  // Every row in the sidebar and the mobile sheet is built here, which is why
+  // the admin rename is applied here and nowhere else: one call site cannot
+  // drift from another, and a row that is added later gets it for free.
   const leaf = (key: string, label: string, url: string, icon: NavIconType, navKey: string, extra: Partial<NavLeaf> = {}): NavLeaf =>
-    ({ key, label, url, icon, navKey, ...extra });
+    ({ key, label: labelFor(navKey, label), url, icon, navKey, ...extra });
 
   const ordersSub = [
     leaf("orders.all", t("nav.allOrders"), "/orders", ShoppingCart, "orders.all", { exact: true }),

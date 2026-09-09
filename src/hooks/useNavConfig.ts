@@ -16,6 +16,15 @@ export interface NavConfigHelpers {
   isVisible: (key: string) => boolean;
   isComingSoon: (key: string) => boolean;
   /**
+   * The name to show for a tab: the admin's override when one is set,
+   * otherwise `fallback` — which is the caller's own translated string.
+   *
+   * Whitespace is not a rename. An admin who clears the field by typing
+   * spaces would otherwise blank the tab, and a nameless row in a sidebar is
+   * unrecoverable without going back to the admin to guess which one it was.
+   */
+  labelFor: (key: string, fallback: string) => string;
+  /**
    * Sort in-place a list of {key, ...} items according to admin-defined
    * order. Unknown keys keep their current relative position.
    */
@@ -39,6 +48,7 @@ export function useNavConfig(): NavConfigHelpers {
       isReady: !!data,
       isVisible: (key) => byKey.get(key)?.visible ?? true,
       isComingSoon: (key) => byKey.get(key)?.coming_soon ?? false,
+      labelFor: (key, fallback) => byKey.get(key)?.label?.trim() || fallback,
       getTab: (key) => byKey.get(key),
       sortByAdminOrder: (items) => {
         return [...items].sort((a, b) => {
