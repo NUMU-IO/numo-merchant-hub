@@ -69,6 +69,7 @@
       minOrder: "أقل طلب",
       limit: "حد الاستخدام",
       draftNotice: "هيتحفظ كمسودة — تنشره لما تكون جاهز.",
+      publishNotice: "هيظهر في متجرك أول ما تأكّد.",
       unlimited: "غير محدود",
       price: "السعر",
       compareAt: "السعر قبل الخصم",
@@ -77,7 +78,7 @@
     tools: {
       get_orders: "قرا الطلبات",
       get_products: "قرا المنتجات",
-      create_product: "جهّز منتج جديد",
+      create_product: "أضاف منتج جديد",
       update_product: "بصّ على منتج",
       get_abandoned_checkouts: "قرا السلات المتروكة",
       send_cart_recovery: "جهّز رسالة استرجاع",
