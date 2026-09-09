@@ -149,6 +149,10 @@ function ProductDiff({ diff }: { diff: AnyDiff }) {
   const before = (diff.before || {}) as Record<string, unknown>;
   const after = (diff.after || {}) as Record<string, unknown>;
   const labels: Record<string, string> = {
+    // Anything missing from this map is silently dropped from the card, so a
+    // field the tool can change but this cannot name renders as an empty
+    // preview — a confirm button with nothing above it.
+    name: t("agent.card.name"),
     price: t("agent.card.price"),
     compare_at_price: t("agent.card.compareAt"),
     quantity: t("agent.card.stock"),

@@ -71,6 +71,7 @@ export default {
       draftNotice: "Saved as a draft — publish it when you're ready.",
       publishNotice: "Goes live on your storefront as soon as you confirm.",
       unlimited: "Unlimited",
+      name: "Name",
       price: "Price",
       compareAt: "Compare-at",
       stock: "Stock",
