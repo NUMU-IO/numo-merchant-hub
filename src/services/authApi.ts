@@ -4,7 +4,7 @@
  * CSRF token is fetched after login/register so subsequent requests pass validation.
  */
 
-import { apiClient } from "./api";
+import { apiClient, getCurrentStoreId, getImpersonationToken } from "./api";
 import { initCSRF, clearCSRFToken, getCSRFToken } from "./csrf";
 import { apiErrorFromResponse, apiErrorFromNetwork } from "@/lib/api-error";
 
@@ -258,11 +258,29 @@ export async function getMe(): Promise<User> {
   // It used to throw `new Error("Not authenticated")` for BOTH, which made
   // the offline-boot branch unreachable and a hung request an infinite
   // splash with no way out.
+  // Carries the same identity headers apiClient sends. Without them this call
+  // authenticated by COOKIE alone, and in an admin impersonation tab the
+  // cookie is the ADMIN's: /auth/me answered with the operator's user and the
+  // operator's tenant while every other request — which does send the handoff
+  // Bearer — answered as the merchant. The hub then greeted the operator by
+  // name over the merchant's dashboard, and read lifecycle off the wrong
+  // tenant, so the merchant's trial banner, welcome, plan, feature flags and
+  // read-only state were all resolved against the wrong account.
+  const handoff = getImpersonationToken();
+  const storeId = getCurrentStoreId();
+
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/auth/me`, {
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(handoff ? { Authorization: `Bearer ${handoff}` } : {}),
+        // Which store's tenant to report for a multi-store merchant. Without
+        // it the server falls back to their newest tenant, which is not
+        // necessarily the store the hub is showing.
+        ...(storeId ? { "X-Tenant-Id": storeId } : {}),
+      },
       signal: AbortSignal.timeout(AUTH_BOOT_TIMEOUT_MS),
     });
   } catch (err) {
