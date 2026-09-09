@@ -817,8 +817,20 @@ const ProductEditor = () => {
   // Preview data
   const allPreviewImages = [...formImages, ...pendingPreviews];
   const previewImage = allPreviewImages[previewIdx] || allPreviewImages[0] || null;
-  const previewName = (language === "ar" ? formNameAr : formName) || (language === "ar" ? "اسم المنتج" : "Product name");
-  const previewDesc = (language === "ar" ? formDescAr : formDesc) || "";
+  // Fall back to the other language before the placeholder. A product with an
+  // English name and no Arabic one previewed as the words "اسم المنتج" — the
+  // merchant had typed a name, it was on screen in the field beside it, and
+  // the preview claimed there was none.
+  //
+  // Only the PREVIEW falls back. The Arabic input keeps showing the English as
+  // a placeholder and never as a value: the editor writes back whatever its
+  // fields hold, so a fallback there would persist English AS the Arabic copy
+  // the moment the merchant saved an unrelated change.
+  const previewName =
+    (language === "ar" ? formNameAr || formName : formName || formNameAr) ||
+    (language === "ar" ? "اسم المنتج" : "Product name");
+  const previewDesc =
+    (language === "ar" ? formDescAr || formDesc : formDesc || formDescAr) || "";
   const previewPrice = formPrice ? Number(formPrice) : 0;
   const previewCompare = formComparePrice ? Number(formComparePrice) : 0;
   const previewCat = apiCategories.find(c => c.id === formCategory);
