@@ -46,6 +46,29 @@ import { getPublicStorePath } from "@/lib/storefront";
 
 const PAGE_SIZE = 20;
 
+/**
+ * The name to show, falling back to the other language.
+ *
+ * Rendering `isAr ? nameAr : name` left the cell EMPTY for every product with
+ * an English name and no Arabic one — a real catalogue showed a column of
+ * SKUs with nothing above them. The editor deliberately does NOT fall back,
+ * because it writes its fields straight back on save and would persist
+ * English as the Arabic copy; a read-only list carries no such risk.
+ */
+function displayName(p: Product, isAr: boolean): string {
+  return (isAr ? p.nameAr || p.name : p.name || p.nameAr) || "";
+}
+
+/**
+ * `image` is either a URL or the "📦" placeholder — but a seeded product can
+ * hold a relative path like `demo/hoodie.jpg`, and the placeholder branch
+ * rendered that path as TEXT next to the product, where it read as the
+ * product's own name. Anything not loadable falls back to the placeholder.
+ */
+function isImageUrl(value: string): boolean {
+  return /^(https?:|data:|blob:|\/)/.test(value);
+}
+
 const Products = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -713,7 +736,7 @@ const Products = () => {
                     className="group/card text-start rounded-2xl border border-border bg-card shadow-card hover-lift overflow-hidden flex flex-col"
                   >
                     <div className="relative aspect-square bg-muted">
-                      {p.image.startsWith("http") ? (
+                      {isImageUrl(p.image) ? (
                         <img src={p.image} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
                       ) : (
                         <span className="absolute inset-0 flex items-center justify-center text-5xl">{p.image}</span>
@@ -725,7 +748,7 @@ const Products = () => {
                     </div>
                     <div className="p-3.5 flex-1 flex flex-col gap-2">
                       <div>
-                        <p className="text-[14px] font-bold leading-tight line-clamp-2">{isAr ? p.nameAr : p.name}</p>
+                        <p className="text-[14px] font-bold leading-tight line-clamp-2">{displayName(p, isAr)}</p>
                         <p className="text-[11px] text-muted-foreground/70 font-mono truncate mt-0.5">{p.sku || "—"}</p>
                       </div>
                       <div className="flex items-center justify-between">
@@ -782,7 +805,7 @@ const Products = () => {
                         }
                         title={
                           <span className="flex items-center gap-2.5">
-                            {p.image.startsWith("http") ? (
+                            {isImageUrl(p.image) ? (
                               <img
                                 src={p.image}
                                 alt=""
@@ -793,7 +816,7 @@ const Products = () => {
                                 {p.image}
                               </span>
                             )}
-                            <span className="truncate">{isAr ? p.nameAr : p.name}</span>
+                            <span className="truncate">{displayName(p, isAr)}</span>
                           </span>
                         }
                         subtitle={<span className="font-mono">{p.sku || "—"}</span>}
@@ -878,13 +901,13 @@ const Products = () => {
                       {/* Product name + SKU + image */}
                       <TableCell>
                         <div className="flex items-center gap-3 min-w-[200px]">
-                          {p.image.startsWith("http") ? (
+                          {isImageUrl(p.image) ? (
                             <img src={p.image} alt="" className="h-10 w-10 rounded-lg object-cover bg-muted ring-1 ring-border/30 shrink-0" />
                           ) : (
                             <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-base ring-1 ring-border/20 shrink-0">{p.image}</span>
                           )}
                           <div className="min-w-0">
-                            <p className="font-medium text-[13px] leading-tight truncate">{isAr ? p.nameAr : p.name}</p>
+                            <p className="font-medium text-[13px] leading-tight truncate">{displayName(p, isAr)}</p>
                             <p className="text-[11px] text-muted-foreground/60 mt-0.5 font-mono truncate">{p.sku || "—"}</p>
                           </div>
                         </div>
