@@ -226,7 +226,10 @@ export async function apiClient<T>(
   if (res.status === 403) {
     const body = await res.json().catch(() => null);
     if (body?.detail === "CSRF validation failed") {
-      const refreshed = await initCSRF();
+      // Forced: the header now always mirrors the cookie, so a 403 means the
+      // cookie itself is no longer accepted. Re-reading it would resend the
+      // same rejected value and fail identically.
+      const refreshed = await initCSRF(true);
       if (!refreshed) {
         throw new ApiError(
           403,
@@ -371,7 +374,7 @@ export async function apiClientFormData<T>(
   if (res.status === 403) {
     const body = await res.json().catch(() => null);
     if (body?.detail === "CSRF validation failed") {
-      await initCSRF();
+      await initCSRF(true);
       try {
         res = await doFetch();
       } catch (err) {

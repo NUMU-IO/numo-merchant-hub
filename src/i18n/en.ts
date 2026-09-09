@@ -70,6 +70,7 @@ export default {
       limit: "Usage limit",
       draftNotice: "Saved as a draft — publish it when you're ready.",
       unlimited: "Unlimited",
+      name: "Name",
       price: "Price",
       compareAt: "Compare-at",
       stock: "Stock",
