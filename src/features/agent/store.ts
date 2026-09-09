@@ -33,6 +33,12 @@ export interface AgentMessage {
   proposal?: AgentProposal;
   /** Image URLs attached to a sent message, shown as thumbnails. */
   images?: string[];
+  /**
+   * Tool names the agent ran for this reply, in order. Shown above the answer
+   * so the merchant can see what it actually looked at before answering —
+   * "Searched knowledge", "Read orders" — rather than a blank wait.
+   */
+  tools?: string[];
 }
 
 interface AgentState {
@@ -148,7 +154,17 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           }
           break;
         case "tool_call":
-          patchAgent({ status: "working" });
+          set((s) => ({
+            messages: s.messages.map((m) =>
+              m.id === agentMsg.id
+                ? {
+                    ...m,
+                    status: "working",
+                    tools: [...(m.tools ?? []), String(ev.data.name ?? "")],
+                  }
+                : m,
+            ),
+          }));
           break;
         case "message":
           if (typeof ev.data.text === "string")

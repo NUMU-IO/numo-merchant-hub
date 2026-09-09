@@ -85,7 +85,13 @@ export function Composer({
     <Button
       size="icon"
       variant="ghost"
-      className={isBar ? "" : "h-8 w-8 shrink-0 text-muted-foreground"}
+      className={
+        isBar
+          ? ""
+          : `h-8 w-8 shrink-0 text-muted-foreground${
+              isPanel ? " btn-tactile-surface" : ""
+            }`
+      }
       aria-label={t("agent.attachImage")}
       disabled={disabled || uploading || !storeId || pending.length >= MAX_ATTACHMENTS}
       onClick={() => fileRef.current?.click()}
@@ -106,7 +112,7 @@ export function Composer({
         isBar
           ? ""
           : `h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground${
-              isPanel ? " border" : ""
+              isPanel ? " btn-tactile-surface" : ""
             }`
       }
       onClick={handleSend}
@@ -147,7 +153,7 @@ export function Composer({
         isBar
           ? "max-h-32 flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
           : isPanel
-            ? "max-h-[300px] w-full resize-none bg-transparent px-1 pt-1 text-sm leading-6 placeholder:text-muted-foreground focus:outline-none"
+            ? "min-h-16 max-h-[300px] w-full resize-none bg-transparent px-2 py-1 text-sm leading-6 placeholder:text-muted-foreground focus:outline-none"
             : "max-h-[300px] flex-1 resize-none bg-transparent px-1 py-1 text-sm leading-6 placeholder:text-muted-foreground focus:outline-none"
       }
     />
@@ -182,19 +188,23 @@ export function Composer({
     />
   );
 
-  // Taller box: the message gets the top, the controls get a row of their own.
+  // Taller box: the message gets the top, the controls their own row, and the
+  // send button sits in the bottom corner clear of both.
   if (isPanel) {
     return (
-      <div className="rounded-xl border bg-card p-2 shadow-sm focus-within:border-primary/60 focus-within:ring-1 focus-within:ring-primary/30">
-        {thumbnails}
-        {fileInput}
-        {textarea}
-        <div className="mt-2 flex items-center gap-1">
-          {attachButton}
-          <span className="flex-1" />
-          {hintLabel}
-          {sendButton}
+      <div className="relative rounded-lg border bg-card focus-within:ring-2 focus-within:ring-[hsl(var(--cap-violet))]">
+        <div className="pe-12 ps-2 pt-2">
+          {thumbnails}
+          {fileInput}
+          {textarea}
         </div>
+        <div className="flex flex-wrap items-center gap-1 px-3 pb-2 pe-12">
+          {attachButton}
+          {hint && (
+            <span className="text-[0.6875rem] text-muted-foreground">{hint}</span>
+          )}
+        </div>
+        <div className="absolute bottom-[9px] end-[9px]">{sendButton}</div>
       </div>
     );
   }
