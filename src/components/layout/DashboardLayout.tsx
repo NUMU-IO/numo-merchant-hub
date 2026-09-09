@@ -13,6 +13,8 @@ import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
 import MobileBottomNav from "./MobileBottomNav";
 import DemoBanner from "@/components/demo/DemoBanner";
+import TrialBanner from "@/components/trial/TrialBanner";
+import { TrialWelcomeDialog } from "@/components/trial/TrialWelcomeDialog";
 import GoLiveBanner from "@/components/wallet/GoLiveBanner";
 import LowBalanceBanner from "@/components/wallet/LowBalanceBanner";
 import StorefrontLockedBanner from "@/components/wallet/StorefrontLockedBanner";
@@ -95,6 +97,9 @@ const DashboardLayout = () => {
             <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:px-8 lg:py-6">
               {/* Demo mode banner — shows countdown + "Save my work" CTA */}
               <DemoBanner />
+              {/* Trial countdown. Demo and trial are mutually exclusive
+                  lifecycle states, so only one of these two can render. */}
+              <TrialBanner />
               {/* Go-live gate: new merchants must pick a plan (or Pay as
                   you Grow) before the storefront accepts orders. */}
               <GoLiveBanner />
@@ -140,6 +145,10 @@ const DashboardLayout = () => {
                   that is. Renders null unless they are a founder who has
                   not seen it. */}
               <FounderWelcomeDialog />
+
+              {/* First hub load of a trial: says how long they have and what
+                  happens when it ends, so the lock is never a surprise. */}
+              <TrialWelcomeDialog />
 
               {/* Footer — inline at bottom of content like Zid */}
               <div

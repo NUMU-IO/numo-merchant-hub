@@ -27,6 +27,9 @@ export interface TenantInfo {
   is_writable: boolean;
   expires_at: string | null;
   days_remaining: number | null;
+  /** When the trial began — the countdown draws one mark per day of the whole
+   *  trial, so it needs the length as well as the remainder. */
+  trial_started_at?: string | null;
   demo_email: string | null;
   /**
    * Per-tenant feature flags. Controlled server-side. Empty `{}` means
