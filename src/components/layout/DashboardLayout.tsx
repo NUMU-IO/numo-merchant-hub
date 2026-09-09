@@ -42,6 +42,9 @@ const DashboardLayout = () => {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  // The assistant is a room, not a document: it gets its own warm ground for
+  // the full scroll area, and none of the page furniture below.
+  const onAssistant = pathname === "/assistant";
   const isAr = language === "ar";
 
   // Mirror the unread count onto the installed app icon. Same hook and same
@@ -84,7 +87,11 @@ const DashboardLayout = () => {
           <AppSidebar />
           <div className="flex flex-1 flex-col min-w-0 dash-content">
             <ImpersonationBanner />
-            <main className="flex-1 overflow-auto">
+            <main
+              className={`flex-1 overflow-auto${
+                onAssistant ? " bg-[hsl(var(--agent-ground))]" : ""
+              }`}
+            >
             <div className="mx-auto max-w-[1440px] p-4 md:p-6 lg:px-8 lg:py-6">
               {/* Demo mode banner — shows countdown + "Save my work" CTA */}
               <DemoBanner />
@@ -135,7 +142,10 @@ const DashboardLayout = () => {
               <FounderWelcomeDialog />
 
               {/* Footer — inline at bottom of content like Zid */}
-              <div className="mt-12 mb-6 pt-6 border-t border-border/30 flex items-center justify-between text-xs text-muted-foreground/60">
+              <div
+                hidden={onAssistant}
+                className="mt-12 mb-6 pt-6 border-t border-border/30 flex items-center justify-between text-xs text-muted-foreground/60"
+              >
                 <span>{isAr ? `© NUMU ${new Date().getFullYear()} جميع الحقوق محفوظة` : `© NUMU ${new Date().getFullYear()} All rights reserved`}</span>
                 <span className="flex items-center gap-1.5">
                   {isAr ? "صنع في مصر بواسطة" : "Made in Egypt by"}

@@ -27,7 +27,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
@@ -37,7 +37,7 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ChatThread } from "@/features/agent/ChatThread";
 import { Composer } from "@/features/agent/Composer";
-import { MascotSprite, type MascotState } from "@/features/agent/MascotSprite";
+import { MascotSprite } from "@/features/agent/MascotSprite";
 import { blockText } from "@/features/agent/digestText";
 import {
   getDigest,
@@ -116,13 +116,6 @@ export default function Assistant() {
     };
   }, [storeId]);
 
-  const mascotState: MascotState = useMemo(() => {
-    const lastAgent = [...messages].reverse().find((m) => m.role === "agent");
-    if (isStreaming) return lastAgent?.text ? "talking" : "thinking";
-    if (lastAgent?.proposal?.status === "pending") return "excited";
-    return "idle";
-  }, [messages, isStreaming]);
-
   const send = (text: string, attachments: { type: "image"; url: string }[] = []) => {
     if (!storeId || isStreaming) return;
     void sendMessage(storeId, text, locale, attachments);
@@ -134,26 +127,48 @@ export default function Assistant() {
   };
 
   const firstName = user?.first_name?.trim();
+  // The thread's name is the question that opened it — the same string the
+  // API titles the conversation with.
+  const threadTitle = messages.find((m) => m.role === "user")?.text;
 
   // ── Thread ─────────────────────────────────────────────────────────────
   if (messages.length > 0) {
+    // Header, scrolling turns, sticky composer — the three bands of a chat
+    // room. The whole thing fills the scroll area so the composer holds the
+    // bottom edge instead of floating under the last reply.
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col">
-        <div className="mb-2 flex items-center gap-2">
+      <div className="-mx-4 -my-4 flex h-[calc(100vh-7rem)] flex-col md:-mx-6 md:-my-6 lg:-mx-8 lg:-my-6">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b px-4 py-2">
+          <h1 className="min-w-0 truncate text-lg font-semibold">
+            {threadTitle || t("agent.title")}
+          </h1>
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="gap-1.5"
+            className="btn-tactile-surface h-[33px] shrink-0 gap-1.5 border-0 text-sm"
             onClick={() => storeId && newChat(storeId)}
           >
             <ArrowLeft className={`h-4 w-4 ${isRTL ? "rotate-180" : ""}`} />
             {t("agent.home.newChat")}
           </Button>
-          <MascotSprite state={mascotState} size={32} className="ms-auto" />
         </div>
-        <ChatThread messages={messages} bubbleMaxWidth="max-w-[75%]" />
-        <div className="sticky bottom-0 mt-4 bg-background pb-2 pt-2">
-          <Composer storeId={storeId} disabled={isStreaming} variant="hero" onSend={send} />
+
+        <ChatThread
+          messages={messages}
+          className="mx-auto w-full max-w-[720px] grow p-3"
+          userMaxWidth="max-w-[80%]"
+        />
+
+        <div className="sticky bottom-0 shrink-0 px-3 pb-3">
+          <div className="mx-auto w-full max-w-[720px]">
+            <Composer
+              storeId={storeId}
+              disabled={isStreaming}
+              variant="panel"
+              placeholder={t("agent.home.followUp")}
+              onSend={send}
+            />
+          </div>
         </div>
       </div>
     );
@@ -161,11 +176,8 @@ export default function Assistant() {
 
   // ── Launcher ───────────────────────────────────────────────────────────
   return (
-    // The launcher is a room, not a document: it takes the whole content area
-    // on its own warm ground. The negative margins undo DashboardLayout's
-    // padding so the ground reaches the edges, then put it back inside.
-    <div className="-m-4 min-h-[calc(100vh-9rem)] bg-[hsl(var(--agent-ground))] p-4 md:-m-6 md:p-6 lg:-mx-8 lg:-my-6 lg:px-8 lg:py-6">
-      <div className="mx-auto w-full max-w-[720px] pb-16">
+    <div className="mx-auto w-full max-w-[720px] pb-16">
+      <div>
         <div className="flex flex-col items-center pt-12 text-center sm:pt-20">
           <MascotSprite state="idle" size={48} />
           <h1 className="mb-5 mt-4 text-2xl font-bold sm:text-[28px]">
