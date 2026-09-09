@@ -177,13 +177,13 @@ const CourierRow = ({
 
   return (
   <li className="flex items-center gap-3 px-4 py-3">
+    <CourierLogo
+      seedKey={courier.seed_key}
+      name={courierName(courier, isAr)}
+      size={28}
+    />
     <div className="min-w-0 flex-1">
       <div className="flex items-center gap-2">
-        <CourierLogo
-          seedKey={courier.seed_key}
-          name={courierName(courier, isAr)}
-          height={16}
-        />
         <span className="text-[13px] font-bold">{courierName(courier, isAr)}</span>
         {!courier.is_active && (
           <Badge variant="secondary" className="h-5 text-[10px]">
@@ -310,7 +310,7 @@ const AddCourier = ({
                 <CourierLogo
                   seedKey={seed.key}
                   name={seedName(seed, isAr)}
-                  height={14}
+                  size={18}
                 />
                 {seedName(seed, isAr)}
               </span>

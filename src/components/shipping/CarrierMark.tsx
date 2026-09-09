@@ -11,6 +11,8 @@
  * so a new carrier looks deliberate the moment it is registered.
  */
 
+import { courierLogoSrc } from "./courierLogos";
+
 interface Props {
   slug: string;
   name: string;
@@ -53,6 +55,23 @@ export const CarrierMark = ({
   size = 28,
   className = "",
 }: Props) => {
+  /* A real logo file beats a monogram for a brand a merchant recognises.
+     Bosta stays on the inline SVG above — it is crisp at any size. */
+  const file = courierLogoSrc(slug);
+  if (file && !KNOWN[slug]) {
+    return (
+      <img
+        src={file}
+        alt={name}
+        width={size}
+        height={size}
+        className={className}
+        style={{ width: size, height: size, objectFit: "contain" }}
+        loading="lazy"
+      />
+    );
+  }
+
   const Known = KNOWN[slug];
   if (Known) {
     return (
