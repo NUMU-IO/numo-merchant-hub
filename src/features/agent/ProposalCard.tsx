@@ -13,6 +13,8 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 
+import { ApiError } from "@/lib/api-error";
+
 import { useAgentStore, type AgentProposal } from "./store";
 
 function currentStoreId(): string | null {
@@ -128,9 +130,14 @@ function NewProductDiff({ diff }: { diff: AnyDiff }) {
             </span>
           </span>
         </div>
-        {/* Draft is the whole safety story of this action — say it plainly. */}
+        {/* The card said "(published)" in its title and "saved as a draft"
+            two lines below it, because this notice was written when the tool
+            always created drafts and was never revisited when it stopped.
+            Follow the status the proposal actually carries. */}
         <div className="text-[11px] text-amber-600 dark:text-amber-500">
-          {t("agent.card.draftNotice")}
+          {p.status === "draft"
+            ? t("agent.card.draftNotice")
+            : t("agent.card.publishNotice")}
         </div>
       </div>
     </div>
@@ -142,6 +149,10 @@ function ProductDiff({ diff }: { diff: AnyDiff }) {
   const before = (diff.before || {}) as Record<string, unknown>;
   const after = (diff.after || {}) as Record<string, unknown>;
   const labels: Record<string, string> = {
+    // Anything missing from this map is silently dropped from the card, so a
+    // field the tool can change but this cannot name renders as an empty
+    // preview — a confirm button with nothing above it.
+    name: t("agent.card.name"),
     price: t("agent.card.price"),
     compare_at_price: t("agent.card.compareAt"),
     quantity: t("agent.card.stock"),
@@ -200,7 +211,7 @@ export function ProposalCard({
   messageId: string;
   proposal: AgentProposal;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { confirmProposal, declineProposal, undo } = useAgentStore();
   const storeId = currentStoreId();
   if (!storeId) return null;
@@ -248,7 +259,13 @@ export function ProposalCard({
         {proposal.status === "declined" && (
           <span className="text-muted-foreground">{t("agent.declined")}</span>
         )}
-        {proposal.status === "error" && <span className="text-red-600">{t("agent.error")}</span>}
+        {proposal.status === "error" && (
+          <span className="text-red-600">
+            {proposal.error instanceof ApiError
+              ? proposal.error.toUserMessage(i18n.language)
+              : t("agent.error")}
+          </span>
+        )}
       </div>
     </div>
   );
