@@ -12,6 +12,13 @@ export interface NavTab {
   visible: boolean;
   coming_soon: boolean;
   order: number;
+  /**
+   * Admin-set rename. Empty (the default) means "use our own translated
+   * name". An override replaces BOTH languages, because the admin has one
+   * field and cannot hold two — that trade is spelled out on the admin
+   * screen, and clearing it gives the translations back.
+   */
+  label?: string;
 }
 
 export interface NavConfig {
