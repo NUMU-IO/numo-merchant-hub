@@ -56,6 +56,17 @@ export interface StoreSeoBlock {
   bing_site_verification?: string | null;
   business_type?: string | null;
   has_return_policy_30d?: boolean;
+  /** Whether GPTBot, ClaudeBot, PerplexityBot and Google-Extended may read
+   *  the catalogue. Default true — being cited by an assistant that sends
+   *  buyers is distribution, not leakage. */
+  ai_crawlers_allowed?: boolean;
+  /** Whether the store's copy and photography may be used as TRAINING data.
+   *  Default FALSE, and deliberately separate from the above: a merchant can
+   *  want an assistant to recommend them and still refuse to be trained on. */
+  ai_training_allowed?: boolean;
+  /** Serve /llms.txt — a plain-text map of the store for models that cannot
+   *  execute JavaScript, which is all of them. Default true. */
+  llms_txt_enabled?: boolean;
 }
 
 const BUSINESS_TYPES: Array<{ value: string; label: string }> = [
@@ -129,6 +140,15 @@ export function SeoSettingsPanel({
   const [hasReturnPolicy, setHasReturnPolicy] = useState(
     initialSeo.has_return_policy_30d === true,
   );
+  const [aiCrawlers, setAiCrawlers] = useState(
+    initialSeo.ai_crawlers_allowed !== false,
+  );
+  // The one default that says no: this is the merchant's own work and they
+  // get nothing back for it, so opting in has to be an act.
+  const [aiTraining, setAiTraining] = useState(
+    initialSeo.ai_training_allowed === true,
+  );
+  const [llmsTxt, setLlmsTxt] = useState(initialSeo.llms_txt_enabled !== false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Re-seed when the upstream store changes (e.g. switched merchant).
@@ -141,6 +161,9 @@ export function SeoSettingsPanel({
     setBingVerification(initialSeo.bing_site_verification ?? "");
     setBusinessType(initialSeo.business_type ?? "Organization");
     setHasReturnPolicy(initialSeo.has_return_policy_30d === true);
+    setAiCrawlers(initialSeo.ai_crawlers_allowed !== false);
+    setAiTraining(initialSeo.ai_training_allowed === true);
+    setLlmsTxt(initialSeo.llms_txt_enabled !== false);
   }, [initialSeo]);
 
   const handleSave = useCallback(async () => {
@@ -163,6 +186,9 @@ export function SeoSettingsPanel({
         bing_site_verification: trim(bingVerification),
         business_type: businessType || null,
         has_return_policy_30d: hasReturnPolicy,
+        ai_crawlers_allowed: aiCrawlers,
+        ai_training_allowed: aiTraining,
+        llms_txt_enabled: llmsTxt,
       };
 
       // Preserve every other settings.* key — tracking, size_chart, etc.
@@ -196,6 +222,9 @@ export function SeoSettingsPanel({
     bingVerification,
     businessType,
     hasReturnPolicy,
+    aiCrawlers,
+    aiTraining,
+    llmsTxt,
     onSaved,
     language,
   ]);
@@ -419,6 +448,82 @@ export function SeoSettingsPanel({
               id="return-policy-toggle"
               checked={hasReturnPolicy}
               onCheckedChange={setHasReturnPolicy}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* AI assistants — three decisions, not one. Being read to answer a
+          shopper's question, being summarised in a machine-readable index, and
+          being used as training data are separate bargains, and a merchant can
+          rationally want the first two and refuse the third. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            {language === "ar" ? "مساعدو الذكاء الاصطناعي" : "AI assistants"}
+          </CardTitle>
+          <CardDescription>
+            {language === "ar"
+              ? "لما حد يسأل ChatGPT أو Perplexity عن متجر زي بتاعك، دي اللي بتحدد لو متجرك ممكن يترشّح."
+              : "When someone asks ChatGPT or Perplexity for a shop like yours, these decide whether yours can be recommended."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Label htmlFor="ai-crawlers-toggle" className="text-sm font-medium">
+                {language === "ar"
+                  ? "اسمح للمساعدين يقروا متجرك"
+                  : "Let AI assistants read your store"}
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                {language === "ar"
+                  ? "GPTBot و ClaudeBot و PerplexityBot و Google-Extended. لو قفلتها، مش هيقدروا يرشّحوا متجرك لحد."
+                  : "GPTBot, ClaudeBot, PerplexityBot, Google-Extended. Turn this off and they cannot recommend your store to anyone."}
+              </p>
+            </div>
+            <Switch
+              id="ai-crawlers-toggle"
+              checked={aiCrawlers}
+              onCheckedChange={setAiCrawlers}
+            />
+          </div>
+
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Label htmlFor="llms-txt-toggle" className="text-sm font-medium">
+                {language === "ar" ? "ملف ‎/llms.txt" : "Serve /llms.txt"}
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                {language === "ar"
+                  ? "ملخّص نصّي لمتجرك ومنتجاتك. المساعدين مش بيشغّلوا JavaScript، فمن غيره متجرك شكله صفحة فاضية."
+                  : "A plain-text summary of your store and products. Assistants do not run JavaScript, so without it your store looks like an empty page to them."}
+              </p>
+            </div>
+            <Switch
+              id="llms-txt-toggle"
+              checked={llmsTxt}
+              onCheckedChange={setLlmsTxt}
+            />
+          </div>
+
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Label htmlFor="ai-training-toggle" className="text-sm font-medium">
+                {language === "ar"
+                  ? "اسمح بتدريب النماذج على محتواك"
+                  : "Allow AI training on your content"}
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                {language === "ar"
+                  ? "حاجة تانية خالص عن اللي فوق: دي معناها صورك ووصف منتجاتك تدخل جوّه النماذج نفسها. مقفولة افتراضيًا."
+                  : "A different thing from the two above: this means your photography and product copy become part of the models themselves. Off by default."}
+              </p>
+            </div>
+            <Switch
+              id="ai-training-toggle"
+              checked={aiTraining}
+              onCheckedChange={setAiTraining}
             />
           </div>
         </CardContent>
