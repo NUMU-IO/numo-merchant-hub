@@ -41,6 +41,7 @@
       newChat: "محادثة جديدة",
       teach: "علّمه عن متجرك",
       hint: "اضغط Enter للإرسال",
+      followUp: "اسأل سؤال تاني…",
       knowledge: "المعرفة",
       chips: {
         orders: "الطلبات",

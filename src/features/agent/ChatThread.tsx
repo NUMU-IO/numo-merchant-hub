@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Markdown } from "./Markdown";
 import { ProposalCard } from "./ProposalCard";
 import type { AgentMessage } from "./store";
 
@@ -52,19 +53,26 @@ export function ChatThread({
           )}
           <div className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
-              className={`${bubbleMaxWidth} whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
+              className={`${bubbleMaxWidth} rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                 m.role === "user"
-                  ? "bg-primary text-primary-foreground"
+                  ? "whitespace-pre-wrap bg-primary text-primary-foreground"
                   : "bg-muted text-foreground"
               }`}
             >
-              {m.text ||
-                (m.status === "working" ? (
-                  <span className="inline-flex items-center gap-1 text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    {t("agent.thinking")}
-                  </span>
-                ) : null)}
+              {/* The agent answers in Markdown; the merchant typed plain text,
+                  so their own asterisks are left exactly as they wrote them. */}
+              {m.text ? (
+                m.role === "agent" ? (
+                  <Markdown text={m.text} />
+                ) : (
+                  m.text
+                )
+              ) : m.status === "working" ? (
+                <span className="inline-flex items-center gap-1 text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {t("agent.thinking")}
+                </span>
+              ) : null}
             </div>
           </div>
           {m.role === "agent" && m.proposal && (
