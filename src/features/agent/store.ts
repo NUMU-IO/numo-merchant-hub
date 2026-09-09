@@ -166,7 +166,28 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             ),
           }));
           break;
+        case "token":
+          // The reply arriving a fragment at a time. A turn takes 15-30s
+          // against production and the model time is mostly irreducible —
+          // what this removes is the part where the merchant watches a
+          // motionless spinner for all of it.
+          //
+          // Appended, never replaced: each event carries only the new text.
+          if (typeof ev.data.text === "string") {
+            const delta = ev.data.text;
+            set((s) => ({
+              messages: s.messages.map((m) =>
+                m.id === agentMsg.id
+                  ? { ...m, text: m.text + delta, status: "streaming" }
+                  : m,
+              ),
+            }));
+          }
+          break;
         case "message":
+          // Only sent when the reply was NOT streamed (the first model call,
+          // or a provider without streaming). Replacing rather than appending
+          // is right here: this event carries the whole text.
           if (typeof ev.data.text === "string")
             patchAgent({ text: ev.data.text, status: "streaming" });
           break;
