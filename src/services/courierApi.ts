@@ -7,7 +7,7 @@
  * history, and the handover happens on paper and in spreadsheets.
  */
 
-import { apiClient } from "./api";
+import { apiClient, apiClientBlob } from "./api";
 
 // ── Types ──
 
@@ -116,39 +116,17 @@ export async function deleteCourier(
 /**
  * Fetch a print job as a blob.
  *
- * These endpoints return a PDF, not JSON, so they bypass `apiClient` and
- * its envelope handling. The blob is handed straight to the browser.
+ * These endpoints return a file, not JSON, so they use `apiClientBlob`
+ * rather than `apiClient` — same auth, same 401 refresh, no JSON parse.
+ * The blob is handed straight to the browser.
  */
-async function fetchBlob(path: string, init?: RequestInit): Promise<Blob> {
-  const base = import.meta.env.VITE_API_URL ?? "";
-  const token = localStorage.getItem("numu:token");
-  const response = await fetch(`${base}${path}`, {
-    ...init,
-    headers: {
-      ...(init?.headers ?? {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (!response.ok) {
-    // Surface the server's structured error rather than a bare status.
-    let detail = `${response.status}`;
-    try {
-      const body = await response.json();
-      detail = body?.error?.message_ar || body?.error?.message || detail;
-    } catch {
-      /* not JSON — keep the status */
-    }
-    throw new Error(detail);
-  }
-  return response.blob();
-}
 
 export async function fetchWaybills(
   storeId: string,
   shipmentIds: string[],
   format: WaybillFormat = "roll",
 ): Promise<Blob> {
-  return fetchBlob(`/stores/${storeId}/shipments/waybills`, {
+  return apiClientBlob(`/stores/${storeId}/shipments/waybills`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ shipment_ids: shipmentIds, format }),
@@ -159,7 +137,7 @@ export async function fetchWaybill(
   storeId: string,
   shipmentId: string,
 ): Promise<Blob> {
-  return fetchBlob(`/stores/${storeId}/shipments/${shipmentId}/waybill`);
+  return apiClientBlob(`/stores/${storeId}/shipments/${shipmentId}/waybill`);
 }
 
 /**
@@ -177,7 +155,7 @@ export async function fetchManifest(
 ): Promise<Blob> {
   const params = new URLSearchParams({ status });
   if (courierId) params.set("courier", courierId);
-  return fetchBlob(`/stores/${storeId}/shipments/manifest?${params}`);
+  return apiClientBlob(`/stores/${storeId}/shipments/manifest?${params}`);
 }
 
 /**
