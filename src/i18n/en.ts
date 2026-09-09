@@ -69,6 +69,7 @@ export default {
       minOrder: "Min. order",
       limit: "Usage limit",
       draftNotice: "Saved as a draft — publish it when you're ready.",
+      publishNotice: "Goes live on your storefront as soon as you confirm.",
       unlimited: "Unlimited",
       price: "Price",
       compareAt: "Compare-at",
@@ -77,7 +78,7 @@ export default {
     tools: {
       get_orders: "Read orders",
       get_products: "Read products",
-      create_product: "Drafted a product",
+      create_product: "Created a product",
       update_product: "Checked a product",
       get_abandoned_checkouts: "Read abandoned carts",
       send_cart_recovery: "Prepared a recovery message",

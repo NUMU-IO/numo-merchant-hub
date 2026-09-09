@@ -128,9 +128,14 @@ function NewProductDiff({ diff }: { diff: AnyDiff }) {
             </span>
           </span>
         </div>
-        {/* Draft is the whole safety story of this action — say it plainly. */}
+        {/* The card said "(published)" in its title and "saved as a draft"
+            two lines below it, because this notice was written when the tool
+            always created drafts and was never revisited when it stopped.
+            Follow the status the proposal actually carries. */}
         <div className="text-[11px] text-amber-600 dark:text-amber-500">
-          {t("agent.card.draftNotice")}
+          {p.status === "draft"
+            ? t("agent.card.draftNotice")
+            : t("agent.card.publishNotice")}
         </div>
       </div>
     </div>
