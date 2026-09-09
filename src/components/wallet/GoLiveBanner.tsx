@@ -21,8 +21,19 @@ const GoLiveBanner = () => {
   const navigate = useNavigate();
   const isAr = language === "ar";
 
+  // A live trial IS live. The trial banner directly above this one promises
+  // 37 days with "every feature open" while this one said the store was not
+  // live yet — and the backend gate agreed with this one, so a trialling
+  // merchant's shoppers were told "opening soon" for the whole trial. The
+  // trial's expiry is what enforces payment; until then there is nothing to
+  // nudge about. Mirrors the server rule in
+  // `WalletService._compute_gate_state` — if these two ever disagree, the
+  // merchant is told one thing and their shoppers experience another.
+  const onLiveTrial = !!tenant?.is_on_trial && (tenant?.days_remaining ?? 0) > 0;
+
   const needsPlan =
     !!tenant &&
+    !onLiveTrial &&
     ["trial", "demo", "free"].includes(tenant.plan) &&
     !tenant.feature_flags?.golive_exempt;
 
