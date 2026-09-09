@@ -138,8 +138,11 @@ export default function Assistant() {
   // ── Thread ─────────────────────────────────────────────────────────────
   if (messages.length > 0) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col">
-        <div className="mb-2 flex items-center gap-2">
+      // Full height of the scroll area: the turns take the room and the
+      // composer holds the bottom edge, instead of floating up under the
+      // last reply with the page footer beneath it.
+      <div className="mx-auto flex min-h-[calc(100vh-8.5rem)] w-full max-w-[820px] flex-col">
+        <div className="mb-3 flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -151,9 +154,16 @@ export default function Assistant() {
           </Button>
           <MascotSprite state={mascotState} size={32} className="ms-auto" />
         </div>
-        <ChatThread messages={messages} bubbleMaxWidth="max-w-[75%]" />
-        <div className="sticky bottom-0 mt-4 bg-background pb-2 pt-2">
-          <Composer storeId={storeId} disabled={isStreaming} variant="hero" onSend={send} />
+        <ChatThread messages={messages} className="flex-1" bubbleMaxWidth="max-w-[75%]" />
+        <div className="sticky bottom-0 mt-4 bg-[hsl(var(--agent-ground))] pb-3 pt-3">
+          <Composer
+            storeId={storeId}
+            disabled={isStreaming}
+            variant="panel"
+            placeholder={t("agent.home.followUp")}
+            hint={t("agent.home.hint")}
+            onSend={send}
+          />
         </div>
       </div>
     );
@@ -161,11 +171,8 @@ export default function Assistant() {
 
   // ── Launcher ───────────────────────────────────────────────────────────
   return (
-    // The launcher is a room, not a document: it takes the whole content area
-    // on its own warm ground. The negative margins undo DashboardLayout's
-    // padding so the ground reaches the edges, then put it back inside.
-    <div className="-m-4 min-h-[calc(100vh-9rem)] bg-[hsl(var(--agent-ground))] p-4 md:-m-6 md:p-6 lg:-mx-8 lg:-my-6 lg:px-8 lg:py-6">
-      <div className="mx-auto w-full max-w-[720px] pb-16">
+    <div className="mx-auto w-full max-w-[720px] pb-16">
+      <div>
         <div className="flex flex-col items-center pt-12 text-center sm:pt-20">
           <MascotSprite state="idle" size={48} />
           <h1 className="mb-5 mt-4 text-2xl font-bold sm:text-[28px]">

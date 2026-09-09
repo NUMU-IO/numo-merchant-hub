@@ -41,6 +41,7 @@ export default {
       newChat: "New chat",
       teach: "Teach it about your store",
       hint: "Enter to send",
+      followUp: "Ask a follow-up…",
       knowledge: "Knowledge",
       chips: {
         orders: "Orders",
