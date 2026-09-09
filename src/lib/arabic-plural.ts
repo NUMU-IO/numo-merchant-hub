@@ -113,3 +113,10 @@ export const AR_DAYS: ArabicPluralForms = {
   few: "أيام",
   many: "يوم",
 };
+
+export const AR_PARCELS: ArabicPluralForms = {
+  one: "شحنة",
+  two: "شحنتين",
+  few: "شحنات",
+  many: "شحنة",
+};

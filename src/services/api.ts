@@ -308,6 +308,53 @@ export async function apiClient<T>(
     : json;
 }
 
+/**
+ * A file download that authenticates the same way every other call does.
+ *
+ * `apiClient` always parses JSON, so the paperwork routes (waybills, the
+ * courier manifest) could not use it and grew their own `fetch`. That
+ * copy read a Bearer token from `localStorage["numu:token"]`, a key this
+ * app never writes, and omitted `credentials: "include"` — so it sent no
+ * cookie either and **every download 401'd**. Auth belongs in one place;
+ * this is that place, minus the JSON parse.
+ */
+export async function apiClientBlob(
+  endpoint: string,
+  options?: RequestInit,
+): Promise<Blob> {
+  let res: Response;
+  try {
+    res = await rawFetch(endpoint, options);
+  } catch (err) {
+    throw apiErrorFromNetwork(err);
+  }
+
+  if (res.status === 401) {
+    if (getImpersonationToken()) {
+      endImpersonation();
+    }
+    const retried = await handle401(endpoint, options, () =>
+      rawFetch(endpoint, options),
+    );
+    if (retried) res = retried;
+  }
+
+  if (!res.ok) {
+    // Surface the server's structured error rather than a bare status —
+    // the manifest answers an unknown courier with a bilingual message.
+    let detail: string = String(res.status);
+    try {
+      const body = await res.json();
+      detail = body?.error?.message_ar || body?.error?.message || detail;
+    } catch {
+      /* not JSON — keep the status */
+    }
+    throw new ApiError(res.status, detail);
+  }
+
+  return res.blob();
+}
+
 export async function apiClientFormData<T>(
   endpoint: string,
   formData: FormData,
