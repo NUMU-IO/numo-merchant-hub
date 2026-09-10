@@ -16,7 +16,7 @@ import {
   Bell, Inbox, MessageSquare, Megaphone, Share2, PlugZap, Activity,
   // store & ops
   Palette, FileText, Navigation2, SlidersHorizontal, Package, FolderOpen,
-  Truck, Key, Webhook, TrendingUp, UserPlus, Tag,
+  Truck, Key, Webhook, TrendingUp, UserPlus, Tag, Sparkles,
 } from "lucide-react";
 
 export type IconType = ComponentType<{ className?: string }>;
@@ -85,6 +85,24 @@ export const SETTINGS_SECTIONS: SettingSection[] = [
         to: "/settings/metafields",
         aliases: ["metafields", "attributes", "خصائص"],
         flag: "advanced",
+      },
+      {
+        title: { en: "Sector & capabilities", ar: "القطاع والإمكانيات" },
+        description: {
+          en: "Set up your store for its sector and choose what it can do",
+          ar: "جهّز متجرك حسب قطاعه واختر الإمكانيات المفعّلة",
+        },
+        icon: Sparkles,
+        to: "/settings/sectors",
+        aliases: [
+          "sector",
+          "preset",
+          "industry",
+          "capabilities",
+          "قطاع",
+          "نشاط",
+          "إمكانيات",
+        ],
       },
       {
         title: { en: "Security", ar: "الأمان" },
