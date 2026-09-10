@@ -103,6 +103,7 @@ const Settings = lazyWithRetry(() => import("@/pages/Settings"));
 const SettingsPreferences = lazyWithRetry(() => import("@/pages/SettingsPreferences"));
 const SettingsTracking = lazyWithRetry(() => import("@/pages/SettingsTracking"));
 const SettingsMetafields = lazyWithRetry(() => import("@/pages/SettingsMetafields"));
+const SettingsSectors = lazyWithRetry(() => import("@/pages/SettingsSectors"));
 const SettingsBusiness = lazyWithRetry(() => import("@/pages/SettingsBusiness"));
 const McpConnect = lazyWithRetry(() => import("@/pages/McpConnect"));
 const Apps = lazyWithRetry(() => import("@/pages/Apps"));
@@ -457,6 +458,7 @@ const App = () => (
                     <Route path="/settings/preferences" element={<SettingsPreferences />} />
                     <Route path="/settings/tracking" element={<SettingsTracking />} />
                     <Route path="/settings/metafields" element={<SettingsMetafields />} />
+                    <Route path="/settings/sectors" element={<SettingsSectors />} />
                     <Route path="/settings/business" element={<SettingsBusiness />} />
                     <Route path="/settings/mcp" element={<McpConnect />} />
                     <Route path="/notifications" element={<Notifications />} />
