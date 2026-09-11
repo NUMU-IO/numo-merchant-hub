@@ -81,7 +81,7 @@ interface AuthContextType {
   tenant: TenantInfo | null;
   /** True when the current session is a Try-a-Demo sandbox. */
   isDemoMode: boolean;
-  /** True when the tenant is on a 30-day trial (not yet paid). */
+  /** True when the tenant is on a 37-day trial (not yet paid). */
   isTrialMode: boolean;
   /** True when the tenant is in the read-only grace period. */
   isReadOnly: boolean;
