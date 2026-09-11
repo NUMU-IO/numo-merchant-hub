@@ -6,12 +6,15 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { createStore, checkSubdomain, seedDemoCatalog } from "@/services/storeApi";
+import { updateProfile } from "@/services/authApi";
 import { activateDefaultTheme } from "@/services/marketplaceApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput, isValidE164 } from "@/components/forms/PhoneInput";
 import { Loader2, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
 import { getStoreDomainSuffix } from "@/lib/storefront";
 import { getStoreSubdomainSuffix, withEnvSuffix } from "@/lib/env";
@@ -28,6 +31,7 @@ type FieldErrors = Record<string, string>;
 export default function CreateStore() {
   const { t } = useTranslation();
   const { language } = useLanguage();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const { refetchStores, hasStores } = useDashboardStore();
   const isAr = language === "ar";
@@ -37,6 +41,7 @@ export default function CreateStore() {
   // Market the store operates in — drives base currency (SAR/EGP), VAT
   // (15%/14%) and the payment-gateway allow-list on the backend.
   const [country, setCountry] = useState("EG");
+  const [phone, setPhone] = useState(user?.phone ?? "");
   const [subdomainStatus, setSubdomainStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
   const [subdomainMsg, setSubdomainMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -83,10 +88,24 @@ export default function CreateStore() {
       setFieldErrors(errs);
       return;
     }
+    if (!user?.phone && !phone) {
+      setFieldErrors({ phone: isAr ? "رقم الموبايل مطلوب" : "Phone number is required" });
+      return;
+    }
+    if (!user?.phone && !isValidE164(phone)) {
+      setFieldErrors({ phone: isAr ? "رقم الموبايل غير صحيح" : "Please enter a valid phone number" });
+      return;
+    }
     if (subdomainStatus !== "available") return;
     setError(null);
     setLoading(true);
     try {
+      // Google does not provide a phone number. Collect it during first-store
+      // setup and persist it before the store can reach STORE_CREATED.
+      if (!user?.phone) {
+        await updateProfile({ phone });
+        await refreshUser();
+      }
       // Save the env-suffixed subdomain (e.g. `dev-shop-test` on the test
       // env), so it matches the host the storefront SSR app extracts from
       // <store>-test.numueg.app. On prod the suffix is empty, so user
@@ -175,6 +194,27 @@ export default function CreateStore() {
           <p className="mt-1.5 text-sm text-muted-foreground mb-7">{t("createStore.subtitle")}</p>
 
           <form noValidate onSubmit={handleSubmit} className="space-y-4">
+            {!user?.phone && (
+              <div className="space-y-2">
+                <Label htmlFor="owner-phone" className="text-[13px] font-medium">
+                  {isAr ? "رقم الموبايل" : "Phone number"}
+                </Label>
+                <PhoneInput
+                  id="owner-phone"
+                  value={phone}
+                  onChange={setPhone}
+                  defaultCountry={country === "SA" ? "SA" : "EG"}
+                  required
+                  errorMessage={fieldErrors.phone}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {isAr
+                    ? "هنستخدمه لمساعدتك أثناء إعداد المتجر وتنبيهات الحساب المهمة."
+                    : "We'll use it for setup help and important account alerts."}
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label className="text-[13px] font-medium">{t("createStore.storeName")}</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("createStore.storeNamePlaceholder")} className={inputCls("name")} autoFocus />
