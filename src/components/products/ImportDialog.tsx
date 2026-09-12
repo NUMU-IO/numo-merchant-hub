@@ -54,6 +54,16 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
       if (r.created > 0) {
         onImportComplete();
       }
+    } catch (error) {
+      setResult({
+        created: 0,
+        failed: 1,
+        errors: [{
+          row: 0,
+          name: file.name,
+          error: error instanceof Error ? error.message : "Could not read this file",
+        }],
+      });
     } finally {
       setImporting(false);
     }

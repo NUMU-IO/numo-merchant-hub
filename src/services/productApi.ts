@@ -485,8 +485,8 @@ const cleanNumber = (value: ImportCell) => Number(String(value ?? "").replace(/[
 export async function importProductsFromFile(storeId: string, file: File): Promise<ImportResult> {
   let rows: ImportCell[][];
   if (/\.xlsx$/i.test(file.name)) {
-    const { default: readXlsxFile } = await import("read-excel-file/browser");
-    rows = await readXlsxFile(file) as ImportCell[][];
+    const { readSheet } = await import("read-excel-file/browser");
+    rows = await readSheet(file) as ImportCell[][];
   } else {
     rows = (await file.text()).split(/\r?\n/).filter((line) => line.trim()).map(parseCSVRow);
   }
