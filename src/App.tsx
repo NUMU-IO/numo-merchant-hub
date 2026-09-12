@@ -24,6 +24,7 @@ import { lazyWithRetry as lazy } from "@/lib/lazy-with-retry";
 const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
 const Products = lazyWithRetry(() => import("@/pages/Products"));
 const ProductEditor = lazyWithRetry(() => import("@/pages/ProductEditor"));
+const Series = lazyWithRetry(() => import("@/pages/Series"));
 const Orders = lazyWithRetry(() => import("@/pages/Orders"));
 const OrderDetail = lazyWithRetry(() => import("@/pages/OrderDetail"));
 const DraftOrders = lazyWithRetry(() => import("@/pages/DraftOrders"));
@@ -357,6 +358,7 @@ const App = () => (
                     <Route path="/products" element={<Products />} />
                     <Route path="/products/new" element={<ProductEditor />} />
                     <Route path="/products/:productId/edit" element={<ProductEditor />} />
+                    <Route path="/products/series" element={<Series />} />
                     <Route path="/orders" element={<Orders />} />
                     <Route path="/orders/drafts" element={<DraftOrders />} />
                     <Route path="/orders/shipping-labels" element={<ShippingLabels />} />
