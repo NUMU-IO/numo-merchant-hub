@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Upload, Download, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
-import { importProductsFromCSV, generateCSVTemplate, type ImportResult } from "@/services/productApi";
+import { importProductsFromFile, generateCSVTemplate, type ImportResult } from "@/services/productApi";
 
 interface ImportDialogProps {
   open: boolean;
@@ -49,8 +49,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
     if (!file || !storeId) return;
     setImporting(true);
     try {
-      const text = await file.text();
-      const r = await importProductsFromCSV(storeId, text);
+      const r = await importProductsFromFile(storeId, file);
       setResult(r);
       if (r.created > 0) {
         onImportComplete();
@@ -76,7 +75,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
           <DialogDescription className="text-xs">
             {isAr
               ? "ارفع ملف CSV لإضافة منتجات بالجملة"
-              : "Upload a CSV file to bulk-add products"}
+              : "Upload an Excel or CSV file to bulk-add products"}
           </DialogDescription>
         </DialogHeader>
 
@@ -106,7 +105,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                 e.stopPropagation();
                 setIsDragOver(false);
                 const f = e.dataTransfer.files?.[0];
-                if (f && (f.name.endsWith(".csv") || f.type === "text/csv")) {
+                if (f && /\.(csv|xlsx)$/i.test(f.name)) {
                   setFile(f);
                   setResult(null);
                 }
@@ -137,7 +136,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
                   </div>
                   <div className="text-center">
                     <p className="text-[13px] text-muted-foreground">
-                      {isAr ? "اسحب ملف CSV هنا" : "Drag a CSV file here"}
+                      {isAr ? "اسحب ملف Excel أو CSV هنا" : "Drag an Excel or CSV file here"}
                     </p>
                     <p className="text-[11px] text-muted-foreground/60 mt-0.5">
                       {isAr ? "أو اضغط للاختيار" : "or click to browse"}
@@ -147,7 +146,7 @@ export function ImportDialog({ open, onOpenChange, onImportComplete }: ImportDia
               )}
             </div>
           )}
-          <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFileSelect} />
+          <input ref={fileInputRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={handleFileSelect} />
 
           {/* Results */}
           {result && (
