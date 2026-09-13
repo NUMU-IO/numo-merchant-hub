@@ -33,6 +33,7 @@ import {
   updatePaymentSettings,
   type CodDepositPolicy,
   type DepositGateway,
+  type DepositMode,
   type PaymentSettings,
 } from "@/services/storeApi";
 
@@ -54,10 +55,15 @@ const GATEWAY_LABELS: Record<DepositGateway, { en: string; ar: string }> = {
   instapay: { en: "InstaPay", ar: "انستاباي" },
 };
 
+const DEFAULT_PERCENT = 50;
+
 function emptyPolicy(): CodDepositPolicy {
   return {
     enabled: false,
+    mode: "fixed",
     amount_cents: DEFAULT_AMOUNT_EGP * 100,
+    percent: DEFAULT_PERCENT,
+    min_order_cents: 0,
     ttl_minutes: DEFAULT_TTL_MINUTES,
     auto_refund_on_cancel: false,
     allowed_gateways: [],
@@ -73,6 +79,8 @@ export default function CodDepositPolicyCard({ storeId, isAr, codEnabled }: Prop
     String(DEFAULT_AMOUNT_EGP),
   );
   const [ttlDraft, setTtlDraft] = useState<string>(String(DEFAULT_TTL_MINUTES));
+  const [percentDraft, setPercentDraft] = useState<string>(String(DEFAULT_PERCENT));
+  const [thresholdDraft, setThresholdDraft] = useState<string>("0");
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +92,10 @@ export default function CodDepositPolicyCard({ storeId, isAr, codEnabled }: Prop
         setPolicy(s.cod_deposit_policy);
         setAmountDraft(String(s.cod_deposit_policy.amount_cents / 100));
         setTtlDraft(String(s.cod_deposit_policy.ttl_minutes));
+        setPercentDraft(String(s.cod_deposit_policy.percent ?? DEFAULT_PERCENT));
+        setThresholdDraft(
+          String((s.cod_deposit_policy.min_order_cents ?? 0) / 100),
+        );
       })
       .catch(() => {
         // Fresh store / no settings saved yet — keep defaults.
@@ -151,7 +163,10 @@ export default function CodDepositPolicyCard({ storeId, isAr, codEnabled }: Prop
           : [...availableGateways];
       await persist({
         enabled: true,
+        mode: policy.mode ?? "fixed",
         amount_cents,
+        percent: policy.percent || DEFAULT_PERCENT,
+        min_order_cents: policy.min_order_cents ?? 0,
         ttl_minutes: policy.ttl_minutes || DEFAULT_TTL_MINUTES,
         auto_refund_on_cancel: policy.auto_refund_on_cancel,
         allowed_gateways,
@@ -178,6 +193,32 @@ export default function CodDepositPolicyCard({ storeId, isAr, codEnabled }: Prop
       return;
     }
     await persist({ ...policy, amount_cents });
+  };
+
+  const handleModeChange = async (mode: DepositMode) => {
+    if (mode === policy.mode) return;
+    await persist({ ...policy, mode });
+  };
+
+  const handlePercentCommit = async () => {
+    const parsed = parseInt(percentDraft, 10);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 100) {
+      toast.error(
+        isAr ? "النسبة بين 1% و 100%" : "Percentage must be between 1% and 100%",
+      );
+      setPercentDraft(String(policy.percent || DEFAULT_PERCENT));
+      return;
+    }
+    if (parsed === policy.percent) return;
+    await persist({ ...policy, percent: parsed });
+  };
+
+  const handleThresholdCommit = async () => {
+    const parsed = Number(thresholdDraft);
+    const min_order_cents =
+      Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed * 100) : 0;
+    if (min_order_cents === (policy.min_order_cents ?? 0)) return;
+    await persist({ ...policy, min_order_cents });
   };
 
   const handleTtlCommit = async () => {
@@ -269,18 +310,95 @@ export default function CodDepositPolicyCard({ storeId, isAr, codEnabled }: Prop
 
       {policy.enabled && codEnabled ? (
         <div className="mt-4 border-t pt-4 space-y-4">
+          <div>
+            <Label className="text-xs">
+              {isAr ? "طريقة حساب التأمين" : "How the deposit is sized"}
+            </Label>
+            <div className="mt-1 inline-flex rounded-md border p-0.5">
+              {(["fixed", "percent"] as DepositMode[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => handleModeChange(m)}
+                  className={`px-3 py-1 text-xs rounded transition-colors ${
+                    (policy.mode ?? "fixed") === m
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {m === "fixed"
+                    ? isAr ? "مبلغ ثابت" : "Fixed amount"
+                    : isAr ? "نسبة من الطلب" : "Share of the order"}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {(policy.mode ?? "fixed") === "percent" ? (
+              <div>
+                <Label className="text-xs">
+                  {isAr ? "نسبة التأمين (%)" : "Deposit percentage (%)"}
+                </Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  step={1}
+                  value={percentDraft}
+                  onChange={(e) => setPercentDraft(e.target.value)}
+                  onBlur={handlePercentCommit}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  }}
+                  disabled={disabled}
+                  className="mt-1"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {isAr
+                    ? "50% يعني نص الطلب مقدم والباقي عند الاستلام."
+                    : "50% means half up front, the rest on delivery."}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <Label className="text-xs">
+                  {isAr ? "مبلغ التأمين (ج.م)" : "Deposit amount (EGP)"}
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={amountDraft}
+                  onChange={(e) => setAmountDraft(e.target.value)}
+                  onBlur={handleAmountCommit}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  }}
+                  disabled={disabled}
+                  className="mt-1"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {isAr
+                    ? "اجعله قريبًا من سعر الشحن (40-80 ج.م)."
+                    : "Keep it near your delivery fee (40–80 EGP)."}
+                </p>
+              </div>
+            )}
             <div>
               <Label className="text-xs">
-                {isAr ? "مبلغ التأمين (ج.م)" : "Deposit amount (EGP)"}
+                {isAr
+                  ? "اطلب التأمين من إجمالي (ج.م)"
+                  : "Only for orders from (EGP)"}
               </Label>
               <Input
                 type="number"
                 min={0}
                 step={1}
-                value={amountDraft}
-                onChange={(e) => setAmountDraft(e.target.value)}
-                onBlur={handleAmountCommit}
+                value={thresholdDraft}
+                onChange={(e) => setThresholdDraft(e.target.value)}
+                onBlur={handleThresholdCommit}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                 }}
@@ -289,8 +407,8 @@ export default function CodDepositPolicyCard({ storeId, isAr, codEnabled }: Prop
               />
               <p className="text-[11px] text-muted-foreground mt-1">
                 {isAr
-                  ? "اجعله قريبًا من سعر الشحن (40-80 ج.م)."
-                  : "Keep it near your delivery fee (40–80 EGP)."}
+                  ? "0 يعني كل طلبات الدفع عند الاستلام. الطلبات الأقل تعدي عادي."
+                  : "0 asks every COD order. Smaller orders go through untouched."}
               </p>
             </div>
             <div>

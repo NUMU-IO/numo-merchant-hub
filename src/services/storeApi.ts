@@ -420,9 +420,17 @@ export const DEPOSIT_GATEWAY_VALUES: DepositGateway[] = [
   "instapay",
 ];
 
+export type DepositMode = "fixed" | "percent";
+
 export interface CodDepositPolicy {
   enabled: boolean;
+  /** "fixed" charges amount_cents, "percent" charges percent of the order total. */
+  mode: DepositMode;
   amount_cents: number;
+  /** Share of the order total charged when mode is "percent". 50 = half. */
+  percent: number;
+  /** Only ask for a deposit once the order total reaches this. 0 = every COD order. */
+  min_order_cents: number;
   /** Minutes the customer has to complete the deposit before auto-cancel. */
   ttl_minutes: number;
   /** If true, cancelling an order with a paid deposit auto-refunds via the gateway. */
