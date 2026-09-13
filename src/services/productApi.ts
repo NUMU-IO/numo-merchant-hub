@@ -5,6 +5,9 @@
 import { apiClient, apiClientFormData } from "./api";
 import type { Product, ProductVariant, ProductStatus } from "@/data/mock-products";
 import { compressImage } from "@/lib/image-compression";
+import { listCategories } from "./categoryApi";
+import { setOwnerMetafieldValue } from "./metafieldsApi";
+import { setBundlesForProduct } from "./bundleApi";
 
 // ---------------------------------------------------------------------------
 // Backend response types (match API exactly)
@@ -102,6 +105,11 @@ export interface VariantRowPayload {
   inventory_quantity: number;
   /** Blank/omitted → the backend auto-generates a stable SKU. */
   sku?: string;
+  compare_at_price?: number;
+  cost_price?: number;
+  barcode?: string;
+  weight?: number;
+  price_currency?: string;
   image_url?: string | null;
 }
 
@@ -467,20 +475,77 @@ const IMPORT_HEADERS: Record<string, string[]> = {
   name_ar: ["name_ar"],
   description: ["description", "الوصف"],
   description_ar: ["description_ar"],
+  short_description: ["short_description", "short description"],
+  product_type: ["product_type", "product type"],
   image: ["image", "image url", "رابط الصورة"],
+  images: ["images", "image urls"],
+  image_alts_json: ["image_alts_json", "image alts json"],
   option1_name: ["option 1 name", "option1 name", "option1_name"],
   option1_value: ["option 1 value", "option1 value", "option1_value"],
+  option1_name_ar: ["option 1 name ar", "option1_name_ar"],
+  option1_value_ar: ["option 1 value ar", "option1_value_ar"],
   option2_name: ["option 2 name", "option2 name", "option2_name"],
   option2_value: ["option 2 value", "option2 value", "option2_value"],
+  option2_name_ar: ["option 2 name ar", "option2_name_ar"],
+  option2_value_ar: ["option 2 value ar", "option2_value_ar"],
+  option3_name: ["option 3 name", "option3 name", "option3_name"],
+  option3_value: ["option 3 value", "option3 value", "option3_value"],
+  option3_name_ar: ["option 3 name ar", "option3_name_ar"],
+  option3_value_ar: ["option 3 value ar", "option3_value_ar"],
   price: ["price", "variant price", "سعر الـ variant"],
   compare_at_price: ["compare_at_price"],
+  cost_price: ["cost_price", "cost", "cost per unit"],
+  currency: ["currency", "price_currency"],
   quantity: ["quantity", "stock", "المخزون"],
   sku: ["sku"],
+  barcode: ["barcode"],
+  weight: ["weight", "weight_kg"],
+  low_stock_threshold: ["low_stock_threshold", "low stock threshold"],
   status: ["status", "الحالة"],
+  category: ["category", "category name"],
+  category_id: ["category_id"],
+  tags: ["tags"],
+  brand: ["brand"],
+  continue_selling: ["continue_selling_when_out_of_stock", "continue selling"],
+  template_suffix: ["template_suffix", "display template"],
+  label_key: ["label_key"],
+  label_en: ["label_en", "product label"],
+  label_ar: ["label_ar"],
+  seo_title: ["seo_title", "search title"],
+  seo_description: ["seo_description", "search description"],
+  canonical_url: ["canonical_url", "canonical url"],
+  robots_noindex: ["robots_noindex", "noindex", "hidden from search"],
+  sitemap_exclude: ["sitemap_exclude", "exclude from sitemap"],
+  meta_catalog_id: ["meta_catalog_id"],
+  requires_shipping: ["requires_shipping", "requires shipping"],
+  tax_exempt: ["tax_exempt", "tax exempt"],
+  sale_price: ["sale_price"],
+  sale_starts_at: ["sale_starts_at"],
+  sale_ends_at: ["sale_ends_at"],
+  related_product_ids: ["related_product_ids", "similar product ids"],
+  frequently_bought_product_ids: ["frequently_bought_product_ids", "frequently bought product ids"],
+  bundle_discount_type: ["bundle_discount_type"],
+  bundle_discount_value: ["bundle_discount_value"],
+  bundle_title_en: ["bundle_title_en"],
+  bundle_title_ar: ["bundle_title_ar"],
+  attributes_json: ["attributes_json", "attributes json"],
+  size_chart_json: ["size_chart_json", "size chart json"],
 };
 
 const cleanHeader = (value: ImportCell) => String(value ?? "").trim().toLowerCase().replace(/\s*\*$/, "");
 const cleanNumber = (value: ImportCell) => Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+const splitList = (value: string) => value.split(/[|;]/).map((item) => item.trim()).filter(Boolean);
+const asBoolean = (value: string, fallback?: boolean) => {
+  if (!value) return fallback;
+  return ["1", "true", "yes", "y", "on"].includes(value.toLowerCase());
+};
+const optionalNumber = (value: string) => value ? cleanNumber(value) : undefined;
+const parseObject = (value: string, field: string): Record<string, unknown> => {
+  if (!value) return {};
+  const parsed = JSON.parse(value);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(`${field} must be a JSON object`);
+  return parsed as Record<string, unknown>;
+};
 
 export async function importProductsFromFile(storeId: string, file: File): Promise<ImportResult> {
   let rows: ImportCell[][];
@@ -502,6 +567,8 @@ export async function importProductRows(storeId: string, rows: ImportCell[][]): 
 
   const result: ImportResult = { created: 0, failed: 0, errors: [] };
   const value = (row: ImportCell[], key: keyof typeof IMPORT_HEADERS) => indexes[key] < 0 ? "" : String(row[indexes[key]] ?? "").trim();
+  const needsCategoryLookup = indexes.category >= 0 && rows.slice(1).some((row) => value(row, "category") && !value(row, "category_id"));
+  const categories = needsCategoryLookup ? await listCategories(storeId) : [];
   const groups = new Map<string, { row: number; rows: ImportCell[][] }>();
   rows.slice(1).forEach((row, offset) => {
     if (!row.some((cell) => String(cell ?? "").trim())) return;
@@ -521,34 +588,110 @@ export async function importProductRows(storeId: string, rows: ImportCell[][]): 
       result.errors.push({ row: group.row, name, error: !name ? "Missing product name" : "Invalid variant price" });
       continue;
     }
-    const axes = [1, 2].flatMap((axis, position) => {
-      const nameKey = `option${axis}_name` as "option1_name" | "option2_name";
-      const valueKey = `option${axis}_value` as "option1_value" | "option2_value";
+    const axes = [1, 2, 3].flatMap((axis, position) => {
+      const nameKey = `option${axis}_name` as "option1_name" | "option2_name" | "option3_name";
+      const valueKey = `option${axis}_value` as "option1_value" | "option2_value" | "option3_value";
       const axisName = group.rows.map((row) => value(row, nameKey)).find(Boolean);
       if (!axisName) return [];
       return [{ name: axisName, position, values: [...new Set(group.rows.map((row) => value(row, valueKey)).filter(Boolean))] }];
     });
+    const optionValueKeys = ["option1_value", "option2_value", "option3_value"] as const;
     const variants = axes.length ? parsed.map(({ row, price, quantity }) => ({
-      option_values: Object.fromEntries(axes.map((axis, index) => [axis.name, value(row, index === 0 ? "option1_value" : "option2_value")])),
+      option_values: Object.fromEntries(axes.map((axis, index) => [axis.name, value(row, optionValueKeys[index])])),
       price, inventory_quantity: quantity, sku: value(row, "sku") || undefined,
+      compare_at_price: optionalNumber(value(row, "compare_at_price")),
+      cost_price: optionalNumber(value(row, "cost_price")),
+      barcode: value(row, "barcode") || undefined,
+      weight: optionalNumber(value(row, "weight")),
+      price_currency: value(row, "currency").toUpperCase() || undefined,
       image_url: value(row, "image") || undefined,
     })) : undefined;
     const firstNonEmpty = (key: keyof typeof IMPORT_HEADERS) => group.rows.map((row) => value(row, key)).find(Boolean);
     const status = value(first, "status").toLowerCase();
     try {
-      await createProduct(storeId, {
+      const attributes = parseObject(value(first, "attributes_json"), "attributes_json");
+      Object.assign(attributes, {
+        nameAr: value(first, "name_ar"),
+        descriptionAr: value(first, "description_ar"),
+        continue_selling_when_out_of_stock: asBoolean(value(first, "continue_selling"), false),
+      });
+      const labelEn = value(first, "label_en");
+      if (labelEn) attributes.label = {
+        key: value(first, "label_key") || labelEn.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+        text_en: labelEn,
+        text_ar: value(first, "label_ar"),
+      };
+      const chart = parseObject(value(first, "size_chart_json"), "size_chart_json");
+      if (Object.keys(chart).length) attributes.size_chart = chart;
+      if (axes.length) attributes.variant_meta = { axes: axes.map((axis, index) => ({
+        name: axis.name,
+        nameAr: firstNonEmpty(`option${index + 1}_name_ar` as keyof typeof IMPORT_HEADERS) || "",
+        optionsAr: [...new Set(group.rows.map((row) => value(row, `option${index + 1}_value_ar` as keyof typeof IMPORT_HEADERS)).filter(Boolean))],
+      })) };
+      const categoryName = value(first, "category").toLowerCase();
+      const categoryId = value(first, "category_id") || categories.find((category) => category.name.toLowerCase() === categoryName)?.id;
+      const images = [...new Set(group.rows.flatMap((row) => [value(row, "image"), ...splitList(value(row, "images"))]).filter(Boolean))];
+      const created = await createProduct(storeId, {
         name,
         slug: value(first, "handle") || undefined,
         price: Math.min(...parsed.map((item) => item.price)).toFixed(2),
         description: firstNonEmpty("description") || undefined,
+        short_description: firstNonEmpty("short_description") || undefined,
+        product_type: value(first, "product_type") || undefined,
+        price_currency: value(first, "currency").toUpperCase() || undefined,
+        compare_at_price: value(first, "compare_at_price") || undefined,
+        cost_price: value(first, "cost_price") || undefined,
         quantity: parsed.reduce((total, item) => total + item.quantity, 0),
-        images: firstNonEmpty("image") ? [firstNonEmpty("image")!] : undefined,
+        low_stock_threshold: optionalNumber(value(first, "low_stock_threshold")),
+        images: images.length ? images : undefined,
         sku: variants ? undefined : value(first, "sku") || undefined,
-        status: ["active", "published", "نشط"].includes(status) ? "active" : status === "archived" ? "archived" : undefined,
-        attributes: { nameAr: value(first, "name_ar"), descriptionAr: value(first, "description_ar") },
+        status: ["active", "published", "نشط"].includes(status) ? "active" : ["hidden", "unlisted"].includes(status) ? "unlisted" : ["draft", "archived"].includes(status) ? status : undefined,
+        category_id: categoryId || undefined,
+        tags: splitList(value(first, "tags")),
+        brand: value(first, "brand") || undefined,
+        template_suffix: value(first, "template_suffix") || undefined,
+        seo_title: value(first, "seo_title") || undefined,
+        seo_description: value(first, "seo_description") || undefined,
+        canonical_url: value(first, "canonical_url") || undefined,
+        robots_noindex: asBoolean(value(first, "robots_noindex"), false),
+        sitemap_exclude: asBoolean(value(first, "sitemap_exclude"), false),
+        meta_catalog_id: value(first, "meta_catalog_id") || undefined,
+        weight: optionalNumber(value(first, "weight")),
+        requires_shipping: asBoolean(value(first, "requires_shipping")),
+        tax_exempt: asBoolean(value(first, "tax_exempt")),
+        sale_price: value(first, "sale_price") || undefined,
+        sale_starts_at: value(first, "sale_starts_at") || undefined,
+        sale_ends_at: value(first, "sale_ends_at") || undefined,
+        related_product_ids: splitList(value(first, "related_product_ids")),
+        attributes,
         options: axes,
         variants,
       });
+      for (const [index, header] of headers.entries()) {
+        const match = header.match(/^metafield\.([^.]+)\.(.+)$/);
+        const fieldValue = String(first[index] ?? "").trim();
+        if (match && fieldValue) await setOwnerMetafieldValue(storeId, "product", created.id, { namespace: match[1], key: match[2], value: fieldValue });
+      }
+      const imageAlts = parseObject(value(first, "image_alts_json"), "image_alts_json");
+      for (const [imageUrl, alt] of Object.entries(imageAlts)) {
+        if (typeof alt === "string" && alt.trim()) await setProductImageAlt(storeId, created.id, imageUrl, alt);
+      }
+      const bundledIds = splitList(value(first, "frequently_bought_product_ids"));
+      if (bundledIds.length) {
+        const discountType = value(first, "bundle_discount_type");
+        await setBundlesForProduct(storeId, {
+          primary_product_id: created.id,
+          bundles: bundledIds.slice(0, 10).map((bundled_product_id, position) => ({
+            bundled_product_id,
+            position,
+            discount_type: ["percentage", "fixed"].includes(discountType) ? discountType as "percentage" | "fixed" : "none",
+            discount_value: optionalNumber(value(first, "bundle_discount_value")) || 0,
+            is_active: true,
+            section_title_en: value(first, "bundle_title_en") || undefined,
+            section_title_ar: value(first, "bundle_title_ar") || undefined,
+          })),
+        });
+      }
       result.created++;
     } catch (error) {
       result.failed += group.rows.length;
@@ -623,7 +766,17 @@ export async function bulkProductAction(
 }
 
 export function generateCSVTemplate(): string {
-  return "name,name_ar,description,description_ar,price,compare_at_price,quantity,status\n";
+  return [
+    "handle", "name", "name_ar", "description", "description_ar", "short_description", "product_type",
+    "images", "image_alts_json", "price", "compare_at_price", "cost_price", "currency", "quantity", "low_stock_threshold", "sku", "barcode", "weight",
+    "status", "category", "tags", "brand", "continue_selling_when_out_of_stock", "requires_shipping", "tax_exempt",
+    "template_suffix", "label_key", "label_en", "label_ar", "seo_title", "seo_description", "canonical_url", "robots_noindex", "sitemap_exclude",
+    "sale_price", "sale_starts_at", "sale_ends_at", "related_product_ids", "frequently_bought_product_ids", "bundle_discount_type", "bundle_discount_value", "bundle_title_en", "bundle_title_ar", "meta_catalog_id",
+    "option1_name", "option1_name_ar", "option1_value", "option1_value_ar",
+    "option2_name", "option2_name_ar", "option2_value", "option2_value_ar",
+    "option3_name", "option3_name_ar", "option3_value", "option3_value_ar",
+    "size_chart_json", "attributes_json", "metafield.custom.author",
+  ].join(",") + "\n";
 }
 
 export function exportProductsToCSV(products: Product[]): string {
