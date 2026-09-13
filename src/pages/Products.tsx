@@ -37,7 +37,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus, Search, MoreHorizontal, Pencil, Trash2, Tag, Loader2, X,
   ChevronLeft, ChevronRight, Upload, Download, Archive, Eye, Copy,
-  Package, TrendingUp, AlertTriangle,
+  Package, TrendingUp, AlertTriangle, BookOpen,
   ArrowUpDown, ListFilter, LayoutGrid, LayoutList,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -414,6 +414,11 @@ const Products = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align={isAr ? "start" : "end"} className="w-44">
+              <DropdownMenuItem onClick={() => navigate("/products/series")}>
+                <BookOpen className="me-2 h-3.5 w-3.5" />
+                {isAr ? "سلاسل الكتب" : "Book series"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setImportOpen(true)}>
                 <Upload className="me-2 h-3.5 w-3.5" />
                 {isAr ? "استيراد" : "Import"}

@@ -47,6 +47,7 @@ interface RowDraft {
   price: string;
   sku: string;
   inventory_quantity: string;
+  fulfillment_type: "physical" | "digital" | "service";
   _dirty?: boolean;
 }
 
@@ -110,6 +111,7 @@ export default function VariantsEditor({
             price: v.price,
             sku: v.sku ?? "",
             inventory_quantity: String(v.inventory_quantity ?? 0),
+            fulfillment_type: v.fulfillment_type ?? "physical",
           })),
         );
       } catch (err) {
@@ -172,6 +174,11 @@ export default function VariantsEditor({
         price: "0",
         sku: "",
         inventory_quantity: "0",
+        fulfillment_type:
+          opts.Edition?.toLowerCase().includes("soft") ||
+          opts.Edition?.toLowerCase().includes("digital")
+            ? "digital"
+            : "physical",
         _dirty: true,
       };
     });
@@ -218,6 +225,9 @@ export default function VariantsEditor({
           price: Number(r.price) || 0,
           sku: r.sku || null,
           inventory_quantity: Number(r.inventory_quantity) || 0,
+          fulfillment_type: r.fulfillment_type,
+          requires_shipping: r.fulfillment_type === "physical",
+          track_inventory: r.fulfillment_type === "physical",
         };
         if (r.id) {
           await updateVariant(storeId, productId, r.id, payload);
@@ -236,6 +246,7 @@ export default function VariantsEditor({
           price: v.price,
           sku: v.sku ?? "",
           inventory_quantity: String(v.inventory_quantity ?? 0),
+          fulfillment_type: v.fulfillment_type ?? "physical",
         })),
       );
       onSuccess?.("Variants saved.");
@@ -336,6 +347,7 @@ export default function VariantsEditor({
                     Price ({currency})
                   </th>
                   <th className="text-left p-2 font-medium">SKU</th>
+                  <th className="text-left p-2 font-medium">Delivery</th>
                   <th className="text-left p-2 font-medium">Stock</th>
                   <th />
                 </tr>
@@ -369,15 +381,42 @@ export default function VariantsEditor({
                       />
                     </td>
                     <td className="p-2">
-                      <input
-                        type="number"
-                        min="0"
-                        value={r.inventory_quantity}
+                      <select
+                        value={r.fulfillment_type}
                         onChange={(e) =>
-                          updateRow(i, { inventory_quantity: e.target.value })
+                          updateRow(i, {
+                            fulfillment_type: e.target
+                              .value as RowDraft["fulfillment_type"],
+                            inventory_quantity:
+                              e.target.value === "physical"
+                                ? r.inventory_quantity
+                                : "0",
+                          })
                         }
-                        className="w-20 border rounded px-2 py-1"
-                      />
+                        className="border rounded px-2 py-1"
+                        aria-label="Delivery type"
+                      >
+                        <option value="physical">Physical</option>
+                        <option value="digital">Digital</option>
+                        <option value="service">Service</option>
+                      </select>
+                    </td>
+                    <td className="p-2">
+                      {r.fulfillment_type === "physical" ? (
+                        <input
+                          type="number"
+                          min="0"
+                          value={r.inventory_quantity}
+                          onChange={(e) =>
+                            updateRow(i, {
+                              inventory_quantity: e.target.value,
+                            })
+                          }
+                          className="w-20 border rounded px-2 py-1"
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-500">Not tracked</span>
+                      )}
                     </td>
                     <td className="p-2 text-right">
                       <button

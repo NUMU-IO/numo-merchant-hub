@@ -38,6 +38,9 @@ export interface Variant {
   image_url: string | null;
   weight_g: number | null;
   metadata: Record<string, unknown> | null;
+  fulfillment_type: "physical" | "digital" | "service";
+  requires_shipping: boolean;
+  track_inventory: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -53,6 +56,9 @@ export interface CreateVariantData {
   image_url?: string | null;
   weight_g?: number | null;
   position?: number;
+  fulfillment_type?: "physical" | "digital" | "service";
+  requires_shipping?: boolean;
+  track_inventory?: boolean;
 }
 
 export interface UpdateVariantData {
@@ -66,6 +72,9 @@ export interface UpdateVariantData {
   image_url?: string | null;
   weight_g?: number | null;
   position?: number;
+  fulfillment_type?: "physical" | "digital" | "service";
+  requires_shipping?: boolean;
+  track_inventory?: boolean;
 }
 
 export async function listVariants(
