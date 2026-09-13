@@ -459,81 +459,102 @@ export interface ImportResult {
   errors: { row: number; name: string; error: string }[];
 }
 
-export async function importProductsFromCSV(
-  storeId: string,
-  csvText: string,
-): Promise<ImportResult> {
-  const lines = csvText.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) {
-    return { created: 0, failed: 0, errors: [{ row: 0, name: "", error: "CSV file is empty or has no data rows" }] };
-  }
+type ImportCell = string | number | boolean | Date | null | undefined;
 
-  const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
-  const nameIdx = headers.indexOf("name");
-  const nameArIdx = headers.indexOf("name_ar");
-  const descIdx = headers.indexOf("description");
-  const descArIdx = headers.indexOf("description_ar");
-  const priceIdx = headers.indexOf("price");
-  const comparePriceIdx = headers.indexOf("compare_at_price");
-  const stockIdx = headers.indexOf("quantity");
-  const statusIdx = headers.indexOf("status");
+const IMPORT_HEADERS: Record<string, string[]> = {
+  handle: ["handle", "product handle", "product_handle"],
+  name: ["name", "اسم المنتج"],
+  name_ar: ["name_ar"],
+  description: ["description", "الوصف"],
+  description_ar: ["description_ar"],
+  image: ["image", "image url", "رابط الصورة"],
+  option1_name: ["option 1 name", "option1 name", "option1_name"],
+  option1_value: ["option 1 value", "option1 value", "option1_value"],
+  option2_name: ["option 2 name", "option2 name", "option2_name"],
+  option2_value: ["option 2 value", "option2 value", "option2_value"],
+  price: ["price", "variant price", "سعر الـ variant"],
+  compare_at_price: ["compare_at_price"],
+  quantity: ["quantity", "stock", "المخزون"],
+  sku: ["sku"],
+  status: ["status", "الحالة"],
+};
 
-  if (nameIdx === -1 || priceIdx === -1) {
-    return { created: 0, failed: 0, errors: [{ row: 0, name: "", error: "CSV must have 'name' and 'price' columns" }] };
+const cleanHeader = (value: ImportCell) => String(value ?? "").trim().toLowerCase().replace(/\s*\*$/, "");
+const cleanNumber = (value: ImportCell) => Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+
+export async function importProductsFromFile(storeId: string, file: File): Promise<ImportResult> {
+  let rows: ImportCell[][];
+  if (/\.xlsx$/i.test(file.name)) {
+    const { readSheet } = await import("read-excel-file/browser");
+    rows = await readSheet(file) as ImportCell[][];
+  } else {
+    rows = (await file.text()).split(/\r?\n/).filter((line) => line.trim()).map(parseCSVRow);
   }
+  return importProductRows(storeId, rows);
+}
+
+export async function importProductRows(storeId: string, rows: ImportCell[][]): Promise<ImportResult> {
+  if (rows.length < 2) return { created: 0, failed: 0, errors: [{ row: 0, name: "", error: "File is empty or has no data rows" }] };
+  const headers = rows[0].map(cleanHeader);
+  const column = (key: keyof typeof IMPORT_HEADERS) => headers.findIndex((header) => IMPORT_HEADERS[key].includes(header));
+  const indexes = Object.fromEntries(Object.keys(IMPORT_HEADERS).map((key) => [key, column(key)])) as Record<keyof typeof IMPORT_HEADERS, number>;
+  if (indexes.name < 0 || indexes.price < 0) return { created: 0, failed: 0, errors: [{ row: 0, name: "", error: "File must contain product name and variant price columns" }] };
 
   const result: ImportResult = { created: 0, failed: 0, errors: [] };
+  const value = (row: ImportCell[], key: keyof typeof IMPORT_HEADERS) => indexes[key] < 0 ? "" : String(row[indexes[key]] ?? "").trim();
+  const groups = new Map<string, { row: number; rows: ImportCell[][] }>();
+  rows.slice(1).forEach((row, offset) => {
+    if (!row.some((cell) => String(cell ?? "").trim())) return;
+    const name = value(row, "name");
+    const hasOptions = Boolean(value(row, "option1_name") && value(row, "option1_value"));
+    const key = hasOptions ? (value(row, "handle") || name).toLowerCase() : `row:${offset}`;
+    const group = groups.get(key) ?? { row: offset + 2, rows: [] };
+    group.rows.push(row); groups.set(key, group);
+  });
 
-  for (let i = 1; i < lines.length; i++) {
-    const cols = parseCSVRow(lines[i]);
-    const name = cols[nameIdx]?.trim();
-    const price = cols[priceIdx]?.trim();
-
-    if (!name || !price) {
-      result.failed++;
-      result.errors.push({ row: i + 1, name: name || "", error: "Missing name or price" });
+  for (const group of groups.values()) {
+    const first = group.rows[0];
+    const name = value(first, "name") || group.rows.map((row) => value(row, "name")).find(Boolean) || "";
+    const parsed = group.rows.map((row) => ({ row, price: cleanNumber(value(row, "price")), quantity: Math.max(0, Math.trunc(cleanNumber(value(row, "quantity")) || 0)) }));
+    if (!name || parsed.some((item) => !Number.isFinite(item.price) || item.price <= 0)) {
+      result.failed += group.rows.length;
+      result.errors.push({ row: group.row, name, error: !name ? "Missing product name" : "Invalid variant price" });
       continue;
     }
-
-    const priceNum = parseFloat(price);
-    if (isNaN(priceNum) || priceNum <= 0) {
-      result.failed++;
-      result.errors.push({ row: i + 1, name, error: "Invalid price" });
-      continue;
-    }
-
-    const data: CreateProductData = {
-      name,
-      price: priceNum.toFixed(2),
-      description: descIdx >= 0 ? cols[descIdx]?.trim() || undefined : undefined,
-      compare_at_price: comparePriceIdx >= 0 && cols[comparePriceIdx]?.trim()
-        ? parseFloat(cols[comparePriceIdx]).toFixed(2)
-        : undefined,
-      quantity: stockIdx >= 0 && cols[stockIdx]?.trim()
-        ? parseInt(cols[stockIdx], 10)
-        : 0,
-      attributes: {
-        nameAr: nameArIdx >= 0 ? cols[nameArIdx]?.trim() || "" : "",
-        descriptionAr: descArIdx >= 0 ? cols[descArIdx]?.trim() || "" : "",
-      },
-    };
-
-    if (statusIdx >= 0 && cols[statusIdx]?.trim()) {
-      const s = cols[statusIdx].trim().toLowerCase();
-      if (s === "published" || s === "active") data.status = "active";
-      else if (s === "archived") data.status = "archived";
-    }
-
+    const axes = [1, 2].flatMap((axis, position) => {
+      const nameKey = `option${axis}_name` as "option1_name" | "option2_name";
+      const valueKey = `option${axis}_value` as "option1_value" | "option2_value";
+      const axisName = group.rows.map((row) => value(row, nameKey)).find(Boolean);
+      if (!axisName) return [];
+      return [{ name: axisName, position, values: [...new Set(group.rows.map((row) => value(row, valueKey)).filter(Boolean))] }];
+    });
+    const variants = axes.length ? parsed.map(({ row, price, quantity }) => ({
+      option_values: Object.fromEntries(axes.map((axis, index) => [axis.name, value(row, index === 0 ? "option1_value" : "option2_value")])),
+      price, inventory_quantity: quantity, sku: value(row, "sku") || undefined,
+      image_url: value(row, "image") || undefined,
+    })) : undefined;
+    const firstNonEmpty = (key: keyof typeof IMPORT_HEADERS) => group.rows.map((row) => value(row, key)).find(Boolean);
+    const status = value(first, "status").toLowerCase();
     try {
-      await createProduct(storeId, data);
+      await createProduct(storeId, {
+        name,
+        slug: value(first, "handle") || undefined,
+        price: Math.min(...parsed.map((item) => item.price)).toFixed(2),
+        description: firstNonEmpty("description") || undefined,
+        quantity: parsed.reduce((total, item) => total + item.quantity, 0),
+        images: firstNonEmpty("image") ? [firstNonEmpty("image")!] : undefined,
+        sku: variants ? undefined : value(first, "sku") || undefined,
+        status: ["active", "published", "نشط"].includes(status) ? "active" : status === "archived" ? "archived" : undefined,
+        attributes: { nameAr: value(first, "name_ar"), descriptionAr: value(first, "description_ar") },
+        options: axes,
+        variants,
+      });
       result.created++;
-    } catch (err) {
-      result.failed++;
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      result.errors.push({ row: i + 1, name, error: msg });
+    } catch (error) {
+      result.failed += group.rows.length;
+      result.errors.push({ row: group.row, name, error: error instanceof Error ? error.message : "Unknown error" });
     }
   }
-
   return result;
 }
 
