@@ -536,3 +536,33 @@ export async function sendOrderPaymentLink(
     { method: "POST", body: JSON.stringify({ thread_id: threadId, note }) },
   );
 }
+
+// ── WhatsApp notifications ──
+
+export interface OrderWhatsAppSend {
+  template_name: string | null;
+  status: "queued" | "sent" | "delivered" | "read" | "failed";
+  /** Meta's numeric failure code, e.g. "131042" (business payment issue). */
+  error_code: string | null;
+  message_id: string;
+  sent_at: string;
+}
+
+export async function getOrderWhatsAppSends(
+  storeId: string,
+  orderId: string,
+): Promise<{ sends: OrderWhatsAppSend[] }> {
+  return apiClient<{ sends: OrderWhatsAppSend[] }>(
+    `/stores/${storeId}/orders/${orderId}/whatsapp`,
+  );
+}
+
+export async function resendOrderWhatsApp(
+  storeId: string,
+  orderId: string,
+): Promise<{ sends: OrderWhatsAppSend[]; sent: boolean }> {
+  return apiClient<{ sends: OrderWhatsAppSend[]; sent: boolean }>(
+    `/stores/${storeId}/orders/${orderId}/resend-whatsapp`,
+    { method: "POST" },
+  );
+}

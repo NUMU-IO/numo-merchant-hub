@@ -44,6 +44,7 @@ import { RefundsCard } from "@/components/orders/RefundsCard";
 import { CustomerPanel } from "@/components/orders/CustomerPanel";
 import { ShippingAddressCard } from "@/components/orders/ShippingAddressCard";
 import { NotesCard } from "@/components/orders/NotesCard";
+import { WhatsAppCard } from "@/components/orders/WhatsAppCard";
 import { OrderTimeline } from "@/components/orders/OrderTimeline";
 
 /**
@@ -244,6 +245,7 @@ const OrderDetail = () => {
         <div className="space-y-4">
           <CustomerPanel storeId={storeId} order={order} />
           <ShippingAddressCard order={order} />
+          <WhatsAppCard storeId={storeId} orderId={order.id} />
           <NotesCard storeId={storeId} order={order} />
         </div>
       </div>
