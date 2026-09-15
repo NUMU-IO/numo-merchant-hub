@@ -13,13 +13,10 @@
 import { Monitor } from "lucide-react";
 
 import type { SettingDefinition, EditorLocale } from "../types";
+import { localize } from "../components/inputs/localize";
 
 function label(setting: SettingDefinition, locale: EditorLocale): string {
-  return (
-    (locale === "ar" ? setting.locales?.ar?.label : setting.locales?.en?.label) ||
-    setting.label ||
-    setting.id
-  );
+  return localize(setting, "label", locale) || setting.id;
 }
 
 export function DesktopOnlyRow({

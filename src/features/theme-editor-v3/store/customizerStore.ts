@@ -584,7 +584,8 @@ function flattenGlobalSettings(raw: unknown): SettingDefinition[] {
       const group = typeof e.name === "string" ? e.name : "General";
       const locales = (e.locales ?? {}) as { ar?: { name?: string }; en?: { name?: string } };
       const groupLocales = {
-        ar: locales.ar?.name,
+        // Most themes name groups with a flat `name_ar` (bazar, editorial, …).
+        ar: locales.ar?.name || (e.name_ar as string | undefined),
         en: locales.en?.name,
       };
       for (const child of e.settings as unknown[]) {

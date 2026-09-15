@@ -27,6 +27,7 @@ import { toast } from "sonner";
 
 import { useCustomizerStore } from "../store/customizerStore";
 import { findSectionSchema } from "../store/blockPaths";
+import { localize } from "../components/inputs/localize";
 import { LivePreview } from "../components/preview/LivePreview";
 import type { SectionInstance } from "../types";
 import { MobileSectionList } from "./MobileSectionList";
@@ -126,9 +127,7 @@ export function MobileLiteEditor() {
   );
 
   const sectionTitle = openSectionSchema
-    ? locale === "ar"
-      ? openSectionSchema.locales?.ar?.name || openSectionSchema.name
-      : openSectionSchema.name
+    ? localize(openSectionSchema, "name", locale)
     : (openSection?.type ?? "");
 
   const Back = isRTL ? ArrowRight : ArrowLeft;

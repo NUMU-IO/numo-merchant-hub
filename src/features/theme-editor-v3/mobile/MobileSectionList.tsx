@@ -15,6 +15,7 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Eye, EyeOff } from "
 
 import { cn } from "@/lib/utils";
 import type { EditorLocale, PageTemplate, SectionSchemaDefinition } from "../types";
+import { localize } from "../components/inputs/localize";
 
 interface MobileSectionListProps {
   template: PageTemplate | null;
@@ -33,8 +34,7 @@ function sectionName(
 ): string {
   const schema = schemas?.find((s) => s.type === type);
   if (!schema) return type;
-  if (locale === "ar") return schema.locales?.ar?.name || schema.name || type;
-  return schema.name || type;
+  return localize(schema, "name", locale) || type;
 }
 
 export function MobileSectionList({

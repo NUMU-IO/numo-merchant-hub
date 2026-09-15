@@ -54,6 +54,7 @@ import {
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getPublicStoreUrl } from "@/lib/storefront";
+import { fetchDraftV3 } from "@/features/theme-editor-v3/services/themeEditorV3Api";
 import { ActivateModal } from "./ActivateModal";
 import { UninstallModal } from "./UninstallModal";
 
@@ -78,6 +79,19 @@ export function MarketplaceLibraryTab({
     enabled: storeId !== null,
     staleTime: 30_000,
   });
+
+  // Same query key as useTemplateOptions, so the draft is fetched once.
+  const draftQuery = useQuery({
+    queryKey: ["theme-templates-v3", storeId],
+    queryFn: () => fetchDraftV3(storeId as string),
+    enabled: storeId !== null,
+    staleTime: 5 * 60 * 1000,
+  });
+  const templateVariants = Object.keys(
+    (draftQuery.data as { templates?: Record<string, unknown> } | undefined)?.templates ?? {},
+  )
+    .filter((key) => key.includes("."))
+    .sort();
 
   // Modal targets — null when closed, set to the row's theme id when
   // open. Two separate states because Activate + Uninstall are
@@ -258,6 +272,7 @@ export function MarketplaceLibraryTab({
         onOpenChange={(v) => !v && setActivateTarget(null)}
         themeName={activateTarget?.theme?.name ?? ""}
         currentlyActiveName={activeTheme?.theme?.name ?? null}
+        templateVariants={templateVariants}
         loading={activateMutation.isPending}
         onConfirm={() =>
           activateTarget && activateMutation.mutate(activateTarget)

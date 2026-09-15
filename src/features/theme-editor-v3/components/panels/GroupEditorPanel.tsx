@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCustomizerStore } from "../../store/customizerStore";
 import { findSectionSchema } from "../../store/blockPaths";
+import { localize } from "../inputs/localize";
 
 export function GroupEditorPanel() {
   const draft = useCustomizerStore((s) => s.draft);
@@ -75,9 +76,7 @@ export function GroupEditorPanel() {
 
           const sectionSchema = findSectionSchema(schemas, section.type);
           const label = sectionSchema
-            ? locale === "ar"
-              ? sectionSchema.locales?.ar?.name || sectionSchema.name
-              : sectionSchema.locales?.en?.name || sectionSchema.name
+            ? localize(sectionSchema, "name", locale)
             : section.type;
 
           return (
@@ -118,9 +117,7 @@ export function GroupEditorPanel() {
               {locale === "ar" ? "إضافة قسم:" : "Add section:"}
             </p>
             {availableGroupSections.map((gs) => {
-              const label = locale === "ar"
-                ? gs.locales?.ar?.name || gs.name
-                : gs.locales?.en?.name || gs.name;
+              const label = localize(gs, "name", locale);
               return (
                 <Button
                   key={gs.type}

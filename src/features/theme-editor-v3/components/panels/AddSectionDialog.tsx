@@ -53,6 +53,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 import { useCustomizerStore } from "../../store/customizerStore";
+import { localize } from "../inputs/localize";
 
 // ─── Per-section icon map ─────────────────────────────────────────────────
 //
@@ -210,9 +211,7 @@ export function AddSectionDialog() {
       // group editor, not this dialog.
       if (s.tag && GROUP_TAGS.has(s.tag)) continue;
 
-      const sectionName = isAr
-        ? s.locales?.ar?.name || s.name
-        : s.locales?.en?.name || s.name;
+      const sectionName = localize(s, "name", locale);
       const fallbackCategory = CATEGORY_BY_TYPE[s.type] ?? "content";
 
       // Most theme schemas ship ZERO presets, which previously skipped the
@@ -227,8 +226,7 @@ export function AddSectionDialog() {
       for (let idx = 0; idx < presetCount; idx++) {
         const preset = realPresets[idx];
         const presetName =
-          (isAr ? preset?.locales?.ar?.name : preset?.locales?.en?.name) ||
-          preset?.name ||
+          (preset && localize(preset, "name", locale)) ||
           (hasMultiplePresets ? `Variant ${idx + 1}` : sectionName);
         const presetCategory = preset?.category ?? fallbackCategory;
         cards.push({
@@ -243,7 +241,7 @@ export function AddSectionDialog() {
       }
     }
     return cards;
-  }, [schemas, isAr]);
+  }, [schemas, locale]);
 
   // Compatibility filter: hide sections tagged for a DIFFERENT
   // template. Sections without a tag are always compatible. The

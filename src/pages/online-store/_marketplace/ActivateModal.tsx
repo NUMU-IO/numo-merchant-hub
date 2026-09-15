@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 
 export interface ActivateModalProps {
   open: boolean;
@@ -36,6 +36,9 @@ export interface ActivateModalProps {
   currentlyActiveName: string | null;
   onConfirm: () => void;
   loading?: boolean;
+  /** Template variants (`page.refund`, …) in the current theme. Activation
+   *  seeds the new theme from its own presets, so none of them carry over. */
+  templateVariants?: string[];
 }
 
 export function ActivateModal({
@@ -45,6 +48,7 @@ export function ActivateModal({
   currentlyActiveName,
   onConfirm,
   loading,
+  templateVariants = [],
 }: ActivateModalProps) {
   const { t } = useTranslation();
   return (
@@ -74,6 +78,19 @@ export function ActivateModal({
             </p>
           </div>
         </div>
+
+        {currentlyActiveName && templateVariants.length > 0 && (
+          <div className="flex items-start gap-3 rounded-md border bg-amber-50 border-amber-200 text-amber-900 text-sm p-3">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium">{t("marketplace.activate.variantsReset")}</p>
+              <p className="text-xs mt-1 opacity-90">
+                {t("marketplace.activate.variantsResetBody", { theme: themeName })}
+              </p>
+              <p className="text-xs mt-1 font-mono" dir="ltr">{templateVariants.join(", ")}</p>
+            </div>
+          </div>
+        )}
 
         <DialogFooter>
           <Button

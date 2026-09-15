@@ -56,7 +56,7 @@ import {
 import { cn } from "@/lib/utils";
 import { listProducts } from "@/services/productApi";
 import { listCategories } from "@/services/categoryApi";
-import { getStore } from "@/services/storeApi";
+import { listPages, type StorePage } from "@/services/pagesApi";
 import type { EditorLocale } from "../../types";
 
 // ─── Common shortcuts ─────────────────────────────────────────────────
@@ -187,33 +187,35 @@ export function LinkPickerButton({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        className={cn(
-          "w-full justify-start gap-2 text-start font-normal",
-          !value && "text-muted-foreground",
-        )}
-        onClick={() => setOpen(true)}
-      >
-        <Link2 className="h-4 w-4 shrink-0" />
-        <span className="flex-1 truncate">
-          {value ? friendly : placeholder || (isAr ? "اختر وجهة..." : "Choose destination…")}
-        </span>
+      {/* The clear button sits NEXT TO the trigger, not inside it: a <button>
+          inside a <button> is invalid HTML and React warns about it. */}
+      <div className="relative">
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(
+            "w-full justify-start gap-2 text-start font-normal",
+            value && "pe-9",
+            !value && "text-muted-foreground",
+          )}
+          onClick={() => setOpen(true)}
+        >
+          <Link2 className="h-4 w-4 shrink-0" />
+          <span className="flex-1 truncate">
+            {value ? friendly : placeholder || (isAr ? "اختر وجهة..." : "Choose destination…")}
+          </span>
+        </Button>
         {value && (
           <button
             type="button"
-            className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-            onClick={(e) => {
-              e.stopPropagation();
-              onChange("");
-            }}
+            className="absolute end-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            onClick={() => onChange("")}
             aria-label={isAr ? "مسح" : "Clear"}
           >
             <X className="h-3.5 w-3.5" />
           </button>
         )}
-      </Button>
+      </div>
       <LinkPickerDialog
         open={open}
         onOpenChange={setOpen}
@@ -591,14 +593,6 @@ function CollectionTab({
   );
 }
 
-interface StorePage {
-  id: string;
-  title: string;
-  titleAr?: string;
-  slug: string;
-  published?: boolean;
-}
-
 function PageTab({
   onPick,
   isAr,
@@ -617,13 +611,11 @@ function PageTab({
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getStore(storeId)
-      .then((store) => {
-        if (cancelled) return;
-        const list =
-          (((store as { settings?: { pages?: unknown[] } }).settings?.pages ??
-            []) as StorePage[]);
-        setPages(list);
+    // The CMS pages from Online Store → Pages. The old source,
+    // `store.settings.pages`, had no writer anywhere, so the tab was always empty.
+    listPages(storeId)
+      .then((list) => {
+        if (!cancelled) setPages(list);
       })
       .catch(() => !cancelled && setPages([]))
       .finally(() => !cancelled && setLoading(false));
@@ -637,9 +629,9 @@ function PageTab({
     if (!q) return pages;
     return pages.filter(
       (p) =>
-        p.title.toLowerCase().includes(q) ||
-        (p.titleAr ?? "").toLowerCase().includes(q) ||
-        p.slug.includes(q),
+        (p.title?.en ?? "").toLowerCase().includes(q) ||
+        (p.title?.ar ?? "").toLowerCase().includes(q) ||
+        p.handle.includes(q),
     );
   }, [pages, query]);
 
@@ -663,15 +655,16 @@ function PageTab({
       {!loading && filtered.length === 0 && (
         <p className="py-6 text-center text-sm text-muted-foreground">
           {isAr
-            ? "لا توجد صفحات. أضف صفحة من إعدادات المتجر."
-            : "No pages found. Add pages from store settings."}
+            ? "مفيش صفحات لسه. اعمل صفحة من المتجر الإلكتروني ← الصفحات."
+            : "No pages yet. Create one in Online Store → Pages."}
         </p>
       )}
       <ul className="space-y-1">
         {filtered.map((p) => {
-          const url = `/pages/${p.slug}`;
+          const url = `/pages/${p.handle}`;
           const isSelected = current === url;
-          const title = isAr && p.titleAr ? p.titleAr : p.title;
+          const title =
+            (isAr ? p.title?.ar || p.title?.en : p.title?.en || p.title?.ar) || p.handle;
           return (
             <li key={p.id}>
               <button
@@ -686,7 +679,7 @@ function PageTab({
               >
                 <FileText className="h-4 w-4 text-muted-foreground" />
                 <span className="flex-1 truncate">{title}</span>
-                {p.published === false && (
+                {!p.is_published && (
                   <span className="text-[10px] text-amber-600">
                     {isAr ? "مخفي" : "hidden"}
                   </span>

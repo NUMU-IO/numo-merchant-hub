@@ -121,9 +121,14 @@ export interface SettingDefinition {
   id: string;
   type: SettingInputType;
   label: string;
+  label_ar?: string;
   default?: unknown;
   info?: string;
+  info_ar?: string;
   placeholder?: string;
+  /** `header` / `paragraph` divider text (these types have no id or value). */
+  content?: string;
+  content_ar?: string;
   /** Bilingual labels */
   locales?: {
     ar?: { label?: string; info?: string; placeholder?: string };
@@ -132,6 +137,7 @@ export interface SettingDefinition {
   /** For select/radio */
   options?: Array<{
     label: string;
+    label_ar?: string;
     value: string;
     locales?: { ar?: { label?: string } };
   }>;
@@ -181,6 +187,7 @@ export interface ColorSchemeValue {
 export interface BlockSchemaDefinition {
   type: string;
   name: string;
+  name_ar?: string;
   locales?: { ar?: { name?: string } };
   limit?: number;
   settings: SettingDefinition[];
@@ -203,6 +210,7 @@ export interface PresetBlockDefinition {
 export interface SectionSchemaDefinition {
   type: string;
   name: string;
+  name_ar?: string;
   locales?: { ar?: { name?: string } };
   tag?: string | null;
   class?: string | null;
@@ -212,6 +220,7 @@ export interface SectionSchemaDefinition {
   blocks?: BlockSchemaDefinition[];
   presets?: Array<{
     name: string;
+    name_ar?: string;
     locales?: { ar?: { name?: string } };
     category?: string;
     category_locales?: { ar?: string };

@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { useCustomizerStore } from "../../store/customizerStore";
 import { findSectionSchema } from "../../store/blockPaths";
 import { SchemaFormV3 } from "../inputs/SchemaFormV3";
+import { localize } from "../inputs/localize";
 import { BlockListEditor } from "./BlockListEditor";
 import type { SectionSchema } from "../../types";
 
@@ -92,8 +93,8 @@ export function SectionEditorPanel() {
     });
     const curBlocks = section.block_order?.length ?? 0;
     const presetBlocks = preset.blocks?.length ?? 0;
-    return { name: preset.name, changed, blockChange: curBlocks !== presetBlocks };
-  }, [pendingPreset, section, sectionSchema]);
+    return { name: localize(preset, "name", locale), changed, blockChange: curBlocks !== presetBlocks };
+  }, [pendingPreset, section, sectionSchema, locale]);
 
   if (!section || !sectionId) {
     return (
@@ -106,9 +107,7 @@ export function SectionEditorPanel() {
   }
 
   const sectionLabel = sectionSchema
-    ? locale === "ar"
-      ? sectionSchema.locales?.ar?.name || sectionSchema.name
-      : sectionSchema.locales?.en?.name || sectionSchema.name
+    ? localize(sectionSchema, "name", locale)
     : section.type;
 
   const availableBlockTypes = sectionSchema?.blocks ?? [];
@@ -148,7 +147,7 @@ export function SectionEditorPanel() {
                         key={`${preset.name}-${i}`}
                         onClick={() => setPendingPreset(i)}
                       >
-                        <span className="truncate">{preset.name}</span>
+                        <span className="truncate">{localize(preset, "name", locale)}</span>
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
