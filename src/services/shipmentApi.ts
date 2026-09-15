@@ -116,7 +116,7 @@ export interface BostaCredentials {
 
 export async function createShipment(
   storeId: string,
-  data: { order_id: string; shipping_method?: string; notes?: string }
+  data: { order_id: string; carrier?: string; shipping_method?: string; notes?: string }
 ): Promise<Shipment> {
   return apiClient<Shipment>(`/stores/${storeId}/shipments/`, {
     method: "POST",
@@ -126,11 +126,12 @@ export async function createShipment(
 
 export async function bulkCreateShipments(
   storeId: string,
-  orderIds: string[]
+  orderIds: string[],
+  carrier?: string
 ): Promise<BulkShipmentResult> {
   return apiClient<BulkShipmentResult>(`/stores/${storeId}/shipments/bulk`, {
     method: "POST",
-    body: JSON.stringify({ order_ids: orderIds }),
+    body: JSON.stringify({ order_ids: orderIds, carrier }),
   });
 }
 

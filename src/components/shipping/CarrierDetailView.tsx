@@ -12,6 +12,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { CarrierCredentialsForm } from "./CarrierCredentialsForm";
 import { CarrierMark } from "./CarrierMark";
 import {
@@ -25,10 +26,12 @@ interface Props {
   isAr: boolean;
   saving?: boolean;
   verifying?: boolean;
+  togglingAutoCreate?: boolean;
   onBack: () => void;
   onSave: (values: Record<string, string>) => void;
   onVerify: () => void;
   onDisconnect: () => void;
+  onToggleAutoCreate: (value: boolean) => void;
 }
 
 /** Only capabilities a merchant would recognise as a feature. */
@@ -49,10 +52,12 @@ export const CarrierDetailView = ({
   isAr,
   saving,
   verifying,
+  togglingAutoCreate,
   onBack,
   onSave,
   onVerify,
   onDisconnect,
+  onToggleAutoCreate,
 }: Props) => {
   const name = carrierName(carrier, isAr);
   const supported = (
@@ -104,6 +109,27 @@ export const CarrierDetailView = ({
               ? "الحاجات اللي مش في القايمة دي مش هتبان في لوحة الشحنات، عشان متضغطش على حاجة الشركة مش بتعملها."
               : "Anything not listed stays hidden in the shipments view, so you never click an action this carrier cannot perform."}
           </p>
+        </div>
+      )}
+
+      {carrier.status.is_configured && (
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-4">
+          <div className="min-w-0">
+            <h2 className="text-[13px] font-bold">
+              {isAr ? "إنشاء الشحنة تلقائي" : "Auto-create shipments"}
+            </h2>
+            <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted-foreground">
+              {isAr
+                ? "أي طلب جديد بالدفع عند الاستلام بيتسجل عند الشركة على طول. لو تأكيد الطلب على واتساب شغال، بيتسجل بعد ما العميل يأكد. الطلبات المدفوعة أونلاين بتتسجل بعد الدفع."
+                : "New cash-on-delivery orders are booked with this carrier right away. If WhatsApp order confirmation is on, they're booked once the customer confirms. Online-payment orders are booked once paid."}
+            </p>
+          </div>
+          <Switch
+            checked={carrier.status.auto_create_shipment}
+            disabled={togglingAutoCreate}
+            onCheckedChange={onToggleAutoCreate}
+            aria-label={isAr ? "إنشاء الشحنة تلقائي" : "Auto-create shipments"}
+          />
         </div>
       )}
 

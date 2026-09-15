@@ -23,6 +23,7 @@ import {
   type ShipmentListItem, type ShipmentStats, type CodSummary,
   type Shipment, type TrackingInfo, type BulkShipmentResult,
 } from "@/services/shipmentApi";
+import { listCarriers, carrierName } from "@/services/carrierApi";
 import {
   Package, Truck, CheckCircle2, Clock, Loader2, ArrowLeft,
   Plus, FileText, XCircle, RotateCcw, MapPin, CalendarDays,
@@ -57,6 +58,7 @@ const Shipments = () => {
 
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
+  const [carrier, setCarrier] = useState("");
   const [createOrderId, setCreateOrderId] = useState("");
   const [createMethod, setCreateMethod] = useState("standard");
   const [createNotes, setCreateNotes] = useState("");
@@ -95,6 +97,14 @@ const Shipments = () => {
     queryFn: () => getCodSummary(storeId!),
     enabled: !!storeId && mainTab === "cod",
   });
+
+  const carriersQuery = useQuery({
+    queryKey: ["carriers", storeId],
+    queryFn: () => listCarriers(storeId!),
+    enabled: !!storeId,
+  });
+  const connectedCarriers = (carriersQuery.data ?? []).filter((c) => c.status.is_configured);
+  const selectedCarrier = carrier || connectedCarriers[0]?.slug || "";
 
   const pickupsQuery = useQuery({
     queryKey: ["pickups", storeId],
@@ -232,6 +242,7 @@ const Shipments = () => {
     try {
       await createShipment(storeId, {
         order_id: createOrderId.trim(),
+        carrier: selectedCarrier || undefined,
         shipping_method: createMethod,
         notes: createNotes.trim() || undefined,
       });
@@ -262,7 +273,7 @@ const Shipments = () => {
         setBulkCreating(false);
         return;
       }
-      const result = await bulkCreateShipments(storeId, ids);
+      const result = await bulkCreateShipments(storeId, ids, selectedCarrier || undefined);
       setBulkResult(result);
       toast.success(
         isAr
@@ -276,6 +287,22 @@ const Shipments = () => {
       setBulkCreating(false);
     }
   };
+
+  const carrierSelect = (
+    <div className="space-y-2">
+      <label className="text-sm font-medium">{isAr ? "شركة الشحن" : "Carrier"}</label>
+      <Select value={selectedCarrier} onValueChange={setCarrier} disabled={!connectedCarriers.length}>
+        <SelectTrigger>
+          <SelectValue placeholder={isAr ? "اربط شركة شحن الأول" : "Connect a carrier first"} />
+        </SelectTrigger>
+        <SelectContent>
+          {connectedCarriers.map((c) => (
+            <SelectItem key={c.slug} value={c.slug}>{carrierName(c, isAr)}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
 
   const handleDeletePickup = async (pickupId: string) => {
     if (!storeId) return;
@@ -944,6 +971,7 @@ const Shipments = () => {
                 onChange={(e) => setCreateOrderId(e.target.value)}
               />
             </div>
+            {carrierSelect}
             <div className="space-y-2">
               <label className="text-sm font-medium">{isAr ? "طريقة الشحن" : "Shipping Method"}</label>
               <Select value={createMethod} onValueChange={setCreateMethod}>
@@ -988,6 +1016,7 @@ const Shipments = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {carrierSelect}
             <Textarea
               placeholder={isAr ? "معرف-طلب-1, معرف-طلب-2, ..." : "order-id-1, order-id-2, ..."}
               value={bulkOrderIds}
