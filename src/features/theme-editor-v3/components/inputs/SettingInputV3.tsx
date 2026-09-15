@@ -77,6 +77,7 @@ import {
 } from "./MediaLibraryDialog";
 import { FocalPointEditor } from "./FocalPointEditor";
 import type { ImageTransform } from "./imageTransform";
+import { localize } from "./localize";
 import {
   DynamicSourceToggle,
   isDynamicSourceValue,
@@ -98,34 +99,22 @@ export interface SettingInputV3Props {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function getLabel(setting: SettingDefinition, locale: EditorLocale): string {
-  if (locale === "ar") {
-    return setting.locales?.ar?.label || setting.label;
-  }
-  return setting.locales?.en?.label || setting.label;
+  return localize(setting, "label", locale);
 }
 
 function getInfo(setting: SettingDefinition, locale: EditorLocale): string | undefined {
-  if (locale === "ar") {
-    return setting.locales?.ar?.info || setting.info;
-  }
-  return setting.locales?.en?.info || setting.info;
+  return localize(setting, "info", locale);
 }
 
 function getPlaceholder(setting: SettingDefinition, locale: EditorLocale): string | undefined {
-  if (locale === "ar") {
-    return setting.locales?.ar?.placeholder || setting.placeholder;
-  }
-  return setting.locales?.en?.placeholder || setting.placeholder;
+  return localize(setting, "placeholder", locale);
 }
 
 function getOptionLabel(
-  option: { label: string; value: string; locales?: { ar?: { label?: string } } },
+  option: NonNullable<SettingDefinition["options"]>[number],
   locale: EditorLocale,
 ): string {
-  if (locale === "ar") {
-    return option.locales?.ar?.label || option.label;
-  }
-  return option.label;
+  return localize(option, "label", locale);
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -144,11 +133,7 @@ function SettingDivider({
   setting: SettingDefinition;
   locale: EditorLocale;
 }) {
-  const content =
-    locale === "ar"
-      ? (setting as { locales?: { ar?: { content?: string } } }).locales?.ar?.content ??
-        (setting as { content?: string }).content
-      : (setting as { content?: string }).content;
+  const content = localize(setting, "content", locale);
   if (!content) return null;
   if (setting.type === "header") {
     return (
