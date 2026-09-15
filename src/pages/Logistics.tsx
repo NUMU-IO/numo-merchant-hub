@@ -46,6 +46,7 @@ import {
   carrierName,
   carrierState,
   listCarriers,
+  setCarrierAutoCreate,
   verifyCarrier,
 } from "@/services/carrierApi";
 import { CarrierMark } from "@/components/shipping/CarrierMark";
@@ -436,6 +437,22 @@ const Logistics = () => {
     } catch (e) { showError(e, language); } finally { setCarrierVerifying(false); }
   };
 
+  const [carrierAutoCreateSaving, setCarrierAutoCreateSaving] = useState(false);
+
+  const handleToggleCarrierAutoCreate = async (slug: string, value: boolean) => {
+    if (!storeId) return;
+    setCarrierAutoCreateSaving(true);
+    try {
+      await setCarrierAutoCreate(storeId, slug, value);
+      await refreshCarriers();
+      toast.success(
+        value
+          ? (isAr ? "الشحنات هتتعمل تلقائي" : "Shipments will be created automatically")
+          : (isAr ? "الإنشاء التلقائي اتقفل" : "Auto-create turned off"),
+      );
+    } catch (e) { showError(e, language); } finally { setCarrierAutoCreateSaving(false); }
+  };
+
   const handleDisconnectCarrier = async (slug: string) => {
     if (!storeId) return;
     try {
@@ -472,6 +489,8 @@ const Logistics = () => {
         onSave={(values) => handleSaveCarrier(openCarrierSpec.slug, values)}
         onVerify={() => handleVerifyCarrier(openCarrierSpec.slug)}
         onDisconnect={() => handleDisconnectCarrier(openCarrierSpec.slug)}
+        togglingAutoCreate={carrierAutoCreateSaving}
+        onToggleAutoCreate={(value) => handleToggleCarrierAutoCreate(openCarrierSpec.slug, value)}
       />
     );
   }

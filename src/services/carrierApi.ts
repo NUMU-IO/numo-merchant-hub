@@ -113,6 +113,17 @@ export async function verifyCarrier(
   });
 }
 
+export async function setCarrierAutoCreate(
+  storeId: string,
+  slug: string,
+  autoCreateShipment: boolean,
+): Promise<CarrierConnectionStatus & { carrier: string }> {
+  return apiClient(`/stores/${storeId}/shipments/carriers/${slug}`, {
+    method: "PATCH",
+    body: JSON.stringify({ auto_create_shipment: autoCreateShipment }),
+  });
+}
+
 // ── Derived helpers ──
 
 export type CarrierState =
