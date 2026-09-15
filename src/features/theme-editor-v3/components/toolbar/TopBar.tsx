@@ -199,6 +199,18 @@ export function TopBar({
   const storeId = useCustomizerStore((s) => s.storeId);
   // Canonical templates + whatever this theme actually ships (see usePageOptions).
   const pageOptions = usePageOptions(draft?.templates);
+  const schemas = useCustomizerStore((s) => s.schemas);
+  // The storefront drops section types the theme can't render and then falls
+  // back to the base template, silently. Name those variants before publish.
+  const emptyVariants = useMemo(() => {
+    if (!draft?.templates || !schemas?.sections?.length) return [];
+    const known = new Set(schemas.sections.map((s) => s.type));
+    return Object.entries(draft.templates)
+      .filter(([key]) => key.includes("."))
+      .filter(([, tpl]) => !Object.values(tpl?.sections ?? {}).some((s) => known.has(s?.type)))
+      .map(([key]) => key)
+      .sort();
+  }, [draft?.templates, schemas]);
 
   // Keyboard shortcuts for undo/redo (Phase 2.4 — also surfaced in the
   // toolbar tooltips so merchants can discover them).
@@ -743,6 +755,16 @@ export function TopBar({
               dir={locale === "ar" ? "rtl" : "ltr"}
             />
           </div>
+          {emptyVariants.length > 0 && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <p>
+                {locale === "ar"
+                  ? "القوالب دي مفيهاش أقسام تظهر، فهتتعرض بالقالب الأساسي:"
+                  : "These templates have no sections that can show, so they render the base template instead:"}
+              </p>
+              <p className="mt-1 font-mono" dir="ltr">{emptyVariants.join(", ")}</p>
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>
               {locale === "ar" ? "إلغاء" : "Cancel"}

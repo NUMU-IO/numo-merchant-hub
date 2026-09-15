@@ -14,13 +14,22 @@
 import { useQuery } from "@tanstack/react-query";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { fetchDraftV3 } from "@/features/theme-editor-v3/services/themeEditorV3Api";
+import {
+  fetchDraftV3,
+  fetchPublishedV3,
+} from "@/features/theme-editor-v3/services/themeEditorV3Api";
 
 export interface TemplateOption {
   /** The `template_suffix` value this option writes. `null` = base ("Default"). */
   value: string | null;
   /** Merchant-facing label. */
   label: string;
+  /**
+   * False when the variant exists only in the draft. The storefront renders
+   * the PUBLISHED customization, so assigning it shows the base template
+   * until the theme is published. Set by the hook, not by the pure helper.
+   */
+  live?: boolean;
 }
 
 /**
@@ -59,6 +68,12 @@ export function deriveTemplateOptions(
   ];
 }
 
+function templatesOf(payload: unknown): Record<string, unknown> | undefined {
+  return payload && typeof payload === "object" && "templates" in payload
+    ? (payload as { templates?: Record<string, unknown> }).templates
+    : undefined;
+}
+
 /**
  * Hook: fetch the active theme's draft templates and derive the Template
  * dropdown options for a resource `type` ("product" | "collection" | "page").
@@ -79,17 +94,28 @@ export function useTemplateOptions(type: string): {
     staleTime: 5 * 60 * 1000,
   });
 
-  const templates =
-    data && typeof data === "object" && "templates" in data
-      ? (data as { templates?: Record<string, unknown> }).templates
-      : undefined;
+  const { data: published, isError: publishedFailed } = useQuery({
+    queryKey: ["theme-templates-v3-published", storeId],
+    queryFn: () => fetchPublishedV3(storeId as string),
+    enabled: !!storeId,
+    staleTime: 60 * 1000,
+  });
+
+  const liveKeys = new Set(Object.keys(templatesOf(published) ?? {}));
+  // Unknown published state (loading or failed) never warns: a false
+  // "not published" is worse than a missing one.
+  const knowsPublished = published !== undefined && !publishedFailed;
 
   return {
     options: deriveTemplateOptions(
-      templates,
+      templatesOf(data),
       type,
       language === "ar" ? "ar" : "en",
-    ),
+    ).map((opt) => ({
+      ...opt,
+      live:
+        opt.value === null || !knowsPublished || liveKeys.has(`${type}.${opt.value}`),
+    })),
     isLoading,
   };
 }

@@ -1720,6 +1720,9 @@ export default {
       workSafe: "Your work is safe",
       workSafeBody:
         "Your current customizations are saved as a snapshot before the switch. Switching back later will restore them exactly as they are now.",
+      variantsReset: "Template variants don't carry over",
+      variantsResetBody:
+        "{{theme}} starts from its own default templates, so these variants and the sections in them won't be there. Switching back restores them.",
       cancel: "Cancel",
       activate: "Activate",
     },

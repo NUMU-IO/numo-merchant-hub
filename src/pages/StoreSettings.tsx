@@ -3613,8 +3613,6 @@ const StoreSettings = () => {
           <div key="pages" className="settings-section-enter">
             <PagesAndHoursPanel
               language={language as "ar" | "en"}
-              footerSections={footerSections}
-              onFooterSectionsChange={handleFooterSectionsChange}
               shippingConfig={shippingConfig}
               onShippingConfigChange={handleShippingConfigChange}
               businessHours={businessHours}
