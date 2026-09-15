@@ -29,17 +29,13 @@ import {
   Tag,
 } from "lucide-react";
 import {
+  getAwbUrl,
   listShipments,
   type ShipmentListItem,
 } from "@/services/shipmentApi";
+import { carrierName, listCarriers } from "@/services/carrierApi";
 
 type LabelFilter = "all" | "with" | "without";
-
-const CARRIER_NAMES: Record<string, { en: string; ar: string }> = {
-  bosta: { en: "Bosta", ar: "بوسطة" },
-  mylerz: { en: "Mylerz", ar: "مايلرز" },
-  jt: { en: "J&T Express", ar: "جي آند تي" },
-};
 
 const ShippingLabels = () => {
   const { t } = useTranslation();
@@ -62,17 +58,29 @@ const ShippingLabels = () => {
     enabled: !!storeId,
   });
 
+  const carriersQuery = useQuery({
+    queryKey: ["carriers", storeId],
+    queryFn: () => listCarriers(storeId!),
+    enabled: !!storeId,
+  });
+
   const shipments = shipmentsQuery.data ?? [];
+  const carriers = carriersQuery.data ?? [];
 
   const fmtDate = (iso: string | null | undefined) => {
     if (!iso) return "—";
     return new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US");
   };
 
-  const carrierLabel = (c: string) => {
-    const entry = CARRIER_NAMES[c.toLowerCase()];
-    return entry ? entry[isAr ? "ar" : "en"] : c;
+  const carrierLabel = (slug: string) => {
+    const carrier = carriers.find((c) => c.slug === slug.toLowerCase());
+    return carrier ? carrierName(carrier, isAr) : slug;
   };
+
+  // Carriers like J&T print on demand through /awb and never store a URL.
+  const canPrint = (s: ShipmentListItem) =>
+    !!s.awb_url ||
+    carriers.some((c) => c.slug === s.carrier && c.capabilities.supports_labels);
 
   // Print AWB → open the backend's print endpoint in a new tab. The endpoint
   // returns the PDF inline (Content-Disposition: inline), so the browser
@@ -158,7 +166,17 @@ const ShippingLabels = () => {
                   <TableRow key={s.id} className="group">
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {s.tracking_number ? (
+                        {s.tracking_number && s.tracking_url ? (
+                          <a
+                            href={s.tracking_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-mono text-xs font-medium underline-offset-2 hover:underline"
+                            title={isAr ? "تتبّع عند شركة الشحن" : "Track on the carrier's site"}
+                          >
+                            {s.tracking_number}
+                          </a>
+                        ) : s.tracking_number ? (
                           <span className="font-mono text-xs font-medium">
                             {s.tracking_number}
                           </span>
@@ -193,7 +211,7 @@ const ShippingLabels = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {s.awb_url ? (
+                        {storeId && canPrint(s) ? (
                           <>
                             <Button
                               size="sm"
@@ -211,7 +229,7 @@ const ShippingLabels = () => {
                               asChild
                             >
                               <a
-                                href={s.awb_url}
+                                href={s.awb_url || getAwbUrl(storeId, s.id)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                               >

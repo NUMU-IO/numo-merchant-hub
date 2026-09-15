@@ -509,6 +509,7 @@ const Logistics = () => {
         initialStatus={bostaInitialStatus}
         bostaVerified={bostaVerified}
         onCarriersChanged={refreshCarriers}
+        carriers={carriers.filter((c) => c.slug !== "manual" && c.status.is_configured)}
       />
     );
   }
@@ -516,7 +517,10 @@ const Logistics = () => {
   /* ═══════════════════════════════════════════════════════════════════
      LANDING — setup hero · KPI tiles · zones & rates · couriers · tools
      ═══════════════════════════════════════════════════════════════════ */
-  const courierReady = !!bostaCreds?.is_configured || !!shippingData?.manual?.enabled;
+  const courierReady =
+    !!bostaCreds?.is_configured ||
+    !!shippingData?.manual?.enabled ||
+    carriers.some((c) => c.slug !== "manual" && c.status.is_configured);
   const setupSteps: SetupStep[] = [
     {
       key: "zones",
@@ -545,7 +549,7 @@ const Logistics = () => {
         ? (bostaVerified === false ? t("logistics.savedUnverified") : (isAr ? "بوسطة متصلة" : "Bosta connected"))
         : shippingData?.manual?.enabled
           ? (isAr ? "شحن يدوي" : "Manual fulfilment")
-          : (isAr ? "اربط بوسطة أو فعّل اليدوي" : "Connect Bosta or go manual"),
+          : (isAr ? "اربط شركة شحن أو فعّل اليدوي" : "Connect a courier or go manual"),
       done: courierReady,
       cta: isAr ? "اربط" : "Connect",
       onClick: () => openBosta("all"),
@@ -765,7 +769,7 @@ const Logistics = () => {
             </div>
             <ul className="divide-y divide-border/60 border-t border-border/60">
               {[
-                { key: "shipments", icon: Package, title: isAr ? "الشحنات" : "Shipments", sub: isAr ? "تتبّع وإلغاء وبوالص" : "Track, cancel, AWBs", onClick: () => openBosta("all"), disabled: !bostaCreds?.is_configured },
+                { key: "shipments", icon: Package, title: isAr ? "الشحنات" : "Shipments", sub: isAr ? "تتبّع وإلغاء وبوالص" : "Track, cancel, AWBs", onClick: () => openBosta("all"), disabled: !courierReady },
                 { key: "manifest", icon: Upload, title: isAr ? "كشف التسليم" : "Pickup manifest", sub: isAr ? "نزّل كشف الشحنات للمندوب" : "Download the courier's sheet", onClick: () => handleDownloadManifest() },
                 { key: "labels", icon: Printer, title: isAr ? "طباعة البوالص" : "Print labels", sub: isAr ? "بوالص الطلبات الجاهزة" : "Labels for ready orders", onClick: () => navigate("/orders/shipping-labels") },
                 { key: "calc", icon: CircleDollarSign, title: isAr ? "حاسبة الشحن" : "Rate calculator", sub: isAr ? "جرّب محافظة ووزن وشوف السعر" : "Try a governorate & weight", onClick: () => navigate("/logistics/rate-calculator") },
@@ -817,14 +821,16 @@ interface BostaDetailProps {
   initialStatus?: StatusFilter;
   /** Server-verified state. null = the carrier offers nothing safe to probe. */
   bostaVerified: boolean | null;
+  /** Connected API carriers a new shipment can be booked with. */
+  carriers: Carrier[];
   /** Refetch the carrier catalog after a change. */
   onCarriersChanged?: () => void;
 }
 
-const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, shippingData, setShippingData, onBack, initialStatus = "all", bostaVerified, onCarriersChanged }: BostaDetailProps) => {
+const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, shippingData, setShippingData, onBack, initialStatus = "all", bostaVerified, onCarriersChanged, carriers }: BostaDetailProps) => {
   const qc = useQueryClient();
   const { t } = useTranslation();
-  const [tab, setTab] = useState<BostaTab>(bostaCreds?.is_configured ? "shipments" : "config");
+  const [tab, setTab] = useState<BostaTab>(bostaCreds?.is_configured || carriers.length > 0 ? "shipments" : "config");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus);
   const [page, setPage] = useState(0);
 
@@ -839,6 +845,8 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
   const [showCreate, setShowCreate] = useState(false);
   const [createOrderId, setCreateOrderId] = useState("");
   const [createMethod, setCreateMethod] = useState("standard");
+  const [createCarrier, setCreateCarrier] = useState("");
+  const shipCarrier = createCarrier || carriers[0]?.slug || "";
   const [createNotes, setCreateNotes] = useState("");
   const [creating, setCreating] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
@@ -886,8 +894,26 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
   const openDetail = async (id: string) => { if (!storeId) return; setDetailLoading(true); setTracking(null); try { setSelectedShipment(await getShipment(storeId, id)); } catch (e) { showError(e, language); } finally { setDetailLoading(false); } };
   const handleTrack = async (id: string) => { if (!storeId) return; setTrackingLoading(true); try { setTracking(await trackShipment(storeId, id)); } catch (e) { showError(e, language); } finally { setTrackingLoading(false); } };
   const handleCancel = async (id: string) => { if (!storeId) return; setActionLoading(id); try { const u = await cancelShipment(storeId, id); toast.success(isAr ? "تم إلغاء الشحنة" : "Cancelled"); if (selectedShipment?.id === id) setSelectedShipment(u); invalidate(); } catch (e) { showError(e, language); } finally { setActionLoading(null); } };
-  const handleCreate = async () => { if (!storeId || !createOrderId.trim()) return; setCreating(true); try { await createShipment(storeId, { order_id: createOrderId.trim(), shipping_method: createMethod, notes: createNotes || undefined }); toast.success(isAr ? "تم إنشاء الشحنة" : "Shipment created"); setShowCreate(false); setCreateOrderId(""); setCreateNotes(""); invalidate(); } catch (e) { showError(e, language); } finally { setCreating(false); } };
-  const handleBulk = async () => { if (!storeId) return; const ids = bulkIds.split(/[\n,]+/).map(s => s.trim()).filter(Boolean); if (!ids.length) return; setBulking(true); try { const r = await bulkCreateShipments(storeId, ids); setBulkResult(r); toast.success(`${r.succeeded}/${r.total}`); invalidate(); } catch (e) { showError(e, language); } finally { setBulking(false); } };
+  const handleCreate = async () => { if (!storeId || !createOrderId.trim()) return; setCreating(true); try { await createShipment(storeId, { order_id: createOrderId.trim(), carrier: shipCarrier || undefined, shipping_method: createMethod, notes: createNotes || undefined }); toast.success(isAr ? "تم إنشاء الشحنة" : "Shipment created"); setShowCreate(false); setCreateOrderId(""); setCreateNotes(""); invalidate(); } catch (e) { showError(e, language); } finally { setCreating(false); } };
+  const handleBulk = async () => { if (!storeId) return; const ids = bulkIds.split(/[\n,]+/).map(s => s.trim()).filter(Boolean); if (!ids.length) return; setBulking(true); try { const r = await bulkCreateShipments(storeId, ids, shipCarrier || undefined); setBulkResult(r); toast.success(`${r.succeeded}/${r.total}`); invalidate(); } catch (e) { showError(e, language); } finally { setBulking(false); } };
+  const carrierPicker = carriers.length > 0 ? (
+    <div className="grid gap-1.5">
+      <Label className="text-[11px]">{isAr ? "شركة الشحن" : "Carrier"}</Label>
+      <div className="flex gap-2">
+        {carriers.map((c) => (
+          <button
+            key={c.slug}
+            type="button"
+            aria-pressed={shipCarrier === c.slug}
+            onClick={() => setCreateCarrier(c.slug)}
+            className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${shipCarrier === c.slug ? "border-foreground/20 bg-foreground text-background" : "border-border bg-background hover:bg-muted/50"}`}
+          >
+            {carrierName(c, isAr)}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
   // Save, then PROBE. The backend marks the account configured without
   // calling Bosta, so this is the only place a bad key gets caught.
   const handleSaveBosta = async () => {
@@ -1216,6 +1242,7 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
         <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle className="flex items-center gap-2"><Package className="h-4 w-4" />{isAr ? "إنشاء شحنة" : "Create Shipment"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div className="grid gap-1.5"><Label className="text-[11px]">{isAr ? "رقم الطلب" : "Order ID"}</Label><Input value={createOrderId} onChange={e => setCreateOrderId(e.target.value)} placeholder="Paste order UUID" className="font-mono text-xs" /></div>
+            {carrierPicker}
             <div className="grid gap-1.5"><Label className="text-[11px]">{isAr ? "الطريقة" : "Method"}</Label><div className="flex gap-2">{["standard", "express"].map(m => (<button key={m} onClick={() => setCreateMethod(m)} className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${createMethod === m ? "border-foreground/20 bg-foreground text-background" : "border-border bg-background hover:bg-muted/50"}`}>{m === "standard" ? (isAr ? "عادي" : "Standard") : (isAr ? "سريع" : "Express")}</button>))}</div></div>
             <div className="grid gap-1.5"><Label className="text-[11px]">{isAr ? "ملاحظات" : "Notes"}</Label><Textarea value={createNotes} onChange={e => setCreateNotes(e.target.value)} rows={2} className="text-xs" /></div>
           </div>
@@ -1225,6 +1252,7 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
       <Dialog open={showBulk} onOpenChange={setShowBulk}>
         <DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle className="flex items-center gap-2"><Upload className="h-4 w-4" />{isAr ? "شحنات دفعة" : "Bulk Create"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
+            {carrierPicker}
             <Label className="text-[11px]">{isAr ? "Order IDs (سطر لكل واحد)" : "Order IDs (one per line)"}</Label>
             <Textarea value={bulkIds} onChange={e => setBulkIds(e.target.value)} rows={5} className="font-mono text-xs" placeholder={"uuid-1\nuuid-2"} />
             {bulkResult && <div className="rounded-lg border overflow-hidden"><div className="px-3 py-2 bg-muted/30 text-xs font-medium">{bulkResult.succeeded}/{bulkResult.total} {isAr ? "نجح" : "succeeded"}</div>{bulkResult.results.filter(r => !r.success).map((r, i) => <div key={i} className="px-3 py-1 text-[11px] text-destructive font-mono truncate">{r.order_id.slice(0, 8)}… {r.error}</div>)}</div>}
