@@ -37,7 +37,9 @@
  */
 
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { listPages } from "@/services/pagesApi";
 import { useCustomizerStore } from "../../store/customizerStore";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import type { DeviceMode } from "../../types";
@@ -210,7 +212,24 @@ export function LivePreview() {
   //   home → ""   products → "products"   product → "products/<id>"
   //   collection → "collections/<slug>"   cart → "cart"   page → "pages/about"
   //   404 → "__numu_404"   …
+  // A `page.<suffix>` variant has no URL of its own: it renders on the CMS pages
+  // assigned to it. Preview it on the first PUBLISHED one (the storefront only
+  // serves published pages); with none, say so instead of showing a 404.
+  const isPageVariant = activePage.startsWith("page.");
+  const { data: cmsPages } = useQuery({
+    queryKey: ["pages", storeId],
+    queryFn: () => listPages(storeId as string),
+    enabled: !!storeId && isPageVariant,
+  });
+  const variantPage = isPageVariant
+    ? cmsPages?.find(
+        (p) => p.is_published && p.template_suffix === activePage.slice("page.".length),
+      )
+    : undefined;
+  const variantHasNoPage = isPageVariant && cmsPages !== undefined && !variantPage;
+
   const previewPath = useMemo(() => {
+    if (variantPage) return `pages/${variantPage.handle}`;
     switch (activePage) {
       case "home":
         return "";
@@ -265,7 +284,7 @@ export function LivePreview() {
       default:
         return activePage;
     }
-  }, [activePage, previewResources.productId, previewResources.collectionSlug]);
+  }, [activePage, previewResources.productId, previewResources.collectionSlug, variantPage]);
 
   // The expected origin of postMessage events from the iframe. Derived from the
   // STABLE base URL (origin never changes on page switch); comparing against
@@ -594,6 +613,21 @@ export function LivePreview() {
                   : "Loading preview..."}
               </p>
             </div>
+          </div>
+        )}
+
+        {variantHasNoPage && (
+          <div className="absolute inset-x-0 top-0 z-20 m-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p className="font-semibold">
+              {locale === "ar"
+                ? "مفيش صفحة منشورة مربوطة بالقالب ده لسه"
+                : "No published page uses this template yet"}
+            </p>
+            <p className="mt-1 text-xs">
+              {locale === "ar"
+                ? "اختار القالب ده لصفحة من المتجر الإلكتروني ← الصفحات عشان تشوفه هنا."
+                : "Assign it to a page in Online Store → Pages to preview it here."}
+            </p>
           </div>
         )}
 

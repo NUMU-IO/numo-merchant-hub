@@ -73,6 +73,15 @@ export interface SaveDraftOptions {
   onEtag?: (etag: string | null) => void;
 }
 
+/** GET /resolve — the PUBLISHED settings the storefront renders (never the draft). */
+export function fetchPublishedV3(storeId: string): Promise<ThemeSettingsV3 | Record<string, never>> {
+  return apiClient<ThemeSettingsV3 | Record<string, never>>(
+    `${BASE(storeId)}/resolve`,
+    undefined,
+    EDITOR_OPTS,
+  );
+}
+
 export function saveDraftV3(
   storeId: string,
   payload: ThemeSettingsV3,

@@ -351,10 +351,22 @@ export default function OnlineStorePages() {
                         value={opt.value ?? DEFAULT_TEMPLATE_VALUE}
                       >
                         {opt.label}
+                        {opt.live === false && (
+                          <span className="ms-2 text-[10px] text-amber-600">
+                            {isRTL ? "مش منشور" : "not published"}
+                          </span>
+                        )}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {templateOptions.find((o) => o.value === editing.templateSuffix)?.live === false && (
+                  <p className="text-[11px] text-amber-600">
+                    {isRTL
+                      ? "انشر الثيم الأول عشان القالب يظهر"
+                      : "Publish the theme for this template to go live"}
+                  </p>
+                )}
                 <p className="text-[11px] text-muted-foreground">
                   {isRTL
                     ? "قالب بديل لهذه الصفحة. تُنشأ القوالب من محرر الثيم."

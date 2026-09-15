@@ -652,8 +652,6 @@ export function BusinessHoursEditor({ hours, onChange, language }: BusinessHours
 
 interface PagesAndHoursPanelProps {
   language: "ar" | "en";
-  footerSections: FooterSection[];
-  onFooterSectionsChange: (s: FooterSection[]) => void;
   shippingConfig: ShippingPageConfig;
   onShippingConfigChange: (c: ShippingPageConfig) => void;
   businessHours: BusinessHours;
@@ -670,17 +668,14 @@ export function PagesAndHoursPanel(props: PagesAndHoursPanelProps) {
         <h2>{ar ? "الصفحات وساعات العمل" : "Pages & Business Hours"}</h2>
         <p>
           {ar
-            ? "تحرير محتوى الفوتر وصفحة الشحن وساعات العمل التي يراها العميل."
-            : "Edit the footer columns, the Shipping & Delivery page, and the business hours your customers see."}
+            ? "عدّل صفحة الشحن وساعات العمل اللي بيشوفها العميل. لينكات الفوتر بتتظبط من القوائم أو من محرر الثيم."
+            : "Edit the Shipping & Delivery page and the business hours your customers see. Footer links are set in Navigation or the theme editor."}
         </p>
       </div>
 
-      <FooterSectionsEditor
-        sections={props.footerSections}
-        onChange={props.onFooterSectionsChange}
-        language={props.language}
-      />
-
+      {/* Footer columns were saved to theme_settings.footer.sections, which no
+          V3 theme reads, so the editor is hidden. Footers read menus or their
+          own blocks (theme-section-base PHASE-5 § Footer links). */}
       <ShippingPageEditor
         config={props.shippingConfig}
         onChange={props.onShippingConfigChange}
