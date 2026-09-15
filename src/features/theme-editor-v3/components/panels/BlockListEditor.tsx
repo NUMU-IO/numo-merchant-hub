@@ -49,6 +49,7 @@ import type {
   BlockSchemaDefinition,
   EditorLocale,
 } from "../../types";
+import { localize } from "../inputs/localize";
 
 function blockLabel(
   block: BlockInstance,
@@ -56,9 +57,7 @@ function blockLabel(
   locale: EditorLocale,
 ): string {
   if (schema) {
-    return locale === "ar"
-      ? schema.locales?.ar?.name || schema.name
-      : schema.name;
+    return localize(schema, "name", locale);
   }
   return block.type;
 }
@@ -333,7 +332,7 @@ function AddBlockDropdown({
           <DropdownMenuItem key={bt.type} onClick={() => onAdd(bt.type)}>
             <Plus className="me-2 h-3 w-3" />
             <span className="truncate">
-              {locale === "ar" ? bt.locales?.ar?.name || bt.name : bt.name}
+              {localize(bt, "name", locale)}
             </span>
           </DropdownMenuItem>
         ))}

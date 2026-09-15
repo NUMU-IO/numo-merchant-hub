@@ -42,6 +42,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCustomizerStore } from "../../store/customizerStore";
 import type { EditorLocale, SectionInstance, ThemeSchemaBundle } from "../../types";
+import { localize } from "../inputs/localize";
 import { VariantPicker } from "./VariantPicker";
 
 // ─── Section Item (Sortable) ────────────────────────────────────────────────
@@ -96,9 +97,7 @@ function SortableSectionItem({
   const sectionSchema = schemas?.sections.find((s) => s.type === section.type);
   const label = useMemo(() => {
     if (sectionSchema) {
-      return locale === "ar"
-        ? sectionSchema.locales?.ar?.name || sectionSchema.name
-        : sectionSchema.locales?.en?.name || sectionSchema.name;
+      return localize(sectionSchema, "name", locale);
     }
     return section.type;
   }, [sectionSchema, section.type, locale]);

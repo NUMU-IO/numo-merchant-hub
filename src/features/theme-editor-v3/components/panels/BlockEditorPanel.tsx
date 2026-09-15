@@ -20,6 +20,7 @@ import {
   containerSchemaAt,
 } from "../../store/blockPaths";
 import { SchemaFormV3 } from "../inputs/SchemaFormV3";
+import { localize } from "../inputs/localize";
 import { BlockListEditor } from "./BlockListEditor";
 
 export function BlockEditorPanel() {
@@ -80,9 +81,7 @@ export function BlockEditorPanel() {
   }
 
   const blockLabel = blockSchema
-    ? locale === "ar"
-      ? blockSchema.locales?.ar?.name || blockSchema.name
-      : blockSchema.name
+    ? localize(blockSchema, "name", locale)
     : block.type;
 
   const goBack = () => {

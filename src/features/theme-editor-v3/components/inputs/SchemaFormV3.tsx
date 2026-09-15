@@ -108,9 +108,10 @@ export function SchemaFormV3({ settings, values, locale, onChange, storeId }: Sc
 
           {/* Settings within the group */}
           <div className="space-y-4">
-            {group.settings.map((setting) => (
+            {group.settings.map((setting, i) => (
               <SettingInputV3
-                key={setting.id}
+                // `header` settings carry no id (the library schemas use them).
+                key={setting.id || `${group.name}-${i}`}
                 setting={setting}
                 value={values[setting.id]}
                 locale={locale}
