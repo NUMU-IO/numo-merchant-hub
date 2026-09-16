@@ -114,6 +114,11 @@ export type SettingInputType =
   // Color schemes
   | "color_scheme" // single picker — references the global color_scheme_group
   | "color_scheme_group" // parent definition stored on global_settings
+  // Free-keyed `label -> colour` map. Unlike `color_scheme_group`, whose row
+  // ids are auto-generated `scheme-N` and whose colour roles are frozen at
+  // schema-authoring time, the rows here are the merchant's OWN option values,
+  // which is exactly what an option-value-to-colour mapping needs.
+  | "key_color_map"
   // Files
   | "file_upload";
 
