@@ -108,9 +108,16 @@ const AppSidebar = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [here]);
 
-  const selectTab = (next: Tab) => {
+  const selectTab = (next: Tab, home?: string) => {
     setTabOverride(next);
     setDrill(seedDrill(next));
+    // Go to the section's own page too. `onNavigate` first, so the route
+    // effect below treats this as a sidebar move and keeps the tab we just
+    // picked instead of resetting it from the new path.
+    if (home && here !== home) {
+      onNavigate();
+      navigate(home);
+    }
   };
   const onNavigate = () => {
     fromSidebar.current = true;
@@ -414,7 +421,7 @@ const AppSidebar = () => {
                 aria-selected={active}
                 aria-label={x.label}
                 title={x.label}
-                onClick={() => selectTab(x.key)}
+                onClick={() => selectTab(x.key, x.home)}
                 className={cn(
                   "flex h-9 flex-1 items-center justify-center rounded-lg transition-colors",
                   active
