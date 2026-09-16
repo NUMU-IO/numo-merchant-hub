@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, CreditCard, ShoppingBag, ShoppingCart, Truck } from "lucide-react";
+import { AlertTriangle, ClipboardList, CreditCard, ShoppingBag, ShoppingCart, Truck } from "lucide-react";
 import type { NotificationItem } from "@/services/notificationsApi";
 import {
   formatTimeAgo,
