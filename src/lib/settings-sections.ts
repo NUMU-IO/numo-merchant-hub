@@ -198,7 +198,7 @@ export const SETTINGS_SECTIONS: SettingSection[] = [
         icon: Wallet,
         to: "/payment-setup",
         navKey: "payments.payment-setup",
-        aliases: ["paymob", "instapay", "vodafone cash", "fawry", "gateway", "انستاباي", "فودافون كاش", "فوري", "بوابة الدفع"],
+        aliases: ["paymob", "instapay", "vodafone cash", "we pay", "orange cash", "fawry", "gateway", "انستاباي", "فودافون كاش", "وي باي", "أورنج كاش", "فوري", "بوابة الدفع"],
         flag: "danger",
       },
       {

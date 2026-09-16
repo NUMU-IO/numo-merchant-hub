@@ -330,6 +330,8 @@ export default {
       cod: "Cash on delivery",
       instapay: "InstaPay",
       vodafone_cash: "Vodafone Cash",
+      we_pay: "WE Pay",
+      orange_cash: "Orange Cash",
       card: "Card",
       paymob: "Card (Paymob)",
       kashier: "Card (Kashier)",

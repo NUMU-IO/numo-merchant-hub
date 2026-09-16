@@ -45,6 +45,8 @@ function enabledPaymentOptions(ps: PaymentSettings | undefined, isAr: boolean) {
     { key: "cod", value: "cod", label: isAr ? "الدفع عند الاستلام" : "Cash on delivery", hint: isAr ? "يتحصّل عند التوصيل" : "Collected at the door" },
     { key: "instapay", value: "instapay", label: "InstaPay", hint: isAr ? "تحويل فوري — يتأكد يدويًا" : "Instant transfer — confirmed manually" },
     { key: "vodafone_cash", value: "vodafone_cash", label: isAr ? "فودافون كاش" : "Vodafone Cash", hint: isAr ? "محفظة — يتأكد يدويًا" : "Wallet — confirmed manually" },
+    { key: "we_pay", value: "we_pay", label: isAr ? "وي باي" : "WE Pay", hint: isAr ? "محفظة — يتأكد يدويًا" : "Wallet — confirmed manually" },
+    { key: "orange_cash", value: "orange_cash", label: isAr ? "أورنج كاش" : "Orange Cash", hint: isAr ? "محفظة — يتأكد يدويًا" : "Wallet — confirmed manually" },
     { key: "bank_transfer", value: "bank_transfer", label: isAr ? "تحويل بنكي" : "Bank transfer", hint: isAr ? "يتأكد يدويًا" : "Confirmed manually" },
     { key: "paymob", value: "paymob", label: isAr ? "بطاقة (Paymob)" : "Card (Paymob)", hint: isAr ? "لينك دفع أونلاين" : "Online payment link" },
     { key: "kashier", value: "kashier", label: isAr ? "بطاقة (Kashier)" : "Card (Kashier)", hint: isAr ? "لينك دفع أونلاين" : "Online payment link" },

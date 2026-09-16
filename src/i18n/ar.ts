@@ -339,6 +339,8 @@
       cod: "الدفع عند الاستلام",
       instapay: "إنستاباي",
       vodafone_cash: "فودافون كاش",
+      we_pay: "وي باي",
+      orange_cash: "أورنج كاش",
       card: "بطاقة",
       paymob: "بطاقة (Paymob)",
       kashier: "بطاقة (Kashier)",

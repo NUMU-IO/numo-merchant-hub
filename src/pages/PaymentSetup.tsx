@@ -25,7 +25,8 @@ import {
   CheckCircle2, ArrowUpRight, ShieldCheck,
 } from "lucide-react";
 import InstapaySetupCard from "@/components/payments/InstapaySetupCard";
-import VodafoneCashSetupCard from "@/components/payments/VodafoneCashSetupCard";
+import WalletSetupCard from "@/components/payments/WalletSetupCard";
+import { WALLET_RAILS } from "@/services/storeApi";
 import CodDepositPolicyCard from "@/components/payments/CodDepositPolicyCard";
 import { useNavigate } from "react-router-dom";
 
@@ -376,9 +377,18 @@ const PaymentSetup = () => {
       {storeId && market === "EG" ? (
         <>
           <InstapaySetupCard storeId={storeId} isAr={isAr} />
-          {/* Vodafone Cash — same manual rail as InstaPay (publish a
-              destination, verify a proof), so it sits right beside it. */}
-          <VodafoneCashSetupCard storeId={storeId} isAr={isAr} />
+          {/* The wallets — same manual rail as InstaPay (publish a
+              destination, verify a proof), so they sit right beside it. One
+              card per network, from one component: only the brand, the logo
+              and the operator prefix differ. */}
+          {WALLET_RAILS.map((rail) => (
+            <WalletSetupCard
+              key={rail}
+              rail={rail}
+              storeId={storeId}
+              isAr={isAr}
+            />
+          ))}
         </>
       ) : null}
 
