@@ -133,6 +133,10 @@ export function useHubNav() {
     leaf("products.all", t("nav.allProducts"), "/products", Package, "products.all", { exact: true }),
     leaf("products.categories", t("nav.categories"), "/categories", FolderOpen, "products.categories"),
   ];
+  const customersSub = [
+    leaf("customers.all", t("nav.allCustomers"), "/customers", Users, "customers.all", { exact: true }),
+    leaf("customers.requests", t("nav.productRequests"), "/customers/product-requests", ClipboardList, "customers.product-requests"),
+  ];
   const marketingSub = [
     leaf("marketing.overview", t("nav.overview"), "/marketing", Megaphone, "marketing.overview", { exact: true }),
     leaf("marketing.promotions", t("nav.discounts"), "/marketing/promotions", BadgePercent, "marketing.promotions"),
@@ -206,7 +210,7 @@ export function useHubNav() {
     { ...leaf("home", t("nav.home"), "/", House, "dashboard", { exact: true }), active: path === "/" },
     { ...leaf("orders", t("nav.orders"), "/orders", ShoppingCart, "orders"), children: ordersSub, active: ordersActive },
     { ...leaf("products", t("nav.products"), "/products", Package, "products"), children: productsSub, active: productsActive },
-    { ...leaf("customers", t("nav.customers"), "/customers", Users, "customers"), active: isActive("/customers") },
+    { ...leaf("customers", t("nav.customers"), "/customers", Users, "customers"), children: customersSub, active: isActive("/customers") },
     { ...leaf("marketing", t("nav.marketing"), "/marketing", Megaphone, "marketing"), children: marketingSub, active: marketingActive },
     { ...leaf("whatsapp", t("nav.whatsapp"), "/whatsapp", WhatsAppNavIcon, "whatsapp"), children: whatsappSub, active: whatsappActive },
     { ...leaf("online-store", t("nav.onlineStore"), "/online-store", Storefront, "online-store", { dot: hasThemeUpdate }), children: onlineStoreSub, active: onlineStoreActive },

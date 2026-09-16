@@ -131,6 +131,8 @@ export default {
     abandoned: "Abandoned",
     shippingLabels: "Shipping labels",
     allProducts: "All products",
+    allCustomers: "All customers",
+    productRequests: "Product requests",
     overview: "Overview",
     discounts: "Discounts",
     giftCards: "Gift cards",
@@ -314,6 +316,10 @@ export default {
       shipmentDelivered: { title: "Order #{{order}} delivered to {{name}}", body: "{{amount}}" },
       shipmentReturned: { title: "Order #{{order}} was returned", body: "{{name}} · {{reason}}" },
       cartAbandoned: { title: "{{name}} left a cart behind", body: "{{items}} items · {{amount}}" },
+      productRequestNew: {
+        title: "{{name}} is looking for a book",
+        body: "{{details}}",
+      },
       trustKillSwitch: {
         title: "Trust auto-approve paused",
         body: "RTO rate {{rate}}% · {{rto}} of {{total}} auto-approved orders · {{reason}}",
