@@ -1,24 +1,31 @@
 /**
- * Vodafone Cash setup card for the PaymentSetup page.
+ * Wallet setup card for the PaymentSetup page — Vodafone Cash, WE Pay,
+ * Orange Cash.
  *
- * Same shape as the InstaPay card and for the same reason: there is no
- * API integration. The merchant hands us a wallet number, the customer
- * transfers to it out-of-band, and a screenshot is verified. Vodafone
- * does sell a merchant API, but it requires a commercial partnership
- * and an aggregator — not something a single store can obtain, and not
- * what this rail is.
+ * Same shape as the InstaPay card and for the same reason: there is no API
+ * integration on any of them. The merchant hands us a wallet number, the
+ * customer transfers to it out-of-band, and a screenshot is verified. Each
+ * operator does sell a merchant API, but they require a commercial
+ * partnership and an aggregator — not something a single store can obtain,
+ * and not what this rail is.
+ *
+ * One card serves the three networks because only three things differ: the
+ * brand, the logo, and how a customer starts a transfer (Vodafone dials *9#,
+ * Orange #100#, WE has no USSD shortcut and uses its app). Everything else —
+ * the wallet-number field, the auto-approval policy, the OCR rules — is the
+ * same rail, so a second copy of this file would only be a place for the
+ * three to drift apart.
  *
  * Two deliberate differences from the InstaPay card:
- *   - No QR section. A Vodafone Cash transfer starts by dialling *9#
- *     or in the Ana Vodafone app; there is nothing to scan, so we
- *     don't offer a QR the customer couldn't use.
- *   - A wider default amount tolerance, because Vodafone charges the
+ *   - No QR section. A wallet transfer starts in the operator's app or over
+ *     USSD; there is nothing to scan, so we do not offer a QR the customer
+ *     could not use.
+ *   - A wider default amount tolerance, because the operator charges the
  *     sender a fee and the amount that lands is short of the total.
  *
- * The auto-approval + OCR controls come from ManualRailAutoApproval,
- * shared with the InstaPay card so the two can't drift.
+ * The auto-approval + OCR controls come from ManualRailAutoApproval, shared
+ * with the InstaPay card so the two cannot drift.
  */
-
 import { useEffect, useState } from "react";
 import { Loader2, CheckCircle2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,10 +36,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { apiClient } from "@/services/api";
 import {
-  deleteVodafoneCashCredentials,
-  fetchVodafoneCashCredentials,
-  saveVodafoneCashCredentials,
+  deleteWalletCredentials,
+  fetchWalletCredentials,
+  saveWalletCredentials,
   type VodafoneCashCredentialsResponse,
+  type WalletRail,
 } from "@/services/storeApi";
 import { showError } from "@/lib/show-error";
 import {
@@ -43,7 +51,43 @@ import {
 interface Props {
   storeId: string;
   isAr: boolean;
+  rail: WalletRail;
 }
+
+/** The only three things that differ between the networks. */
+const RAIL_COPY: Record<
+  WalletRail,
+  {
+    en: string;
+    ar: string;
+    logo: string;
+    /** The operator's mobile prefix — a WE wallet is 015, an Orange one 012. */
+    prefix: string;
+    reference: string;
+  }
+> = {
+  vodafone_cash: {
+    en: "Vodafone Cash",
+    ar: "فودافون كاش",
+    logo: "/vodafone-cash-logo.png",
+    prefix: "010",
+    reference: "VF-XXXXXX",
+  },
+  we_pay: {
+    en: "WE Pay",
+    ar: "وي باي",
+    logo: "/we-pay-logo.png",
+    prefix: "015",
+    reference: "WE-XXXXXX",
+  },
+  orange_cash: {
+    en: "Orange Cash",
+    ar: "أورنج كاش",
+    logo: "/orange-cash-logo.png",
+    prefix: "012",
+    reference: "OR-XXXXXX",
+  },
+};
 
 const DEFAULT_THRESHOLD_CENTS = 50_000; // 500 EGP
 const DEFAULT_DAILY_CAP_CENTS = 500_000; // 5,000 EGP
@@ -54,7 +98,9 @@ const DEFAULT_DAILY_COUNT = 10;
 // manual review. Keep in sync with DEFAULT_VC_AMOUNT_TOLERANCE_BPS.
 const DEFAULT_TOLERANCE_PCT = 3;
 
-export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
+export default function WalletSetupCard({ storeId, isAr, rail }: Props) {
+  const copy = RAIL_COPY[rail];
+  const brand = isAr ? copy.ar : copy.en;
   const [creds, setCreds] = useState<VodafoneCashCredentialsResponse | null>(
     null,
   );
@@ -97,16 +143,16 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
     try {
       await apiClient(`/stores/${storeId}/settings/payment`, {
         method: "PATCH",
-        body: JSON.stringify({ vodafone_cash_enabled: next }),
+        body: JSON.stringify({ [`${rail}_enabled`]: next }),
       });
       toast.success(
         next
           ? isAr
-            ? "تم تفعيل فودافون كاش في الدفع"
-            : "Vodafone Cash is now live at checkout"
+            ? `تم تفعيل ${brand} في الدفع`
+            : `${brand} is now live at checkout`
           : isAr
-            ? "تم إيقاف عرض فودافون كاش"
-            : "Vodafone Cash hidden from checkout",
+            ? `تم إيقاف عرض ${brand}`
+            : `${brand} hidden from checkout`,
       );
     } catch (err) {
       setEnabled(previous);
@@ -119,7 +165,7 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchVodafoneCashCredentials(storeId)
+    fetchWalletCredentials(storeId, rail)
       .then((c) => {
         if (cancelled) return;
         setCreds(c);
@@ -153,14 +199,14 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [storeId]);
+  }, [storeId, rail]);
 
   const handleSave = async () => {
     if (!walletNumber.trim() && !creds?.is_configured) {
       toast.error(
         isAr
-          ? "الرجاء إدخال رقم محفظة فودافون كاش"
-          : "Please enter your Vodafone Cash wallet number",
+          ? `الرجاء إدخال رقم محفظة ${brand}`
+          : `Please enter your ${brand} wallet number`,
       );
       return;
     }
@@ -170,7 +216,7 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
       // the form only ever shows it masked, and posting the mask back
       // would corrupt the stored number.
       const trimmed = walletNumber.trim();
-      const saved = await saveVodafoneCashCredentials(storeId, {
+      const saved = await saveWalletCredentials(storeId, rail, {
         wallet_number: trimmed ? trimmed : null,
         display_name: displayName.trim() || null,
         fallback_phone: fallbackPhone.trim() || null,
@@ -193,7 +239,7 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
       setWalletNumber("");
       setEnabled(!!saved.enabled);
       toast.success(
-        isAr ? "تم حفظ إعدادات فودافون كاش" : "Vodafone Cash settings saved",
+        isAr ? `تم حفظ إعدادات ${brand}` : `${brand} settings saved`,
       );
     } catch (err) {
       showError(err);
@@ -206,21 +252,21 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
     if (
       !confirm(
         isAr
-          ? "حذف إعدادات فودافون كاش؟ لن يظهر للعملاء الجدد."
-          : "Remove Vodafone Cash? New customers won't see it at checkout.",
+          ? `حذف إعدادات ${brand}؟ لن يظهر للعملاء الجدد.`
+          : `Remove ${brand}? New customers won't see it at checkout.`,
       )
     ) {
       return;
     }
     setDeleting(true);
     try {
-      const cleared = await deleteVodafoneCashCredentials(storeId);
+      const cleared = await deleteWalletCredentials(storeId, rail);
       setCreds(cleared);
       setWalletNumber("");
       setDisplayName("");
       setFallbackPhone("");
       setEnabled(false);
-      toast.success(isAr ? "تم حذف الإعدادات" : "Vodafone Cash removed");
+      toast.success(isAr ? "تم حذف الإعدادات" : `${brand} removed`);
     } catch (err) {
       showError(err);
     } finally {
@@ -233,7 +279,7 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
       <div className="rounded-xl border bg-card p-6 flex items-center gap-2">
         <Loader2 className="w-4 h-4 animate-spin" />
         <span className="text-sm">
-          {isAr ? "جارٍ تحميل إعدادات فودافون كاش..." : "Loading Vodafone Cash…"}
+          {isAr ? `جارٍ تحميل إعدادات ${brand}...` : `Loading ${brand}…`}
         </span>
       </div>
     );
@@ -246,13 +292,13 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
       <div className="px-5 py-4 border-b flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img
-            src="/vodafone-cash-logo.png"
-            alt="Vodafone Cash"
+            src={copy.logo}
+            alt={copy.en}
             className="h-10 w-auto object-contain shrink-0"
           />
           <div>
             <h2 className="text-base font-bold">
-              {isAr ? "فودافون كاش" : "Vodafone Cash"}
+              {brand}
             </h2>
             <p className="text-xs text-muted-foreground">
               {isAr
@@ -287,21 +333,21 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
 
         <div>
           <Label>
-            {isAr ? "رقم محفظة فودافون كاش" : "Vodafone Cash wallet number"}{" "}
+            {isAr ? `رقم محفظة ${brand}` : `${brand} wallet number`}{" "}
             {!isConfigured ? <span className="text-red-600">*</span> : null}
           </Label>
           <Input
             value={walletNumber}
             onChange={(e) => setWalletNumber(e.target.value)}
-            placeholder={isConfigured ? "•••••" : "01012345678"}
+            placeholder={isConfigured ? "•••••" : `${copy.prefix}12345678`}
             autoComplete="off"
             dir="ltr"
             inputMode="tel"
           />
           <p className="text-[11px] text-muted-foreground mt-1">
             {isAr
-              ? "الرقم الذي يحوّل إليه العملاء من محفظتهم. يجب أن يبدأ بـ 010 (فودافون)."
-              : "The number customers transfer to from their own wallet. Must be a Vodafone line (starts with 010)."}
+              ? `الرقم الذي يحوّل إليه العملاء من محفظتهم. يجب أن يبدأ بـ ${copy.prefix}.`
+              : `The number customers transfer to from their own wallet. Must be a ${copy.en} line (starts with ${copy.prefix}).`}
           </p>
         </div>
 
@@ -330,11 +376,11 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
           onChange={setRule}
           ocrProvider={creds?.ocr_provider}
           destinationNoun={isAr ? "رقم المحفظة" : "wallet number"}
-          referenceExample="VF-XXXXXX"
+          referenceExample={copy.reference}
           toleranceHint={
             isAr
-              ? "فودافون تخصم رسوم التحويل من المُرسِل، لذا قد يصل مبلغ أقل قليلاً من إجمالي الطلب. الافتراضي 3% لتفادي تحويل كل طلب للمراجعة اليدوية."
-              : "Vodafone charges the sender a transfer fee, so slightly less than the order total can land. The 3% default absorbs that — a tighter window sends every order to manual review."
+              ? "المُشغّل بيخصم رسوم التحويل من المُرسِل، لذا قد يصل مبلغ أقل قليلاً من إجمالي الطلب. الافتراضي 3% لتفادي تحويل كل طلب للمراجعة اليدوية."
+              : `${copy.en} charges the sender a transfer fee, so slightly less than the order total can land. The 3% default absorbs that — a tighter window sends every order to manual review.`
           }
         />
 
@@ -346,8 +392,8 @@ export default function VodafoneCashSetupCard({ storeId, isAr }: Props) {
               </p>
               <p className="text-[11px] text-muted-foreground">
                 {isAr
-                  ? "عرض فودافون كاش كطريقة دفع للعملاء."
-                  : "Show Vodafone Cash as a payment option to customers."}
+                  ? `عرض ${brand} كطريقة دفع للعملاء.`
+                  : `Show ${brand} as a payment option to customers.`}
               </p>
             </div>
             <Switch
