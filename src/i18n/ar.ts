@@ -140,6 +140,8 @@
     abandoned: "السلال المهجورة",
     shippingLabels: "بوالص الشحن",
     allProducts: "كل المنتجات",
+    allCustomers: "كل العملاء",
+    productRequests: "طلبات المنتجات",
     overview: "نظرة عامة",
     discounts: "الخصومات",
     giftCards: "بطاقات الهدايا",

@@ -131,6 +131,8 @@ export default {
     abandoned: "Abandoned",
     shippingLabels: "Shipping labels",
     allProducts: "All products",
+    allCustomers: "All customers",
+    productRequests: "Product requests",
     overview: "Overview",
     discounts: "Discounts",
     giftCards: "Gift cards",
