@@ -492,6 +492,7 @@ export default {
     cod: "COD",
     orderDetails: "Order Details",
     lineItems: "Line Items",
+    viewProduct: "View product",
     customerInfo: "Customer Info",
     shippingAddress: "Shipping Address",
     whatsapp: {
