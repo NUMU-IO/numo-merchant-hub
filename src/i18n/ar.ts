@@ -501,6 +501,7 @@
     cod: "دفع عند الاستلام",
     orderDetails: "تفاصيل الطلب",
     lineItems: "المنتجات المطلوبة",
+    viewProduct: "تفاصيل المنتج",
     customerInfo: "بيانات العميل",
     shippingAddress: "عنوان التوصيل",
     whatsapp: {
