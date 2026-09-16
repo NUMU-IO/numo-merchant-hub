@@ -247,10 +247,26 @@ export function useHubNav() {
     return "dashboard";
   }, [path, appsVisible, settingsVisible]);
 
-  const tabs: { key: HubTab; icon: NavIconType; label: string; visible: boolean }[] = [
-    { key: "dashboard", icon: House, label: t("nav.tabDashboard"), visible: true },
-    { key: "apps", icon: SquaresFour, label: t("nav.tabApps"), visible: appsVisible },
-    { key: "settings", icon: Gear, label: t("nav.tabSettings"), visible: settingsVisible },
+  // `home` is where the tab lands when the merchant picks it. Switching the
+  // sidebar's panel without moving the page left the gear showing a settings
+  // menu over whatever screen they were already on, so the tab looked broken
+  // until they clicked a second time.
+  const tabs: {
+    key: HubTab;
+    icon: NavIconType;
+    label: string;
+    visible: boolean;
+    home: string;
+  }[] = [
+    { key: "dashboard", icon: House, label: t("nav.tabDashboard"), visible: true, home: "/" },
+    { key: "apps", icon: SquaresFour, label: t("nav.tabApps"), visible: appsVisible, home: "/apps" },
+    {
+      key: "settings",
+      icon: Gear,
+      label: t("nav.tabSettings"),
+      visible: settingsVisible,
+      home: "/settings",
+    },
   ];
 
   return {
