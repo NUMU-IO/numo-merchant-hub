@@ -366,7 +366,12 @@ export interface PaymentMethodStatus {
  * rather than a literal, or the next rail silently gets no proof UI.
  * Mirrors `MANUAL_TRANSFER_METHODS` in the API.
  */
-export const MANUAL_PAYMENT_METHODS = ["instapay", "vodafone_cash"] as const;
+export const MANUAL_PAYMENT_METHODS = [
+  "instapay",
+  "vodafone_cash",
+  "we_pay",
+  "orange_cash",
+] as const;
 
 /**
  * A payment method as a merchant should read it.
@@ -380,6 +385,8 @@ const PAYMENT_METHOD_LABELS: Record<string, { en: string; ar: string }> = {
   cod: { en: "Cash on Delivery", ar: "الدفع عند الاستلام" },
   instapay: { en: "InstaPay", ar: "انستاباي" },
   vodafone_cash: { en: "Vodafone Cash", ar: "فودافون كاش" },
+  we_pay: { en: "WE Pay", ar: "وي باي" },
+  orange_cash: { en: "Orange Cash", ar: "أورنج كاش" },
   paymob: { en: "Paymob", ar: "باي موب" },
   paymob_card: { en: "Card (Paymob)", ar: "بطاقة (باي موب)" },
   kashier: { en: "Kashier", ar: "كاشير" },
@@ -447,6 +454,8 @@ export interface PaymentSettings {
   kashier: PaymentMethodStatus;
   instapay: PaymentMethodStatus;
   vodafone_cash: PaymentMethodStatus;
+  we_pay: PaymentMethodStatus;
+  orange_cash: PaymentMethodStatus;
   bank_transfer: PaymentMethodStatus;
   bank_accounts_count: number;
   cod_deposit_policy: CodDepositPolicy;
@@ -472,6 +481,8 @@ export async function updatePaymentSettings(
     kashier_enabled?: boolean;
     instapay_enabled?: boolean;
     vodafone_cash_enabled?: boolean;
+    we_pay_enabled?: boolean;
+    orange_cash_enabled?: boolean;
     bank_transfer_enabled?: boolean;
     cod_deposit_policy?: CodDepositPolicy;
   },
@@ -931,6 +942,43 @@ export interface SaveVodafoneCashCredentialsPayload {
   require_transaction_ref_match?: boolean;
   require_recipient_name_match?: boolean;
   recipient_name_token?: string | null;
+}
+
+/** The manual wallet rails. Same payload, same screens, different network. */
+export const WALLET_RAILS = ["vodafone_cash", "we_pay", "orange_cash"] as const;
+export type WalletRail = (typeof WALLET_RAILS)[number];
+
+/** URL segment for a rail — hyphenated, matching the API routes. */
+const walletSegment = (rail: WalletRail) => rail.replace("_", "-");
+
+export async function fetchWalletCredentials(
+  storeId: string,
+  rail: WalletRail,
+): Promise<VodafoneCashCredentialsResponse> {
+  return apiClient<VodafoneCashCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/${walletSegment(rail)}/credentials`,
+  );
+}
+
+export async function saveWalletCredentials(
+  storeId: string,
+  rail: WalletRail,
+  data: SaveVodafoneCashCredentialsPayload,
+): Promise<VodafoneCashCredentialsResponse> {
+  return apiClient<VodafoneCashCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/${walletSegment(rail)}/credentials`,
+    { method: "PUT", body: JSON.stringify(data) },
+  );
+}
+
+export async function deleteWalletCredentials(
+  storeId: string,
+  rail: WalletRail,
+): Promise<VodafoneCashCredentialsResponse> {
+  return apiClient<VodafoneCashCredentialsResponse>(
+    `/stores/${storeId}/settings/payment/${walletSegment(rail)}/credentials`,
+    { method: "DELETE" },
+  );
 }
 
 export async function fetchVodafoneCashCredentials(
