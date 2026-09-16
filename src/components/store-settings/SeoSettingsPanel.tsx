@@ -17,7 +17,7 @@
  * preserved on save — we merge the SEO block into the existing settings
  * blob rather than replace it.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
@@ -41,8 +41,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
-import { updateStore } from "@/services/storeApi";
-import { Search } from "lucide-react";
+import { updateStore, uploadStoreAsset } from "@/services/storeApi";
+import { ImagePlus, Loader2, Search, Upload, X } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -105,6 +105,143 @@ function readSeoBlock(
   const raw = (settings as { seo?: unknown }).seo;
   if (!raw || typeof raw !== "object") return {};
   return raw as StoreSeoBlock;
+}
+
+// ─── Social image field ───────────────────────────────────────────────────
+
+/**
+ * The social image, uploaded rather than typed.
+ *
+ * This was a URL box, which asked the merchant to host a 1200×630 image
+ * somewhere themselves before the field was of any use — so it stayed empty,
+ * and every share of the storefront fell back to the generated placeholder
+ * card. The file goes through the same customization asset pipeline the logo
+ * uses (`social_image`), and the CDN URL it returns is what gets saved into
+ * `seo.social_image_url`.
+ */
+function SocialImageField({
+  storeId,
+  value,
+  onChange,
+  isAr,
+}: {
+  storeId: string | undefined;
+  value: string;
+  onChange: (url: string) => void;
+  isAr: boolean;
+}) {
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const pick = () => fileRef.current?.click();
+
+  const onFile = async (file: File) => {
+    setError(null);
+    if (!storeId) {
+      setError(isAr ? "المتجر لسه بيحمّل." : "Store is still loading.");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setError(isAr ? "الملف لازم يكون صورة." : "File must be an image.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError(isAr ? "حجم الصورة أكبر من ٥ ميجا." : "Image must be under 5 MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const { url } = await uploadStoreAsset(storeId, file, "social_image");
+      onChange(url);
+    } catch (err) {
+      setError((err as Error)?.message || (isAr ? "فشل الرفع." : "Upload failed."));
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {value ? (
+        <div className="rounded-md border border-border bg-muted/30 p-2">
+          <img
+            src={value}
+            alt=""
+            className="mx-auto max-h-44 w-full rounded object-contain"
+            onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
+          />
+          <div className="mt-2 flex justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={pick}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="me-1.5 h-3.5 w-3.5" />
+              )}
+              {isAr ? "استبدال" : "Replace"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => onChange("")}
+              disabled={uploading}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <X className="me-1.5 h-3.5 w-3.5" />
+              {isAr ? "إزالة" : "Remove"}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          id="social-image"
+          onClick={pick}
+          disabled={uploading}
+          className="flex w-full flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-border bg-muted/20 py-8 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/40 hover:text-foreground disabled:opacity-60"
+        >
+          {uploading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <ImagePlus className="h-5 w-5" />
+          )}
+          <span className="text-xs font-medium">
+            {uploading
+              ? isAr
+                ? "جاري الرفع…"
+                : "Uploading…"
+              : isAr
+                ? "ارفع صورة المشاركة"
+                : "Upload a share image"}
+          </span>
+          <span className="text-[11px] text-muted-foreground/80">
+            PNG / JPG / WEBP · 1200×630
+          </span>
+        </button>
+      )}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void onFile(file);
+        }}
+      />
+
+      {error ? <p className="text-xs text-red-600">{error}</p> : null}
+    </div>
+  );
 }
 
 // ─── Component ────────────────────────────────────────────────────────────
@@ -294,12 +431,11 @@ export function SeoSettingsPanel({
                 ? "صورة المشاركة الاجتماعية"
                 : "Social share image"}
             </Label>
-            <Input
-              id="social-image"
+            <SocialImageField
+              storeId={storeId}
               value={socialImageUrl}
-              onChange={(e) => setSocialImageUrl(e.target.value)}
-              placeholder="https://… (1200×630)"
-              type="url"
+              onChange={setSocialImageUrl}
+              isAr={language === "ar"}
             />
             <p className="text-xs text-muted-foreground">
               {language === "ar"
