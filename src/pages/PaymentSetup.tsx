@@ -173,7 +173,54 @@ const BNPL: BnplMeta[] = [
    COMPONENT — Hub + Gateway sub-views
    ═══════════════════════════════════════════════════════════════════════ */
 
-type PageView = "hub" | GatewayKey;
+/** The manual rails get their own pages too — same shape as a gateway:
+    a tile on the hub, a page to configure, a back button. */
+type ManualRailKey = "instapay" | (typeof WALLET_RAILS)[number];
+
+/** The manual rails, as tiles on the hub. `logo` is the operator's own mark. */
+const RAIL_TILES: {
+  key: ManualRailKey;
+  en: string;
+  ar: string;
+  logo: string;
+  blurb: string;
+  blurbAr: string;
+}[] = [
+  {
+    key: "instapay",
+    en: "InstaPay",
+    ar: "إنستاباي",
+    logo: "/instapay-logo.svg",
+    blurb: "Bank transfer to your IPA, confirmed by a receipt.",
+    blurbAr: "تحويل بنكي على عنوانك، بيتأكد بإيصال.",
+  },
+  {
+    key: "vodafone_cash",
+    en: "Vodafone Cash",
+    ar: "فودافون كاش",
+    logo: "/vodafone-cash-logo.png",
+    blurb: "Wallet transfer to a 010 number.",
+    blurbAr: "تحويل محفظة على رقم 010.",
+  },
+  {
+    key: "we_pay",
+    en: "WE Pay",
+    ar: "وي باي",
+    logo: "/we-pay-logo.png",
+    blurb: "Wallet transfer to a 015 number.",
+    blurbAr: "تحويل محفظة على رقم 015.",
+  },
+  {
+    key: "orange_cash",
+    en: "Orange Cash",
+    ar: "أورنج كاش",
+    logo: "/orange-cash-logo.png",
+    blurb: "Wallet transfer to a 012 number.",
+    blurbAr: "تحويل محفظة على رقم 012.",
+  },
+];
+
+type PageView = "hub" | GatewayKey | ManualRailKey;
 
 const PaymentSetup = () => {
   const { language } = useLanguage();
@@ -197,6 +244,15 @@ const PaymentSetup = () => {
   const [moyasarCreds, setMoyasarCreds] = useState<MoyasarCredentialsResponse | null>(null);
   const [enabledGateway, setEnabledGateway] = useState<GatewayKey | null>(null);
   const [codEnabled, setCodEnabled] = useState(true);
+  // Just enough per-rail state to render the tiles; each page loads its own.
+  const [railStatus, setRailStatus] = useState<
+    Record<ManualRailKey, { configured: boolean; enabled: boolean }>
+  >({
+    instapay: { configured: false, enabled: false },
+    vodafone_cash: { configured: false, enabled: false },
+    we_pay: { configured: false, enabled: false },
+    orange_cash: { configured: false, enabled: false },
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -212,7 +268,7 @@ const PaymentSetup = () => {
       fetchFawryCredentials(storeId).catch(() => null),
       fetchFawaterakCredentials(storeId).catch(() => null),
       fetchMoyasarCredentials(storeId).catch(() => null),
-      apiClient<{ payment: { cod?: { enabled?: boolean } } }>(
+      apiClient<{ payment: Record<string, { enabled?: boolean; is_configured?: boolean }> }>(
         `/stores/${storeId}/settings`,
       ).catch(() => null),
     ])
@@ -220,6 +276,27 @@ const PaymentSetup = () => {
         setPaymobCreds(p); setKashierCreds(k); setFawryCreds(f); setFawaterakCreds(fw); setMoyasarCreds(m);
         if (settings?.payment?.cod?.enabled !== undefined) {
           setCodEnabled(Boolean(settings.payment.cod.enabled));
+        }
+        if (settings?.payment) {
+          const pay = settings.payment;
+          setRailStatus({
+            instapay: {
+              configured: Boolean(pay.instapay?.is_configured),
+              enabled: Boolean(pay.instapay?.enabled),
+            },
+            vodafone_cash: {
+              configured: Boolean(pay.vodafone_cash?.is_configured),
+              enabled: Boolean(pay.vodafone_cash?.enabled),
+            },
+            we_pay: {
+              configured: Boolean(pay.we_pay?.is_configured),
+              enabled: Boolean(pay.we_pay?.enabled),
+            },
+            orange_cash: {
+              configured: Boolean(pay.orange_cash?.is_configured),
+              enabled: Boolean(pay.orange_cash?.enabled),
+            },
+          });
         }
         const configured = [
           p?.is_configured ? { key: "paymob" as const, time: p.last_configured ? new Date(p.last_configured).getTime() : 0 } : null,
@@ -274,6 +351,40 @@ const PaymentSetup = () => {
         enabledGateway={enabledGateway} setEnabledGateway={setEnabledGateway}
         onBack={() => setView("hub")}
       />
+    );
+  }
+
+  if (
+    view === "instapay" ||
+    view === "vodafone_cash" ||
+    view === "we_pay" ||
+    view === "orange_cash"
+  ) {
+    // One page per rail, mirroring a gateway page: back to the hub, the
+    // rail's own card underneath. The cards already own their loading,
+    // saving and enable toggle, so this is only the frame around them.
+    const railName = RAIL_TILES.find((r) => r.key === view);
+    return (
+      <div className="p-6 max-w-[1100px] mx-auto space-y-6">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-lg"
+            onClick={() => setView("hub")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-xl font-extrabold tracking-tight">
+            {isAr ? railName?.ar : railName?.en}
+          </h1>
+        </div>
+        {storeId && view === "instapay" ? (
+          <InstapaySetupCard storeId={storeId} isAr={isAr} />
+        ) : storeId ? (
+          <WalletSetupCard storeId={storeId} isAr={isAr} rail={view} />
+        ) : null}
+      </div>
     );
   }
 
@@ -373,23 +484,87 @@ const PaymentSetup = () => {
         </div>
       </div>
 
-      {/* ── Section: InstaPay (Egypt only) ── */}
+      {/* ── Section: wallets & transfers (Egypt only) ──
+          Four rails that work the same way: publish a destination, the
+          customer transfers, a receipt settles it. Each was a fully expanded
+          card stacked on this page, which made the page four screens of form
+          for rails a merchant sets up once. Now they are tiles, like the
+          gateways above, and each opens its own page. */}
       {storeId && market === "EG" ? (
-        <>
-          <InstapaySetupCard storeId={storeId} isAr={isAr} />
-          {/* The wallets — same manual rail as InstaPay (publish a
-              destination, verify a proof), so they sit right beside it. One
-              card per network, from one component: only the brand, the logo
-              and the operator prefix differ. */}
-          {WALLET_RAILS.map((rail) => (
-            <WalletSetupCard
-              key={rail}
-              rail={rail}
-              storeId={storeId}
-              isAr={isAr}
-            />
-          ))}
-        </>
+        <div>
+          <div className="mb-3">
+            <h2 className="text-base font-bold">
+              {isAr ? "المحافظ والتحويلات" : "Wallets & transfers"}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {isAr
+                ? "العميل بيحوّل بنفسه ويرفع الإيصال، وانت بتأكده — أو الموافقة التلقائية بتأكده عنك."
+                : "The customer transfers and uploads the receipt; you confirm it — or auto-approval does."}
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {RAIL_TILES.map((rail) => {
+              const state = railStatus[rail.key];
+              return (
+                <div
+                  key={rail.key}
+                  className="group rounded-xl border bg-background p-5 flex flex-col justify-between hover:shadow-md transition-all cursor-pointer"
+                  onClick={() => setView(rail.key)}
+                >
+                  <div>
+                    <div className="flex items-center gap-3 mb-3">
+                      <img
+                        src={rail.logo}
+                        alt={rail.en}
+                        className="h-9 w-9 object-contain shrink-0"
+                      />
+                      <div>
+                        <p className="text-sm font-bold leading-tight">
+                          {isAr ? rail.ar : rail.en}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {state.configured && state.enabled ? (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-emerald-600">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              {isAr ? "نشط" : "LIVE"}
+                            </span>
+                          ) : state.configured ? (
+                            <Badge variant="secondary" className="text-[9px]">
+                              {isAr ? "مُعد" : "Ready"}
+                            </Badge>
+                          ) : (
+                            <span className="text-[9px] text-muted-foreground">
+                              {isAr ? "غير مفعّل" : "Not active"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      {isAr ? rail.blurbAr : rail.blurb}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant={state.configured ? "outline" : "default"}
+                      size="sm"
+                      className="h-8 text-xs rounded-lg"
+                    >
+                      {state.configured
+                        ? isAr
+                          ? "إدارة"
+                          : "Manage"
+                        : isAr
+                          ? "تفعيل"
+                          : "Activate"}
+                    </Button>
+                    <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/20 group-hover:text-muted-foreground transition-colors" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       ) : null}
 
       {/* ── Section: COD ── */}
