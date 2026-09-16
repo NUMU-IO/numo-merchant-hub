@@ -53,6 +53,9 @@ const GATEWAY_LABELS: Record<DepositGateway, { en: string; ar: string }> = {
   fawry: { en: "Fawry", ar: "فوري" },
   fawaterak: { en: "Fawaterak", ar: "فواتيرك" },
   instapay: { en: "InstaPay", ar: "انستاباي" },
+  vodafone_cash: { en: "Vodafone Cash", ar: "فودافون كاش" },
+  we_pay: { en: "WE Pay", ar: "وي باي" },
+  orange_cash: { en: "Orange Cash", ar: "أورنج كاش" },
 };
 
 const DEFAULT_PERCENT = 50;
@@ -441,6 +444,11 @@ export default function CodDepositPolicyCard({ storeId, isAr, codEnabled }: Prop
             <Label className="text-xs mb-2 block">
               {isAr ? "بوابات الدفع المسموح بها" : "Allowed deposit gateways"}
             </Label>
+            <p className="text-[11px] text-muted-foreground mb-2">
+              {isAr
+                ? "المحافظ (فودافون كاش، وي باي، أورنج كاش) بتتأكد بإثبات تحويل، يعني الطلب بيستنى لحد مراجعة الإيصال — على عكس البطاقة اللي بتتأكد فورًا."
+                : "The wallets settle on an uploaded receipt, so the order waits until the proof is reviewed — instantly if you have auto-approval on. Cards confirm straight away."}
+            </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {DEPOSIT_GATEWAY_VALUES.map((g) => {
                 const status = settings?.[g];

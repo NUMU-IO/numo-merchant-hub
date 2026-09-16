@@ -417,7 +417,10 @@ export type DepositGateway =
   | "kashier"
   | "fawry"
   | "fawaterak"
-  | "instapay";
+  | "instapay"
+  | "vodafone_cash"
+  | "we_pay"
+  | "orange_cash";
 
 export const DEPOSIT_GATEWAY_VALUES: DepositGateway[] = [
   "paymob",
@@ -425,6 +428,9 @@ export const DEPOSIT_GATEWAY_VALUES: DepositGateway[] = [
   "fawry",
   "fawaterak",
   "instapay",
+  "vodafone_cash",
+  "we_pay",
+  "orange_cash",
 ];
 
 export type DepositMode = "fixed" | "percent";
