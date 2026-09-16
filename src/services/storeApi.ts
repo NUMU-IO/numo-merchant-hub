@@ -611,6 +611,13 @@ export interface CodAutopilotSettings {
   digest_deliverable: boolean;
   /** Read-only: the auto-RTO window, surfaced for overlap warnings. */
   auto_rto_days: number;
+  /** Read-only: both Autopilot WhatsApp templates approved. Until they are,
+   *  the send guard blocks every message and the feature is dark. */
+  templates_ready?: boolean;
+  /** Read-only: templates still waiting on approval, as "name/language". */
+  templates_pending?: string[];
+  /** Read-only: COD switched on. Autopilot only touches COD orders. */
+  cod_enabled?: boolean;
 }
 
 export async function fetchCodAutopilotSettings(
