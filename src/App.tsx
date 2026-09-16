@@ -75,6 +75,7 @@ const CODReconciliation = lazyWithRetry(() => import("@/pages/CODReconciliation"
 const SocialImport = lazyWithRetry(() => import("@/pages/SocialImport"));
 const Customers = lazyWithRetry(() => import("@/pages/Customers"));
 const CustomerImport = lazyWithRetry(() => import("@/pages/CustomerImport"));
+const ProductRequests = lazyWithRetry(() => import("@/pages/ProductRequests"));
 const AnalyticsExecutive = lazyWithRetry(() => import("@/pages/analytics/ExecutivePage"));
 const AnalyticsOverview = lazyWithRetry(() => import("@/pages/analytics/OverviewPage"));
 const AnalyticsSales = lazyWithRetry(() => import("@/pages/analytics/SalesPage"));
@@ -397,6 +398,7 @@ const App = () => (
                     <Route path="/social" element={<SocialImport />} />
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/customers/import" element={<CustomerImport />} />
+                    <Route path="/customers/product-requests" element={<ProductRequests />} />
                     <Route path="/customers/:customerId" element={<Customers />} />
                     <Route path="/analytics" element={<Navigate to="/analytics/overview" replace />} />
                     <Route path="/analytics/executive" element={<AnalyticsExecutive />} />

@@ -140,6 +140,8 @@
     abandoned: "السلال المهجورة",
     shippingLabels: "بوالص الشحن",
     allProducts: "كل المنتجات",
+    allCustomers: "كل العملاء",
+    productRequests: "طلبات المنتجات",
     overview: "نظرة عامة",
     discounts: "الخصومات",
     giftCards: "بطاقات الهدايا",
@@ -323,6 +325,10 @@
       shipmentDelivered: { title: "تم توصيل الطلب #{{order}} إلى {{name}}", body: "{{amount}}" },
       shipmentReturned: { title: "تم إرجاع الطلب #{{order}}", body: "{{name}} · {{reason}}" },
       cartAbandoned: { title: "{{name}} ساب سلة من غير ما يكمل", body: "{{items}} منتجات · {{amount}}" },
+      productRequestNew: {
+        title: "{{name}} بيدوّر على كتاب",
+        body: "{{details}}",
+      },
       trustKillSwitch: {
         title: "تم إيقاف الموافقة التلقائية مؤقتًا",
         body: "نسبة المرتجعات {{rate}}% · {{rto}} من {{total}} طلب تمت الموافقة عليه تلقائيًا · {{reason}}",
