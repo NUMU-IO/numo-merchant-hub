@@ -134,6 +134,7 @@ export default function CodAutopilot() {
         | "templates_ready"
         | "templates_pending"
         | "cod_enabled"
+        | "whatsapp_access_active"
       >
     >,
   ) => {
@@ -173,6 +174,13 @@ export default function CodAutopilot() {
       isAr
         ? "الدفع عند الاستلام مقفول في إعدادات الدفع — الأوتوبايلوت بيشتغل على أوردرات الدفع عند الاستلام بس، فمفيش حاجة يعملها."
         : "Cash on delivery is switched off in your payment settings. Autopilot only ever touches COD orders, so it has nothing to work on.",
+    );
+  }
+  if (settings.whatsapp_access_active === false) {
+    blockers.push(
+      isAr
+        ? "اشتراك واتساب لمتجرك غير مفعّل — لا تخرج أي رسالة من الأوتوبايلوت. فعّله أو جدّده من صفحة واتساب."
+        : "Your store's WhatsApp subscription is not active, so Autopilot cannot send a single message. Activate or renew it on the WhatsApp page.",
     );
   }
   if (!settings.digest_deliverable) {

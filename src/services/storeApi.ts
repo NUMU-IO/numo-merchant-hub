@@ -635,6 +635,9 @@ export interface CodAutopilotSettings {
   templates_pending?: string[];
   /** Read-only: COD switched on. Autopilot only touches COD orders. */
   cod_enabled?: boolean;
+  /** Read-only: the store's paid WhatsApp access is live. Without it every
+   *  Autopilot message is refused. */
+  whatsapp_access_active?: boolean;
 }
 
 export async function fetchCodAutopilotSettings(
