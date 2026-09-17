@@ -8,6 +8,7 @@
  */
 
 import { apiClient } from "./api";
+import type { SettingDefinition } from "@/features/theme-editor-v3/types";
 
 export interface AppBlockSchema {
   type: string;
@@ -22,11 +23,47 @@ export interface AppCatalogEntry {
   icon_url: string | null;
   version: string;
   blocks: AppBlockSchema[];
+  listing?: AppListing;
+}
+
+/** Listing metadata every app supplies; the detail page renders what exists. */
+export interface AppListing {
+  tagline?: string | null;
+  developer?: {
+    name?: string;
+    url?: string;
+    support_email?: string;
+    is_first_party?: boolean;
+  } | null;
+  lockup_url?: string | null;
+  screenshots?: { url?: string; locales?: Record<string, { caption?: string }> }[];
+  highlights?: { locales?: Record<string, { text?: string }> }[];
+  /** `locales[lang].tagline` */
+  locales?: Record<string, { tagline?: string }>;
+  /** `app_locales[lang].{name,description}` */
+  app_locales?: Record<string, { name?: string; description?: string }>;
+  /** The full tour. `highlights` is the pitch; this is the feature list. */
+  features?: {
+    icon?: string;
+    locales?: Record<string, { title?: string; body?: string }>;
+  }[];
+  pricing?: { plan?: string; locales?: Record<string, { label?: string }> } | null;
+  /** Language codes the app's own shopper-facing output supports. */
+  languages?: string[];
+  compatibility?: { locales?: Record<string, { text?: string }> } | null;
 }
 
 export interface AppInstallation extends AppCatalogEntry {
   is_enabled: boolean;
   settings: Record<string, unknown>;
+  /** The app's own settings form, straight off its manifest. */
+  settings_schema?: SettingDefinition[];
+  /** Platform status — `suspended` means shoppers can't see it whatever
+   *  `is_enabled` says. Surfaced so the hub can stop disagreeing with the
+   *  storefront silently. */
+  app_status?: string;
+  /** enabled AND published. The single thing to show the merchant. */
+  is_live?: boolean;
 }
 
 export async function listAppCatalog(
@@ -61,7 +98,9 @@ export async function updateAppSettings(
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ settings }),
+      // The API merges by default; a replace is only correct when the caller
+      // is submitting the whole form, which is what this function does.
+      body: JSON.stringify({ settings, replace: true }),
     },
   );
 }
