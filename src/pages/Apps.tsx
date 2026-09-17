@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,7 +24,9 @@ import {
   listAppCatalog,
   listAppInstallations,
   uninstallApp,
+  updateAppSettings,
 } from "@/services/appsApi";
+import { AppSettingsPanel } from "@/components/apps/AppSettingsPanel";
 
 /**
  * Apps page — Phase 6.
@@ -42,6 +46,10 @@ import {
  */
 
 export default function Apps() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  /** Which app's settings form is expanded. One at a time. */
+  const [openSettings, setOpenSettings] = useState<string | null>(null);
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const { toast } = useToast();
@@ -67,7 +75,7 @@ export default function Apps() {
       setInstalls(list);
     } catch (err) {
       toast({
-        title: "Failed to load apps",
+        title: t("apps.loadFailed"),
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
@@ -86,7 +94,7 @@ export default function Apps() {
       await refresh();
     } catch (err) {
       toast({
-        title: "Operation failed",
+        title: t("apps.actionFailed"),
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
@@ -100,8 +108,8 @@ export default function Apps() {
       <div className="p-6">
         <Card>
           <CardHeader>
-            <CardTitle>Apps</CardTitle>
-            <CardDescription>Select a store to manage apps.</CardDescription>
+            <CardTitle>{t("apps.title")}</CardTitle>
+            <CardDescription>{t("apps.selectStore")}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -111,19 +119,21 @@ export default function Apps() {
   return (
     <div className="p-6 space-y-4">
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">Apps</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Extend your store with apps. Installed apps render blocks
-          in the theme customizer and surface data via the theme SDK.
-        </p>
+        <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
+          {t("apps.title")}
+        </h1>
+        {/* The old copy promised theme-customizer blocks and SDK data, neither
+            of which was true. An app configures itself here and renders through
+            the theme's own components. */}
+        <p className="text-sm text-muted-foreground mt-1">{t("apps.subtitle")}</p>
       </div>
 
       <Tabs defaultValue="installed">
         <TabsList>
           <TabsTrigger value="installed">
-            Installed ({installs?.length ?? 0})
+            {t("apps.installedTab")} (<bdi dir="ltr">{installs?.length ?? 0}</bdi>)
           </TabsTrigger>
-          <TabsTrigger value="catalog">Catalog</TabsTrigger>
+          <TabsTrigger value="catalog">{t("apps.catalogTab")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="installed" className="space-y-3 mt-4">
@@ -132,7 +142,7 @@ export default function Apps() {
           ) : installs.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
-                Nothing installed yet. Browse the Catalog tab to add an app.
+                {t("apps.emptyInstalled")}
               </CardContent>
             </Card>
           ) : (
@@ -151,8 +161,12 @@ export default function Apps() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <div className="font-medium">{app.name}</div>
-                      <Badge variant={app.is_enabled ? "default" : "outline"}>
-                        {app.is_enabled ? "Enabled" : "Disabled"}
+                      <Badge variant={app.is_live === false ? "outline" : "default"}>
+                        {app.app_status === "suspended"
+                          ? t("apps.suspended")
+                          : app.is_enabled
+                            ? t("apps.enabled")
+                            : t("apps.disabled")}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         v{app.version}
@@ -173,6 +187,13 @@ export default function Apps() {
                   </div>
                   <div className="flex gap-2">
                     <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => navigate(`/apps/${encodeURIComponent(app.slug)}`)}
+                    >
+                      {t("apps.viewDetails")}
+                    </Button>
+                    <Button
                       variant="outline"
                       size="sm"
                       disabled={busy === app.slug}
@@ -185,9 +206,9 @@ export default function Apps() {
                       }
                     >
                       {busy === app.slug && (
-                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        <Loader2 className="me-2 h-3 w-3 animate-spin" />
                       )}
-                      {app.is_enabled ? "Disable" : "Enable"}
+                      {app.is_enabled ? t("apps.disable") : t("apps.enable")}
                     </Button>
                     <Button
                       variant="destructive"
@@ -199,10 +220,44 @@ export default function Apps() {
                         )
                       }
                     >
-                      Uninstall
+                      {t("apps.uninstall")}
                     </Button>
                   </div>
                 </CardContent>
+
+                {/* Settings live on this page, not in the theme customizer:
+                    they are store-wide and have no per-section meaning. */}
+                {(app.settings_schema?.length ?? 0) > 0 && (
+                  <CardContent className="border-t pt-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() =>
+                        setOpenSettings((cur) => (cur === app.slug ? null : app.slug))
+                      }
+                    >
+                      {openSettings === app.slug
+                        ? t("apps.hideSettings")
+                        : t("apps.settings")}
+                    </Button>
+                    {openSettings === app.slug && (
+                      <div className="mt-4">
+                        <AppSettingsPanel
+                          storeId={storeId}
+                          app={app}
+                          onSaved={(next) =>
+                            setInstalls((cur) =>
+                              (cur ?? []).map((a) =>
+                                a.slug === next.slug ? next : a,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                    )}
+                  </CardContent>
+                )}
               </Card>
             ))
           )}
@@ -253,9 +308,16 @@ export default function Apps() {
                       }
                     >
                       {busy === app.slug && (
-                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        <Loader2 className="me-2 h-3 w-3 animate-spin" />
                       )}
-                      {installed ? "Re-enable" : "Install"}
+                      {installed ? t("apps.reinstall") : t("apps.install")}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate(`/apps/${encodeURIComponent(app.slug)}`)}
+                    >
+                      {t("apps.viewDetails")}
                     </Button>
                   </CardContent>
                 </Card>

@@ -20,7 +20,8 @@
  * All labels are bilingual (EN/AR) based on the editor locale.
  */
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useMemo, useCallback, useEffect } from "react";
+import { toast } from "sonner";
 import type { SettingDefinition, EditorLocale, ColorSchemeValue } from "../../types";
 import { uploadStoreAsset } from "@/services/storeApi";
 import { listProducts, getProduct, apiToProduct } from "@/services/productApi";
@@ -374,6 +375,21 @@ function SettingInputV3Input({ setting, value, locale, onChange, storeId }: Sett
         </div>,
       );
     }
+
+    // ── 6b. Free-keyed colour map ─────────────────────────────────────
+    // "option value -> colour", store-wide. This is the bulk path for a large
+    // catalogue: one row here reaches every product using that value, with
+    // ZERO per-product writes. The alternative the plan first reached for was
+    // a CSV that PATCHes each product, which on a 250-product store means 250
+    // sequential writes each firing a store-wide ISR bust against a live shop.
+    case "key_color_map":
+      return wrapper(
+        <KeyColorMapEditor
+          value={(value as Record<string, string>) ?? {}}
+          onChange={(next) => onChange(next)}
+          locale={locale}
+        />,
+      );
 
     // ── 6. Color ──────────────────────────────────────────────────────
     case "color":
@@ -2460,3 +2476,166 @@ const COMMON_FONTS = [
   "IBM Plex Sans",
   "DM Sans",
 ];
+
+/**
+ * Editor for a `key_color_map` setting — free-keyed `label -> hex` rows.
+ *
+ * Why this exists rather than reusing `color_scheme_group`: that control's row
+ * ids are auto-generated `scheme-N` and its colour roles are frozen when the
+ * schema is authored, so it cannot key rows on a merchant's live option values.
+ *
+ * Why it carries a CSV paste box: a merchant with 250 products will not add 60
+ * rows by hand. The plan's first answer was a CSV that PATCHes each product,
+ * but that is 250 sequential writes each firing a store-wide ISR bust against a
+ * live shop. A store-wide map reaches every product using that value with no
+ * product writes at all, so the CSV lands HERE instead.
+ *
+ * The grammar is the one genuinely clever rule from the app category: a blank
+ * option_name applies the colour to that value across EVERY option, so `أسود`
+ * gets one row for both Colour and Material.
+ */
+function KeyColorMapEditor({
+  value,
+  onChange,
+  locale,
+}: {
+  value: Record<string, string>;
+  onChange: (next: Record<string, string>) => void;
+  locale: EditorLocale;
+}) {
+  const isAr = locale === "ar";
+  const [bulk, setBulk] = useState("");
+  const [showBulk, setShowBulk] = useState(false);
+  const rows = useMemo(() => Object.entries(value ?? {}), [value]);
+
+  const setKey = (oldKey: string, newKey: string) => {
+    const next: Record<string, string> = {};
+    // Rebuilt in order so renaming a row does not jump it to the end.
+    for (const [k, v] of Object.entries(value ?? {})) {
+      next[k === oldKey ? newKey : k] = v;
+    }
+    onChange(next);
+  };
+
+  const importCsv = () => {
+    const next = { ...(value ?? {}) };
+    let added = 0;
+    for (const line of bulk.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      const cells = line.split(",").map((c) => c.trim());
+      // `option_name,option_value,hex` — option_name is accepted and IGNORED,
+      // because this map is store-wide by design. Two columns work too.
+      const [a, b, c] = cells;
+      const optionValue = cells.length >= 3 ? b : a;
+      const hex = cells.length >= 3 ? c : b;
+      if (!optionValue || !hex) continue;
+      if (!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) continue;
+      next[optionValue] = hex;
+      added += 1;
+    }
+    onChange(next);
+    setBulk("");
+    setShowBulk(false);
+    toast.success(isAr ? `اتضاف ${added} لون` : `${added} colours imported`);
+  };
+
+  return (
+    <div className="space-y-2">
+      {rows.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          {isAr ? "لسه مفيش ألوان متسجلة." : "No colours mapped yet."}
+        </p>
+      )}
+      {rows.map(([key, hex]) => (
+        <div key={key} className="flex items-center gap-2">
+          <input
+            type="color"
+            value={hex || "#000000"}
+            onChange={(e) => onChange({ ...value, [key]: e.target.value })}
+            className="h-8 w-9 shrink-0 cursor-pointer rounded-md border border-input bg-transparent p-0.5"
+            aria-label={isAr ? `لون ${key}` : `Colour for ${key}`}
+          />
+          <Input
+            value={key}
+            onChange={(e) => setKey(key, e.target.value)}
+            className="h-8 text-xs"
+            placeholder={isAr ? "اسم اللون" : "Option value"}
+          />
+          {/* A hex is digits and latin letters; it must stay LTR in an RTL form. */}
+          <bdi dir="ltr" className="font-mono text-[11px] text-muted-foreground">
+            {hex}
+          </bdi>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs text-destructive/70"
+            onClick={() => {
+              const next = { ...value };
+              delete next[key];
+              onChange(next);
+            }}
+          >
+            ×
+          </Button>
+        </div>
+      ))}
+
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => onChange({ ...value, "": "#000000" })}
+        >
+          {isAr ? "ضيف لون" : "Add colour"}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => setShowBulk((v) => !v)}
+        >
+          {isAr
+            ? showBulk
+              ? "إلغاء الاستيراد"
+              : "استيراد من CSV"
+            : showBulk
+              ? "Cancel import"
+              : "Import CSV"}
+        </Button>
+      </div>
+
+      {showBulk && (
+        <div className="space-y-2">
+          <textarea
+            value={bulk}
+            onChange={(e) => setBulk(e.target.value)}
+            rows={5}
+            dir="ltr"
+            placeholder={"option_name,option_value,hex\n,Navy,#1b2a4a\nColour,Ecru,#f4f1ea"}
+            className="w-full rounded-md border border-input bg-background p-2 font-mono text-[11px]"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {isAr ? (
+              <>
+                سيب <code>option_name</code> فاضي عشان اللون يتطبق على الاسم ده في كل
+                الخانات. وينفع عمودين بس (<code>value,hex</code>).
+              </>
+            ) : (
+              <>
+                Leave <code>option_name</code> blank to apply the colour to that value
+                across every option. Two columns (<code>value,hex</code>) also work.
+              </>
+            )}
+          </p>
+          <Button type="button" size="sm" className="h-7 text-xs" onClick={importCsv}>
+            {isAr ? "استورد" : "Import"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}

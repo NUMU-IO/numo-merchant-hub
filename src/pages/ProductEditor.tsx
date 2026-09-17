@@ -154,12 +154,37 @@ function labelSlug(textEn: string): string {
 
 // ── Color variant helpers ──────────────────────────────────────────────
 
-/** Is this variant a color swatch variant? Matches "color"/"colour"/"اللون". */
-function isColorVariant(name: string, nameAr?: string): boolean {
-  const n = (name || "").toLowerCase();
-  if (n.includes("color") || n.includes("colour")) return true;
-  const ar = (nameAr || "");
-  return ar.includes("لون");
+/**
+ * Does this axis NAME read as a colour axis?
+ *
+ * Deliberately not the only test — see `axisIsColor`. A merchant who names the
+ * axis `Shade`, `Tone`, `درجة` or `خامة` gets no swatch picker from a name
+ * match alone, and used to get no way to ask for one either.
+ */
+function nameLooksLikeColor(name: string, nameAr?: string): boolean {
+  const n = normalizeColorKey(name || "");
+  if (n.includes("color") || n.includes("colour") || n.includes("shade")
+      || n.includes("tone") || n.includes("hue")) return true;
+  const ar = normalizeColorKey(nameAr || "");
+  return ar.includes("لون") || ar.includes("درجه") || ar.includes("تدرج");
+}
+
+/**
+ * Should this axis show the swatch picker?
+ *
+ * Three ways in, so a merchant is never locked out by their own naming:
+ *   1. the name reads as a colour axis, or
+ *   2. the merchant turned it on for this axis, or
+ *   3. the product already HAS hexes on this axis — which is what makes the
+ *      choice persist without inventing a new stored field. `hexValues` being
+ *      present IS the saved signal.
+ */
+function axisIsColor(v: { name: string; nameAr?: string; isColor?: boolean }): boolean {
+  // ponytail: the merchant's toggle persists only via saved hexValues, so an
+  // oddly-named axis where every hex is cleared loses the toggle on reload.
+  // Upgrade path if that ever bites: a real `isColor` boolean on the stored
+  // variant_meta axis. Not worth a stored field and a migration today.
+  return v.isColor ?? nameLooksLikeColor(v.name, v.nameAr);
 }
 
 /**
@@ -178,10 +203,104 @@ const COLOR_NAME_TO_HEX: Record<string, string> = {
   "بنفسجي": "#a855f7", "وردي": "#ec4899", "ذهبي": "#d4af37", "فضي": "#c0c0c0",
 };
 
-function defaultHexForName(name: string): string {
-  return COLOR_NAME_TO_HEX[(name || "").trim().toLowerCase()]
-    || COLOR_NAME_TO_HEX[(name || "").trim()]
-    || "#888888";
+/**
+ * Fold the spellings of one Arabic colour word onto a single key.
+ *
+ * Merchants type `كحلى` and `كحلي`, `بيچ` and `بيج`. Mirrors
+ * `normalizeColorKey` in @numueg/theme-sdk so the chip the merchant previews
+ * here and the chip the shopper sees resolve identically.
+ */
+function normalizeColorKey(raw: string): string {
+  return (raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[ً-ْـ]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/پ/g, "ب")
+    .replace(/[چژ]/g, "ج")
+    .replace(/[\s‏‎_-]+/g, " ")
+    .trim();
+}
+
+const NORMALIZED_COLORS: Record<string, string> = Object.fromEntries(
+  Object.entries(COLOR_NAME_TO_HEX).map(([k, v]) => [normalizeColorKey(k), v]),
+);
+
+/**
+ * The lexicon hex for a value name, or `undefined` when nothing matches.
+ *
+ * Returns UNDEFINED rather than a grey. This used to end in `|| "#888888"`,
+ * and the save path wrote that into `hexValues` for every unmatched value on
+ * every save — so a merchant entering "Red, Blue, Ecru" stored two real hexes
+ * and one grey, and the storefront painted Ecru grey as though it had been
+ * chosen. That is the documented category failure where "Navy Heather falls
+ * back to a default gray" and shoppers report wrong colours. An unresolved
+ * value is now left EMPTY, which the storefront renders down its own ladder
+ * (lexicon, then the value image, then a text pill) instead of lying.
+ */
+function lexiconHex(name: string): string | undefined {
+  return NORMALIZED_COLORS[normalizeColorKey(name)];
+}
+
+/** What the colour INPUT shows for an unset value. Display only — never saved. */
+const UNSET_SWATCH = "#cccccc";
+
+/**
+ * Sample the dominant colour out of an image.
+ *
+ * This is the feature that actually sells swatch apps: a merchant who has
+ * already uploaded a photo per colour should not then hand-pick 60 hexes.
+ * Plain quantisation gets most of the way there for none of the cost of a
+ * vision API, and the merchant can always override the proposal.
+ *
+ * Buckets each channel to 4 bits and takes the most common bucket rather than
+ * averaging — an average of a red and a white shirt is pink, which is a colour
+ * present nowhere in the image. Near-transparent and near-white pixels are
+ * skipped because product photos are overwhelmingly cut out on white, and the
+ * background would otherwise win every time.
+ *
+ * Resolves `null` on a CORS-tainted canvas or a load failure; the caller then
+ * simply leaves the value unset rather than guessing.
+ */
+async function dominantColor(url: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onerror = () => resolve(null);
+    img.onload = () => {
+      try {
+        const size = 32;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return resolve(null);
+        ctx.drawImage(img, 0, 0, size, size);
+        const { data } = ctx.getImageData(0, 0, size, size);
+        const counts = new Map<number, { n: number; r: number; g: number; b: number }>();
+        for (let i = 0; i < data.length; i += 4) {
+          const [r, g, b, a] = [data[i], data[i + 1], data[i + 2], data[i + 3]];
+          if (a < 128) continue;
+          if (r > 242 && g > 242 && b > 242) continue; // cut-out background
+          const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+          const cur = counts.get(key) || { n: 0, r: 0, g: 0, b: 0 };
+          counts.set(key, { n: cur.n + 1, r: cur.r + r, g: cur.g + g, b: cur.b + b });
+        }
+        let best: { n: number; r: number; g: number; b: number } | null = null;
+        for (const v of counts.values()) if (!best || v.n > best.n) best = v;
+        if (!best) return resolve(null);
+        const hex = (v: number) =>
+          Math.round(v / best!.n).toString(16).padStart(2, "0");
+        resolve(`#${hex(best.r)}${hex(best.g)}${hex(best.b)}`);
+      } catch {
+        // Tainted canvas — the asset host did not send CORS headers.
+        resolve(null);
+      }
+    };
+    img.src = url;
+  });
 }
 
 const productSchema = z.object({
@@ -276,6 +395,9 @@ const ProductEditor = () => {
     /** Aligned to parsed `options` by index; only present for color variants. */
     hexValues?: string[];
     imageValues?: string[];
+    /** Merchant's explicit "this axis is colours" answer. Undefined = infer
+     *  from the name. Persisted implicitly by `hexValues` being saved. */
+    isColor?: boolean;
   }[]>([]);
   const [variantCombinations, setVariantCombinations] = useState<VariantCombination[]>([]);
   // Wave C — merged variant model. `hasOptions` is the Shopify-style opt-in
@@ -303,6 +425,8 @@ const ProductEditor = () => {
   const [savingStoreDefault, setSavingStoreDefault] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formImages, setFormImages] = useState<string[]>([]);
+  /** Which axis is mid-sample, so its button can show progress. */
+  const [samplingAxis, setSamplingAxis] = useState<number | null>(null);
   // Each pending upload carries the object URL created for it ONCE, at add
   // time. Deriving previews from the file list instead (a useMemo over
   // pendingFiles) revoked and recreated every URL on any change to the
@@ -422,6 +546,12 @@ const ProductEditor = () => {
               optionsAr: Array.isArray(meta?.optionsAr) ? meta.optionsAr.join(", ") : "",
               hexValues: Array.isArray(meta?.hexValues) ? meta.hexValues : undefined,
               imageValues: Array.isArray(meta?.imageValues) ? meta.imageValues : undefined,
+              // Stored hexes ARE the saved "this is a colour axis" signal, so
+              // an axis named `درجة` keeps its picker across a reload without
+              // a new stored field.
+              isColor: Array.isArray(meta?.hexValues) && meta.hexValues.length > 0
+                ? true
+                : undefined,
             };
           }),
         );
@@ -586,16 +716,20 @@ const ProductEditor = () => {
             .filter(v => v.name.trim() && v.options.trim())
             .map(v => {
               const parsedOptions = v.options.split(",").map(o => o.trim()).filter(Boolean);
-              const isColor = isColorVariant(v.name, v.nameAr);
+              const isColor = axisIsColor(v);
+              // An unresolved value is saved EMPTY, never as a grey sentinel:
+              // the storefront then runs its own ladder instead of painting a
+              // colour the merchant never chose.
+              const hexes = parsedOptions.map(
+                (opt, j) => v.hexValues?.[j] || lexiconHex(opt) || "",
+              );
               return {
                 name: v.name.trim(),
                 nameAr: v.nameAr,
                 optionsAr: v.optionsAr.split(",").map(o => o.trim()).filter(Boolean),
-                ...(isColor
+                ...(isColor && hexes.some(Boolean)
                   ? {
-                      hexValues: parsedOptions.map(
-                        (opt, j) => v.hexValues?.[j] || defaultHexForName(opt),
-                      ),
+                      hexValues: hexes,
                       imageValues: parsedOptions.map((_, j) => v.imageValues?.[j] || ""),
                     }
                   : {}),
@@ -1490,7 +1624,7 @@ const ProductEditor = () => {
                       <div className="space-y-1">
                         <Label className="text-[11px] text-muted-foreground/70">{language === "ar" ? "الخيارات (EN)" : "Options (EN)"}</Label>
                         <Input
-                          placeholder={isColorVariant(v.name, v.nameAr) ? "Red, Blue, Black" : "S, M, L, XL"}
+                          placeholder={axisIsColor(v) ? "Red, Blue, Black" : "S, M, L, XL"}
                           value={v.options}
                           onChange={e => updateVariant(idx, "options", e.target.value)}
                           className="h-9 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border text-sm"
@@ -1499,7 +1633,7 @@ const ProductEditor = () => {
                       <div className="space-y-1">
                         <Label className="text-[11px] text-muted-foreground/70">{language === "ar" ? "الخيارات (AR)" : "Options (AR)"}</Label>
                         <Input
-                          placeholder={isColorVariant(v.name, v.nameAr) ? "أحمر, أزرق, أسود" : "S, M, L, XL"}
+                          placeholder={axisIsColor(v) ? "أحمر, أزرق, أسود" : "S, M, L, XL"}
                           value={v.optionsAr}
                           onChange={e => updateVariant(idx, "optionsAr", e.target.value)}
                           dir="rtl"
@@ -1512,7 +1646,7 @@ const ProductEditor = () => {
                     {/* Covers the UX gap where a merchant names a variant
                         "Color" but leaves the options placeholder untouched
                         and wonders why no swatch picker appeared. */}
-                    {isColorVariant(v.name, v.nameAr) && !v.options.trim() && (
+                    {axisIsColor(v) && !v.options.trim() && (
                       <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-3 text-[11px] text-muted-foreground">
                         {language === "ar"
                           ? "اكتب أسماء الألوان بالأعلى (مثلاً: أحمر، أزرق، أسود) عشان تظهر خانات اختيار اللون لكل واحد."
@@ -1520,18 +1654,155 @@ const ProductEditor = () => {
                       </div>
                     )}
 
-                    {/* ── Color swatch + image picker (only for color variants) ── */}
-                    {isColorVariant(v.name, v.nameAr) && v.options.trim() && (() => {
+                    {/* ── Opt in an axis whose NAME does not read as colour ── */}
+                    {/* Without this a merchant naming the axis `درجة` or
+                        `Shade` had no way to reach the swatch picker at all. */}
+                    {!nameLooksLikeColor(v.name, v.nameAr) && v.options.trim() && (
+                      <label className="flex items-center gap-2 pt-2 text-[11px] text-muted-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={axisIsColor(v)}
+                          onChange={(e) => {
+                            const on = e.target.checked;
+                            setFormVariants(prev => prev.map((vv, i) =>
+                              i === idx ? { ...vv, isColor: on } : vv));
+                          }}
+                          className="h-3.5 w-3.5 rounded border-border cursor-pointer"
+                        />
+                        {language === "ar"
+                          ? "الخانة دي فيها ألوان؟ فعّلها عشان تظهر خانات اختيار اللون"
+                          : "Is this option a colour? Turn it on to get the swatch picker"}
+                      </label>
+                    )}
+
+                    {/* ── Color swatch + image picker ── */}
+                    {axisIsColor(v) && v.options.trim() && (() => {
                       const parsedOptions = v.options.split(",").map(o => o.trim()).filter(Boolean);
                       const uploadedImages = formImages; // merchant's product images, pickable
+                      // What will actually be SAVED for each value, and which
+                      // values still resolve to nothing.
+                      const savedHexes = parsedOptions.map(
+                        (opt, j) => v.hexValues?.[j] || lexiconHex(opt) || "",
+                      );
+                      const unresolved = parsedOptions.filter((_, j) => !savedHexes[j]);
+                      // Values the LEXICON could fill that the merchant has not
+                      // set — the whole of "bulk" for a normal catalogue, minus
+                      // a CSV importer nobody needs yet.
+                      const autoFillable = parsedOptions.filter(
+                        (opt, j) => !v.hexValues?.[j] && lexiconHex(opt),
+                      );
+                      // Values that have a PICTURE but still no colour — the
+                      // ones the lexicon can never reach, because "Elegance" is
+                      // not a colour word in any language.
+                      const samplable = parsedOptions.filter(
+                        (_opt, j) => !savedHexes[j] && v.imageValues?.[j],
+                      );
                       return (
                         <div className="pt-3 border-t border-border/40 space-y-2">
-                          <Label className="text-[11px] font-medium text-muted-foreground/80">
-                            {language === "ar" ? "لون وصورة لكل اختيار" : "Swatch + image per option"}
-                          </Label>
+                          <div className="flex items-center justify-between gap-2">
+                            <Label className="text-[11px] font-medium text-muted-foreground/80">
+                              {language === "ar" ? "لون وصورة لكل اختيار" : "Swatch + image per option"}
+                            </Label>
+                            <div className="flex items-center gap-1">
+                              {autoFillable.length > 0 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-[11px]"
+                                  onClick={() => {
+                                    setFormVariants(prev => prev.map((vv, i) => {
+                                      if (i !== idx) return vv;
+                                      const next = parsedOptions.map(
+                                        (opt, j) => vv.hexValues?.[j] || lexiconHex(opt) || "",
+                                      );
+                                      return { ...vv, hexValues: next };
+                                    }));
+                                  }}
+                                >
+                                  {language === "ar"
+                                    ? `عبّي ${autoFillable.length} لون تلقائي`
+                                    : `Auto-fill ${autoFillable.length}`}
+                                </Button>
+                              )}
+                              {samplable.length > 0 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-[11px]"
+                                  disabled={samplingAxis === idx}
+                                  onClick={async () => {
+                                    setSamplingAxis(idx);
+                                    try {
+                                      const sampled = await Promise.all(
+                                        parsedOptions.map(async (_opt, j) => {
+                                          if (savedHexes[j]) return v.hexValues?.[j] || savedHexes[j];
+                                          const img = v.imageValues?.[j];
+                                          return img ? (await dominantColor(img)) || "" : "";
+                                        }),
+                                      );
+                                      const hit = sampled.filter(Boolean).length;
+                                      setFormVariants(prev => prev.map((vv, i) =>
+                                        i === idx ? { ...vv, hexValues: sampled } : vv));
+                                      if (hit === 0) {
+                                        // Almost always a CORS-tainted canvas.
+                                        toast.error(language === "ar"
+                                          ? "مقدرناش نجيب اللون من الصور"
+                                          : "Couldn't read colours from those images");
+                                      }
+                                    } finally {
+                                      setSamplingAxis(null);
+                                    }
+                                  }}
+                                >
+                                  {samplingAxis === idx
+                                    ? (language === "ar" ? "بنحلل…" : "Reading…")
+                                    : (language === "ar"
+                                        ? `هات ${samplable.length} لون من الصور`
+                                        : `Pick ${samplable.length} from images`)}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* ── What the shopper will actually see ── */}
+                          {/* The per-value colour input shows one colour at a
+                              time; this is the ROW, which is what catches "Ecru
+                              has no colour" before it reaches a live store. */}
+                          <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-muted/30 p-2">
+                            {parsedOptions.map((optName, j) => (
+                              <span
+                                key={j}
+                                title={optName}
+                                className="inline-block h-5 w-5 rounded-full border border-border/60"
+                                style={
+                                  savedHexes[j]
+                                    ? { background: savedHexes[j] }
+                                    : {
+                                        // Unset reads as unset. A grey chip here
+                                        // would look like a deliberate grey.
+                                        background:
+                                          "repeating-conic-gradient(#d8d8d8 0% 25%, transparent 0% 50%) 50% / 6px 6px",
+                                      }
+                                }
+                              />
+                            ))}
+                            {unresolved.length > 0 && (
+                              <span className="ms-1 text-[11px] text-muted-foreground">
+                                {language === "ar"
+                                  ? `${unresolved.length} من غير لون: ${unresolved.join("، ")}`
+                                  : `${unresolved.length} without a colour: ${unresolved.join(", ")}`}
+                              </span>
+                            )}
+                          </div>
                           <div className="space-y-1.5">
                             {parsedOptions.map((optName, optIdx) => {
-                              const currentHex = v.hexValues?.[optIdx] || defaultHexForName(optName);
+                              // `resolved` is what will actually be SAVED; the
+                              // input needs a value regardless, so an unset one
+                              // shows a neutral it never persists.
+                              const resolved = v.hexValues?.[optIdx] || lexiconHex(optName) || "";
+                              const currentHex = resolved || UNSET_SWATCH;
                               const currentImage = v.imageValues?.[optIdx] || "";
                               return (
                                 <div key={optIdx} className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/50 p-2">
@@ -1542,7 +1813,7 @@ const ProductEditor = () => {
                                     onChange={(e) => {
                                       setFormVariants(prev => prev.map((vv, i) => {
                                         if (i !== idx) return vv;
-                                        const next = [...(vv.hexValues || parsedOptions.map((o) => defaultHexForName(o)))];
+                                        const next = [...(vv.hexValues || parsedOptions.map((o) => lexiconHex(o) || ""))];
                                         next[optIdx] = e.target.value;
                                         return { ...vv, hexValues: next };
                                       }));
