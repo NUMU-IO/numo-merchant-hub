@@ -525,7 +525,9 @@ export async function updateByoNotifications(
 export type WhatsAppAccessStatus =
   | "none"
   | "pending"
+  | "awaiting_payment"
   | "approved"
+  | "expired"
   | "rejected"
   | "disabled";
 
@@ -538,6 +540,21 @@ export interface WhatsAppAccessState {
   reviewed_at: string | null;
   review_reason: string | null; // admin's reason on reject/disable — surfaced to the merchant
   can_request: boolean; // true only when status is "none" or "rejected"
+  // Paid access: what an admin priced the store at and the period it covers.
+  amount_cents?: number | null;
+  currency?: string | null;
+  billing_cycle?: string | null;
+  active_until?: string | null; // null = no expiry
+  message_allowance?: number | null; // null = uncapped
+  messages_used?: number;
+  can_send?: boolean;
+  blocked_reason?: string | null;
+  // The open bill, while there is one to pay or a receipt under review.
+  payment_intent_id?: string | null;
+  payment_status?: "awaiting_proof" | "under_review" | null;
+  payment_reference?: string | null;
+  payment_destination?: string | null;
+  payment_expires_at?: string | null;
 }
 
 export interface WhatsAppAccessRequestBody {
@@ -566,6 +583,18 @@ export async function requestWhatsAppAccess(
   return apiClient<WhatsAppAccessState>(
     `/stores/${storeId}/whatsapp/access/request`,
     { method: "POST", body: JSON.stringify(body) }
+  );
+}
+
+/**
+ * Open the bill for this store's WhatsApp access at the price an admin set,
+ * or get back the one already open. The receipt is then uploaded against
+ * `payment_intent_id` like any subscription payment.
+ */
+export async function payWhatsAppAccess(storeId: string) {
+  return apiClient<WhatsAppAccessState>(
+    `/stores/${storeId}/whatsapp/access/pay`,
+    { method: "POST" }
   );
 }
 

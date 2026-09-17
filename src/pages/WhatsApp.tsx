@@ -10,6 +10,7 @@ import {
   listWhatsAppMessages,
   getWhatsAppAccess,
   requestWhatsAppAccess,
+  payWhatsAppAccess,
   type WhatsAppStatus,
   type WhatsAppNotificationSettings,
   type WhatsAppMessageLanguage,
@@ -18,6 +19,8 @@ import {
   type WhatsAppAccessState,
 } from "@/services/whatsappApi";
 import { listTemplates, type WhatsAppTemplate } from "@/services/templatesApi";
+import { getInstapayIntent, type InstapayIntent } from "@/services/billingApi";
+import SubscribeInstapayDialog from "@/components/billing/SubscribeInstapayDialog";
 import { ApiError } from "@/lib/api-error";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,6 +63,7 @@ import {
   CircleX,
   Ban,
   LoaderCircle,
+  Receipt,
 } from "lucide-react";
 
 // WhatsApp brand green — used sparingly for the channel identity (hero,
@@ -470,6 +474,16 @@ export default function WhatsApp() {
             onChange={setAccess}
           />
         )}
+
+        {access && approved && storeId &&
+          (access.amount_cents != null || access.can_send === false) && (
+            <WhatsAppPlanCard
+              access={access}
+              isAr={isAr}
+              storeId={storeId}
+              onChange={setAccess}
+            />
+          )}
 
         {/* Not-connected explainer — only meaningful once access is granted */}
         {approved && !connected && (
@@ -1138,10 +1152,21 @@ function WhatsAppAccessGate({
   };
 
   const tone =
-    status === "pending" ? "amber" : status === "none" ? "emerald" : "rose";
+    status === "pending" || status === "awaiting_payment"
+      ? "amber"
+      : status === "none"
+      ? "emerald"
+      : "rose";
   const t = ACCESS_TONE[tone];
+  const priced =
+    (status === "awaiting_payment" || status === "expired") &&
+    access.amount_cents != null;
   const HeaderIcon =
-    status === "pending"
+    status === "awaiting_payment"
+      ? Receipt
+      : status === "expired"
+      ? Clock
+      : status === "pending"
       ? Hourglass
       : status === "rejected"
       ? CircleX
@@ -1150,7 +1175,15 @@ function WhatsAppAccessGate({
       : Lock;
 
   const title =
-    status === "pending"
+    status === "awaiting_payment"
+      ? isAr
+        ? "ادفع لتفعيل واتساب"
+        : "Pay to switch WhatsApp on"
+      : status === "expired"
+      ? isAr
+        ? "انتهى اشتراك واتساب"
+        : "Your WhatsApp subscription has ended"
+      : status === "pending"
       ? isAr
         ? "طلبك قيد المراجعة"
         : "Your request is under review"
@@ -1167,7 +1200,15 @@ function WhatsAppAccessGate({
       : "Enable WhatsApp for your store";
 
   const blurb =
-    status === "pending"
+    status === "awaiting_payment"
+      ? isAr
+        ? "تمت الموافقة على طلبك. حوّل قيمة الاشتراك عبر إنستاباي وارفع الإيصال — يتفعّل واتساب فور التحقق منه."
+        : "Your request is approved. Transfer the subscription with InstaPay and upload the receipt — WhatsApp switches on as soon as it's verified."
+      : status === "expired"
+      ? isAr
+        ? "رسائل واتساب التلقائية متوقفة. جدّد الاشتراك لتشغيلها من جديد."
+        : "Automatic WhatsApp messages have stopped. Renew to switch them back on."
+      : status === "pending"
       ? isAr
         ? "شكراً لك! يراجع فريق NUMU طلب تفعيل واتساب لمتجرك، وسيُفعَّل هنا فور الموافقة — عادةً خلال يوم عمل واحد."
         : "Thanks! The NUMU team is reviewing your WhatsApp access request. We'll switch it on here as soon as it's approved — usually within one business day."
@@ -1205,6 +1246,10 @@ function WhatsAppAccessGate({
               </p>
             )}
 
+            {priced && (
+              <p className="text-sm font-medium pt-1">{fmtWhatsAppPrice(access, isAr)}</p>
+            )}
+
             {(status === "rejected" || status === "disabled") &&
               access.review_reason && (
                 <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-300">
@@ -1214,6 +1259,26 @@ function WhatsAppAccessGate({
               )}
           </div>
         </div>
+
+        {priced && (
+          <div className="mt-5">
+            <WhatsAppPayButton
+              access={access}
+              isAr={isAr}
+              storeId={storeId}
+              onChange={onChange}
+              label={
+                status === "expired"
+                  ? isAr
+                    ? "جدّد الاشتراك"
+                    : "Renew subscription"
+                  : isAr
+                  ? "ادفع عبر إنستاباي"
+                  : "Pay with InstaPay"
+              }
+            />
+          </div>
+        )}
 
         {canRequest && (
           <div className="mt-5">
@@ -1309,6 +1374,215 @@ function WhatsAppAccessGate({
               </div>
             )}
           </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function fmtWhatsAppPrice(access: WhatsAppAccessState, isAr: boolean) {
+  const nf = new Intl.NumberFormat(isAr ? "ar-EG" : "en-US");
+  const cycle: Record<string, [string, string]> = {
+    monthly: ["month", "شهرياً"],
+    quarterly: ["quarter", "كل ٣ شهور"],
+    yearly: ["year", "سنوياً"],
+  };
+  const [en, ar] = cycle[access.billing_cycle ?? "monthly"] ?? cycle.monthly;
+  const amount = nf.format((access.amount_cents ?? 0) / 100);
+  const messages =
+    access.message_allowance == null
+      ? isAr
+        ? "رسائل بلا حد"
+        : "unlimited messages"
+      : isAr
+      ? `${nf.format(access.message_allowance)} رسالة`
+      : `${nf.format(access.message_allowance)} messages`;
+  return isAr
+    ? `${amount} ج.م ${ar} · ${messages}`
+    : `EGP ${amount} / ${en} · ${messages}`;
+}
+
+// Opens (or resumes) the store's WhatsApp bill in the same InstaPay dialog the
+// Billing page uses, so paying for WhatsApp is the flow merchants already know.
+function WhatsAppPayButton({
+  access,
+  isAr,
+  storeId,
+  onChange,
+  label,
+}: {
+  access: WhatsAppAccessState;
+  isAr: boolean;
+  storeId: string;
+  onChange: (a: WhatsAppAccessState) => void;
+  label: string;
+}) {
+  const [opening, setOpening] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [intent, setIntent] = useState<InstapayIntent | null>(null);
+
+  const fetchBill = async () => {
+    const state = await payWhatsAppAccess(storeId);
+    onChange(state);
+    if (!state.payment_intent_id) throw new Error("No open bill");
+    return getInstapayIntent(state.payment_intent_id);
+  };
+
+  const openBill = async () => {
+    setOpening(true);
+    try {
+      setIntent(await fetchBill());
+      setOpen(true);
+    } catch {
+      toast.error(isAr ? "تعذّر فتح الفاتورة" : "Could not open the bill");
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  if (access.payment_status === "under_review") {
+    return (
+      <p className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-300">
+        <Hourglass className="h-4 w-4 shrink-0" />
+        {isAr
+          ? "استلمنا الإيصال وجارٍ التحقق منه — يتفعّل واتساب تلقائياً بعد الموافقة."
+          : "Receipt received and being verified — WhatsApp switches on automatically once approved."}
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <Button className="gap-1.5" onClick={openBill} disabled={opening}>
+        {opening ? (
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+        ) : (
+          <Receipt className="h-4 w-4" />
+        )}
+        {label}
+      </Button>
+      <SubscribeInstapayDialog
+        open={open}
+        onOpenChange={setOpen}
+        plan="whatsapp"
+        billingCycle={access.billing_cycle ?? "monthly"}
+        amountCents={access.amount_cents ?? null}
+        resumeIntent={intent}
+        createIntent={fetchBill}
+        activatedNote={
+          isAr
+            ? "واتساب مفعّل لمتجرك — الرسائل التلقائية بتخرج دلوقتي."
+            : "WhatsApp is on for your store — automatic messages are going out."
+        }
+        onDone={async () => {
+          try {
+            onChange(await getWhatsAppAccess(storeId));
+          } catch {
+            /* the next page load picks the new state up */
+          }
+        }}
+      />
+    </>
+  );
+}
+
+// A paid store's subscription: what it pays, until when, and how much of the
+// period's message allowance is gone — the numbers that decide whether its
+// messages keep going out.
+function WhatsAppPlanCard({
+  access,
+  isAr,
+  storeId,
+  onChange,
+}: {
+  access: WhatsAppAccessState;
+  isAr: boolean;
+  storeId: string;
+  onChange: (a: WhatsAppAccessState) => void;
+}) {
+  const nf = new Intl.NumberFormat(isAr ? "ar-EG" : "en-US");
+  const used = access.messages_used ?? 0;
+  const allowance = access.message_allowance ?? null;
+  const pct = allowance ? Math.min(100, Math.round((used / allowance) * 100)) : 0;
+  const blocked = access.can_send === false;
+  const t = ACCESS_TONE[blocked ? "rose" : pct >= 80 ? "amber" : "emerald"];
+  const bar = blocked || pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500";
+
+  const until = access.active_until
+    ? new Date(access.active_until).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : null;
+
+  const blockedText =
+    access.blocked_reason === "allowance_exhausted"
+      ? isAr
+        ? "استهلكت رسائل هذه الفترة، فالرسائل التلقائية متوقفة. جدّد الآن لتشغيلها."
+        : "This period's messages are used up, so automatic messages have stopped. Renew now to switch them back on."
+      : isAr
+      ? "انتهت فترة الاشتراك، فالرسائل التلقائية متوقفة. جدّد الآن لتشغيلها."
+      : "The subscription period has ended, so automatic messages have stopped. Renew now to switch them back on.";
+
+  return (
+    <Card className={t.card}>
+      <CardContent className="p-6 space-y-4">
+        <div className="flex items-start gap-4">
+          <div
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${t.icon}`}
+          >
+            <Receipt className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1">
+            <h3 className="font-semibold text-base">
+              {isAr ? "اشتراك واتساب" : "WhatsApp subscription"}
+            </h3>
+            {access.amount_cents != null && (
+              <p className="text-sm text-muted-foreground">{fmtWhatsAppPrice(access, isAr)}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {until
+                ? isAr
+                  ? `ساري حتى ${until}`
+                  : `Active until ${until}`
+                : isAr
+                ? "بدون تاريخ انتهاء"
+                : "No expiry"}
+            </p>
+          </div>
+        </div>
+
+        {allowance != null && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                {isAr ? "الرسائل هذه الفترة" : "Messages this period"}
+              </span>
+              <span className="font-medium tabular-nums">
+                {nf.format(used)} / {nf.format(allowance)}
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        )}
+
+        {blocked && (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-300">
+            {blockedText}
+          </div>
+        )}
+
+        {access.amount_cents != null && (
+          <WhatsAppPayButton
+            access={access}
+            isAr={isAr}
+            storeId={storeId}
+            onChange={onChange}
+            label={isAr ? "جدّد الاشتراك" : "Renew subscription"}
+          />
         )}
       </CardContent>
     </Card>

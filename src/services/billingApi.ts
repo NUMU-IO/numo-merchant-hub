@@ -44,7 +44,7 @@ export interface InstapayIntent {
   id: string;
   plan: string;
   billing_cycle: string;
-  purpose: "new_subscription" | "renewal";
+  purpose: "new_subscription" | "renewal" | "whatsapp_addon";
   amount_cents: number;
   currency: string;
   status: InstapayIntentStatus;
