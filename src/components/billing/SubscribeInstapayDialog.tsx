@@ -37,23 +37,35 @@ const translateError = (message: string, isAr: boolean): string => {
   return message;
 };
 
-const PLAN_AR: Record<string, string> = { starter: "ستارتر", pro: "برو" };
+const PLAN_AR: Record<string, string> = { starter: "ستارتر", pro: "برو", whatsapp: "واتساب" };
+const PLAN_EN: Record<string, string> = { whatsapp: "WhatsApp" };
+const CYCLE_LABEL: Record<string, [string, string]> = {
+  monthly: ["Monthly", "شهري"],
+  quarterly: ["Quarterly", "ربع سنوي"],
+  annual: ["Annual", "سنوي"],
+  yearly: ["Annual", "سنوي"],
+};
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Plan + cycle the merchant picked on the Billing page. */
   plan: string;
-  billingCycle: "monthly" | "annual";
+  billingCycle: string;
   amountCents: number | null;
   /** An already-open intent to resume instead of creating a new one. */
   resumeIntent?: InstapayIntent | null;
+  /** Opens the payment for something other than a plan (e.g. WhatsApp access). */
+  createIntent?: () => Promise<InstapayIntent>;
+  /** Replaces the "your store is ready" line once payment activates. */
+  activatedNote?: string;
   /** Called when the receipt landed (activated or queued for review). */
   onDone: (activated: boolean) => void;
 }
 
 const SubscribeInstapayDialog = ({
-  open, onOpenChange, plan, billingCycle, amountCents, resumeIntent, onDone,
+  open, onOpenChange, plan, billingCycle, amountCents, resumeIntent, createIntent,
+  activatedNote, onDone,
 }: Props) => {
   const { language } = useLanguage();
   const isAr = language === "ar";
@@ -82,17 +94,19 @@ const SubscribeInstapayDialog = ({
     setError(null);
   };
 
-  const planName = isAr ? (PLAN_AR[plan] ?? plan) : plan.charAt(0).toUpperCase() + plan.slice(1);
-  const cycleLabel = billingCycle === "annual"
-    ? (isAr ? "سنوي" : "Annual")
-    : (isAr ? "شهري" : "Monthly");
+  const planName = isAr
+    ? (PLAN_AR[plan] ?? plan)
+    : (PLAN_EN[plan] ?? plan.charAt(0).toUpperCase() + plan.slice(1));
+  const cycleLabel = (CYCLE_LABEL[billingCycle] ?? CYCLE_LABEL.monthly)[isAr ? 1 : 0];
   const egp = (cents: number) =>
     `${(cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US")} ${isAr ? "ج.م" : "EGP"}`;
 
   const startPayment = async () => {
     setCreating(true);
     try {
-      const created = await createInstapayIntent(plan, billingCycle);
+      const created = createIntent
+        ? await createIntent()
+        : await createInstapayIntent(plan, billingCycle);
       setIntent(created);
     } catch (e) {
       const raw = e instanceof Error && e.message
@@ -178,9 +192,9 @@ const SubscribeInstapayDialog = ({
                   {isAr ? "تم تفعيل اشتراكك!" : "Your subscription is active!"}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {isAr
+                  {activatedNote ?? (isAr
                     ? `أهلاً بيك في باقة ${planName} — متجرك جاهز.`
-                    : `Welcome to ${planName} — your store is ready.`}
+                    : `Welcome to ${planName} — your store is ready.`)}
                 </p>
               </>
             ) : (
