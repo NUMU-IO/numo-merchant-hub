@@ -249,121 +249,6 @@ function TwoFactorSetupDialog({
   );
 }
 
-// --- Webhook Types ---
-interface WebhookEntry {
-  id: string;
-  url: string;
-  events: string[];
-  active: boolean;
-  createdAt: string;
-}
-
-const WEBHOOK_EVENTS = [
-  { value: "order.created", label: "Order Created", labelAr: "طلب جديد" },
-  { value: "order.updated", label: "Order Updated", labelAr: "تحديث طلب" },
-  { value: "order.cancelled", label: "Order Cancelled", labelAr: "إلغاء طلب" },
-  { value: "payment.received", label: "Payment Received", labelAr: "دفعة مستلمة" },
-  { value: "payment.failed", label: "Payment Failed", labelAr: "فشل الدفع" },
-  { value: "product.created", label: "Product Created", labelAr: "منتج جديد" },
-  { value: "product.updated", label: "Product Updated", labelAr: "تحديث منتج" },
-  { value: "customer.created", label: "Customer Created", labelAr: "عميل جديد" },
-];
-
-// --- Add Webhook Dialog ---
-function AddWebhookDialog({
-  open, onOpenChange, onAdd, isAr,
-}: {
-  open: boolean; onOpenChange: (v: boolean) => void; onAdd: (w: WebhookEntry) => void; isAr: boolean;
-}) {
-  const [url, setUrl] = useState("");
-  const [events, setEvents] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
-
-  const toggleEvent = (ev: string) => {
-    setEvents(prev => prev.includes(ev) ? prev.filter(e => e !== ev) : [...prev, ev]);
-  };
-
-  const handleSave = async () => {
-    if (!url.startsWith("http")) {
-      toast.error(isAr ? "أدخل رابط صالح" : "Enter a valid URL");
-      return;
-    }
-    if (events.length === 0) {
-      toast.error(isAr ? "اختر حدث واحد على الأقل" : "Select at least one event");
-      return;
-    }
-    setSaving(true);
-    await new Promise(r => setTimeout(r, 800));
-    onAdd({
-      id: crypto.randomUUID(),
-      url,
-      events,
-      active: true,
-      createdAt: new Date().toISOString(),
-    });
-    toast.success(isAr ? "تمت إضافة Webhook" : "Webhook added");
-    setUrl("");
-    setEvents([]);
-    setSaving(false);
-    onOpenChange(false);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="text-base flex items-center gap-2">
-            <Webhook className="h-4 w-4 text-blue-600" />
-            {isAr ? "إضافة Webhook" : "Add Webhook"}
-          </DialogTitle>
-          <DialogDescription className="text-xs">
-            {isAr ? "إرسال أحداث لتطبيقات خارجية تلقائياً" : "Automatically send events to external applications"}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
-          <div className="grid gap-2">
-            <Label className="text-xs font-medium">Endpoint URL</Label>
-            <Input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com/webhook"
-              className="h-9 text-sm font-mono"
-              dir="ltr"
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label className="text-xs font-medium">{isAr ? "الأحداث" : "Events"}</Label>
-            <div className="grid gap-1.5 max-h-48 overflow-y-auto rounded-lg border p-3">
-              {WEBHOOK_EVENTS.map((ev) => (
-                <label key={ev.value} className="flex items-center gap-2.5 cursor-pointer rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors">
-                  <Checkbox
-                    checked={events.includes(ev.value)}
-                    onCheckedChange={() => toggleEvent(ev.value)}
-                  />
-                  <span className="text-[13px]">{isAr ? ev.labelAr : ev.label}</span>
-                  <code className="text-[10px] text-muted-foreground font-mono ml-auto">{ev.value}</code>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="rounded-lg">
-            {isAr ? "إلغاء" : "Cancel"}
-          </Button>
-          <Button onClick={handleSave} disabled={saving} size="sm" className="gap-1.5 rounded-lg">
-            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {isAr ? "إضافة" : "Add Webhook"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // --- Main Settings Preferences Page ---
 const VALID_SECTIONS = ["general", "billing", "api", "security", "display"] as const;
 type PrefSection = (typeof VALID_SECTIONS)[number];
@@ -421,17 +306,6 @@ export default function SettingsPreferences() {
   const [revokeNewPassword, setRevokeNewPassword] = useState("");
   const [revokingAll, setRevokingAll] = useState(false);
 
-  // Webhooks state
-  const [webhooks, setWebhooks] = useState<WebhookEntry[]>([
-    {
-      id: "wh-1",
-      url: "https://api.example.com/numu-events",
-      events: ["order.created", "payment.received"],
-      active: true,
-      createdAt: "2026-02-15T10:00:00Z",
-    },
-  ]);
-  const [showAddWebhook, setShowAddWebhook] = useState(false);
 
   // API key visibility
   const [showLiveKey, setShowLiveKey] = useState(false);
@@ -464,14 +338,6 @@ export default function SettingsPreferences() {
     }
   }, [disablePassword, isAr]);
 
-  const handleDeleteWebhook = useCallback((id: string) => {
-    setWebhooks(prev => prev.filter(w => w.id !== id));
-    toast.success(isAr ? "تم حذف Webhook" : "Webhook deleted");
-  }, [isAr]);
-
-  const handleToggleWebhook = useCallback((id: string) => {
-    setWebhooks(prev => prev.map(w => w.id === id ? { ...w, active: !w.active } : w));
-  }, []);
 
   const sections = [
     { id: "general", label: isAr ? "عام" : "General", icon: Settings2 },
@@ -616,126 +482,43 @@ export default function SettingsPreferences() {
           )}
 
           {/* API & WEBHOOKS */}
+          {/* The API section used to show invented keys and a webhook list
+              held in React state — a merchant could copy a key that never
+              existed and add an endpoint that received nothing. The real
+              thing lives on the Developers page. */}
           {activeSection === "api" && (
-            <>
-              {/* API Keys */}
-              <Card className="border-border/60">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10">
-                      <Key className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm">{isAr ? "مفاتيح API" : "API Keys"}</CardTitle>
-                      <CardDescription className="text-xs">{isAr ? "إدارة مفاتيح الوصول" : "Manage your access keys"}</CardDescription>
-                    </div>
+            <Card className="border-border/60">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10">
+                    <Key className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Live Key */}
-                  <div className="rounded-xl border p-4 bg-muted/20">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-[13px] font-medium">{isAr ? "مفتاح الإنتاج" : "Production Key"}</p>
-                      <Badge variant="outline" className="text-[10px]">{isAr ? "مباشر" : "Live"}</Badge>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={showLiveKey ? "numu_live_sk_a1b2c3d4e5f6g7h8" : "numu_live_••••••••••••••••"}
-                        disabled
-                        className="h-8 text-xs font-mono bg-muted/40"
-                      />
-                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setShowLiveKey(v => !v)}>
-                        {showLiveKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </Button>
-                      <Button variant="outline" size="sm" className="h-8 text-xs rounded-lg shrink-0 gap-1" onClick={() => toast.success(isAr ? "تم النسخ" : "Copied!")}>
-                        <Copy className="h-3 w-3" />{isAr ? "نسخ" : "Copy"}
-                      </Button>
-                    </div>
+                  <div>
+                    <CardTitle className="text-sm">
+                      {isAr ? "API و Webhooks" : "API & webhooks"}
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {isAr
+                        ? "مفاتيح API، الـ webhooks، وسجل الإرسال"
+                        : "API keys, webhook endpoints and delivery logs"}
+                    </CardDescription>
                   </div>
-                  {/* Test Key */}
-                  <div className="rounded-xl border p-4 bg-muted/20">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-[13px] font-medium">{isAr ? "مفتاح الاختبار" : "Test Key"}</p>
-                      <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-200">{isAr ? "اختبار" : "Test"}</Badge>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={showTestKey ? "numu_test_sk_z9y8x7w6v5u4t3s2" : "numu_test_••••••••••••••••"}
-                        disabled
-                        className="h-8 text-xs font-mono bg-muted/40"
-                      />
-                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setShowTestKey(v => !v)}>
-                        {showTestKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </Button>
-                      <Button variant="outline" size="sm" className="h-8 text-xs rounded-lg shrink-0 gap-1" onClick={() => toast.success(isAr ? "تم النسخ" : "Copied!")}>
-                        <Copy className="h-3 w-3" />{isAr ? "نسخ" : "Copy"}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Webhooks */}
-              <Card className="border-border/60">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10">
-                        <Webhook className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-sm">Webhooks</CardTitle>
-                        <CardDescription className="text-xs">{isAr ? "إرسال أحداث لتطبيقات خارجية" : "Send events to external apps"}</CardDescription>
-                      </div>
-                    </div>
-                    <Button variant="outline" size="sm" className="gap-1.5 rounded-lg text-xs" onClick={() => setShowAddWebhook(true)}>
-                      <Plus className="h-3 w-3" />{isAr ? "إضافة" : "Add"}
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {webhooks.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Webhook className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-                      <p className="text-[12px] text-muted-foreground">{isAr ? "لم يتم إعداد أي webhook بعد" : "No webhooks configured yet"}</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {webhooks.map((wh) => (
-                        <div key={wh.id} className="rounded-xl border p-4 bg-muted/20 space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <code className="text-xs font-mono text-foreground truncate max-w-[300px]">{wh.url}</code>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <Switch checked={wh.active} onCheckedChange={() => handleToggleWebhook(wh.id)} />
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteWebhook(wh.id)}>
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {wh.events.map(ev => (
-                              <Badge key={ev} variant="secondary" className="text-[10px] font-mono">
-                                {ev}
-                              </Badge>
-                            ))}
-                          </div>
-                          <p className="text-[10px] text-muted-foreground">
-                            {isAr ? "أُنشئ في" : "Created"} {new Date(wh.createdAt).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" })}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <AddWebhookDialog
-                open={showAddWebhook}
-                onOpenChange={setShowAddWebhook}
-                onAdd={(w) => setWebhooks(prev => [...prev, w])}
-                isAr={isAr}
-              />
-            </>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-[13px] text-muted-foreground">
+                  {isAr
+                    ? "اعمل مفتاح بصلاحيات محددة، سجّل endpoint للأحداث، وجرّبه — كله من صفحة المطوّرين."
+                    : "Create a scoped key, register an endpoint for events and test it — all on the Developers page."}
+                </p>
+                <Button asChild className="gap-1.5">
+                  <a href="/settings/developers">
+                    <Webhook className="h-3.5 w-3.5" />
+                    {isAr ? "افتح صفحة المطوّرين" : "Open Developers"}
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
           )}
 
           {/* SECURITY */}
