@@ -470,15 +470,26 @@ export const SETTINGS_SECTIONS: SettingSection[] = [
     tone: "saffron",
     items: [
       {
-        title: { en: "Webhooks", ar: "Webhooks" },
+        title: { en: "API & webhooks", ar: "الـ API والـ Webhooks" },
         description: {
-          en: "Receive realtime events at your endpoint",
-          ar: "استقبل الأحداث فور حدوثها على الرابط الخاص بك",
+          en: "API keys, webhook endpoints and their delivery logs",
+          ar: "مفاتيح API، وendpoints الأحداث، وسجل الإرسال",
         },
         icon: Webhook,
-        to: "/settings/preferences?section=api",
-        navKey: "settings.webhooks",
-        aliases: ["api", "api key", "integration", "events", "تكامل", "مفتاح"],
+        to: "/settings/developers",
+        navKey: "settings.developers",
+        aliases: [
+          "api",
+          "api key",
+          "token",
+          "webhook",
+          "integration",
+          "events",
+          "developer",
+          "تكامل",
+          "مفتاح",
+          "مطور",
+        ],
         flag: "advanced",
       },
       {
