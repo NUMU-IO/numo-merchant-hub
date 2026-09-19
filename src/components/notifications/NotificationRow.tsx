@@ -14,6 +14,7 @@ const ICONS: Record<NotificationIcon, typeof ShoppingCart> = {
   cart: ShoppingBag,
   payment: CreditCard,
   shipment: Truck,
+  request: ClipboardList,
   alert: AlertTriangle,
 };
 
