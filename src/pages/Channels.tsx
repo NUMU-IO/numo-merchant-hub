@@ -195,7 +195,7 @@ export const Channels = () => {
         ) : (
           <ul className="divide-y rounded-xl border bg-card">
             {metaConnections.map((conn) => {
-              const { Icon, tint, ring } = channelMeta[conn.channel];
+              const { Icon, tint, ring } = channelMeta[conn.channel] ?? channelMeta.facebook;
               return (
                 <li
                   key={conn.id}

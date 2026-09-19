@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/accordion";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Globe,
   Lock,
@@ -86,6 +87,7 @@ import {
   Clock,
   Search,
   Image as ImageIcon,
+  AlertTriangle,
 } from "lucide-react";
 import { ThemePreview } from "@/components/ThemePreview";
 import { ImageCropDialog, fileFromCropBlob } from "@/components/ImageCropDialog";
@@ -685,6 +687,11 @@ const StoreSettings = () => {
     null,
   );
   const [freeThreshold, setFreeThreshold] = useState(500);
+  const [shippingLoadFailed, setShippingLoadFailed] = useState(false);
+  const [shippingReloadKey, setShippingReloadKey] = useState(0);
+  // Every save below rewrites the whole customization, so saving after a
+  // failed load would overwrite the merchant's theme with defaults.
+  const [customizationLoadFailed, setCustomizationLoadFailed] = useState(false);
   const [newZone, setNewZone] = useState({
     zone: "",
     governorates: "",
@@ -874,7 +881,7 @@ const StoreSettings = () => {
   useEffect(() => {
     fetchThemes()
       .then(setAvailableThemes)
-      .catch(() => {});
+      .catch((err) => showError(err, language));
   }, []);
 
   // Fetch theme schemas when theme changes
@@ -961,25 +968,29 @@ const StoreSettings = () => {
           setTemplateConfig(extData.templates.home);
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        setCustomizationLoadFailed(true);
+        showError(err, language);
+      });
   }, [currentStore?.id]);
 
   // Fetch shipping settings
   useEffect(() => {
     if (!currentStore?.id) return;
+    setShippingLoadFailed(false);
     fetchShippingSettings(currentStore.id)
       .then((data) => {
         setShippingData(data);
-        setFreeThreshold(data.free_shipping_threshold || 500);
+        setFreeThreshold(data.free_shipping_threshold ?? 500);
       })
-      .catch(() => {});
+      .catch(() => setShippingLoadFailed(true));
     // Fetch Bosta credentials
     import("@/services/shipmentApi").then(({ fetchBostaCredentials }) => {
       fetchBostaCredentials(currentStore.id)
         .then((data) => setBostaCreds(data))
-        .catch(() => {});
+        .catch(() => setShippingLoadFailed(true));
     });
-  }, [currentStore?.id]);
+  }, [currentStore?.id, shippingReloadKey]);
 
   // Fetch payment gateway credentials
   useEffect(() => {
@@ -1148,6 +1159,7 @@ const StoreSettings = () => {
   // ─── Handlers ───────────────────────────────────────────────────────────
 
   const buildFullPayload = useCallback(() => {
+    if (customizationLoadFailed) throw new Error(t("common.loadFailed"));
     const footerClean = extractNonEmpty(footerState);
     const { facebook, instagram, twitter, whatsapp, ...footerRest } =
       footerClean;
@@ -1267,6 +1279,8 @@ const StoreSettings = () => {
     templateConfig,
     footerSections,
     shippingConfig,
+    customizationLoadFailed,
+    t,
   ]);
 
   // Save handler for the Pages & Hours panel — flushes:
@@ -2809,7 +2823,18 @@ const StoreSettings = () => {
               </p>
             </div>
 
-            {!shippingData ? (
+            {shippingLoadFailed ? (
+              <EmptyState
+                icon={AlertTriangle}
+                tone="terra"
+                title={t("common.loadFailed")}
+                action={
+                  <Button variant="outline" onClick={() => setShippingReloadKey((k) => k + 1)}>
+                    {t("common.retry")}
+                  </Button>
+                }
+              />
+            ) : !shippingData ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>

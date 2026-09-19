@@ -88,6 +88,12 @@ export const NewWhatsAppTemplate = () => {
       return;
     }
 
+    // Created but the submit failed: retry the submit, don't create a duplicate.
+    if (createMutation.data) {
+      submitMutation.mutate(createMutation.data.id);
+      return;
+    }
+
     createMutation.mutate({
       name,
       language,

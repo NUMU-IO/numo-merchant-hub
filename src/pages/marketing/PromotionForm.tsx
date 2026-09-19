@@ -446,8 +446,8 @@ export default function PromotionForm() {
   }, [isEdit, promotionQuery.data]);
 
   // Mutations
-  const createMutation = useCreatePromotion(storeId);
-  const updateMutation = useUpdatePromotion(storeId, editingId);
+  const createMutation = useCreatePromotion(storeId, { meta: { skipErrorToast: true } });
+  const updateMutation = useUpdatePromotion(storeId, editingId, { meta: { skipErrorToast: true } });
 
   /**
    * The form's ONE money boundary: every input below holds major units

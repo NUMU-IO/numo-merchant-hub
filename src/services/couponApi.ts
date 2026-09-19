@@ -61,26 +61,6 @@ export interface CreateCouponData {
   applicable_category_ids?: string[] | null;
 }
 
-export interface UpdateCouponData {
-  code?: string;
-  coupon_type?:
-    | "percentage"
-    | "fixed"
-    | "free_shipping"
-    | "buy_x_get_y"
-    | "tiered";
-  config?: Record<string, unknown> | null;
-  value?: number;
-  min_order_amount?: number | null;
-  max_discount_amount?: number | null;
-  usage_limit?: number | null;
-  valid_from?: string | null;
-  valid_until?: string | null;
-  is_active?: boolean;
-  applicable_product_ids?: string[] | null;
-  applicable_category_ids?: string[] | null;
-}
-
 export interface ListCouponsParams {
   page?: number;
   limit?: number;
@@ -115,25 +95,5 @@ export async function createCoupon(
   return apiClient<Coupon>(`/stores/${storeId}/coupons/`, {
     method: "POST",
     body: JSON.stringify(data),
-  });
-}
-
-export async function updateCoupon(
-  storeId: string,
-  couponId: string,
-  data: UpdateCouponData
-): Promise<Coupon> {
-  return apiClient<Coupon>(`/stores/${storeId}/coupons/${couponId}`, {
-    method: "PATCH",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function deleteCoupon(
-  storeId: string,
-  couponId: string
-): Promise<void> {
-  return apiClient<void>(`/stores/${storeId}/coupons/${couponId}`, {
-    method: "DELETE",
   });
 }

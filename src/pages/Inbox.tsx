@@ -27,8 +27,6 @@ import {
   MessageCircle,
   Search,
   Send,
-  Image,
-  FileText,
   Paperclip,
   Link2 as LinkIcon,
   Check,
@@ -387,6 +385,8 @@ export const Inbox = () => {
 
   const markReadMutation = useMutation({
     mutationFn: () => markThreadRead(storeId!, threadId!),
+    // Fired on thread open, not by a click: a failure is not worth a toast.
+    meta: { skipErrorToast: true },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inbox", "threads", storeId] });
     },
@@ -551,14 +551,6 @@ export const Inbox = () => {
   const handleTemplateSelect = (template: WhatsAppTemplate) => {
     sendMutation.mutate({ type: "template", template_id: template.id });
     setShowTemplatePicker(false);
-  };
-
-  const handleAttachImage = () => {
-    toast.info(t("omnichannel.attachments_soon"));
-  };
-
-  const handleAttachDocument = () => {
-    toast.info(t("omnichannel.attachments_soon"));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -804,22 +796,6 @@ export const Inbox = () => {
             {/* Compose */}
             <div className="p-4 border-t">
               <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleAttachImage}
-                  disabled={isWAWindowClosed || sendMutation.isPending}
-                >
-                  <Image className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleAttachDocument}
-                  disabled={isWAWindowClosed || sendMutation.isPending}
-                >
-                  <FileText className="h-5 w-5" />
-                </Button>
                 {(isWAWindowClosed || currentThread?.channel === "whatsapp") && (
                   <Button
                     variant="ghost"

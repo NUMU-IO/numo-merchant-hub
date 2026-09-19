@@ -3,7 +3,6 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { type ProductStatus, type ProductVariant } from "@/data/mock-products";
 import { listCategories, type Category } from "@/services/categoryApi";
 import {
   getProduct,
@@ -15,6 +14,8 @@ import {
   apiToProduct,
   productToApiCreate,
   productToApiUpdate,
+  type ProductStatus,
+  type ProductVariant,
 } from "@/services/productApi";
 import { prepareImageForUpload } from "@/lib/image-validation";
 import { SortableImageGrid } from "@/components/products/SortableImageGrid";

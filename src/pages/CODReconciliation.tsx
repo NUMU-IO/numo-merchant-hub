@@ -36,6 +36,7 @@ const CODReconciliation = () => {
 
   const [runs, setRuns] = useState<ReconciliationRun[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [triggering, setTriggering] = useState(false);
   const [statusFilter, setStatusFilter] = useState<RunStatus>("all");
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
@@ -50,7 +51,8 @@ const CODReconciliation = () => {
   const fetchRuns = () => {
     if (!storeId) return;
     setLoading(true);
-    listReconciliationRuns(storeId).then(setRuns).catch(() => {}).finally(() => setLoading(false));
+    setLoadFailed(false);
+    listReconciliationRuns(storeId).then(setRuns).catch(() => setLoadFailed(true)).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchRuns(); }, [storeId]);
@@ -318,7 +320,15 @@ const CODReconciliation = () => {
           </div>
         </div>
         <CardContent>
-          {filtered.length === 0 ? (
+          {loadFailed ? (
+            <EmptyState
+              icon={AlertTriangle}
+              tone="terra"
+              title={t("common.loadFailed")}
+              action={<Button variant="outline" onClick={fetchRuns}>{t("common.retry")}</Button>}
+              className="py-12"
+            />
+          ) : filtered.length === 0 ? (
             <EmptyState
               icon={FileSearch}
               title={runs.length === 0 ? t("cod.noRunsTitle") : t("cod.noMatchTitle")}

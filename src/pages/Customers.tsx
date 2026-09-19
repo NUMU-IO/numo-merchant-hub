@@ -711,7 +711,7 @@ function TrustStatsCard({ storeId, customerId, isAr }: TrustStatsCardProps) {
     },
   };
 
-  const config = recommendationConfig[data.recommendation];
+  const config = recommendationConfig[data.recommendation] ?? recommendationConfig.caution;
   const RecommendationIcon = config.icon;
 
   // Buckets derived from risk_score — gives the merchant a quick "where does

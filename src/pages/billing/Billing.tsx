@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -111,6 +112,7 @@ const ENTERPRISE_MAILTO =
 
 const Billing = () => {
   const { tenant, isTrialMode, isReadOnly, refreshUser } = useAuth();
+  const { t } = useTranslation();
   const { language } = useLanguage();
   const isAr = language === "ar";
 
@@ -127,6 +129,7 @@ const Billing = () => {
   const [reminderEmails, setReminderEmails] = useState(true);
   const [reminderLoaded, setReminderLoaded] = useState(false);
   const [savingReminder, setSavingReminder] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const planKey = tenant?.plan || "trial";
   const isPayg = planKey === "payg";
@@ -139,9 +142,12 @@ const Billing = () => {
   const canSubscribe = !PAID_SELF_SERVE.includes(planKey) && planKey !== "enterprise";
 
   const refresh = useCallback(() => {
-    apiClient<Invoice[]>("/billing/invoices").then(setInvoices).catch(() => {});
-    getBillingPlans().then(setPlansData).catch(() => {});
-    listInstapayIntents().then(setIntents).catch(() => {});
+    setLoadFailed(false);
+    const fail = () => setLoadFailed(true);
+    apiClient<Invoice[]>("/billing/invoices").then(setInvoices).catch(fail);
+    getBillingPlans().then(setPlansData).catch(fail);
+    listInstapayIntents().then(setIntents).catch(fail);
+    if (isPayg) apiClient<WalletSummary>("/wallet").then(setWallet).catch(fail);
     // The current plan is read from the auth context, which is only populated
     // at app mount and on tab focus — everything else on this page is fetched
     // fresh. Without this the two disagree, and an InstaPay activation makes
@@ -150,7 +156,7 @@ const Billing = () => {
     // Pro sitting directly above a "Current plan: Beta" hero. The tenant row
     // was already correct; only this screen was stale.
     refreshUser().catch(() => {});
-  }, [refreshUser]);
+  }, [refreshUser, isPayg]);
 
   useEffect(() => {
     refresh();
@@ -165,11 +171,6 @@ const Billing = () => {
       setReminderLoaded(true);
     }
   }, [plansData, reminderLoaded]);
-
-  useEffect(() => {
-    if (!isPayg) return;
-    apiClient<WalletSummary>("/wallet").then(setWallet).catch(() => {});
-  }, [isPayg]);
 
   const plan = PLAN_DISPLAY[planKey] || PLAN_DISPLAY.trial;
   const fmt = (cents: number) =>
@@ -305,6 +306,15 @@ const Billing = () => {
           {isAr ? "إدارة اشتراكك وطرق الدفع" : "Manage your subscription and payment methods"}
         </p>
       </div>
+
+      {loadFailed && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {t("common.loadFailed")}
+          <Button size="sm" variant="outline" onClick={refresh}>
+            {t("common.retry")}
+          </Button>
+        </div>
+      )}
 
       {/* ── Pending InstaPay payment strip ────────────────────────────── */}
       {openIntent && (
@@ -815,7 +825,9 @@ const Billing = () => {
             )}
           </CardHeader>
           <CardContent>
-            {invoices.length === 0 ? (
+            {invoices.length === 0 && loadFailed ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">{t("common.loadFailed")}</p>
+            ) : invoices.length === 0 ? (
               <div className="py-8 text-center">
                 <Receipt className="h-10 w-10 mx-auto text-muted-foreground/25 mb-2" />
                 <p className="text-sm font-medium">{isAr ? "مفيش فواتير لسه" : "No invoices yet"}</p>

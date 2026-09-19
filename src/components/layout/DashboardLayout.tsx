@@ -8,7 +8,7 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { AlertTriangle, Clock, Timer, Zap } from "lucide-react";
 import { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
 import MobileBottomNav from "./MobileBottomNav";
@@ -30,6 +30,7 @@ import { NewOrderNotifier } from "@/components/NewOrderNotifier";
 import { AgentPanel } from "@/features/agent";
 import { useNavConfig } from "@/hooks/useNavConfig";
 import { PageLoader } from "@/components/PageLoader";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const DashboardLayout = () => {
   const { currentStore } = useDashboardStore();
@@ -44,6 +45,14 @@ const DashboardLayout = () => {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  // A crashed page must reset when the merchant navigates away, but /inbox and
+  // /inbox/:threadId (likewise /customers/:customerId) are one mounted page, so
+  // the boundary key drops route params instead of using the raw pathname.
+  const params = useParams();
+  const pageKey = Object.values(params).reduce<string>(
+    (path, value) => (value ? path.replace(`/${value}`, "") : path),
+    pathname,
+  );
   // The assistant is a room, not a document: it gets its own warm ground for
   // the full scroll area, and none of the page furniture below.
   const onAssistant = pathname === "/assistant";
@@ -137,7 +146,9 @@ const DashboardLayout = () => {
                   loaders back to back (ring → ring → grey circle + English
                   "Loading..."). */}
               <Suspense fallback={<PageLoader />}>
-                <Outlet />
+                <ErrorBoundary key={pageKey}>
+                  <Outlet />
+                </ErrorBoundary>
               </Suspense>
 
               {/* Mounted at layout level, not per page: the merchant should

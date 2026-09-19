@@ -66,14 +66,14 @@ export const SETTINGS_SECTIONS: SettingSection[] = [
         aliases: ["name", "logo", "address", "phone", "بيانات المتجر", "اسم المتجر", "اللوجو"],
       },
       {
-        title: { en: "Language & region", ar: "اللغة والمنطقة" },
+        title: { en: "Market & currency", ar: "السوق والعملة" },
         description: {
-          en: "Default language, timezone and currency",
-          ar: "اللغة والمنطقة الزمنية والعملة",
+          en: "Your store's market and default currency",
+          ar: "سوق متجرك وعملته الأساسية",
         },
         icon: Globe,
-        to: "/settings/preferences?section=general",
-        aliases: ["arabic", "english", "timezone", "currency", "عربي", "انجليزي", "التوقيت", "العملة"],
+        to: "/store?section=status",
+        aliases: ["market", "country", "currency", "السوق", "الدولة", "العملة"],
       },
       {
         title: { en: "Custom fields", ar: "الحقول المخصصة" },
@@ -107,23 +107,23 @@ export const SETTINGS_SECTIONS: SettingSection[] = [
       {
         title: { en: "Security", ar: "الأمان" },
         description: {
-          en: "Password, 2-step verification and active sessions",
-          ar: "كلمة المرور والمصادقة الثنائية والجلسات النشطة",
+          en: "Password and 2-step verification",
+          ar: "كلمة المرور والمصادقة الثنائية",
         },
         icon: Shield,
         to: "/settings/preferences?section=security",
-        aliases: ["password", "2fa", "otp", "sessions", "login", "كلمة السر", "الباسورد", "تسجيل الدخول"],
+        aliases: ["password", "2fa", "otp", "login", "كلمة السر", "الباسورد", "تسجيل الدخول"],
         flag: "danger",
       },
       {
         title: { en: "Display", ar: "العرض" },
         description: {
-          en: "Dark mode, font size and motion preferences",
-          ar: "الوضع الداكن وحجم الخط وتفضيلات الحركة",
+          en: "Dark mode",
+          ar: "الوضع الداكن",
         },
         icon: Monitor,
         to: "/settings/preferences?section=display",
-        aliases: ["theme", "dark mode", "font", "ثيم", "الوضع الليلي", "الخط"],
+        aliases: ["theme", "dark mode", "ثيم", "الوضع الليلي"],
       },
       {
         title: { en: "Profile", ar: "الحساب الشخصي" },

@@ -77,7 +77,7 @@ export function SendPaymentLinkPicker({
       {checked && (
         <div className="mt-2.5 flex flex-wrap gap-2 ps-7">
           {sendable.map((p) => {
-            const meta = CHANNEL_META[p.channel];
+            const meta = CHANNEL_META[p.channel] ?? CHANNEL_META.whatsapp;
             const active = threadId === p.id;
             return (
               <button
@@ -159,7 +159,7 @@ export function SendPaymentLinkButton({
           </p>
           <div className="space-y-1.5">
             {sendable.map((p) => {
-              const meta = CHANNEL_META[p.channel];
+              const meta = CHANNEL_META[p.channel] ?? CHANNEL_META.whatsapp;
               const active = threadId === p.id;
               return (
                 <button

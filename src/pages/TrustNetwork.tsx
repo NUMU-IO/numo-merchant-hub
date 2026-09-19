@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ShieldCheck,
   Loader2,
@@ -43,6 +44,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import CodTrustDecisions from "@/components/payments/CodTrustDecisions";
 
 const PERIODS = [7, 30, 90] as const;
@@ -155,6 +158,7 @@ const TIER: Record<
 };
 
 export default function TrustNetwork() {
+  const { t } = useTranslation();
   const { language } = useLanguage();
   const isAr = language === "ar";
   const { currentStore } = useDashboardStore();
@@ -172,6 +176,9 @@ export default function TrustNetwork() {
   const [stats, setStats] = useState<TrustStats | null>(null);
   const [periodDays, setPeriodDays] = useState<(typeof PERIODS)[number]>(30);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [statsFailed, setStatsFailed] = useState(false);
 
   // Phone lookup tool state.
   const [lookupPhone, setLookupPhone] = useState("");
@@ -182,17 +189,24 @@ export default function TrustNetwork() {
   useEffect(() => {
     if (!storeId) return;
     setLoading(true);
+    setLoadFailed(false);
     fetchCodTrustSettings(storeId)
       .then((ct) => {
         if (ct) setCodTrust(ct);
       })
-      .catch(() => null)
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
-  }, [storeId]);
+  }, [storeId, reloadKey]);
 
   useEffect(() => {
     if (!storeId) return;
-    fetchTrustStats(storeId, periodDays).then(setStats).catch(() => null);
+    setStatsFailed(false);
+    fetchTrustStats(storeId, periodDays)
+      .then(setStats)
+      .catch(() => {
+        setStats(null);
+        setStatsFailed(true);
+      });
   }, [storeId, periodDays]);
 
   const handleUpdate = async (patch: Partial<CodTrustSettings>) => {
@@ -275,6 +289,13 @@ export default function TrustNetwork() {
         <div className="flex justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
+      ) : loadFailed ? (
+        <EmptyState
+          icon={AlertTriangle}
+          tone="terra"
+          title={t("common.loadFailed")}
+          action={<Button variant="outline" onClick={() => setReloadKey((k) => k + 1)}>{t("common.retry")}</Button>}
+        />
       ) : (
         <>
           {/* How it works — gradient hero with three steps */}
@@ -350,6 +371,9 @@ export default function TrustNetwork() {
           {codTrust.enabled && (
             <>
               {/* Impact row + period selector */}
+              {statsFailed && (
+                <p className="text-xs text-muted-foreground">{t("common.loadFailed")}</p>
+              )}
               {c && p && (
                 <div>
                   <div className="flex items-center justify-between mb-3">
