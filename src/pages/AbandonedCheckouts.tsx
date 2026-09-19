@@ -45,6 +45,8 @@ import {
   getAbandonedCheckoutSummary,
   listAbandonedCheckouts,
   markAbandonedCheckoutRecovered,
+  convertAbandonedCheckout,
+  canConvertCheckout,
   notifyAbandonedCheckoutWhatsApp,
   sendRecoveryEmail,
   type AbandonedCheckout,
@@ -176,6 +178,24 @@ const AbandonedCheckouts = () => {
     onError: (err) => showError(err, language),
   });
 
+  const createOrder = useMutation({
+    mutationFn: (checkoutId: string) => convertAbandonedCheckout(storeId!, checkoutId),
+    onSuccess: (c) => {
+      toast.success(isAr ? "الطلب اتعمل ونزل في الطلبات" : "Order created from this cart");
+      invalidate();
+      setDetailOpen(false);
+      if (c.recovered_order_id) navigate(`/orders/${c.recovered_order_id}`);
+    },
+    onError: (err) => showError(err, language),
+  });
+
+  const createOrderButton = (c: AbandonedCheckout, size: "sm" | "row" = "row") => (
+    <Button size="sm" className={cn("rounded-lg text-[12px] gap-1.5", size === "row" ? "h-8" : "h-10")} disabled={createOrder.isPending && createOrder.variables === c.id} onClick={() => createOrder.mutate(c.id)}>
+      {createOrder.isPending && createOrder.variables === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+      {isAr ? "اعمل الطلب" : "Create order"}
+    </Button>
+  );
+
   const notifyReason = (reason: string | null): string => {
     switch (reason) {
       case "no_phone":
@@ -284,7 +304,7 @@ const AbandonedCheckouts = () => {
         <Button size="sm" variant="outline" className="h-8 rounded-lg text-[12px]" onClick={() => navigate(`/orders/${c.recovered_order_id}`)}>
           {t("abandonedCheckouts.viewOrder")}
         </Button>
-      ) : null;
+      ) : canConvertCheckout(c) ? createOrderButton(c, size) : null;
     }
     const pending = (notifyWhatsApp.isPending && notifyWhatsApp.variables === c.id) || (sendEmail.isPending && sendEmail.variables === c.id);
     if (c.phone) {
@@ -526,7 +546,8 @@ const AbandonedCheckouts = () => {
                       <TableCell className="text-end" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           {reminderAction(c)}
-                          {!c.recovered_at && (
+                          {!c.recovered_at && canConvertCheckout(c) && createOrderButton(c)}
+                          {!c.recovered_at && !canConvertCheckout(c) && (
                             <Button size="sm" variant="ghost" className="h-8 rounded-lg text-[12px] gap-1" disabled={markRecovered.isPending && markRecovered.variables === c.id} onClick={() => markRecovered.mutate(c.id)}>
                               <Check className="h-3 w-3" />
                               {t("abandonedCheckouts.markRecovered")}
@@ -566,6 +587,8 @@ const AbandonedCheckouts = () => {
         onWhatsApp={(id) => notifyWhatsApp.mutate(id)}
         onSendEmail={(id) => sendEmail.mutate(id)}
         onMarkRecovered={(id) => markRecovered.mutate(id)}
+        onCreateOrder={(id) => createOrder.mutate(id)}
+        createOrderPending={createOrder.isPending}
         whatsAppPending={notifyWhatsApp.isPending}
         emailPending={sendEmail.isPending}
         recoverPending={markRecovered.isPending}

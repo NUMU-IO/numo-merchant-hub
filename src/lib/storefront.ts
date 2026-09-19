@@ -108,6 +108,19 @@ export function getPublicStoreUrl(
   return store?.subdomain ? getStoreUrl(store.subdomain) : null;
 }
 
+/**
+ * URL to put in an `<iframe src>`. Always the canonical subdomain, never the
+ * custom domain: the hub's CSP `frame-src` (vite.config.ts) only allows
+ * `*.numueg.app`, so framing a merchant's own domain is blocked and renders
+ * Chrome's sad-face placeholder. Links and display text use
+ * {@link getPublicStoreUrl}; frames use this.
+ */
+export function getStoreFrameUrl(
+  store: StoreUrlSource | null | undefined,
+): string | null {
+  return store?.subdomain ? getStoreUrl(store.subdomain) : null;
+}
+
 /** Same as {@link getPublicStoreUrl} but bare host — for display/chrome bars. */
 export function getPublicStoreHost(
   store: StoreUrlSource | null | undefined,
