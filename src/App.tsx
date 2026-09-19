@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ThemeProvider } from "next-themes";
@@ -18,6 +18,8 @@ import { FirstLoginGate } from "@/components/NumuLoader/FirstLoginGate";
 import { PageLoader } from "@/components/PageLoader";
 import { Suspense } from "react";
 import { lazyWithRetry, lazyWithRetry as lazy } from "@/lib/lazy-with-retry";
+import { showError } from "@/lib/show-error";
+import i18n from "@/i18n";
 
 // Lazy-loaded pages for code splitting
 const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
@@ -151,6 +153,15 @@ const AgentNotes = lazyWithRetry(() => import("@/features/agent-knowledge"));
 const Assistant = lazyWithRetry(() => import("@/pages/Assistant"));
 
 const queryClient = new QueryClient({
+  // Mutations that handle their own errors (an onError option, or a
+  // mutateAsync caller that toasts in its catch and sets meta.skipErrorToast)
+  // opt out; everything else would otherwise fail silently.
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      if (mutation.options.onError || mutation.meta?.skipErrorToast) return;
+      showError(error, i18n.language);
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,

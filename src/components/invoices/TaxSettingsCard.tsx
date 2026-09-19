@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,8 +35,11 @@ function isValidSaudiTrn(v: string): boolean {
 }
 
 export default function TaxSettingsCard({ storeId, isAr, country }: Props) {
+  const { t } = useTranslation();
   const isSaudi = (country || "EG").toUpperCase() === "SA";
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [taxId, setTaxId] = useState("");
   const [nameAr, setNameAr] = useState("");
@@ -43,20 +47,23 @@ export default function TaxSettingsCard({ storeId, isAr, country }: Props) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadFailed(false);
     getInvoiceSettings(storeId)
       .then((s) => {
         if (cancelled) return;
         setTaxId(s.tax_id || "");
         setNameAr(s.name_ar || "");
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setLoadFailed(true);
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [storeId]);
+  }, [storeId, reloadKey]);
 
   const trnInvalid = isSaudi && taxId.trim().length > 0 && !isValidSaudiTrn(taxId);
 
@@ -90,6 +97,13 @@ export default function TaxSettingsCard({ storeId, isAr, country }: Props) {
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> {isAr ? "تحميل…" : "Loading…"}
+          </div>
+        ) : loadFailed ? (
+          <div className="flex flex-wrap items-center gap-3 text-sm text-destructive">
+            {t("common.loadFailed")}
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setReloadKey((k) => k + 1)}>
+              {t("common.retry")}
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">

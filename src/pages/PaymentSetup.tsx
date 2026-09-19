@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useTrialPaywall } from "@/contexts/TrialPaywallContext";
 import { apiClient } from "@/services/api";
 import { showError } from "@/lib/show-error";
+import { ApiError } from "@/lib/api-error";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import {
   fetchPaymobCredentials, savePaymobCredentials, deletePaymobCredentials,
@@ -22,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   CreditCard, Eye, EyeOff, Loader2, Check, Banknote,
   Trash2, ArrowLeft, Zap, CircleDollarSign, Link2,
-  CheckCircle2, ArrowUpRight, ShieldCheck,
+  CheckCircle2, ArrowUpRight, ShieldCheck, AlertTriangle,
 } from "lucide-react";
 import InstapaySetupCard from "@/components/payments/InstapaySetupCard";
 import WalletSetupCard from "@/components/payments/WalletSetupCard";
@@ -223,6 +226,7 @@ const RAIL_TILES: {
 type PageView = "hub" | GatewayKey | ManualRailKey;
 
 const PaymentSetup = () => {
+  const { t } = useTranslation();
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const { requireTrial } = useTrialPaywall();
@@ -254,23 +258,32 @@ const PaymentSetup = () => {
     orange_cash: { configured: false, enabled: false },
   });
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!storeId) return;
     setLoading(true);
+    setLoadFailed(false);
+    // A 404 means the gateway has no credentials endpoint (Fawry today), so
+    // it reads as not configured; any other failure must not.
+    const notConfigured = (e: unknown) => {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    };
     // Hydrate codEnabled from the server — payment.cod.enabled is the
     // source of truth that drives whether COD shows at checkout. Without
     // this, the toggle defaults to `true` on every page load and
     // silently disagrees with what the storefront actually sees.
     Promise.all([
-      fetchPaymobCredentials(storeId).catch(() => null),
-      fetchKashierCredentials(storeId).catch(() => null),
-      fetchFawryCredentials(storeId).catch(() => null),
-      fetchFawaterakCredentials(storeId).catch(() => null),
-      fetchMoyasarCredentials(storeId).catch(() => null),
+      fetchPaymobCredentials(storeId).catch(notConfigured),
+      fetchKashierCredentials(storeId).catch(notConfigured),
+      fetchFawryCredentials(storeId).catch(notConfigured),
+      fetchFawaterakCredentials(storeId).catch(notConfigured),
+      fetchMoyasarCredentials(storeId).catch(notConfigured),
       apiClient<{ payment: Record<string, { enabled?: boolean; is_configured?: boolean }> }>(
         `/stores/${storeId}/settings`,
-      ).catch(() => null),
+      ),
     ])
       .then(([p, k, f, fw, m, settings]) => {
         setPaymobCreds(p); setKashierCreds(k); setFawryCreds(f); setFawaterakCreds(fw); setMoyasarCreds(m);
@@ -306,8 +319,10 @@ const PaymentSetup = () => {
           m?.is_configured ? { key: "moyasar" as const, time: m.last_configured ? new Date(m.last_configured).getTime() : 0 } : null,
         ].filter(Boolean) as { key: GatewayKey; time: number }[];
         if (configured.length > 0) setEnabledGateway(configured.sort((a, b) => b.time - a.time)[0].key);
-      }).finally(() => setLoading(false));
-  }, [storeId]);
+      })
+      .catch(() => setLoadFailed(true))
+      .finally(() => setLoading(false));
+  }, [storeId, reloadKey]);
 
   // Persist COD toggle on change. Optimistic — rolls back on failure.
   // The storefront's GET /payment-methods gates COD on this same flag,
@@ -339,6 +354,16 @@ const PaymentSetup = () => {
   };
 
   if (loading) return <div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (loadFailed) {
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        tone="terra"
+        title={t("common.loadFailed")}
+        action={<Button variant="outline" onClick={() => setReloadKey((k) => k + 1)}>{t("common.retry")}</Button>}
+      />
+    );
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      GATEWAY DETAIL VIEW (Bosta-style)

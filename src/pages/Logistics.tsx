@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,7 +72,7 @@ import {
   Package, Truck, Eye, EyeOff, Loader2, Plus, Trash2,
   Check, ExternalLink, Printer, ChevronLeft, ChevronRight, Upload,
   PackageCheck, CircleDollarSign, Search, MapPin, ArrowUpRight,
-  Zap, ArrowLeft, XCircle,
+  Zap, ArrowLeft, XCircle, AlertTriangle,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -267,12 +268,15 @@ const Logistics = () => {
   const [bostaCreds, setBostaCreds] = useState<BostaCredentials | null>(null);
   const [shippingData, setShippingData] = useState<ShippingSettings | null>(null);
   const [courierInterest, setCourierInterest] = useState<string[]>(() => readCourierInterest());
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!storeId) return;
-    fetchBostaCredentials(storeId).then(setBostaCreds).catch(() => {});
-    fetchShippingSettings(storeId).then(setShippingData).catch(() => {});
-  }, [storeId]);
+    setLoadFailed(false);
+    fetchBostaCredentials(storeId).then(setBostaCreds).catch(() => setLoadFailed(true));
+    fetchShippingSettings(storeId).then(setShippingData).catch(() => setLoadFailed(true));
+  }, [storeId, reloadKey]);
 
   const refreshCarriers = () => qc.invalidateQueries({ queryKey: ["carriers", storeId] });
 
@@ -491,6 +495,17 @@ const Logistics = () => {
         onDisconnect={() => handleDisconnectCarrier(openCarrierSpec.slug)}
         togglingAutoCreate={carrierAutoCreateSaving}
         onToggleAutoCreate={(value) => handleToggleCarrierAutoCreate(openCarrierSpec.slug, value)}
+      />
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        tone="terra"
+        title={t("common.loadFailed")}
+        action={<Button variant="outline" onClick={() => setReloadKey((k) => k + 1)}>{t("common.retry")}</Button>}
       />
     );
   }
@@ -861,7 +876,7 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
   const [editing, setEditing] = useState(false);
 
   // Zones
-  const [freeThreshold, setFreeThreshold] = useState(shippingData?.free_shipping_threshold || 500);
+  const [freeThreshold, setFreeThreshold] = useState(shippingData?.free_shipping_threshold ?? 500);
   const [showAddZone, setShowAddZone] = useState(false);
   const [newZone, setNewZone] = useState({ zone: "", governorates: "", rate: 0, estimated_days: "" });
 

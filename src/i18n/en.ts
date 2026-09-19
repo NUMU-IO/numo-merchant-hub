@@ -1012,6 +1012,8 @@ export default {
     currencySymbol: "ج.م",
     loading: "Loading...",
     error: "Something went wrong",
+    loadFailed: "Couldn't load this. Check your connection and try again.",
+    retry: "Retry",
     noData: "No data available",
     save: "Save",
     cancel: "Cancel",

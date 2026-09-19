@@ -387,6 +387,8 @@ export const Inbox = () => {
 
   const markReadMutation = useMutation({
     mutationFn: () => markThreadRead(storeId!, threadId!),
+    // Fired on thread open, not by a click: a failure is not worth a toast.
+    meta: { skipErrorToast: true },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inbox", "threads", storeId] });
     },
