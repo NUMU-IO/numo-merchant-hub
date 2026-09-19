@@ -1,5 +1,9 @@
 name: Sentry Release
 
+# Release name = the full commit SHA, the value vite.config.ts bakes into the
+# bundle from Vercel's VERCEL_GIT_COMMIT_SHA. Source maps are NOT uploaded
+# here: a separate CI build never matches the bundle Vercel serves, so they
+# have to come from the Vercel build itself.
 on:
   workflow_run:
     workflows: ["CI"]
@@ -13,15 +17,11 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  NODE_VERSION: "20"
-
 jobs:
   release:
     name: Create Sentry Release & Deploy
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success'
-    continue-on-error: true
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
 
     steps:
       - name: Checkout code
@@ -29,15 +29,6 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Map branch to Sentry environment
         id: env
@@ -50,12 +41,8 @@ jobs:
             *)     echo "::error::Unknown branch: $BRANCH" && exit 1 ;;
           esac
           echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
-          echo "version=numo-merchant-hub@${GITHUB_SHA:0:12}" >> "$GITHUB_OUTPUT"
 
-      - name: Build with hidden source maps
-        run: npx vite build --sourcemap hidden
-
-      - name: Create Sentry release, upload source maps & record deploy
+      - name: Create Sentry release & record deploy
         uses: getsentry/action-release@v1
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -63,6 +50,5 @@ jobs:
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
         with:
           environment: ${{ steps.env.outputs.environment }}
-          version: ${{ steps.env.outputs.version }}
-          sourcemaps: ./dist
+          version: ${{ github.event.workflow_run.head_sha }}
           finalize: true
