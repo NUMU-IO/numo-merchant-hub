@@ -124,6 +124,32 @@ export async function markAbandonedCheckoutRecovered(
   );
 }
 
+/**
+ * Build a real COD order from the cart (lines, address, totals) and link it.
+ * "Mark recovered" alone never creates an order, so the cart showed as
+ * Recovered while nothing reached Orders.
+ */
+export async function convertAbandonedCheckout(
+  storeId: string,
+  checkoutId: string,
+): Promise<AbandonedCheckout> {
+  return apiClient<AbandonedCheckout>(
+    `/stores/${storeId}/abandoned-checkouts/${checkoutId}/convert`,
+    { method: "POST" },
+  );
+}
+
+/** A cart can become an order only when it has lines, a phone and an address. */
+export function canConvertCheckout(c: AbandonedCheckout): boolean {
+  const addr = c.shipping_address as { address_line1?: string; phone?: string } | null;
+  return (
+    !c.recovered_order_id &&
+    c.line_items.length > 0 &&
+    Boolean(c.phone || addr?.phone) &&
+    Boolean(addr?.address_line1)
+  );
+}
+
 export interface NotifyWhatsAppResult {
   sent: boolean;
   // Machine-readable skip reason when sent is false (no_phone,
