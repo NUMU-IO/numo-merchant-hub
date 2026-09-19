@@ -71,7 +71,7 @@ export function useHubNav() {
   // ── Live badges ──────────────────────────────────────────────────────
   const { data: inboxData } = useQuery({
     queryKey: ["inbox", "threads", currentStore?.id],
-    queryFn: () => listThreads(currentStore!.id),
+    queryFn: () => listThreads(currentStore!.id, { limit: 1 }),
     enabled: !!currentStore?.id,
   });
   const totalUnread = inboxData?.total_unread ?? 0;

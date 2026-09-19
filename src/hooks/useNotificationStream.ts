@@ -8,12 +8,13 @@
  * Important rows also raise a toast. The poll stays as the fallback.
  */
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSSE } from "@/hooks/useSSE";
 import { invalidateNotificationQueries } from "@/hooks/useUnreadNotifications";
+import { recentOrdersQuery } from "@/services/orderApi";
 
 export interface NotificationStreamEvent {
   type: "connected" | "tick" | "notification";
@@ -33,12 +34,22 @@ export function getNotificationStreamUrl(storeId: string): string {
 export function useNotificationStream(storeId: string | undefined) {
   const qc = useQueryClient();
   const { t } = useTranslation();
+  // The API sends `tick` frames only when it has no Redis to relay events
+  // from. Such a stream carries no news, so the polls stay on.
+  const [ticking, setTicking] = useState(false);
 
   const onMessage = useCallback(
     (ev: NotificationStreamEvent) => {
-      if (ev.type === "connected") return;
+      if (ev.type === "tick") {
+        setTicking(true);
+        return;
+      }
+      if (ev.type !== "notification") return;
       void invalidateNotificationQueries(qc, storeId);
-      if (ev.type === "notification" && ev.important) {
+      if (storeId && ev.category === "orders") {
+        void qc.invalidateQueries({ queryKey: recentOrdersQuery(storeId).queryKey });
+      }
+      if (ev.important) {
         toast(t("notifications.importantToast"), {
           description: t(`notifications.kindShort.${(ev.kind ?? "").replace(".", "_")}`, {
             defaultValue: "",
@@ -52,10 +63,12 @@ export function useNotificationStream(storeId: string | undefined) {
     [qc, storeId, t],
   );
 
-  return useSSE<NotificationStreamEvent>({
+  const sse = useSSE<NotificationStreamEvent>({
     url: storeId ? getNotificationStreamUrl(storeId) : "",
     enabled: !!storeId,
     onMessage,
     reconnectInterval: 5000,
   });
+
+  return { ...sse, live: sse.connected && !ticking };
 }

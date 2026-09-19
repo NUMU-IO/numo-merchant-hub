@@ -15,6 +15,7 @@ import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { IosInstallSheet } from "@/components/pwa/IosInstallSheet";
 import { NavItemGate } from "@/components/layout/NavItemGate";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useHubNav, type HubTab, type NavGroup, type NavLeaf } from "@/lib/nav/useHubNav";
 import { cn } from "@/lib/utils";
 
@@ -41,12 +42,13 @@ const MobileBottomNav = () => {
   const [iosSheetOpen, setIosSheetOpen] = useState(false);
   const nav = useHubNav();
   const unreadNotifications = useUnreadNotificationCount(currentStore?.id);
+  const isMobile = useIsMobile();
 
   // Orders count badge (pending) — same signal the Dashboard attention bar uses.
   const ordersQuery = useQuery({
     queryKey: ["mnav", "ordersCount", currentStore?.id],
     queryFn: () => listOrders(currentStore!.id, { page: 1, limit: 1, status: "pending" }),
-    enabled: !!currentStore?.id,
+    enabled: !!currentStore?.id && isMobile,
     staleTime: 60_000,
   });
   const pendingOrders = ordersQuery.data?.total ?? 0;

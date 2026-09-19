@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -76,11 +77,7 @@ const Products = () => {
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
 
-  const [apiCategories, setApiCategories] = useState<Category[]>([]);
-  const [productsList, setProductsList] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [totalProducts, setTotalProducts] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
+  const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
   const [search, setSearch] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -104,7 +101,6 @@ const Products = () => {
       },
       { replace: true },
     );
-  const [missingCostCount, setMissingCostCount] = useState<number | null>(null);
   // Category filter — URL-backed so Categories can deep-link
   // `/products?category=<id>` ("see what's in this collection").
   const categoryFilter = searchParams.get("category") || "all";
@@ -168,63 +164,83 @@ const Products = () => {
     }
   };
 
-  useEffect(() => {
-    if (!storeId) return;
-    listCategories(storeId).then(setApiCategories).catch(() => {});
-  }, [storeId]);
+  const { data: apiCategories = [] } = useQuery({
+    queryKey: ["categories", storeId],
+    queryFn: () => listCategories(storeId!),
+    enabled: !!storeId,
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => {
+  // Back to page 1 when a filter changes — during render, not in an effect,
+  // so the list never fetches "new filter, old page" first.
+  const filterKey = JSON.stringify([debouncedSearch, statusFilter, categoryFilter, sortKey, missingCostOnly]);
+  const [pageFilterKey, setPageFilterKey] = useState(filterKey);
+  if (pageFilterKey !== filterKey) {
+    setPageFilterKey(filterKey);
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, categoryFilter, sortKey, missingCostOnly]);
+  }
 
-  const fetchProducts = useCallback(async () => {
-    if (!storeId) return;
-    setIsLoading(true);
-    try {
-      const apiStatus = statusFilter === "all"
-        ? undefined
-        : statusFilter === "published" ? "active" : statusFilter;
-      // Map the UX-level sort presets to the backend's (sort_by, sort_order)
-      // pair. Keeping the mapping here (not in the API service) so future sort
-      // presets can be added without changing the network contract.
-      const sortMap: Record<typeof sortKey, { sort_by: string; sort_order: "asc" | "desc" }> = {
-        newest:     { sort_by: "created_at", sort_order: "desc" },
-        oldest:     { sort_by: "created_at", sort_order: "asc"  },
-        name_asc:   { sort_by: "name",       sort_order: "asc"  },
-        name_desc:  { sort_by: "name",       sort_order: "desc" },
-        price_asc:  { sort_by: "price",      sort_order: "asc"  },
-        price_desc: { sort_by: "price",      sort_order: "desc" },
-        stock_desc: { sort_by: "quantity",   sort_order: "desc" },
-      };
-      const { sort_by, sort_order } = sortMap[sortKey];
-      const result = await listProducts(storeId, {
-        page: currentPage,
-        limit: PAGE_SIZE,
-        status: apiStatus,
-        search: debouncedSearch || undefined,
-        category_id: categoryFilter !== "all" ? categoryFilter : undefined,
-        sort_by,
-        sort_order,
-        has_cost: missingCostOnly ? false : undefined,
-      });
-      setProductsList(result.items.map(apiToProduct));
-      setTotalProducts(result.total);
-      setTotalPages(result.total_pages);
-    } catch (err) {
-      showError(err, language);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [storeId, currentPage, statusFilter, debouncedSearch, categoryFilter, sortKey, language, missingCostOnly]);
+  const apiStatus = statusFilter === "all"
+    ? undefined
+    : statusFilter === "published" ? "active" : statusFilter;
+  // Map the UX-level sort presets to the backend's (sort_by, sort_order)
+  // pair. Keeping the mapping here (not in the API service) so future sort
+  // presets can be added without changing the network contract.
+  const sortMap: Record<typeof sortKey, { sort_by: string; sort_order: "asc" | "desc" }> = {
+    newest:     { sort_by: "created_at", sort_order: "desc" },
+    oldest:     { sort_by: "created_at", sort_order: "asc"  },
+    name_asc:   { sort_by: "name",       sort_order: "asc"  },
+    name_desc:  { sort_by: "name",       sort_order: "desc" },
+    price_asc:  { sort_by: "price",      sort_order: "asc"  },
+    price_desc: { sort_by: "price",      sort_order: "desc" },
+    stock_desc: { sort_by: "quantity",   sort_order: "desc" },
+  };
+  const sharedFilters = {
+    search: debouncedSearch || undefined,
+    category_id: categoryFilter !== "all" ? categoryFilter : undefined,
+    has_cost: missingCostOnly ? false : undefined,
+  };
+  const listParams = {
+    ...sharedFilters,
+    page: currentPage,
+    limit: PAGE_SIZE,
+    status: apiStatus,
+    ...sortMap[sortKey],
+  };
+
+  // Not under ["products"]: that prefix is persisted for offline reads, and
+  // this page has no offline banner for its prices.
+  const listKey = ["products-page", storeId, "list", listParams];
+  const productsQuery = useQuery({
+    queryKey: listKey,
+    queryFn: async () => {
+      const result = await listProducts(storeId!, listParams);
+      return { items: result.items.map(apiToProduct), total: result.total, totalPages: result.total_pages };
+    },
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+    // Edits elsewhere (editor, import) don't invalidate this, so refetch on
+    // every visit; the cached page shows meanwhile.
+    staleTime: 0,
+  });
+  type ProductsPage = NonNullable<typeof productsQuery.data>;
+  const productsList = productsQuery.data?.items ?? [];
+  const totalProducts = productsQuery.data?.total ?? 0;
+  const totalPages = productsQuery.data?.totalPages ?? 1;
+  // The previous filter's rows are kept only for the totals/pagination; the
+  // table shows the spinner until the current filter's rows arrive.
+  const isLoading = productsQuery.isPending || productsQuery.isPlaceholderData;
 
   useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+    if (productsQuery.error) showError(productsQuery.error, language);
+  }, [productsQuery.error, language]);
+
+  const fetchProducts = () => queryClient.invalidateQueries({ queryKey: ["products-page", storeId] });
 
   /**
    * Real per-status counts for the filter chips.
@@ -242,49 +258,43 @@ const Products = () => {
    * `statusFilter`; the whole point is that the counts don't move when you
    * change chips. Search and category DO apply, because a count that ignored
    * the active search would contradict the list next to it.
+   *
+   * Counts are a nicety; a failure here must not blank the page. The chips
+   * fall back to hiding their badge rather than showing a wrong 0.
    */
-  const [statusCounts, setStatusCounts] = useState<Record<string, number> | null>(null);
-  useEffect(() => {
-    if (!storeId) return;
-    let cancelled = false;
-    const common = {
-      page: 1,
-      limit: 1,
-      search: debouncedSearch || undefined,
-      category_id: categoryFilter !== "all" ? categoryFilter : undefined,
-      has_cost: missingCostOnly ? false : undefined,
-    } as const;
-    Promise.all([
-      listProducts(storeId, { ...common }),
-      listProducts(storeId, { ...common, status: "active" }),
-      listProducts(storeId, { ...common, status: "draft" }),
-      listProducts(storeId, { ...common, status: "archived" }),
-      // Profit-readiness: how many products (any status, no other filter)
-      // still have no cost. Drives the banner + the Gross Profit tile link.
-      listProducts(storeId, { page: 1, limit: 1, has_cost: false }),
-    ])
-      .then(([all, active, draft, archived, missingCost]) => {
-        if (cancelled) return;
-        setStatusCounts({
-          all: all.total,
-          published: active.total,
-          draft: draft.total,
-          archived: archived.total,
-        });
-        setMissingCostCount(missingCost.total);
-      })
-      // Counts are a nicety; a failure here must not blank the page. The
-      // chips fall back to hiding their badge rather than showing a wrong 0.
-      .catch(() => {
-        if (!cancelled) {
-          setStatusCounts(null);
-          setMissingCostCount(null);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [storeId, debouncedSearch, categoryFilter, missingCostOnly]);
+  const countsQuery = useQuery({
+    queryKey: ["products-page", storeId, "status-counts", sharedFilters],
+    queryFn: async (): Promise<Record<string, number>> => {
+      const common = { page: 1, limit: 1, ...sharedFilters };
+      const [all, active, draft, archived] = await Promise.all([
+        listProducts(storeId!, { ...common }),
+        listProducts(storeId!, { ...common, status: "active" }),
+        listProducts(storeId!, { ...common, status: "draft" }),
+        listProducts(storeId!, { ...common, status: "archived" }),
+      ]);
+      return {
+        all: all.total,
+        published: active.total,
+        draft: draft.total,
+        archived: archived.total,
+      };
+    },
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+    staleTime: 0,
+  });
+  const statusCounts = countsQuery.data ?? null;
+
+  // Profit-readiness: how many products (any status, no other filter) still
+  // have no cost. Drives the banner + the Gross Profit tile link. Independent
+  // of search, so typing doesn't refetch it.
+  const missingCostKey = ["products-page", storeId, "missing-cost"];
+  const { data: missingCostCount = null } = useQuery({
+    queryKey: missingCostKey,
+    queryFn: () => listProducts(storeId!, { page: 1, limit: 1, has_cost: false }).then((r) => r.total),
+    enabled: !!storeId,
+    staleTime: 0,
+  });
 
   // Category filter is now server-side (was previously a client-side filter
   // over `productsList` which only ever saw the current 20-item page, so
@@ -332,8 +342,11 @@ const Products = () => {
     setIsDeleting(true);
     try {
       await apiDeleteProduct(storeId, deleteTarget.id);
-      setProductsList(prev => prev.filter(p => p.id !== deleteTarget.id));
-      setTotalProducts(prev => prev - 1);
+      queryClient.setQueryData<ProductsPage>(listKey, (old) => old && {
+        ...old,
+        items: old.items.filter(p => p.id !== deleteTarget.id),
+        total: old.total - 1,
+      });
       toast.success(t("products.productDeleted"));
     } catch (err) {
       showError(err, language);
@@ -992,8 +1005,11 @@ const Products = () => {
                             productId={p.id}
                             price={p.price}
                             onSaved={(cost) => {
-                              setProductsList((prev) => prev.map((x) => (x.id === p.id ? { ...x, costPrice: cost } : x)));
-                              setMissingCostCount((n) => (n === null ? n : Math.max(0, n - 1)));
+                              queryClient.setQueryData<ProductsPage>(listKey, (old) => old && {
+                                ...old,
+                                items: old.items.map((x) => (x.id === p.id ? { ...x, costPrice: cost } : x)),
+                              });
+                              queryClient.setQueryData<number>(missingCostKey, (n) => (n === undefined ? n : Math.max(0, n - 1)));
                             }}
                           />
                         )}

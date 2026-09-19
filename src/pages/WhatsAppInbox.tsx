@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,89 +24,84 @@ import {
   getMessages,
   sendMessage,
   updateConversation,
-  type ConversationSummary,
-  type MessageBubble,
 } from "@/services/whatsappApi";
+
+const POLL_MS = 10_000;
 
 export default function WhatsAppInbox() {
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const isAr = language === "ar";
   const storeId = currentStore?.id;
+  const queryClient = useQueryClient();
 
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<MessageBubble[]>([]);
-  const [windowOpen, setWindowOpen] = useState(false);
-  const [windowExpires, setWindowExpires] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "unread" | "archived">("all");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const loadConversations = useCallback(async () => {
-    if (!storeId) return;
-    try {
-      const res = await listConversations(storeId, {
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // refetchInterval pauses while the tab is hidden.
+  const conversationsKey = ["whatsapp-inbox", storeId, "conversations"];
+  const conversationsQuery = useQuery({
+    queryKey: [...conversationsKey, filter, debouncedSearch],
+    queryFn: () =>
+      listConversations(storeId!, {
         status: filter === "archived" ? "archived" : "active",
         unread_only: filter === "unread",
-        search: searchQuery || undefined,
-      });
-      setConversations(res.data.conversations);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, [storeId, filter, searchQuery]);
+        search: debouncedSearch || undefined,
+      }),
+    enabled: !!storeId,
+    placeholderData: keepPreviousData,
+    refetchInterval: POLL_MS,
+  });
+  const conversations = conversationsQuery.data?.conversations ?? [];
+  const loading = conversationsQuery.isPending;
+
+  const messagesKey = ["whatsapp-inbox", storeId, "messages", selectedId];
+  const messagesQuery = useQuery({
+    queryKey: messagesKey,
+    queryFn: () => getMessages(storeId!, selectedId!, { limit: 100 }),
+    enabled: !!storeId && !!selectedId,
+    refetchInterval: POLL_MS,
+  });
+  const messages = messagesQuery.data?.messages ?? [];
+  const windowOpen = messagesQuery.data?.window_open ?? false;
 
   useEffect(() => {
-    loadConversations();
-    const interval = setInterval(loadConversations, 10000);
-    return () => clearInterval(interval);
-  }, [loadConversations]);
-
-  const loadMessages = useCallback(
-    async (convId: string) => {
-      if (!storeId) return;
-      try {
-        const res = await getMessages(storeId, convId, { limit: 100 });
-        setMessages(res.data.messages);
-        setWindowOpen(res.data.window_open);
-        setWindowExpires(res.data.window_expires_at);
-      } catch {
-        toast.error(isAr ? "فشل تحميل الرسائل" : "Failed to load messages");
-      }
-    },
-    [storeId, isAr]
-  );
+    if (messagesQuery.error) toast.error(isAr ? "فشل تحميل الرسائل" : "Failed to load messages");
+  }, [messagesQuery.error, isAr]);
 
   useEffect(() => {
-    if (selectedId) {
-      loadMessages(selectedId);
-      // Mark as read
-      if (storeId) {
-        updateConversation(storeId, selectedId, { mark_read: true }).catch(() => {});
-      }
-      const interval = setInterval(() => loadMessages(selectedId), 10000);
-      return () => clearInterval(interval);
+    if (storeId && selectedId) {
+      updateConversation(storeId, selectedId, { mark_read: true }).catch(() => {});
     }
-  }, [selectedId, loadMessages, storeId]);
+  }, [selectedId, storeId]);
 
+  // Only a new last message (or another thread) scrolls — a poll that
+  // returns the same thread must not yank the merchant away from history.
+  const lastMessageId = messages[messages.length - 1]?.id;
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [lastMessageId]);
 
   const handleSend = async () => {
     if (!storeId || !selectedId || !messageText.trim()) return;
     setSending(true);
     try {
-      const res = await sendMessage(storeId, selectedId, { text: messageText.trim() });
-      setMessages((prev) => [...prev, res.data]);
+      const sent = await sendMessage(storeId, selectedId, { text: messageText.trim() });
+      queryClient.setQueryData<Awaited<ReturnType<typeof getMessages>>>(messagesKey, (old) =>
+        old && { ...old, messages: [...old.messages, sent] },
+      );
       setMessageText("");
-      loadConversations();
+      void queryClient.invalidateQueries({ queryKey: conversationsKey });
     } catch (err) {
       const detail = (err as { message?: string })?.message || "";
       if (detail.includes("24-hour")) {
@@ -127,7 +123,7 @@ export default function WhatsAppInbox() {
     try {
       await updateConversation(storeId, convId, { status: "archived" });
       toast.success(isAr ? "تم الأرشفة" : "Archived");
-      loadConversations();
+      void queryClient.invalidateQueries({ queryKey: conversationsKey });
       if (selectedId === convId) setSelectedId(null);
     } catch {
       toast.error(isAr ? "فشلت الأرشفة" : "Failed to archive");

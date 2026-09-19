@@ -11,6 +11,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
 } from "react";
 import { useAuth } from "./AuthContext";
@@ -183,20 +184,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
     isLoading ||
     (isAuthenticated && fetchedForAuthRef.current !== true);
 
-  return (
-    <StoreContext.Provider
-      value={{
-        stores,
-        currentStore,
-        isLoading: effectiveLoading,
-        hasStores: stores.length > 0,
-        switchStore,
-        refetchStores: fetchStores,
-      }}
-    >
-      {children}
-    </StoreContext.Provider>
+  const value = useMemo(
+    () => ({
+      stores,
+      currentStore,
+      isLoading: effectiveLoading,
+      hasStores: stores.length > 0,
+      switchStore,
+      refetchStores: fetchStores,
+    }),
+    [stores, currentStore, effectiveLoading, switchStore, fetchStores],
   );
+
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 };
 
 export const useDashboardStore = () => useContext(StoreContext);

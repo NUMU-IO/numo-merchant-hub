@@ -11,6 +11,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
 } from "react";
 import {
   login as loginApi,
@@ -148,7 +149,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [bootError, setBootError] = useState(false);
 
+  const setUserIfChanged = useCallback((u: User) => {
+    setUser((prev) => (prev && JSON.stringify(prev) === JSON.stringify(u) ? prev : u));
+  }, []);
+
   useEffect(() => {
+    // Fetch the landing route's chunk alongside /auth/me instead of after it.
+    if (window.location.pathname === "/" && readCachedSessionUser()) {
+      void import("@/pages/Dashboard").catch(() => {});
+    }
     bootSession()
       .then(async (u) => {
         setUser(u);
@@ -207,12 +216,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (now - last < 30_000) return;
       last = now;
       getMe()
-        .then((u) => setUser(u))
+        .then(setUserIfChanged)
         .catch(() => {});
     };
     document.addEventListener("visibilitychange", refresh);
     return () => document.removeEventListener("visibilitychange", refresh);
-  }, []);
+  }, [setUserIfChanged]);
 
   // Proactive rotation: refresh the session every 20 min while the tab is
   // visible so the 30-min access token never actually expires under the
@@ -220,14 +229,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // poller at once, one refresh, and a logout if that single refresh was
   // rate-limited or blipped. Outcomes other than "ok" are ignored here —
   // the reactive 401 path handles them with proper error surfacing.
+  // Keyed on signed-in, not the user object, so a refocus refetch doesn't
+  // restart the timer.
+  const signedIn = !!user;
   useEffect(() => {
-    if (!user) return;
+    if (!signedIn) return;
     const tick = () => {
       if (document.visibilityState === "visible") void refreshSession();
     };
     const id = window.setInterval(tick, 20 * 60 * 1000);
     return () => window.clearInterval(id);
-  }, [user]);
+  }, [signedIn]);
 
   // Analytics identity, driven off the user value rather than bolted onto
   // each of the five call sites that set it. Login, 2FA, register, Google
@@ -306,39 +318,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const refreshUser = useCallback(async () => {
     try {
       const u = await getMe();
-      setUser(u);
+      setUserIfChanged(u);
     } catch {
       // Session may have expired
     }
-  }, []);
+  }, [setUserIfChanged]);
 
   const tenant = user?.tenant ?? null;
   const isDemoMode = tenant?.is_demo ?? false;
   const isTrialMode = tenant?.is_on_trial ?? false;
   const isReadOnly = tenant?.is_read_only ?? false;
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        isLoading,
-        bootError,
-        tenant,
-        isDemoMode,
-        isTrialMode,
-        isReadOnly,
-        login,
-        complete2FALogin,
-        register,
-        googleLogin,
-        logout,
-        refreshUser,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({
+      user,
+      isAuthenticated: !!user,
+      isLoading,
+      bootError,
+      tenant,
+      isDemoMode,
+      isTrialMode,
+      isReadOnly,
+      login,
+      complete2FALogin,
+      register,
+      googleLogin,
+      logout,
+      refreshUser,
+    }),
+    [
+      user,
+      isLoading,
+      bootError,
+      tenant,
+      isDemoMode,
+      isTrialMode,
+      isReadOnly,
+      login,
+      complete2FALogin,
+      register,
+      googleLogin,
+      logout,
+      refreshUser,
+    ],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => useContext(AuthContext);

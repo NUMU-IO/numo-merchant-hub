@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useMemo } from "react";
 import { useAuth } from "./AuthContext";
 import TrialPaywallModal, {
   PaywallReason,
@@ -34,8 +34,10 @@ export const TrialPaywallProvider: React.FC<{ children: React.ReactNode }> = ({
     [isDemoMode]
   );
 
+  const value = useMemo(() => ({ requireTrial }), [requireTrial]);
+
   return (
-    <TrialPaywallContext.Provider value={{ requireTrial }}>
+    <TrialPaywallContext.Provider value={value}>
       {children}
       <TrialPaywallModal
         open={paywallOpen}
