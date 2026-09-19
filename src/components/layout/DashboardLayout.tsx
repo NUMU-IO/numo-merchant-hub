@@ -49,17 +49,17 @@ const DashboardLayout = () => {
   const onAssistant = pathname === "/assistant";
   const isAr = language === "ar";
 
+  // SSE stream — invalidates the notification queries the moment the API
+  // commits a feed row; while it is live the 45 s polls slow to 5 minutes.
+  const { live: streamLive } = useNotificationStream(currentStore?.id);
   // Mirror the unread count onto the installed app icon. Same hook and same
   // store id the header bell uses, so the badge and the bell can never
   // disagree. No-ops where the Badging API is unsupported — notably Chrome
   // for Android.
-  const unreadNotifications = useUnreadNotificationCount(currentStore?.id, { poll: true });
+  const unreadNotifications = useUnreadNotificationCount(currentStore?.id, { poll: true, streamLive });
   useAppBadge(unreadNotifications);
   // Same count on the browser tab: numbered favicon + "(n) " title prefix.
   useFaviconBadge(unreadNotifications);
-  // SSE stream — invalidates the notification queries the moment the API
-  // commits a feed row, so the 45 s poll is only the fallback.
-  useNotificationStream(currentStore?.id);
   // Feeds the "My pages" popover + dashboard "Recently viewed" strip.
   usePageVisitTracker();
 
@@ -177,7 +177,7 @@ const DashboardLayout = () => {
       <MobileBottomNav />
       {/* Polls /orders and toasts whenever a new one arrives. Mounted at the
           layout level so it runs on every dashboard page. */}
-      <NewOrderNotifier />
+      <NewOrderNotifier streamLive={streamLive} />
       {/* NUMU Agent (merchant copilot) — floating launcher + slide-over panel,
           available on every dashboard route except the assistant's own page,
           where the launcher would float over the thread it duplicates. */}

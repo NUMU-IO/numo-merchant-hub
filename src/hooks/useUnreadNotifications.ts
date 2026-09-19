@@ -13,6 +13,9 @@ import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-quer
 import { getUnreadCounts, type UnreadCounts } from "@/services/notificationsApi";
 
 export const UNREAD_POLL_MS = 45_000;
+// While the notification stream is live it delivers every new row; the slow
+// poll only catches reads made on another device and a silently dead stream.
+export const UNREAD_STREAM_LIVE_POLL_MS = 5 * 60_000;
 
 export const notificationKeys = {
   all: (storeId: string | undefined) => ["notifications", storeId] as const,
@@ -36,12 +39,17 @@ export function invalidateNotificationQueries(
  * React Query attaches a refetchInterval timer per observer, so the bell,
  * the mobile nav and the page all polling meant up to 3 requests per tick.
  */
-export function useUnreadCounts(storeId: string | undefined, opts: { poll?: boolean } = {}) {
+export function useUnreadCounts(
+  storeId: string | undefined,
+  opts: { poll?: boolean; streamLive?: boolean } = {},
+) {
   return useQuery<UnreadCounts>({
     queryKey: notificationKeys.unread(storeId),
     queryFn: () => getUnreadCounts(storeId!),
     enabled: !!storeId,
-    refetchInterval: opts.poll ? UNREAD_POLL_MS : false,
+    refetchInterval: opts.poll
+      ? opts.streamLive ? UNREAD_STREAM_LIVE_POLL_MS : UNREAD_POLL_MS
+      : false,
     staleTime: UNREAD_POLL_MS - 5_000,
     // A failed poll must never surface as a red error anywhere — the bell
     // simply shows no badge.
@@ -51,7 +59,7 @@ export function useUnreadCounts(storeId: string | undefined, opts: { poll?: bool
 
 export function useUnreadNotificationCount(
   storeId: string | undefined,
-  opts: { poll?: boolean } = {},
+  opts: { poll?: boolean; streamLive?: boolean } = {},
 ): number {
   const { data } = useUnreadCounts(storeId, opts);
   return data?.total ?? 0;
