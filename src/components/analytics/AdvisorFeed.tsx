@@ -100,7 +100,7 @@ export function AdvisorFeed() {
                 <span
                   className={`souq-pill shrink-0 mt-0.5 text-[10.5px] font-bold px-2 py-0.5 rounded-full ${SEVERITY_STYLE[s.severity]}`}
                 >
-                  {isAr ? SEVERITY_LABEL[s.severity].ar : SEVERITY_LABEL[s.severity].en}
+                  {SEVERITY_LABEL[s.severity]?.[isAr ? "ar" : "en"] ?? s.severity}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-semibold leading-snug">{s.title}</p>

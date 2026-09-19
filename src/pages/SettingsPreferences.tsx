@@ -1,33 +1,24 @@
 import { useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 import { SettingsBreadcrumb } from "@/components/layout/SettingsBreadcrumb";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAuth } from "@/contexts/AuthContext";
-import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { ThemeSwitch } from "@/components/layout/ThemeSwitch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  Settings2, Globe, CreditCard, Shield, Zap, Monitor, User,
-  Moon, Sun, Loader2, ExternalLink, Key, Webhook,
-  Plus, Trash2, Copy, Eye, EyeOff, CheckCircle2,
-  Smartphone, QrCode, ShieldCheck, X, AlertTriangle,
-  ChevronLeft, ChevronRight,
+  Settings2, Shield, Monitor, Loader2, Key, Webhook, Copy, CheckCircle2,
+  Smartphone, QrCode, ShieldCheck, AlertTriangle, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { enable2FA, verify2FA, disable2FA, get2FAStatus, type Enable2FAData, type TwoFactorStatus } from "@/services/mfaApi";
-import { changePassword } from "@/services/authApi";
 
 // --- 2FA Setup Dialog ---
 function TwoFactorSetupDialog({
@@ -250,14 +241,14 @@ function TwoFactorSetupDialog({
 }
 
 // --- Main Settings Preferences Page ---
-const VALID_SECTIONS = ["general", "billing", "api", "security", "display"] as const;
+const VALID_SECTIONS = ["general", "api", "security", "display"] as const;
 type PrefSection = (typeof VALID_SECTIONS)[number];
 
 export default function SettingsPreferences() {
+  const { t } = useTranslation();
   const { language, isRTL } = useLanguage();
-  const { user } = useAuth();
-  const { currentStore } = useDashboardStore();
   const isAr = language === "ar";
+  const Chevron = isRTL ? ChevronLeft : ChevronRight;
 
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSection = (searchParams.get("section") ?? "general") as PrefSection;
@@ -299,13 +290,6 @@ export default function SettingsPreferences() {
     get2FAStatus().then(setTwoFAStatus).catch(() => {});
   }, []);
 
-  // Sessions / Activity state
-  const [showSessionsDialog, setShowSessionsDialog] = useState(false);
-  const [showActivityDialog, setShowActivityDialog] = useState(false);
-  const [revokePassword, setRevokePassword] = useState("");
-  const [revokeNewPassword, setRevokeNewPassword] = useState("");
-  const [revokingAll, setRevokingAll] = useState(false);
-
 
   // API key visibility
   const [showLiveKey, setShowLiveKey] = useState(false);
@@ -341,7 +325,6 @@ export default function SettingsPreferences() {
 
   const sections = [
     { id: "general", label: isAr ? "عام" : "General", icon: Settings2 },
-    { id: "billing", label: isAr ? "الفواتير" : "Billing", icon: CreditCard },
     { id: "api", label: isAr ? "API" : "API & Webhooks", icon: Key },
     { id: "security", label: isAr ? "الأمان" : "Security", icon: Shield },
     { id: "display", label: isAr ? "العرض" : "Display", icon: Monitor },
@@ -399,84 +382,18 @@ export default function SettingsPreferences() {
           {activeSection === "general" && (
             <Card className="border-border/60">
               <CardHeader className="pb-4">
-                <CardTitle className="text-sm">{isAr ? "الإعدادات العامة" : "General Settings"}</CardTitle>
-                <CardDescription className="text-xs">{isAr ? "الإعدادات الأساسية لحسابك" : "Basic account settings"}</CardDescription>
+                <CardTitle className="text-sm">{t("preferences.regionTitle")}</CardTitle>
+                <CardDescription className="text-xs">{t("preferences.regionBody")}</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-2">
-                  <Label className="text-xs font-medium">{isAr ? "اللغة الافتراضية" : "Default Language"}</Label>
-                  <Select defaultValue={language}>
-                    <SelectTrigger className="h-9 text-sm w-full sm:w-48"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ar">العربية</SelectItem>
-                      <SelectItem value="en">English</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label className="text-xs font-medium">{isAr ? "المنطقة الزمنية" : "Timezone"}</Label>
-                  <Select defaultValue="Africa/Cairo">
-                    <SelectTrigger className="h-9 text-sm w-full sm:w-64"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Africa/Cairo">(UTC+02:00) Cairo</SelectItem>
-                      <SelectItem value="Asia/Riyadh">(UTC+03:00) Riyadh</SelectItem>
-                      <SelectItem value="Asia/Dubai">(UTC+04:00) Dubai</SelectItem>
-                      <SelectItem value="Europe/London">(UTC+00:00) London</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label className="text-xs font-medium">{isAr ? "العملة الافتراضية" : "Default Currency"}</Label>
-                  <Select defaultValue={currentStore?.default_currency || "EGP"}>
-                    <SelectTrigger className="h-9 text-sm w-full sm:w-48"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="EGP">EGP - {isAr ? "جنيه مصري" : "Egyptian Pound"}</SelectItem>
-                      <SelectItem value="SAR">SAR - {isAr ? "ريال سعودي" : "Saudi Riyal"}</SelectItem>
-                      <SelectItem value="AED">AED - {isAr ? "درهم إماراتي" : "UAE Dirham"}</SelectItem>
-                      <SelectItem value="USD">USD - {isAr ? "دولار أمريكي" : "US Dollar"}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* BILLING */}
-          {activeSection === "billing" && (
-            <Card className="border-border/60">
-              <CardHeader className="pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10">
-                    <CreditCard className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm">{isAr ? "الخطة الحالية" : "Current Plan"}</CardTitle>
-                    <CardDescription className="text-xs">{isAr ? "إدارة اشتراكك" : "Manage your subscription"}</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between rounded-xl border p-4 bg-muted/20">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold">{isAr ? "خطة المبتدئ" : "Starter Plan"}</p>
-                      <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">{isAr ? "نشط" : "Active"}</Badge>
-                    </div>
-                    <p className="text-[12px] text-muted-foreground mt-1">
-                      {user?.trial_ends_at
-                        ? `${isAr ? "الفترة التجريبية تنتهي في" : "Trial ends"} ${new Date(user.trial_ends_at).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric" })}`
-                        : (isAr ? "لا توجد فترة تجريبية" : "No trial period")}
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm" className="gap-1.5 rounded-lg text-xs">
-                    <Zap className="h-3 w-3" />{isAr ? "ترقية" : "Upgrade"}
-                  </Button>
-                </div>
-                <Separator />
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">{isAr ? "سجل الفواتير" : "Billing History"}</p>
-                  <p className="text-[12px] text-muted-foreground/60">{isAr ? "لا توجد فواتير بعد" : "No invoices yet"}</p>
-                </div>
+              <CardContent className="space-y-2">
+                <Link to="/store?section=status" className="flex items-center justify-between rounded-lg border p-3 text-[13px] font-medium hover:bg-muted/50">
+                  {t("preferences.marketCurrency")}
+                  <Chevron className="h-4 w-4 text-muted-foreground" />
+                </Link>
+                <Link to="/store?section=pages" className="flex items-center justify-between rounded-lg border p-3 text-[13px] font-medium hover:bg-muted/50">
+                  {t("preferences.hoursTimezone")}
+                  <Chevron className="h-4 w-4 text-muted-foreground" />
+                </Link>
               </CardContent>
             </Card>
           )}
@@ -568,20 +485,11 @@ export default function SettingsPreferences() {
 
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
-                    <Label className="text-[13px]">{isAr ? "جلسات نشطة" : "Active Sessions"}</Label>
-                    <p className="text-[11px] text-muted-foreground">{isAr ? "إدارة الأجهزة المتصلة" : "Manage connected devices"}</p>
+                    <Label className="text-[13px]">{t("preferences.password")}</Label>
+                    <p className="text-[11px] text-muted-foreground">{t("preferences.passwordHint")}</p>
                   </div>
-                  <Button variant="ghost" size="sm" className="h-7 text-[11px] rounded-lg" onClick={() => setShowSessionsDialog(true)}>
-                    {isAr ? "عرض الجلسات" : "View Sessions"}
-                  </Button>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <Label className="text-[13px]">{isAr ? "سجل النشاط" : "Activity Log"}</Label>
-                    <p className="text-[11px] text-muted-foreground">{isAr ? "آخر الأنشطة على حسابك" : "Recent account activity"}</p>
-                  </div>
-                  <Button variant="ghost" size="sm" className="h-7 text-[11px] rounded-lg" onClick={() => setShowActivityDialog(true)}>
-                    {isAr ? "عرض السجل" : "View Log"}
+                  <Button asChild variant="ghost" size="sm" className="h-7 text-[11px] rounded-lg">
+                    <Link to="/profile">{t("preferences.changePassword")}</Link>
                   </Button>
                 </div>
               </CardContent>
@@ -627,185 +535,6 @@ export default function SettingsPreferences() {
                 </DialogContent>
               </Dialog>
 
-              {/* Active Sessions Dialog */}
-              <Dialog open={showSessionsDialog} onOpenChange={(v) => { setShowSessionsDialog(v); if (!v) { setRevokePassword(""); setRevokeNewPassword(""); } }}>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle className="text-base flex items-center gap-2">
-                      <Monitor className="h-4 w-4 text-blue-600" />
-                      {isAr ? "الجلسات النشطة" : "Active Sessions"}
-                    </DialogTitle>
-                    <DialogDescription className="text-xs">
-                      {isAr ? "إدارة جلسات تسجيل الدخول الخاصة بك" : "Manage your login sessions"}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-3 py-2">
-                    {/* Current session */}
-                    <div className="rounded-lg border p-3 bg-primary/5 border-primary/20">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Monitor className="h-4 w-4 text-primary" />
-                          <span className="text-[13px] font-medium">{isAr ? "الجلسة الحالية" : "Current Session"}</span>
-                        </div>
-                        <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-200 gap-1">
-                          <CheckCircle2 className="h-2.5 w-2.5" />
-                          {isAr ? "نشطة" : "Active"}
-                        </Badge>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-1.5">
-                        {navigator.userAgent.includes("Chrome") ? "Chrome" : navigator.userAgent.includes("Firefox") ? "Firefox" : navigator.userAgent.includes("Safari") ? "Safari" : "Browser"} — {navigator.platform || "Unknown OS"}
-                      </p>
-                    </div>
-
-                    <Separator />
-
-                    {/* Revoke all sessions */}
-                    <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800 p-3 space-y-2.5">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                        <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
-                          {isAr ? "إنهاء جميع الجلسات الأخرى" : "Revoke All Other Sessions"}
-                        </p>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        {isAr
-                          ? "سيتم تسجيل خروجك من جميع الأجهزة الأخرى. يتطلب تغيير كلمة المرور."
-                          : "You'll be logged out of all other devices. This requires changing your password."}
-                      </p>
-                      <div className="space-y-2">
-                        <Input
-                          type="password"
-                          value={revokePassword}
-                          onChange={(e) => setRevokePassword(e.target.value)}
-                          placeholder={isAr ? "كلمة المرور الحالية" : "Current password"}
-                          className="h-8 text-xs"
-                          dir="ltr"
-                        />
-                        <Input
-                          type="password"
-                          value={revokeNewPassword}
-                          onChange={(e) => setRevokeNewPassword(e.target.value)}
-                          placeholder={isAr ? "كلمة مرور جديدة" : "New password"}
-                          className="h-8 text-xs"
-                          dir="ltr"
-                        />
-                      </div>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="w-full h-8 text-xs gap-1.5 rounded-lg"
-                        disabled={revokingAll || !revokePassword || !revokeNewPassword}
-                        onClick={async () => {
-                          if (revokeNewPassword.length < 8) {
-                            toast.error(isAr ? "كلمة المرور يجب أن تكون 8 أحرف على الأقل" : "New password must be at least 8 characters");
-                            return;
-                          }
-                          setRevokingAll(true);
-                          try {
-                            await changePassword(revokePassword, revokeNewPassword);
-                            toast.success(isAr ? "تم إنهاء جميع الجلسات الأخرى" : "All other sessions revoked");
-                            setShowSessionsDialog(false);
-                            setRevokePassword("");
-                            setRevokeNewPassword("");
-                          } catch (err: unknown) {
-                            showError(err, language);
-                          } finally {
-                            setRevokingAll(false);
-                          }
-                        }}
-                      >
-                        {revokingAll && <Loader2 className="h-3 w-3 animate-spin" />}
-                        {isAr ? "إنهاء الجلسات وتغيير كلمة المرور" : "Revoke Sessions & Change Password"}
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-
-              {/* Activity Log Dialog */}
-              <Dialog open={showActivityDialog} onOpenChange={setShowActivityDialog}>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle className="text-base flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-blue-600" />
-                      {isAr ? "سجل النشاط" : "Activity Log"}
-                    </DialogTitle>
-                    <DialogDescription className="text-xs">
-                      {isAr ? "آخر أنشطة الأمان على حسابك" : "Recent security activity on your account"}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-2 py-2 max-h-[400px] overflow-y-auto">
-                    {/* Account creation */}
-                    {user?.created_at && (
-                      <div className="flex items-start gap-3 rounded-lg border p-3">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500/10 shrink-0 mt-0.5">
-                          <User className="h-3.5 w-3.5 text-blue-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-medium">{isAr ? "إنشاء الحساب" : "Account Created"}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {new Date(user.created_at).toLocaleString(isAr ? "ar-EG" : "en-US", { dateStyle: "medium", timeStyle: "short" })}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Email verified */}
-                    {user?.is_verified && (
-                      <div className="flex items-start gap-3 rounded-lg border p-3">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 shrink-0 mt-0.5">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-medium">{isAr ? "تم تأكيد البريد الإلكتروني" : "Email Verified"}</p>
-                          <p className="text-[11px] text-muted-foreground">{isAr ? "تم التحقق من عنوان البريد" : "Email address has been verified"}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 2FA enabled */}
-                    {twoFAStatus?.enabled_at && (
-                      <div className="flex items-start gap-3 rounded-lg border p-3">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 shrink-0 mt-0.5">
-                          <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-medium">{isAr ? "تفعيل المصادقة الثنائية" : "2FA Enabled"}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {new Date(twoFAStatus.enabled_at).toLocaleString(isAr ? "ar-EG" : "en-US", { dateStyle: "medium", timeStyle: "short" })}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 2FA last used */}
-                    {twoFAStatus?.last_used_at && (
-                      <div className="flex items-start gap-3 rounded-lg border p-3">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/10 shrink-0 mt-0.5">
-                          <Key className="h-3.5 w-3.5 text-amber-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-medium">{isAr ? "آخر استخدام للمصادقة الثنائية" : "Last 2FA Verification"}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {new Date(twoFAStatus.last_used_at).toLocaleString(isAr ? "ar-EG" : "en-US", { dateStyle: "medium", timeStyle: "short" })}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Current login */}
-                    <div className="flex items-start gap-3 rounded-lg border p-3 bg-primary/5 border-primary/20">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 shrink-0 mt-0.5">
-                        <Monitor className="h-3.5 w-3.5 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium">{isAr ? "الجلسة الحالية" : "Current Login Session"}</p>
-                        <p className="text-[11px] text-muted-foreground">{isAr ? "نشطة الآن" : "Active now"}</p>
-                      </div>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
             </Card>
           )}
 
@@ -830,27 +559,6 @@ export default function SettingsPreferences() {
                     <p className="text-[11px] text-muted-foreground">{isAr ? "تبديل المظهر الداكن والفاتح" : "Toggle between dark and light theme"}</p>
                   </div>
                   <ThemeSwitch />
-                </div>
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <Label className="text-[13px]">{isAr ? "حجم الخط" : "Font Size"}</Label>
-                    <p className="text-[11px] text-muted-foreground">{isAr ? "حجم الخط في لوحة التحكم" : "Dashboard text size"}</p>
-                  </div>
-                  <Select defaultValue="default">
-                    <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="small">{isAr ? "صغير" : "Small"}</SelectItem>
-                      <SelectItem value="default">{isAr ? "عادي" : "Default"}</SelectItem>
-                      <SelectItem value="large">{isAr ? "كبير" : "Large"}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <Label className="text-[13px]">{isAr ? "الرسوم المتحركة" : "Animations"}</Label>
-                    <p className="text-[11px] text-muted-foreground">{isAr ? "تفعيل الحركات في الواجهة" : "Enable interface animations"}</p>
-                  </div>
-                  <Switch defaultChecked />
                 </div>
               </CardContent>
             </Card>

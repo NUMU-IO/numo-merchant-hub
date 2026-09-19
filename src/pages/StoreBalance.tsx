@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -29,16 +30,18 @@ interface Transaction {
 const NUMU_PRIMARY = "hsl(222.2, 47.4%, 11.2%)";
 
 const StoreBalance = () => {
+  const { t } = useTranslation();
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
   const isAr = language === "ar";
   const storeId = currentStore?.id;
   const navigate = useNavigate();
 
-  const [balance, setBalance] = useState(0);
+  const [balance, setBalance] = useState<number | null>(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTx, setLoadingTx] = useState(true);
+  const [txFailed, setTxFailed] = useState(false);
   const [page, setPage] = useState(0);
 
   const fmtBig = (cents: number) => (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", { minimumFractionDigits: 2 });
@@ -51,16 +54,20 @@ const StoreBalance = () => {
     setLoadingBalance(true);
     apiClient<{ wallet_balance_cents: number; store_balance_cents: number }>(`/stores/${storeId}/payments/balances`)
       .then(b => setBalance(b.store_balance_cents))
-      .catch(() => {})
+      .catch(() => setBalance(null))
       .finally(() => setLoadingBalance(false));
   }, [storeId]);
 
   useEffect(() => {
     if (!storeId) return;
     setLoadingTx(true);
+    setTxFailed(false);
     apiClient<Transaction[]>(`/stores/${storeId}/payments/transactions?skip=${page * 20}&limit=20`)
       .then(setTransactions)
-      .catch(() => setTransactions([]))
+      .catch(() => {
+        setTransactions([]);
+        setTxFailed(true);
+      })
       .finally(() => setLoadingTx(false));
   }, [storeId, page]);
 
@@ -88,6 +95,8 @@ const StoreBalance = () => {
             <div className="flex items-baseline gap-2">
               {loadingBalance ? (
                 <Loader2 className="h-6 w-6 animate-spin text-white/50" />
+              ) : balance === null ? (
+                <span className="text-sm text-white/70">{t("common.loadFailed")}</span>
               ) : (
                 <>
                   <span className="text-4xl sm:text-5xl font-bold tabular-nums text-white">{fmtBig(balance)}</span>
@@ -120,6 +129,8 @@ const StoreBalance = () => {
             <TableBody>
               {loadingTx ? (
                 <TableRow><TableCell colSpan={6} className="text-center py-16"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground mx-auto" /></TableCell></TableRow>
+              ) : txFailed ? (
+                <TableRow><TableCell colSpan={6} className="text-center py-16 text-sm text-muted-foreground">{t("common.loadFailed")}</TableCell></TableRow>
               ) : transactions.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-16">

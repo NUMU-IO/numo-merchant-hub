@@ -8,7 +8,7 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { AlertTriangle, Clock, Timer, Zap } from "lucide-react";
 import { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
 import AppHeader from "./AppHeader";
 import MobileBottomNav from "./MobileBottomNav";
@@ -30,6 +30,7 @@ import { NewOrderNotifier } from "@/components/NewOrderNotifier";
 import { AgentPanel } from "@/features/agent";
 import { useNavConfig } from "@/hooks/useNavConfig";
 import { PageLoader } from "@/components/PageLoader";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const DashboardLayout = () => {
   const { currentStore } = useDashboardStore();
@@ -44,22 +45,30 @@ const DashboardLayout = () => {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  // A crashed page must reset when the merchant navigates away, but /inbox and
+  // /inbox/:threadId (likewise /customers/:customerId) are one mounted page, so
+  // the boundary key drops route params instead of using the raw pathname.
+  const params = useParams();
+  const pageKey = Object.values(params).reduce<string>(
+    (path, value) => (value ? path.replace(`/${value}`, "") : path),
+    pathname,
+  );
   // The assistant is a room, not a document: it gets its own warm ground for
   // the full scroll area, and none of the page furniture below.
   const onAssistant = pathname === "/assistant";
   const isAr = language === "ar";
 
+  // SSE stream — invalidates the notification queries the moment the API
+  // commits a feed row; while it is live the 45 s polls slow to 5 minutes.
+  const { live: streamLive } = useNotificationStream(currentStore?.id);
   // Mirror the unread count onto the installed app icon. Same hook and same
   // store id the header bell uses, so the badge and the bell can never
   // disagree. No-ops where the Badging API is unsupported — notably Chrome
   // for Android.
-  const unreadNotifications = useUnreadNotificationCount(currentStore?.id, { poll: true });
+  const unreadNotifications = useUnreadNotificationCount(currentStore?.id, { poll: true, streamLive });
   useAppBadge(unreadNotifications);
   // Same count on the browser tab: numbered favicon + "(n) " title prefix.
   useFaviconBadge(unreadNotifications);
-  // SSE stream — invalidates the notification queries the moment the API
-  // commits a feed row, so the 45 s poll is only the fallback.
-  useNotificationStream(currentStore?.id);
   // Feeds the "My pages" popover + dashboard "Recently viewed" strip.
   usePageVisitTracker();
 
@@ -137,7 +146,9 @@ const DashboardLayout = () => {
                   loaders back to back (ring → ring → grey circle + English
                   "Loading..."). */}
               <Suspense fallback={<PageLoader />}>
-                <Outlet />
+                <ErrorBoundary key={pageKey}>
+                  <Outlet />
+                </ErrorBoundary>
               </Suspense>
 
               {/* Mounted at layout level, not per page: the merchant should
@@ -177,7 +188,7 @@ const DashboardLayout = () => {
       <MobileBottomNav />
       {/* Polls /orders and toasts whenever a new one arrives. Mounted at the
           layout level so it runs on every dashboard page. */}
-      <NewOrderNotifier />
+      <NewOrderNotifier streamLive={streamLive} />
       {/* NUMU Agent (merchant copilot) — floating launcher + slide-over panel,
           available on every dashboard route except the assistant's own page,
           where the launcher would float over the thread it duplicates. */}

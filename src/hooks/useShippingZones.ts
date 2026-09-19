@@ -72,11 +72,13 @@ export function useReferenceGovernorates(locale: "en" | "ar" = "en") {
 }
 
 // ─── Write hooks ─────────────────────────────────────────────────────
+// Every caller awaits mutateAsync and toasts the error itself.
 
 export function useCreateShippingZone(storeId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateZoneRequest) => createShippingZone(storeId!, body),
+    meta: { skipErrorToast: true },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipping-zones", storeId] });
       qc.invalidateQueries({ queryKey: ["shipping-coverage", storeId] });
@@ -92,6 +94,7 @@ export function useUpdateShippingZone(
   return useMutation({
     mutationFn: (body: UpdateZoneRequest) =>
       updateShippingZone(storeId!, zoneId!, body),
+    meta: { skipErrorToast: true },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipping-zones", storeId] });
       qc.invalidateQueries({ queryKey: ["shipping-zone", storeId, zoneId] });
@@ -104,6 +107,7 @@ export function useDeleteShippingZone(storeId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (zoneId: string) => deleteShippingZone(storeId!, zoneId),
+    meta: { skipErrorToast: true },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipping-zones", storeId] });
       qc.invalidateQueries({ queryKey: ["shipping-coverage", storeId] });
@@ -119,6 +123,7 @@ export function useCreateShippingRate(
   return useMutation({
     mutationFn: (body: CreateRateRequest) =>
       createShippingRate(storeId!, zoneId!, body),
+    meta: { skipErrorToast: true },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipping-zones", storeId] });
       qc.invalidateQueries({ queryKey: ["shipping-zone", storeId, zoneId] });
@@ -134,6 +139,7 @@ export function useUpdateShippingRate(
   return useMutation({
     mutationFn: ({ rateId, body }: { rateId: string; body: UpdateRateRequest }) =>
       updateShippingRate(storeId!, zoneId!, rateId, body),
+    meta: { skipErrorToast: true },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipping-zones", storeId] });
       qc.invalidateQueries({ queryKey: ["shipping-zone", storeId, zoneId] });
@@ -148,6 +154,7 @@ export function useDeleteShippingRate(
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (rateId: string) => deleteShippingRate(storeId!, zoneId!, rateId),
+    meta: { skipErrorToast: true },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipping-zones", storeId] });
       qc.invalidateQueries({ queryKey: ["shipping-zone", storeId, zoneId] });
@@ -159,6 +166,7 @@ export function useApplyEgypt4ZonePreset(storeId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => applyEgypt4ZonePreset(storeId!),
+    meta: { skipErrorToast: true },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["shipping-zones", storeId] });
       qc.invalidateQueries({ queryKey: ["shipping-coverage", storeId] });

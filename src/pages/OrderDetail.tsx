@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { escapeHtml } from "@/lib/utils";
 import {
   useMutation,
   useQuery,
@@ -174,18 +175,18 @@ const OrderDetail = () => {
     const w = window.open("", "_blank");
     if (!w) return;
     w.document.write(
-      `<html><head><title>${o.order_number}</title><style>body{font-family:system-ui;padding:24px}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}</style></head><body>`,
+      `<html><head><title>${escapeHtml(o.order_number)}</title><style>body{font-family:system-ui;padding:24px}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}</style></head><body>`,
     );
-    w.document.write(`<h1>Order ${o.order_number}</h1>`);
+    w.document.write(`<h1>Order ${escapeHtml(o.order_number)}</h1>`);
     w.document.write(
-      `<p>Address: ${o.shipping_address.address_line1}, ${o.shipping_address.city}</p>`,
+      `<p>Address: ${escapeHtml(o.shipping_address.address_line1)}, ${escapeHtml(o.shipping_address.city)}</p>`,
     );
     w.document.write(
       `<table><tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr>`,
     );
     o.line_items.forEach((item) => {
       w.document.write(
-        `<tr><td>${item.product_name}</td><td>${item.quantity}</td><td>${formatOrderCurrency(item.unit_price, language)}</td><td>${formatOrderCurrency(item.total_price, language)}</td></tr>`,
+        `<tr><td>${escapeHtml(item.product_name)}</td><td>${escapeHtml(item.quantity)}</td><td>${formatOrderCurrency(item.unit_price, language)}</td><td>${formatOrderCurrency(item.total_price, language)}</td></tr>`,
       );
     });
     w.document.write(

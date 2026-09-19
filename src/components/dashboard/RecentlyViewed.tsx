@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ClockCounterClockwise, Star } from "@phosphor-icons/react";
+import { History as ClockCounterClockwise, Star } from "lucide-react";
 import { useHubPages, type ResolvedPage } from "@/lib/nav/useHubPages";
 import { OPEN_PAGES_EVENT } from "@/components/layout/PagesMenu";
 import { cn } from "@/lib/utils";
@@ -60,7 +60,7 @@ export function RecentlyViewed({ className }: { className?: string }) {
                 aria-pressed={p.pinned}
                 title={p.pinned ? t("pages.unpin") : t("pages.pin")}
               >
-                <Star className="h-4 w-4" weight={p.pinned ? "fill" : "regular"} />
+                <Star className="h-4 w-4" fill={p.pinned ? "currentColor" : "none"} />
               </button>
               <Link to={p.url} className="flex h-full items-center pe-3 ps-0.5 hover:bg-muted">
                 {p.label}

@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import * as Sentry from "@sentry/react";
-import { AlertTriangle, RotateCcw } from "lucide-react";
+import { AlertTriangle, Loader2, RotateCcw } from "lucide-react";
+import i18n from "@/i18n";
 import { isStaleChunkError } from "@/lib/lazy-with-retry";
 import { recoverFromStaleAssets } from "@/lib/register-sw";
 
@@ -11,6 +12,8 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  /** A stale chunk this boundary is recovering from — show "updating", not an error. */
+  recovering: boolean;
 }
 
 const RELOAD_GUARD_KEY = "numu:stale-chunk-reload";
@@ -24,11 +27,30 @@ const RELOAD_GUARD_KEY = "numu:stale-chunk-reload";
  */
 const RELOAD_COOLDOWN_MS = 30_000;
 
+/** True when a stale-chunk reload was attempted inside the cooldown. */
+function reloadedRecently(): boolean {
+  try {
+    const last = Number(sessionStorage.getItem(RELOAD_GUARD_KEY)) || 0;
+    return Date.now() - last < RELOAD_COOLDOWN_MS;
+  } catch {
+    // Cannot read the guard, so cannot prove a reload won't loop.
+    return true;
+  }
+}
+
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, error: null };
+  state: State = { hasError: false, error: null, recovering: false };
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    // Decided HERE, before the first render, rather than in componentDidCatch:
+    // this render is what the merchant sees, and a stale chunk after a deploy
+    // is a version change, not a failure. Rendering the error UI first and
+    // recovering a few seconds later is exactly the screen we are removing.
+    return {
+      hasError: true,
+      error,
+      recovering: isStaleChunkError(error) && !reloadedRecently(),
+    };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -75,9 +97,17 @@ export class ErrorBoundary extends Component<Props, State> {
           Sentry.captureException(error, {
             extra: { componentStack: errorInfo.componentStack, reloadSkipped: "no-storage" },
           });
+          // Not recovering after all — swap the "updating" screen for the
+          // one with a Reload button, or the merchant waits on a spinner
+          // that will never finish.
+          this.setState({ recovering: false });
           return;
         }
         void recoverFromStaleAssets();
+        // Recovery reloads within a few seconds on every path it has. If the
+        // page is somehow still here after that, stop pretending: show the
+        // error screen and its Reload button rather than an endless spinner.
+        setTimeout(() => this.setState({ recovering: false }), 10_000);
         return;
       }
       // Already tried within the cooldown — the chunk is genuinely gone.
@@ -89,6 +119,19 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   render() {
+    if (this.state.hasError && this.state.recovering) {
+      return (
+        <div className="flex items-center justify-center min-h-screen p-8 bg-background">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <Loader2 size={28} className="animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">
+              {i18n.t("pwa.updating", "Updating to the latest version…")}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     if (this.state.hasError) {
       return (
         <div className="flex items-center justify-center min-h-screen p-8 bg-background">

@@ -1,26 +1,44 @@
 /**
- * TokenHandoff — exchanges URL-param tokens for httpOnly cookies.
+ * TokenHandoff — exchanges tokens handed over in the URL for httpOnly cookies.
  *
- * Used by the landing page's demo flow and login flow when redirecting
- * cross-origin to the merchant hub. The landing page appends
- * `?access_token=X&refresh_token=Y` to the redirect URL. This page
- * calls POST /auth/token-handoff to set proper httpOnly cookies on this
- * origin, then redirects to the dashboard.
+ * Used by the landing page's demo, signup and login flows when redirecting
+ * cross-origin to the merchant hub. The landing page puts
+ * `access_token`, `refresh_token` and `redirect` in the URL fragment, which
+ * never reaches a server log. The older query-string form is still read so
+ * links minted before the landing deploy keep working. This page calls
+ * POST /auth/token-handoff to set proper httpOnly cookies on this origin,
+ * then redirects within the hub.
  */
 
 import { useEffect, useState } from "react";
-import { useSearchParams, Navigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
+function readHandoff() {
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const params = hash.has("access_token") ? hash : new URLSearchParams(window.location.search);
+  return {
+    accessToken: params.get("access_token"),
+    refreshToken: params.get("refresh_token"),
+    redirect: safeRedirect(params.get("redirect")),
+  };
+}
+
+export function safeRedirect(value: string | null): string {
+  if (!value || !value.startsWith("/")) return "/";
+  const url = new URL(value, window.location.origin);
+  if (url.origin !== window.location.origin) return "/";
+  return url.pathname + url.search + url.hash;
+}
+
 const TokenHandoff = () => {
-  const [searchParams] = useSearchParams();
+  const [handoff] = useState(readHandoff);
   const [status, setStatus] = useState<"loading" | "done" | "error">("loading");
 
-  const accessToken = searchParams.get("access_token");
-  const refreshToken = searchParams.get("refresh_token");
-  const redirect = searchParams.get("redirect") || "/";
-
   useEffect(() => {
+    window.history.replaceState(null, "", window.location.pathname);
+
+    const { accessToken, refreshToken, redirect } = handoff;
     if (!accessToken || !refreshToken) {
       setStatus("error");
       return;
@@ -49,7 +67,7 @@ const TokenHandoff = () => {
         setStatus("error");
       }
     })();
-  }, [accessToken, refreshToken, redirect]);
+  }, [handoff]);
 
   if (status === "error") {
     return <Navigate to="/login" replace />;

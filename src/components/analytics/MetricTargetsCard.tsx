@@ -210,7 +210,7 @@ export function MetricTargetsCard({ storeId, formatCurrency }: MetricTargetsCard
                 <div key={`${t.metric}-${t.period}`} className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[12.5px] font-semibold text-muted-foreground">
-                      {isAr ? METRIC_META[t.metric].ar : METRIC_META[t.metric].en}
+                      {METRIC_META[t.metric]?.[isAr ? "ar" : "en"] ?? t.metric}
                     </span>
                     <span className={`text-[12px] font-bold ${PACE_STYLE[t.pace]}`}>
                       {t.pace === "ahead"

@@ -2,12 +2,13 @@
  * MascotSprite — the animated NUMU clown assistant.
  *
  * Each state is a horizontal strip of equal 128px cells (sliced from the
- * source sprite sheet). We step `background-position-x` in JS rather than via a
- * CSS `steps()` keyframe so that one-shot states (happy / wink / wave) can play
- * exactly once and report completion, while looping states (idle / talking /
- * thinking / excited) cycle forever. Strips are bundled by Vite as URLs.
+ * source sprite sheet), stepped with a CSS `steps()` keyframe (`mascot-sprite`
+ * in index.css) so an idle mascot costs no JS timer or re-render. One-shot
+ * states (happy / wink / wave) play once, hold the last frame and report
+ * completion via `animationend`; looping states (idle / talking / thinking /
+ * excited) cycle forever. Strips are bundled by Vite as URLs.
  */
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 
 import excited from "./sprites/excited.png";
 import happy from "./sprites/happy.png";
@@ -62,44 +63,26 @@ export function MascotSprite({
   className,
 }: MascotSpriteProps) {
   const sheet = SHEETS[state];
-  const [frame, setFrame] = useState(0);
   const onDone = useRef(onComplete);
   onDone.current = onComplete;
-
-  useEffect(() => {
-    setFrame(0);
-    if (sheet.frames <= 1) return;
-
-    let i = 0;
-    const id = window.setInterval(() => {
-      i += 1;
-      if (i >= sheet.frames) {
-        if (sheet.loop) {
-          i = 0;
-        } else {
-          window.clearInterval(id);
-          setFrame(sheet.frames - 1);
-          onDone.current?.();
-          return;
-        }
-      }
-      setFrame(i);
-    }, 1000 / sheet.fps);
-
-    return () => window.clearInterval(id);
-  }, [state, sheet.frames, sheet.fps, sheet.loop]);
+  const animated = sheet.frames > 1;
 
   return (
     <div
+      // Remount per state so the animation restarts from frame 0.
+      key={state}
       className={className}
       aria-hidden
+      onAnimationEnd={animated && !sheet.loop ? () => onDone.current?.() : undefined}
       style={{
         width: size,
         height: size,
         backgroundImage: `url(${sheet.src})`,
         backgroundRepeat: "no-repeat",
         backgroundSize: `${sheet.frames * size}px ${size}px`,
-        backgroundPositionX: `-${frame * size}px`,
+        animation: animated
+          ? `mascot-sprite ${sheet.frames / sheet.fps}s steps(${sheet.frames}, jump-none) ${sheet.loop ? "infinite" : "1 forwards"}`
+          : undefined,
         flexShrink: 0,
       }}
     />

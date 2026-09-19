@@ -1,8 +1,9 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { applyUpdateOnNavigation } from "@/lib/register-sw";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -16,8 +17,10 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import { BrandLoadingScreen } from "@/components/NumuLoader/BrandLoader";
 import { FirstLoginGate } from "@/components/NumuLoader/FirstLoginGate";
 import { PageLoader } from "@/components/PageLoader";
-import { Suspense } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { lazyWithRetry, lazyWithRetry as lazy } from "@/lib/lazy-with-retry";
+import { showError } from "@/lib/show-error";
+import i18n from "@/i18n";
 
 // Lazy-loaded pages for code splitting
 const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
@@ -151,6 +154,15 @@ const AgentNotes = lazyWithRetry(() => import("@/features/agent-knowledge"));
 const Assistant = lazyWithRetry(() => import("@/pages/Assistant"));
 
 const queryClient = new QueryClient({
+  // Mutations that handle their own errors (an onError option, or a
+  // mutateAsync caller that toasts in its catch and sets meta.skipErrorToast)
+  // opt out; everything else would otherwise fail silently.
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      if (mutation.options.onError || mutation.meta?.skipErrorToast) return;
+      showError(error, i18n.language);
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
@@ -209,6 +221,24 @@ function RequireVerified({ children }: { children: React.ReactNode }) {
 }
 
 /** Combined guard: auth + verified + store — single loading screen */
+/**
+ * Moves a tab onto a freshly deployed version at its next navigation, so it
+ * never asks for a chunk the deploy removed. The first render is skipped: a
+ * page load is already on the current version.
+ */
+function SwitchVersionOnNavigate() {
+  const { pathname } = useLocation();
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    applyUpdateOnNavigation();
+  }, [pathname]);
+  return null;
+}
+
 function RouteResolver({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading: authLoading, user, bootError } = useAuth();
   const { hasStores, isLoading: storeLoading } = useDashboardStore();
@@ -249,6 +279,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+              <SwitchVersionOnNavigate />
               <FirstLoginGate>
               <Suspense fallback={<PageLoader />}>
                 <Routes>

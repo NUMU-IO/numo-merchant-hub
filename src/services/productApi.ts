@@ -3,11 +3,56 @@
  */
 
 import { apiClient, apiClientFormData } from "./api";
-import type { Product, ProductVariant, ProductStatus } from "@/data/mock-products";
 import { compressImage } from "@/lib/image-compression";
 import { listCategories } from "./categoryApi";
 import { setOwnerMetafieldValue } from "./metafieldsApi";
 import { setBundlesForProduct } from "./bundleApi";
+
+// ---------------------------------------------------------------------------
+// Dashboard product types
+// ---------------------------------------------------------------------------
+
+/** "unlisted" = reachable by direct link but absent from the catalogue,
+ *  search and feeds. The API calls the published state "active"; the hub
+ *  has always said "published", and `toDisplayStatus` bridges the two. */
+export type ProductStatus = "published" | "unlisted" | "draft" | "archived" | "out_of_stock";
+
+export interface ProductVariant {
+  id: string;
+  name: string;
+  nameAr: string;
+  options: string[];
+  optionsAr: string[];
+  /**
+   * Per-option rendering metadata. Arrays are aligned by position with
+   * `options[]` — index `i` describes `options[i]`. Used by the storefront
+   * to render color swatches and swap the main image on selection. Only
+   * populated for color-type variants today.
+   */
+  hexValues?: string[];
+  imageValues?: string[];
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  nameAr: string;
+  description: string;
+  descriptionAr: string;
+  price: number;
+  compareAtPrice?: number;
+  costPrice?: number;
+  stock: number;
+  status: ProductStatus;
+  category: string;
+  categoryAr: string;
+  categoryId?: string;
+  sku: string;
+  image: string;
+  images: string[];
+  sold: number;
+  variants: ProductVariant[];
+}
 
 // ---------------------------------------------------------------------------
 // Backend response types (match API exactly)
@@ -22,7 +67,7 @@ export interface ApiProductResponse {
   description: string | null;
   short_description: string | null;
   product_type: string;
-  status: "active" | "unlisted" | "draft" | "archived";
+  status: "active" | "unlisted" | "draft" | "archived" | "out_of_stock";
   price: string;
   price_currency: string;
   compare_at_price: string | null;

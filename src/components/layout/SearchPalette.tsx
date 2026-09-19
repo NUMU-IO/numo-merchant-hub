@@ -53,9 +53,13 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
       setProducts([]);
       setOrders([]);
       setCustomers([]);
+      setSearching(false);
       return;
     }
 
+    // Set by the cleanup when the query/scope changes, so a slower earlier
+    // search can't overwrite the results of a newer one.
+    let stale = false;
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
@@ -63,35 +67,38 @@ export function SearchPalette({ open, onOpenChange }: SearchPaletteProps) {
 
         if (scope === "all" || scope === "products") {
           promises.push(
-            listProducts(storeId, { limit: 5, search: query }).then(r =>
-              setProducts(r.items.map(p => ({ id: p.id, name: p.name, sku: p.sku || "", image: p.images?.[0] || "" })))
-            ).catch(() => setProducts([]))
+            listProducts(storeId, { limit: 5, search: query }).then(r => {
+              if (!stale) setProducts(r.items.map(p => ({ id: p.id, name: p.name, sku: p.sku || "", image: p.images?.[0] || "" })));
+            }).catch(() => { if (!stale) setProducts([]); })
           );
         } else { setProducts([]); }
 
         if (scope === "all" || scope === "orders") {
           promises.push(
-            listOrders(storeId, { limit: 5, search: query }).then(r =>
-              setOrders(r.items.map(o => ({ id: o.id, order_number: o.order_number, customer_name: o.customer_name, total: o.total })))
-            ).catch(() => setOrders([]))
+            listOrders(storeId, { limit: 5, search: query }).then(r => {
+              if (!stale) setOrders(r.items.map(o => ({ id: o.id, order_number: o.order_number, customer_name: o.customer_name, total: o.total })));
+            }).catch(() => { if (!stale) setOrders([]); })
           );
         } else { setOrders([]); }
 
         if (scope === "all" || scope === "customers") {
           promises.push(
-            listCustomers(storeId, { limit: 5, query }).then(r =>
-              setCustomers(r.items.map(c => ({ id: c.id, full_name: c.full_name, email: c.email })))
-            ).catch(() => setCustomers([]))
+            listCustomers(storeId, { limit: 5, query }).then(r => {
+              if (!stale) setCustomers(r.items.map(c => ({ id: c.id, full_name: c.full_name, email: c.email })));
+            }).catch(() => { if (!stale) setCustomers([]); })
           );
         } else { setCustomers([]); }
 
         await Promise.allSettled(promises);
       } finally {
-        setSearching(false);
+        if (!stale) setSearching(false);
       }
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
   }, [query, storeId, scope]);
 
   const go = useCallback((path: string) => {

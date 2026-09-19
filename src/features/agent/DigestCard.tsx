@@ -58,7 +58,7 @@ export function DigestCard({
       </div>
       <ul className="space-y-2">
         {digest.blocks.map((b) => {
-          const Icon = ICONS[b.kind];
+          const Icon = ICONS[b.kind] ?? TrendingUp;
           return (
             <li key={b.kind} className="flex items-start gap-2">
               <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />

@@ -28,7 +28,7 @@ interface Props {
 
 export function PromotionSurfaceLabel({ surface, className, iconOnly }: Props) {
   const { t } = useTranslation();
-  const Icon = ICONS[surface];
+  const Icon = ICONS[surface] ?? Tag;
   return (
     <span
       className={cn(

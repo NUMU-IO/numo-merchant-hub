@@ -7,11 +7,11 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-// Phosphor icons match the Souq spec: duotone at rest, fill when active.
+// Souq spec: duotone at rest (20% fill), solid fill when active.
 import {
-  Storefront, Gear, Cube as Boxes, Compass,
-  CaretUpDown, CaretRight, CaretLeft, ChatsCircle,
-} from "@phosphor-icons/react";
+  Store as Storefront, Settings as Gear, Box as Boxes, Compass,
+  ChevronsUpDown as CaretUpDown, ChevronRight as CaretRight, ChevronLeft as CaretLeft, MessagesSquare as ChatsCircle,
+} from "lucide-react";
 import { FounderBadge, FounderRing } from "@/components/brand/FounderBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { planLabel } from "@/lib/planLabel";
@@ -52,7 +52,7 @@ function HoverCaret({ trailing }: { trailing: boolean }) {
   return (
     <CaretRight
       size={12}
-      weight="bold"
+      strokeWidth={2.5}
       aria-hidden
       className={cn(
         "shrink-0 text-muted-foreground/70 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-visible/row:opacity-100 group-data-[active=true]/row:hidden group-data-[collapsible=icon]:hidden",
@@ -156,7 +156,7 @@ const AppSidebar = () => {
       <SidebarMenuSubItem>
         <SidebarMenuSubButton asChild isActive={isActive(item.url, item.exact)} className="h-8">
           <NavLink to={item.url} onClick={onNavigate}>
-            <item.icon size={14} weight="duotone" className="shrink-0" />
+            <item.icon size={14} fill="currentColor" fillOpacity={0.2} className="shrink-0" />
             <span className="truncate text-[12.5px]">{item.label}</span>
             {item.badge ? (
               <span className="ms-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-saffron px-1 text-[9px] font-bold text-navy-900">
@@ -178,7 +178,7 @@ const AppSidebar = () => {
         <SidebarMenuItem>
           <SidebarMenuButton asChild isActive={g.active} tooltip={g.label} className="group/row h-10 rounded-lg px-3">
             <NavLink to={g.url} onClick={onNavigate}>
-              <Icon size={20} weight={g.active ? "fill" : "duotone"} className={iconClass} />
+              <Icon size={20} fill="currentColor" fillOpacity={g.active ? 1 : 0.2} className={iconClass} />
               <span className="truncate text-[13px] font-medium">{g.label}</span>
               {g.badge ? (
                 <span className="ms-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-saffron px-1 text-[10px] font-bold text-navy-900 group-data-[collapsible=icon]:hidden">
@@ -205,7 +205,7 @@ const AppSidebar = () => {
                           <SidebarMenuSubButton className="h-8 cursor-pointer text-muted-foreground">
                             <CaretRight
                               size={12}
-                              weight="bold"
+                              strokeWidth={2.5}
                               className={cn(
                                 "shrink-0 transition-transform",
                                 isRTL ? "rotate-180" : "",
@@ -248,7 +248,7 @@ const AppSidebar = () => {
         ) : null}
         <CaretRight
           size={14}
-          weight="bold"
+          strokeWidth={2.5}
           className={cn("shrink-0 text-muted-foreground/70 group-data-[collapsible=icon]:hidden", badge ? "ms-1" : "ms-auto", isRTL && "rotate-180")}
         />
       </SidebarMenuButton>
@@ -270,7 +270,7 @@ const AppSidebar = () => {
         aria-label={onBack ? t("nav.back") : undefined}
       >
         {onBack && (
-          <CaretLeft size={14} weight="bold" className={cn("shrink-0", isRTL && "rotate-180")} />
+          <CaretLeft size={14} strokeWidth={2.5} className={cn("shrink-0", isRTL && "rotate-180")} />
         )}
         <span className="truncate group-data-[collapsible=icon]:hidden">{label}</span>
         {!onBack && <span className="hidden text-[11px] group-data-[collapsible=icon]:inline">§</span>}
@@ -290,7 +290,7 @@ const AppSidebar = () => {
                 {renderLeaf(
                   item,
                   isActive(item.url, item.exact),
-                  <item.icon size={20} weight={isActive(item.url, item.exact) ? "fill" : "duotone"} className={iconClass} />,
+                  <item.icon size={20} fill="currentColor" fillOpacity={isActive(item.url, item.exact) ? 1 : 0.2} className={iconClass} />,
                 )}
               </NavItemGate>
             ))}
@@ -306,7 +306,7 @@ const AppSidebar = () => {
             {renderDrillRow(
               "channels",
               t("nav.channels"),
-              <ChatsCircle size={20} weight={channelsActive ? "fill" : "duotone"} className={iconClass} />,
+              <ChatsCircle size={20} fill="currentColor" fillOpacity={channelsActive ? 1 : 0.2} className={iconClass} />,
               channelsActive,
               totalUnread,
             )}
@@ -354,7 +354,7 @@ const AppSidebar = () => {
               renderDrillRow(
                 `settings:${i + 1}`,
                 sectionLabel(s),
-                <Gear size={20} weight="duotone" className={cn(iconClass, "hidden group-data-[collapsible=icon]:block")} />,
+                <Gear size={20} fill="currentColor" fillOpacity={0.2} className={cn(iconClass, "hidden group-data-[collapsible=icon]:block")} />,
                 s.items.some((it) => settingsItemActive(it.to)),
               ),
             )}
@@ -370,7 +370,7 @@ const AppSidebar = () => {
         {renderLeaf(
           appsItems[0],
           isActive("/apps"),
-          <Compass size={20} weight={isActive("/apps") ? "fill" : "duotone"} className={iconClass} />,
+          <Compass size={20} fill="currentColor" fillOpacity={isActive("/apps") ? 1 : 0.2} className={iconClass} />,
         )}
       </SidebarMenu>
       <div className="mt-2">{renderPill(t("nav.installedApps"))}</div>
@@ -383,7 +383,7 @@ const AppSidebar = () => {
               app.icon_url ? (
                 <img src={app.icon_url} alt="" className="h-5 w-5 shrink-0 rounded-md object-cover" />
               ) : (
-                <Boxes size={20} weight="duotone" className={iconClass} />
+                <Boxes size={20} fill="currentColor" fillOpacity={0.2} className={iconClass} />
               ),
             ),
           )}
@@ -429,7 +429,7 @@ const AppSidebar = () => {
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Icon size={20} weight={active ? "fill" : "duotone"} />
+                <Icon size={20} fill="currentColor" fillOpacity={active ? 1 : 0.2} />
               </button>
             );
           })}
@@ -475,7 +475,7 @@ const AppSidebar = () => {
                   </div>
                   <div className="text-[11px] text-muted-foreground truncate mt-0.5">{planLabelText}</div>
                 </div>
-                <CaretUpDown size={15} weight="bold" className="text-muted-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
+                <CaretUpDown size={15} strokeWidth={2.5} className="text-muted-foreground/60 shrink-0 group-data-[collapsible=icon]:hidden" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" className="w-60 rounded-xl">
@@ -498,7 +498,7 @@ const AppSidebar = () => {
               <DropdownMenuSeparator />
               <NavItemGate navKey="store">
                 <DropdownMenuItem onClick={() => navigate("/store")} className="gap-2.5 rounded-lg py-2">
-                  <Storefront size={16} weight="duotone" />
+                  <Storefront size={16} fill="currentColor" fillOpacity={0.2} />
                   <span className="text-[13px]">{t("nav.storeSettings")}</span>
                 </DropdownMenuItem>
               </NavItemGate>

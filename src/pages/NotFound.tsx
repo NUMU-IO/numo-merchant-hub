@@ -1,5 +1,4 @@
 import { useLocation, Link } from "react-router-dom";
-import { useEffect } from "react";
 import { Compass, ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -10,10 +9,6 @@ import { useLanguage } from "@/contexts/LanguageContext";
 const NotFound = () => {
   const location = useLocation();
   const { isRTL } = useLanguage();
-
-  useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
-  }, [location.pathname]);
 
   const Arrow = isRTL ? ArrowLeft : ArrowRight;
   const BackArrow = isRTL ? ArrowRight : ArrowLeft;

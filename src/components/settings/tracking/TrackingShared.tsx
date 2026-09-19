@@ -525,7 +525,7 @@ export function EventsLog({
             <TableBody>
               {rows.map((row) => {
                 const expanded = expandedId === row.id;
-                const chan = CHANNEL_PILLS[row.channel];
+                const chan = CHANNEL_PILLS[row.channel] ?? CHANNEL_PILLS.browser;
                 return (
                   <Fragment key={row.id}>
                     <TableRow

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { escapeHtml } from "@/lib/utils";
 import { formatMoney } from "@/lib/format-money";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
@@ -539,12 +540,12 @@ const Orders = () => {
   const handlePrint = (o: ApiOrder) => {
     const w = window.open("", "_blank");
     if (!w) return;
-    w.document.write(`<html><head><title>${o.order_number}</title><style>body{font-family:system-ui;padding:24px}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}</style></head><body>`);
-    w.document.write(`<h1>Order ${o.order_number}</h1>`);
-    w.document.write(`<p>Address: ${o.shipping_address.address_line1}, ${o.shipping_address.city}</p>`);
+    w.document.write(`<html><head><title>${escapeHtml(o.order_number)}</title><style>body{font-family:system-ui;padding:24px}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}</style></head><body>`);
+    w.document.write(`<h1>Order ${escapeHtml(o.order_number)}</h1>`);
+    w.document.write(`<p>Address: ${escapeHtml(o.shipping_address.address_line1)}, ${escapeHtml(o.shipping_address.city)}</p>`);
     w.document.write(`<table><tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr>`);
     o.line_items.forEach(item => {
-      w.document.write(`<tr><td>${item.product_name}</td><td>${item.quantity}</td><td>${formatCurrency(item.unit_price)}</td><td>${formatCurrency(item.total_price)}</td></tr>`);
+      w.document.write(`<tr><td>${escapeHtml(item.product_name)}</td><td>${escapeHtml(item.quantity)}</td><td>${formatCurrency(item.unit_price)}</td><td>${formatCurrency(item.total_price)}</td></tr>`);
     });
     w.document.write(`</table><p><strong>Total: ${formatCurrency(o.total)}</strong></p></body></html>`);
     w.document.close();
