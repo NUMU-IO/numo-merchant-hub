@@ -96,7 +96,7 @@ export default function DevelopersPage() {
                   </a>
                 </Button>
                 <Button variant="outline" asChild>
-                  <a href={`${DOCS}/api/overview`} target="_blank" rel="noreferrer">
+                  <a href={`${DOCS}/go/Overview`} target="_blank" rel="noreferrer">
                     <BookOpen className="h-4 w-4 me-1" />
                     {t("See what the API does", "شوف الـ API بيعمل إيه")}
                   </a>
@@ -127,12 +127,12 @@ export default function DevelopersPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" asChild>
-              <a href={`${DOCS}/api/quickstart`} target="_blank" rel="noreferrer">
+              <a href={`${DOCS}/go/Quickstart`} target="_blank" rel="noreferrer">
                 {t("Quickstart", "ابدأ بسرعة")}
               </a>
             </Button>
             <Button variant="outline" asChild>
-              <a href={`${DOCS}/api/reference/orders`} target="_blank" rel="noreferrer">
+              <a href={`${DOCS}/go/folder/Orders%20%26%20fulfillment`} target="_blank" rel="noreferrer">
                 {t("Endpoints", "الـ endpoints")}
               </a>
             </Button>
