@@ -1946,5 +1946,6 @@ export default {
     updateTitle: "A new version is available",
     updateBody: "Reload to get the latest version. Your work is saved.",
     updateAction: "Update",
+    updating: "Updating to the latest version…",
   },
 };
