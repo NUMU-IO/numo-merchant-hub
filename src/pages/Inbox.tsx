@@ -27,8 +27,6 @@ import {
   MessageCircle,
   Search,
   Send,
-  Image,
-  FileText,
   Paperclip,
   Link2 as LinkIcon,
   Check,
@@ -555,14 +553,6 @@ export const Inbox = () => {
     setShowTemplatePicker(false);
   };
 
-  const handleAttachImage = () => {
-    toast.info(t("omnichannel.attachments_soon"));
-  };
-
-  const handleAttachDocument = () => {
-    toast.info(t("omnichannel.attachments_soon"));
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -806,22 +796,6 @@ export const Inbox = () => {
             {/* Compose */}
             <div className="p-4 border-t">
               <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleAttachImage}
-                  disabled={isWAWindowClosed || sendMutation.isPending}
-                >
-                  <Image className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleAttachDocument}
-                  disabled={isWAWindowClosed || sendMutation.isPending}
-                >
-                  <FileText className="h-5 w-5" />
-                </Button>
                 {(isWAWindowClosed || currentThread?.channel === "whatsapp") && (
                   <Button
                     variant="ghost"

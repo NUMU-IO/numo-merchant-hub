@@ -1016,6 +1016,15 @@
       danger: "حساس",
     },
   },
+  preferences: {
+    regionTitle: "السوق والعملة والتوقيت",
+    regionBody: "دي إعدادات المتجر، وبتتغير من صفحة المتجر.",
+    marketCurrency: "السوق والعملة",
+    hoursTimezone: "مواعيد العمل والتوقيت",
+    password: "كلمة المرور",
+    passwordHint: "غيّرها من صفحة حسابك",
+    changePassword: "غيّر كلمة المرور",
+  },
   common: {
     currency: "ج.م",
     currencySymbol: "ج.م",
@@ -1256,7 +1265,6 @@
     resolve: "اقفل المحادثة",
     template_picker_desc: "اختار قالب متوافق عليه عشان تبعته.",
     no_templates: "مفيش قوالب متوافق عليها لسه",
-    attachments_soon: "المرفقات جاية قريب",
     search_conversations: "دوّر في المحادثات...",
     capi_enabled: "شغّل Conversions API",
     capi_pixel_id: "معرف البكسل (Pixel ID)",

@@ -1007,6 +1007,15 @@ export default {
       danger: "Sensitive",
     },
   },
+  preferences: {
+    regionTitle: "Market, currency & timezone",
+    regionBody: "These are store settings. Change them from your store page.",
+    marketCurrency: "Market & currency",
+    hoursTimezone: "Business hours & timezone",
+    password: "Password",
+    passwordHint: "Change it from your profile",
+    changePassword: "Change password",
+  },
   common: {
     currency: "EGP",
     currencySymbol: "ج.م",
@@ -1253,7 +1262,6 @@ export default {
     resolve: "Resolve",
     template_picker_desc: "Pick an approved template to send.",
     no_templates: "No approved templates yet",
-    attachments_soon: "Attachments are coming soon",
     search_conversations: "Search conversations...",
     capi_enabled: "Conversions API Enabled",
     capi_pixel_id: "Pixel ID",
