@@ -10,6 +10,7 @@ import {
   getPublicStoreHost,
   getPublicStorePath,
   getPublicStoreUrl,
+  getStoreFrameUrl,
   getStoreUrl,
 } from "../storefront";
 
@@ -98,5 +99,17 @@ describe("getPublicStoreHost / getPublicStorePath", () => {
 
   it("returns null when there is no public URL", () => {
     expect(getPublicStorePath({ subdomain: null }, "product/42")).toBeNull();
+  });
+});
+
+describe("getStoreFrameUrl", () => {
+  // The hub CSP frame-src only allows *.numueg.app, so an iframe must never
+  // point at the merchant's own domain even when it is live.
+  it("stays on the subdomain even with a live custom domain", () => {
+    expect(getStoreFrameUrl(store("vionneeg.com", "active"))).toBe(canonical("vionne"));
+  });
+
+  it("returns null for a store without a subdomain", () => {
+    expect(getStoreFrameUrl({ subdomain: null, custom_domain: "x.com" })).toBeNull();
   });
 });

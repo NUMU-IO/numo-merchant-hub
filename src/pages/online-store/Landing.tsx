@@ -15,7 +15,7 @@ import {
   listThemeInstallations, renameThemeInstallation,
 } from "@/services/themeCodeApi";
 import { showError } from "@/lib/show-error";
-import { getPublicStoreHost, getPublicStoreUrl } from "@/lib/storefront";
+import { getPublicStoreHost, getPublicStoreUrl, getStoreFrameUrl } from "@/lib/storefront";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -125,6 +125,7 @@ const ThemeThumb = ({
 const DevicePreview = ({
   mode,
   storeUrl,
+  frameUrl,
   host,
   themeId,
   imageUrl,
@@ -132,6 +133,7 @@ const DevicePreview = ({
 }: {
   mode: "desktop" | "mobile";
   storeUrl: string | null;
+  frameUrl: string | null;
   host: string | null;
   themeId?: string;
   imageUrl?: string;
@@ -180,9 +182,9 @@ const DevicePreview = ({
         <div className="absolute inset-0">
           <ThemeThumb themeId={themeId} imageUrl={imageUrl} />
         </div>
-        {storeUrl && (
+        {frameUrl && (
           <iframe
-            src={storeUrl}
+            src={frameUrl}
             title="Storefront preview"
             loading="lazy"
             scrolling="no"
@@ -196,7 +198,7 @@ const DevicePreview = ({
           />
         )}
         {/* Loading shimmer while the frame fetches */}
-        {storeUrl && !loaded && (
+        {frameUrl && !loaded && (
           <div className="absolute inset-0 z-[5] flex items-center justify-center bg-surface-2/50 backdrop-blur-[1px]">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
@@ -541,6 +543,7 @@ const OnlineStoreLanding = () => {
                 <DevicePreview
                   mode={previewMode}
                   storeUrl={storeUrl}
+                  frameUrl={getStoreFrameUrl(currentStore)}
                   host={storeHost}
                   themeId={liveTheme.id}
                   imageUrl={liveTheme.preview_image_url}
