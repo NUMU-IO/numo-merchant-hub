@@ -30,7 +30,7 @@ import { Separator } from "@/components/ui/separator";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { TrafficSourceIcon } from "@/components/orders/TrafficSourceIcon";
 import { listCustomers } from "@/services/customerApi";
-import type { AbandonedCheckout } from "@/services/abandonedCheckoutApi";
+import { canConvertCheckout, type AbandonedCheckout } from "@/services/abandonedCheckoutApi";
 
 interface AbandonedCheckoutDetailDialogProps {
   storeId: string;
@@ -40,6 +40,8 @@ interface AbandonedCheckoutDetailDialogProps {
   onWhatsApp: (id: string) => void;
   onSendEmail: (id: string) => void;
   onMarkRecovered: (id: string) => void;
+  onCreateOrder: (id: string) => void;
+  createOrderPending: boolean;
   whatsAppPending: boolean;
   emailPending: boolean;
   recoverPending: boolean;
@@ -78,6 +80,8 @@ export function AbandonedCheckoutDetailDialog({
   onWhatsApp,
   onSendEmail,
   onMarkRecovered,
+  onCreateOrder,
+  createOrderPending,
   whatsAppPending,
   emailPending,
   recoverPending,
@@ -201,7 +205,9 @@ export function AbandonedCheckoutDetailDialog({
             {c.recovered_at ? (
               <Badge variant="outline" className="text-[10px] py-0.5 bg-emerald-500/10 text-emerald-600 border-emerald-200/50">
                 <CheckCircle2 className="h-3 w-3 me-1" />
-                {isAr ? "مستردة" : "Recovered"}
+                {c.recovered_order_id
+                  ? (isAr ? "مستردة" : "Recovered")
+                  : (isAr ? "مستردة من غير طلب" : "Recovered · no order")}
               </Badge>
             ) : c.recovery_email_sent_at ? (
               <Badge variant="outline" className="text-[10px] py-0.5 bg-blue-500/10 text-blue-600 border-blue-200/50">
@@ -463,7 +469,22 @@ export function AbandonedCheckoutDetailDialog({
                 : (isAr ? "إرسال بريد الاسترداد" : "Send recovery")}
             </Button>
           )}
-          {!c.recovered_at && (
+          {canConvertCheckout(c) && (
+            <Button
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              disabled={createOrderPending}
+              onClick={() => onCreateOrder(c.id)}
+            >
+              {createOrderPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Check className="h-3.5 w-3.5" />
+              )}
+              {isAr ? "اعمل الطلب" : "Create order"}
+            </Button>
+          )}
+          {!c.recovered_at && !canConvertCheckout(c) && (
             <Button
               size="sm"
               className="h-8 text-xs gap-1.5"
