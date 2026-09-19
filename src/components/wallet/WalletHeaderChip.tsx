@@ -2,16 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { apiClient } from "@/services/api";
 import { Wallet, PlusCircle } from "lucide-react";
-
-interface WalletState {
-  balance_cents: number;
-  pending_balance_cents: number;
-  currency: string;
-  is_blocked: boolean;
-  effective_commission_bps: number;
-}
+import { walletQuery as walletQueryOptions } from "./walletQuery";
 
 /**
  * Header wallet chip (Salla-style) for pay-as-you-go tenants.
@@ -36,8 +28,7 @@ const WalletHeaderChip = () => {
   const isPayg = tenant?.plan === "payg";
 
   const walletQuery = useQuery({
-    queryKey: ["header", "wallet"],
-    queryFn: () => apiClient<WalletState>("/wallet"),
+    ...walletQueryOptions,
     enabled: isPayg,
     refetchInterval: 60_000,
     staleTime: 55_000,

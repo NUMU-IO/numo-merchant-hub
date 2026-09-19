@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { apiClient } from "@/services/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Rocket } from "lucide-react";
+import { walletQuery as walletQueryOptions } from "./walletQuery";
 
 /**
  * Go-live gate banner for NEW merchants (no `golive_exempt` feature flag).
@@ -42,8 +42,7 @@ const GoLiveBanner = () => {
   // exists. If GET /wallet 404s — hub shipped ahead of the API — we
   // must NOT tell existing merchants their store isn't live.
   const walletQuery = useQuery({
-    queryKey: ["golive", "wallet-probe"],
-    queryFn: () => apiClient("/wallet"),
+    ...walletQueryOptions,
     enabled: needsPlan,
     retry: false,
     staleTime: 5 * 60 * 1000,

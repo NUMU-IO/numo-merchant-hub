@@ -99,16 +99,27 @@ function OverviewContent() {
   const overview = overviewQuery.data ?? null;
   const isLoading = overviewQuery.isLoading;
 
-  if (isLoading && !overview) return <AnalyticsSkeleton />;
+  // Rendered above the skeleton too, so their own requests start alongside
+  // the overview instead of after it. Same position in both trees → no remount.
+  const cards = storeId && (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <MetricTargetsCard storeId={storeId} formatCurrency={formatCurrency} />
+      <WeeklyDigestCard storeId={storeId} />
+    </div>
+  );
+
+  if (isLoading && !overview) {
+    return (
+      <div className="space-y-4">
+        {cards}
+        <AnalyticsSkeleton />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {storeId && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <MetricTargetsCard storeId={storeId} formatCurrency={formatCurrency} />
-          <WeeklyDigestCard storeId={storeId} />
-        </div>
-      )}
+      {cards}
       <OverviewTab
         overview={overview}
         chartData={chartQuery.data ?? []}

@@ -71,7 +71,9 @@ function write(storeId: string, next: PagesState) {
 }
 
 function update(storeId: string, fn: (prev: PagesState) => PagesState) {
-  write(storeId, fn(read(storeId)));
+  const prev = read(storeId);
+  const next = fn(prev);
+  if (next !== prev) write(storeId, next);
 }
 
 function subscribe(listener: () => void) {

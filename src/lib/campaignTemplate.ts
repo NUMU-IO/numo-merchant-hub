@@ -18,6 +18,8 @@
  *     the store name.
  */
 
+import { escapeHtml } from "@/lib/utils";
+
 export type PromotedKind = "product" | "collection" | "page";
 
 export interface PromotedProductSnapshot {
@@ -62,14 +64,6 @@ interface TemplateOptions {
 const DEFAULT_HERO =
   "https://placehold.co/1200x630/f6f4ef/111?text=NUMU";
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function escapeUrl(value: string): string {
   // Only allow http/https. Reject anything starting with javascript:, data:,

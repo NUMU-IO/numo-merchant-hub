@@ -10,23 +10,28 @@
  *     was opened; only for orders that arrive AFTER mount.
  *   • Persist the high-water mark in localStorage keyed by store id so the
  *     dashboard doesn't re-toast the same orders after a hard refresh.
- *   • Poll every 20s. Compare newest order against the mark; toast each
- *     new order (in chronological order) and advance the mark.
+ *   • Poll every 60s (the Dashboard's recent-orders query, so the two share
+ *     one request). While the notification stream is live its `order.new`
+ *     events refetch at once and the poll drops to a 5-minute safety net.
+ *     Compare newest order against the mark; toast each new order (in
+ *     chronological order) and advance the mark.
  *
  * No sound — browsers gate audio behind a user gesture and inconsistent
  * autoplay would just spam the console. Visual + clickable toast only.
  */
 
 import { useEffect, useRef, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ShoppingBag, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { listOrders, type OrderListItem } from "@/services/orderApi";
+import { recentOrdersQuery, type OrderListItem } from "@/services/orderApi";
 import { useNewOrderSound } from "@/hooks/useNewOrderSound";
 
 const POLL_INTERVAL_MS = 60_000;
+const STREAM_LIVE_POLL_INTERVAL_MS = 5 * 60_000;
 const STORAGE_PREFIX = "numu.lastOrderSeen.";
 
 function storageKey(storeId: string) {
@@ -115,7 +120,7 @@ function OrderToast({ order, isAr, toastId, onClick }: OrderToastProps) {
   );
 }
 
-export function NewOrderNotifier() {
+export function NewOrderNotifier({ streamLive = false }: { streamLive?: boolean }) {
   const { currentStore } = useDashboardStore();
   const { language } = useLanguage();
   const navigate = useNavigate();
@@ -156,6 +161,16 @@ export function NewOrderNotifier() {
     [isAr, navigate, playNewOrderSound],
   );
 
+  // staleTime 0 + refetchOnWindowFocus: poll on mount and the moment the tab
+  // is visible again. The interval pauses in background tabs.
+  const { data } = useQuery({
+    ...recentOrdersQuery(storeId),
+    enabled: !!storeId,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: streamLive ? STREAM_LIVE_POLL_INTERVAL_MS : POLL_INTERVAL_MS,
+  });
+
   useEffect(() => {
     if (!storeId) {
       highWaterRef.current = null;
@@ -169,87 +184,40 @@ export function NewOrderNotifier() {
       initializedForRef.current = storeId;
     }
 
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (!data) return;
 
-    const poll = async () => {
-      // Skip the network call entirely when the tab is backgrounded — most
-      // wasted polls come from tabs nobody is looking at. We'll catch up on
-      // visibilitychange below.
-      if (document.visibilityState === "hidden") {
-        if (!cancelled) {
-          timer = setTimeout(poll, POLL_INTERVAL_MS);
-        }
-        return;
+    // API returns most-recent first (default sort). Find ones we haven't
+    // toasted yet — strictly newer than the high-water mark — and walk
+    // them oldest→newest so toasts stack in arrival order.
+    const mark = highWaterRef.current;
+    const fresh = mark
+      ? data.items.filter((o) => o.created_at > mark)
+      : []; // no mark yet → seed from this response, do NOT toast existing orders
+
+    if (!mark && data.items.length > 0) {
+      // First successful fetch for this store. Seed the mark with the
+      // newest order so we only toast genuinely new arrivals.
+      const newest = data.items[0].created_at;
+      highWaterRef.current = newest;
+      writeMark(storeId, newest);
+    } else if (fresh.length > 0) {
+      const sorted = [...fresh].sort((a, b) =>
+        a.created_at < b.created_at ? -1 : 1,
+      );
+      for (const order of sorted) {
+        showOrderToast(order);
       }
-
-      try {
-        const data = await listOrders(storeId, { page: 1, limit: 10 });
-        if (cancelled) return;
-
-        // API returns most-recent first (default sort). Find ones we haven't
-        // toasted yet — strictly newer than the high-water mark — and walk
-        // them oldest→newest so toasts stack in arrival order.
-        const mark = highWaterRef.current;
-        const fresh = mark
-          ? data.items.filter((o) => o.created_at > mark)
-          : []; // no mark yet → seed from this response, do NOT toast existing orders
-
-        if (!mark && data.items.length > 0) {
-          // First successful fetch for this store. Seed the mark with the
-          // newest order so we only toast genuinely new arrivals.
-          const newest = data.items[0].created_at;
-          highWaterRef.current = newest;
-          writeMark(storeId, newest);
-        } else if (fresh.length > 0) {
-          const sorted = [...fresh].sort((a, b) =>
-            a.created_at < b.created_at ? -1 : 1,
-          );
-          for (const order of sorted) {
-            showOrderToast(order);
-          }
-          const newest = sorted[sorted.length - 1].created_at;
-          highWaterRef.current = newest;
-          writeMark(storeId, newest);
-        } else if (!mark) {
-          // No mark, no items — seed with empty sentinel so we don't keep
-          // re-checking for "no items" as if it were the first poll.
-          const sentinel = new Date().toISOString();
-          highWaterRef.current = sentinel;
-          writeMark(storeId, sentinel);
-        }
-      } catch {
-        /* network blip — try again next tick */
-      } finally {
-        if (!cancelled) {
-          timer = setTimeout(poll, POLL_INTERVAL_MS);
-        }
-      }
-    };
-
-    // Kick off immediately so the seed mark is in place before any new
-    // orders can sneak in via the long poll interval.
-    poll();
-
-    // When the tab becomes visible again, poll once right away instead of
-    // waiting up to a full interval — the merchant just looked at the screen.
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        if (timer) {
-          clearTimeout(timer);
-          timer = null;
-        }
-        poll();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [storeId, showOrderToast]);
+      const newest = sorted[sorted.length - 1].created_at;
+      highWaterRef.current = newest;
+      writeMark(storeId, newest);
+    } else if (!mark) {
+      // No mark, no items — seed with empty sentinel so we don't keep
+      // re-checking for "no items" as if it were the first poll.
+      const sentinel = new Date().toISOString();
+      highWaterRef.current = sentinel;
+      writeMark(storeId, sentinel);
+    }
+  }, [storeId, data, showOrderToast]);
 
   return null;
 }

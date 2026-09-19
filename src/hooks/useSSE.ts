@@ -138,8 +138,10 @@ export function useSSE<T>({
           if (!dataLine) continue;
           try {
             const parsed = JSON.parse(dataLine.slice(5).trim()) as T;
-            setData(parsed);
-            onMessageRef.current?.(parsed);
+            // `data` is for consumers without onMessage; setting it for the
+            // others re-rendered their host on every frame for nothing.
+            if (onMessageRef.current) onMessageRef.current(parsed);
+            else setData(parsed);
           } catch {
             /* ignore malformed frame */
           }

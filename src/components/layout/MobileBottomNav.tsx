@@ -5,7 +5,6 @@ import {
   Home, ShoppingCart, Package, Plus, MoreHorizontal, X, Tag,
   ChevronRight, ChevronDown, Bell, Smartphone,
 } from "lucide-react";
-import { CaretRight } from "@phosphor-icons/react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useQuery } from "@tanstack/react-query";
 import { listOrders } from "@/services/orderApi";
@@ -15,6 +14,7 @@ import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { IosInstallSheet } from "@/components/pwa/IosInstallSheet";
 import { NavItemGate } from "@/components/layout/NavItemGate";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useHubNav, type HubTab, type NavGroup, type NavLeaf } from "@/lib/nav/useHubNav";
 import { cn } from "@/lib/utils";
 
@@ -41,12 +41,13 @@ const MobileBottomNav = () => {
   const [iosSheetOpen, setIosSheetOpen] = useState(false);
   const nav = useHubNav();
   const unreadNotifications = useUnreadNotificationCount(currentStore?.id);
+  const isMobile = useIsMobile();
 
   // Orders count badge (pending) — same signal the Dashboard attention bar uses.
   const ordersQuery = useQuery({
     queryKey: ["mnav", "ordersCount", currentStore?.id],
     queryFn: () => listOrders(currentStore!.id, { page: 1, limit: 1, status: "pending" }),
-    enabled: !!currentStore?.id,
+    enabled: !!currentStore?.id && isMobile,
     staleTime: 60_000,
   });
   const pendingOrders = ordersQuery.data?.total ?? 0;
@@ -120,7 +121,7 @@ const MobileBottomNav = () => {
       {chevron === "open" ? (
         <ChevronDown className="h-4 w-4 opacity-60" />
       ) : chevron === "closed" ? (
-        <CaretRight size={14} weight="bold" className={cn("opacity-60", isRTL && "rotate-180")} />
+        <ChevronRight size={14} strokeWidth={2.5} className={cn("opacity-60", isRTL && "rotate-180")} />
       ) : chevron === "link" ? (
         <ChevronRight className="h-4 w-4 opacity-60 rtl:rotate-180" />
       ) : null}
@@ -136,7 +137,7 @@ const MobileBottomNav = () => {
       <NavItemGate key={item.key} navKey={item.navKey}>
         <Row
           sub={sub}
-          icon={<item.icon size={sub ? 16 : 20} weight={active ? "fill" : "duotone"} className={iconCls(active)} />}
+          icon={<item.icon size={sub ? 16 : 20} fill="currentColor" fillOpacity={active ? 1 : 0.2} className={iconCls(active)} />}
           label={item.label}
           active={active}
           badge={item.badge}
@@ -154,7 +155,7 @@ const MobileBottomNav = () => {
       <NavItemGate key={g.key} navKey={g.navKey}>
         <div>
           <Row
-            icon={<g.icon size={20} weight={g.active ? "fill" : "duotone"} className={iconCls(g.active && !hasChildren)} />}
+            icon={<g.icon size={20} fill="currentColor" fillOpacity={g.active ? 1 : 0.2} className={iconCls(g.active && !hasChildren)} />}
             label={g.label}
             active={g.active && !hasChildren}
             dot={g.dot && !open}
@@ -206,7 +207,7 @@ const MobileBottomNav = () => {
               app.icon_url ? (
                 <img src={app.icon_url} alt="" className="h-5 w-5 rounded-md object-cover" />
               ) : (
-                <nav.Boxes size={20} weight="duotone" className={iconCls()} />
+                <nav.Boxes size={20} fill="currentColor" fillOpacity={0.2} className={iconCls()} />
               )
             }
             label={app.name}
@@ -369,7 +370,7 @@ const MobileBottomNav = () => {
                       active ? "bg-card text-navy shadow-sm dark:text-saffron" : "text-muted-foreground",
                     )}
                   >
-                    <x.icon size={18} weight={active ? "fill" : "duotone"} />
+                    <x.icon size={18} fill="currentColor" fillOpacity={active ? 1 : 0.2} />
                     {x.label}
                   </button>
                 );

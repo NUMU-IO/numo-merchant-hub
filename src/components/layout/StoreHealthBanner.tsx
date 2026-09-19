@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { CaretRight } from "@phosphor-icons/react";
+import { ChevronRight as CaretRight } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { getHealthScore } from "@/services/analyticsApi";
@@ -81,7 +81,7 @@ export function StoreHealthBanner() {
             </>
           )}
         </span>
-        <CaretRight size={14} weight="bold" className="shrink-0 text-white/60 rtl:rotate-180 group-data-[collapsible=icon]:hidden" />
+        <CaretRight size={14} strokeWidth={2.5} className="shrink-0 text-white/60 rtl:rotate-180 group-data-[collapsible=icon]:hidden" />
       </button>
     </NavItemGate>
   );

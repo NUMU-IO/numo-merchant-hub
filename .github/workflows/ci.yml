@@ -32,6 +32,20 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+      # `vite build` does not type-check and the app carries pre-existing type
+      # errors, so this is a ratchet: the count may never grow. Lower
+      # TSC_BASELINE whenever you fix some.
+      - name: Type check (error count must not grow)
+        env:
+          TSC_BASELINE: 100
+        run: |
+          COUNT=$(npx tsc -p tsconfig.app.json --noEmit | grep -c "error TS" || true)
+          echo "tsc errors: $COUNT (baseline $TSC_BASELINE)"
+          if [ "$COUNT" -gt "$TSC_BASELINE" ]; then
+            echo "::error::TypeScript errors rose from $TSC_BASELINE to $COUNT. Run: npx tsc -p tsconfig.app.json --noEmit"
+            exit 1
+          fi
+
   test:
     name: Tests
     runs-on: ubuntu-latest

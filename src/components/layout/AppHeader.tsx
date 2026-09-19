@@ -39,6 +39,7 @@ import { useNavConfig } from "@/hooks/useNavConfig";
 import { AddMenu } from "@/components/layout/AddMenu";
 import { PagesMenu } from "@/components/layout/PagesMenu";
 import { getRealtimeSnapshot } from "@/services/analyticsApi";
+import { useMediaQuery } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 /** Shared look for the on-navy icon buttons. */
@@ -68,11 +69,12 @@ const AppHeader = () => {
   const [searchOpen, setSearchOpen] = useState(false);
 
   // Live-visitor count — refetches every 30s.
+  const liveChipVisible = useMediaQuery("(min-width: 1024px)");
   const realtimeQuery = useQuery({
     // Same key as the Live analytics tab so the two 30 s polls dedupe into one.
     queryKey: ["analytics", "realtime-snapshot", storeId],
     queryFn: () => getRealtimeSnapshot(storeId!),
-    enabled: !!storeId,
+    enabled: !!storeId && liveChipVisible,
     refetchInterval: 30_000,
     staleTime: 25_000,
   });

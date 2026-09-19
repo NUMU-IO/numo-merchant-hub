@@ -2,31 +2,51 @@ name: Mirror prod to deploy fork
 
 # Keeps Yahiasherif002/numo-merchant-hub:prod in lock-step with NUMU-IO:prod.
 # Vercel deploys the merchant hub from that fork (org forking disabled), so
-# every push to NUMU-IO prod is force-mirrored to the fork -> Vercel deploys.
+# every NUMU-IO prod commit whose CI run passes is force-mirrored to the
+# fork -> Vercel deploys. Nothing that failed (or skipped) CI ships.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [prod]
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   mirror:
     # Only run on the upstream repo. The fork inherits this file when mirrored,
-    # but must never run it (would push to itself).
-    if: github.repository == 'NUMU-IO/numo-merchant-hub'
+    # but must never run it (would push to itself). From CI, only a green run
+    # for a push: a pull request from a branch that happens to be named `prod`
+    # must never deploy.
+    if: >-
+      github.repository == 'NUMU-IO/numo-merchant-hub' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
     runs-on: ubuntu-latest
     env:
       HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: prod
+          # The commit CI just passed; a manual run takes prod's head.
+          ref: ${{ github.event.workflow_run.head_sha || 'prod' }}
           fetch-depth: 0
           # Don't persist GITHUB_TOKEN as a git auth header — it would override
           # the MIRROR_PAT in the push URL and fail (no fork access).
           persist-credentials: false
+      - name: Require green CI for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          PASSED=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" --status success --json databaseId --jq length)
+          if [ "$PASSED" = "0" ]; then
+            echo "::error::CI has not passed for ${SHA:0:7}; refusing to deploy it."
+            exit 1
+          fi
       - name: Force-mirror prod -> fork (prod AND main)
         # BOTH branches: the Vercel project's production branch is `main`
         # on the fork, so mirroring only `prod` made every Promote look
@@ -35,7 +55,7 @@ jobs:
         run: |
           git push --force \
             "https://x-access-token:${{ secrets.MIRROR_PAT }}@github.com/Yahiasherif002/numo-merchant-hub.git" \
-            HEAD:prod HEAD:main
+            HEAD:refs/heads/prod HEAD:refs/heads/main
       # Vercel's GitHub webhook has silently dropped push events before
       # (2026-07-16: mirror succeeded, no deployment was created). The deploy
       # hook makes the production build deterministic instead of hoping the

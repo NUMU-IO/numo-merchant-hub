@@ -453,6 +453,9 @@ export default {
     healthNoDataSub: "Score appears after your first shipment",
     healthRecommendations: "Recommendations to improve",
     healthHours: "h",
+    statsLoadFailed: "Couldn't load your store's numbers",
+    statsLoadFailedBody: "Your sales, orders and profit didn't come through. Nothing is lost — try again.",
+    retry: "Retry",
   },
   products: {
     title: "Products",
@@ -1957,5 +1960,6 @@ export default {
     updateTitle: "A new version is available",
     updateBody: "Reload to get the latest version. Your work is saved.",
     updateAction: "Update",
+    updating: "Updating to the latest version…",
   },
 };

@@ -35,7 +35,7 @@ import {
   triggerLabel,
   useDateRangeUrlState,
 } from "@/components/filters/DateRangePicker";
-import { listOrders } from "@/services/orderApi";
+import { recentOrdersQuery as recentOrdersOptions } from "@/services/orderApi";
 import {
   getOnboarding,
   dismissOnboarding,
@@ -77,6 +77,101 @@ import { ActiveThemeCard } from "@/components/dashboard/ActiveThemeCard";
 import { PromoSwiper } from "@/components/dashboard/PromoSwiper";
 import { StoreHealthCard } from "@/components/dashboard/StoreHealthCard";
 import { RecentlyViewed } from "@/components/dashboard/RecentlyViewed";
+
+/* Only the number re-renders per animation frame, not the whole Dashboard. */
+function CountUp({
+  value,
+  duration,
+  format,
+}: {
+  value: number;
+  duration: number;
+  format: (n: number) => string;
+}) {
+  const n = useCountUp(value, duration);
+  return <>{format(n)}</>;
+}
+
+/* Memoized so unrelated Dashboard renders (goal edits, polls) skip Recharts. */
+const RevenueAreaChart = React.memo(function RevenueAreaChart({
+  data,
+  isAr,
+}: {
+  data: { day: string; revenue: number }[];
+  isAr: boolean;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data}>
+        <defs>
+          <linearGradient
+            id="colorRevenue"
+            x1="0"
+            y1="0"
+            x2="0"
+            y2="1"
+          >
+            <stop
+              offset="5%"
+              stopColor="hsl(var(--navy))"
+              stopOpacity={0.18}
+            />
+            <stop
+              offset="95%"
+              stopColor="hsl(var(--navy))"
+              stopOpacity={0}
+            />
+          </linearGradient>
+        </defs>
+        <CartesianGrid
+          strokeDasharray="3 5"
+          className="stroke-border/40"
+          vertical={false}
+        />
+        <XAxis
+          dataKey="day"
+          tick={{
+            fill: "hsl(var(--muted-foreground))",
+            fontSize: 10,
+          }}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis
+          tick={{
+            fill: "hsl(var(--muted-foreground))",
+            fontSize: 10,
+          }}
+          axisLine={false}
+          tickLine={false}
+          width={45}
+        />
+        <Tooltip
+          contentStyle={{
+            background: "hsl(var(--card))",
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "12px",
+            boxShadow: "var(--shadow-pop)",
+            fontSize: "12px",
+            padding: "8px 12px",
+          }}
+          formatter={(value: number) => [
+            formatMoney(value * 100, { fromCents: true, locale: isAr ? "ar" : "en" }),
+            isAr ? "الإيراد" : "Revenue",
+          ]}
+        />
+        <Area
+          type="monotone"
+          dataKey="revenue"
+          stroke="hsl(var(--navy))"
+          fill="url(#colorRevenue)"
+          strokeWidth={2.5}
+          dot={false}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+});
 
 /* ─── Zone head — § eyebrow + question + hairline rule ──────────────── */
 function ZoneHead({
@@ -176,9 +271,9 @@ const Dashboard = () => {
     enabled: !!storeId,
   });
 
+  // Same cache entry NewOrderNotifier polls, so this costs no extra request.
   const recentOrdersQuery = useQuery({
-    queryKey: ["dashboard", "recentOrders", storeId],
-    queryFn: () => listOrders(storeId!, { page: 1, limit: 5 }),
+    ...recentOrdersOptions(storeId!),
     enabled: !!storeId,
   });
 
@@ -207,10 +302,6 @@ const Dashboard = () => {
   const productsWithCost = stats ? stats.products_with_cost : 0;
   const totalProductsWithCostHint = stats ? stats.total_products : 0;
 
-  const animRevenue = useCountUp(todayRevenue / 100, 1400);
-  const animOrders = useCountUp(todayOrders, 800);
-  const animProfit = useCountUp(todayProfit / 100, 1400);
-
   const trendPercent = stats?.revenue_change_percent ?? 0;
   const trendStr =
     trendPercent >= 0
@@ -221,7 +312,10 @@ const Dashboard = () => {
     ? stats.pending_orders + stats.processing_orders
     : 0;
   const lowStockCount = stats?.low_stock_count ?? 0;
-  const isNewMerchant = (recentOrdersQuery.data?.total ?? 0) === 0;
+  // A failed orders call must not tell an established store it has no orders.
+  const isNewMerchant = recentOrdersQuery.data
+    ? recentOrdersQuery.data.total === 0
+    : !recentOrdersQuery.isError;
 
   // Onboarding
   const onboardingQuery = useQuery({
@@ -268,8 +362,43 @@ const Dashboard = () => {
     [chartData],
   );
 
-  if (statsQuery.isLoading && !stats) {
-    return <DashboardSkeleton />;
+  // Same leading children as the full page below, so the theme card and the
+  // recently-viewed strip mount (and fetch) now and are not remounted later.
+  if (!stats && (statsQuery.isLoading || statsQuery.isError)) {
+    return (
+      <div className="space-y-6">
+        <StaleDataBanner
+          updatedAt={statsQuery.dataUpdatedAt}
+          onRetry={() => void statsQuery.refetch()}
+        />
+        <ActiveThemeCard />
+        <RecentlyViewed />
+        {statsQuery.isError ? (
+          <Card>
+            <CardContent>
+              <EmptyState
+                icon={AlertTriangle}
+                tone="terra"
+                title={t("dashboard.statsLoadFailed")}
+                description={t("dashboard.statsLoadFailedBody")}
+                action={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={statsQuery.isFetching}
+                    onClick={() => void statsQuery.refetch()}
+                  >
+                    {t("dashboard.retry")}
+                  </Button>
+                }
+              />
+            </CardContent>
+          </Card>
+        ) : (
+          <DashboardSkeleton />
+        )}
+      </div>
+    );
   }
 
   const greeting = (() => {
@@ -328,8 +457,6 @@ const Dashboard = () => {
   const totalVisits =
     conversionQuery.data?.total_visitors ??
     visitVals.reduce((s, v) => s + v, 0);
-  const convRate =
-    totalVisits > 0 ? Math.min(99.9, (animOrders / totalVisits) * 100) : 0;
   const heroSparkPath =
     revenueVals.length > 1 && revenueVals.some((v) => v > 0)
       ? buildSparkPath(revenueVals, 360, 48)
@@ -348,7 +475,7 @@ const Dashboard = () => {
   // Reports" footer link routes the merchant to the relevant page.
   const kpiTiles: Array<{
     label: string;
-    value: string;
+    value: React.ReactNode;
     Icon: typeof TrendingUp;
     chipClass: string;
     data: number[];
@@ -360,7 +487,7 @@ const Dashboard = () => {
   }> = [
     {
       label: isAr ? "الطلبات" : "Orders",
-      value: String(animOrders),
+      value: <CountUp value={todayOrders} duration={800} format={String} />,
       Icon: ShoppingCart,
       chipClass: "ichip ichip-navy",
       data: orderVals,
@@ -378,7 +505,16 @@ const Dashboard = () => {
     },
     {
       label: isAr ? "نسبة التحويل" : "Conversion",
-      value: totalVisits > 0 ? `${convRate.toFixed(2)}%` : "—",
+      value:
+        totalVisits > 0 ? (
+          <CountUp
+            value={todayOrders}
+            duration={800}
+            format={(n) => `${Math.min(99.9, (n / totalVisits) * 100).toFixed(2)}%`}
+          />
+        ) : (
+          "—"
+        ),
       Icon: ArrowUpRight,
       chipClass: "ichip ichip-terra",
       data: [],
@@ -391,7 +527,13 @@ const Dashboard = () => {
       // commission are not deducted, so calling it net invited merchants
       // to reconcile it against money in the bank and find it wrong.
       label: isAr ? "الربح الإجمالي" : "Gross Profit",
-      value: formatCurrency(animProfit * 100),
+      value: (
+        <CountUp
+          value={todayProfit / 100}
+          duration={1400}
+          format={(n) => formatCurrency(n * 100)}
+        />
+      ),
       Icon: Receipt,
       chipClass: "ichip ichip-saffron",
       data: [],
@@ -690,7 +832,7 @@ const Dashboard = () => {
               <span className="text-[13px] font-semibold text-white/70">
                 {isAr ? "المبيعات" : "Sales"} · {periodLabel}
               </span>
-              {trendPercent !== 0 && animRevenue > 0 && (
+              {trendPercent !== 0 && todayRevenue > 0 && (
                 <span
                   className={`souq-pill ${trendPercent > 0 ? "souq-delta-up" : "souq-delta-down"}`}
                 >
@@ -699,7 +841,11 @@ const Dashboard = () => {
               )}
             </div>
             <div className="text-[35px] font-extrabold tabular-nums tracking-tight leading-none mt-3 text-white">
-              {formatCurrency(animRevenue * 100)}
+              <CountUp
+                value={todayRevenue / 100}
+                duration={1400}
+                format={(n) => formatCurrency(n * 100)}
+              />
             </div>
             <div className="mt-auto pt-4 -mx-1 h-12">
               <svg
@@ -1099,75 +1245,7 @@ const Dashboard = () => {
                   {chartQuery.isLoading && revenueChartData.length === 0 ? (
                     <Skeleton className="h-full w-full rounded-lg" />
                   ) : revenueChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={revenueChartData}>
-                        <defs>
-                          <linearGradient
-                            id="colorRevenue"
-                            x1="0"
-                            y1="0"
-                            x2="0"
-                            y2="1"
-                          >
-                            <stop
-                              offset="5%"
-                              stopColor="hsl(var(--navy))"
-                              stopOpacity={0.18}
-                            />
-                            <stop
-                              offset="95%"
-                              stopColor="hsl(var(--navy))"
-                              stopOpacity={0}
-                            />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid
-                          strokeDasharray="3 5"
-                          className="stroke-border/40"
-                          vertical={false}
-                        />
-                        <XAxis
-                          dataKey="day"
-                          tick={{
-                            fill: "hsl(var(--muted-foreground))",
-                            fontSize: 10,
-                          }}
-                          axisLine={false}
-                          tickLine={false}
-                        />
-                        <YAxis
-                          tick={{
-                            fill: "hsl(var(--muted-foreground))",
-                            fontSize: 10,
-                          }}
-                          axisLine={false}
-                          tickLine={false}
-                          width={45}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            background: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "12px",
-                            boxShadow: "var(--shadow-pop)",
-                            fontSize: "12px",
-                            padding: "8px 12px",
-                          }}
-                          formatter={(value: number) => [
-                            formatCurrency(value * 100),
-                            isAr ? "الإيراد" : "Revenue",
-                          ]}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="revenue"
-                          stroke="hsl(var(--navy))"
-                          fill="url(#colorRevenue)"
-                          strokeWidth={2.5}
-                          dot={false}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    <RevenueAreaChart data={revenueChartData} isAr={isAr} />
                   ) : (
                     <EmptyState
                       icon={TrendingUp}

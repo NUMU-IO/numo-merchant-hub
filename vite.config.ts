@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
@@ -18,24 +18,6 @@ const PWA_ENABLED = process.env.VITE_PWA_ENABLED !== "false";
  * Injects Content-Security-Policy meta tag only in production builds.
  * In dev mode, Vite's HMR requires inline scripts and cross-port API calls which CSP would block.
  */
-/**
- * Remove modulepreload hints for chunks that aren't needed on first paint.
- * They still load on-demand — we just don't eagerly prefetch them.
- */
-function viteStripHeavyPreloads(): Plugin {
-  const heavy = ["vendor-charts", "vendor-sentry"];
-  return {
-    name: "numu-strip-heavy-preloads",
-    enforce: "post",
-    transformIndexHtml(html) {
-      return html.replace(
-        /\s*<link rel="modulepreload"[^>]*?(?:vendor-charts|vendor-sentry)[^>]*>\s*/g,
-        "\n",
-      );
-    },
-  };
-}
-
 function vitePluginCSP(): Plugin {
   return {
     name: "numu-csp",
@@ -60,16 +42,19 @@ function vitePluginCSP(): Plugin {
                   // inline event handlers. Some Chromium builds don't
                   // cleanly fall back from script-src to script-src-elem
                   // for runtime-injected scripts, so we set both.
+                  // Inline event handlers are never needed (React binds
+                  // listeners itself) and are the usual XSS payload, so
+                  // script-src-attr allows none.
                   "script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://connect.facebook.net",
-                  "script-src-elem 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://connect.facebook.net",
-                  "script-src-attr 'self' 'unsafe-inline'",
+                  "script-src-elem 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://connect.facebook.net https://eu-assets.i.posthog.com",
+                  "script-src-attr 'none'",
                   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
                   "font-src 'self' https://fonts.gstatic.com",
                   "img-src 'self' data: blob: https:",
                   // graph.facebook.com is hit by the SDK when exchanging
                   // the embedded-signup token; backend mirrors live on
                   // numueg.app so we keep that too.
-                  "connect-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.de.sentry.io https://graph.facebook.com https://*.facebook.com",
+                  "connect-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.de.sentry.io https://graph.facebook.com https://*.facebook.com https://eu.i.posthog.com https://eu-assets.i.posthog.com",
                   // www.facebook.com is the Embedded Signup dialog iframe.
                   "frame-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com https://www.facebook.com https://*.facebook.com",
                   "worker-src 'self' blob:",
@@ -85,6 +70,11 @@ function vitePluginCSP(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    "import.meta.env.VITE_SENTRY_RELEASE": JSON.stringify(
+      loadEnv(mode, process.cwd()).VITE_SENTRY_RELEASE || process.env.VERCEL_GIT_COMMIT_SHA,
+    ),
+  },
   server: {
     host: "::",
     port: 8080,
@@ -169,9 +159,10 @@ export default defineConfig(({ mode }) => ({
         globPatterns: [
           "index.html",
           "offline.html",
-          // Entry chunk + the small page chunks Rollup also names "index-*"
-          // (src/pages/Index.tsx), plus the main stylesheet.
-          "assets/index-*.js",
+          // Entry chunk + the main stylesheet. The entry is named app-* so the
+          // lazy chunks Rollup names "index-*" (Sentry, read-excel-file, ...)
+          // stay out of the shell.
+          "assets/app-*.js",
           "assets/index-*.css",
           // Framework vendors needed before anything can render.
           "assets/vendor-react-*.js",
@@ -183,8 +174,6 @@ export default defineConfig(({ mode }) => ({
         // Safety net: if someone later widens globPatterns, these stay out.
         //   Monaco + language workers ~11.1 MB (desktop-only, theme devs)
         //   marketplace thumbnails    ~3.2 MB
-        //   vendor-sentry             ~259 KB, not needed for first paint
-        //   vendor-charts             ~433 KB, runtime-cached on first dashboard visit
         globIgnores: [
           "**/*.worker-*.js",
           "**/ThemeCodeEditor-*.{js,css}",
@@ -193,8 +182,6 @@ export default defineConfig(({ mode }) => ({
           // ONE matching a device, so precaching the set would cost every
           // merchant 28x what their phone will ever use.
           "**/pwa/ios/**",
-          "**/vendor-sentry-*.js",
-          "**/vendor-charts-*.js",
         ],
         // The build FAILS if any single precached file exceeds this.
         // vite-plugin-pwa >= 0.20.2 errors rather than warns.
@@ -286,7 +273,6 @@ export default defineConfig(({ mode }) => ({
       },
     }),
     vitePluginCSP(),
-    viteStripHeavyPreloads(),
   ],
   resolve: {
     alias: {
@@ -298,24 +284,16 @@ export default defineConfig(({ mode }) => ({
     target: ["es2020", "safari14"],
     rollupOptions: {
       output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-ui": [
-            "@radix-ui/react-dialog",
-            "@radix-ui/react-select",
-            "@radix-ui/react-tabs",
-            "@radix-ui/react-tooltip",
-            "@radix-ui/react-popover",
-            "@radix-ui/react-dropdown-menu",
-          ],
-          "vendor-charts": ["recharts"],
-          "vendor-query": ["@tanstack/react-query"],
-          "vendor-i18n": [
-            "i18next",
-            "react-i18next",
-            "i18next-browser-languagedetector",
-          ],
-          "vendor-sentry": ["@sentry/react"],
+        entryFileNames: "assets/app-[hash].js",
+        // Boot-time vendors only. Rollup also pulls a manual chunk's
+        // dependencies into it, so a chunk for a lazy library (recharts,
+        // sentry) captured shared deps like clsx and made every route
+        // download it; those are left to Rollup's automatic splitting.
+        manualChunks(id) {
+          if (/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom|@remix-run\/router)\//.test(id)) return "vendor-react";
+          if (/node_modules\/@radix-ui\/react-(dialog|select|tabs|tooltip|popover|dropdown-menu)\//.test(id)) return "vendor-ui";
+          if (/node_modules\/@tanstack\//.test(id)) return "vendor-query";
+          if (/node_modules\/(i18next|react-i18next|i18next-browser-languagedetector)\//.test(id)) return "vendor-i18n";
         },
       },
     },

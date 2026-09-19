@@ -12,10 +12,11 @@ import { pagesStore } from "@/lib/nav/pages-store";
 export function usePageVisitTracker() {
   const { pathname, search } = useLocation();
   const { storeId, match } = useHubPages();
+  // A string, not `match`: the registry is rebuilt on every render, so an
+  // effect keyed on the function ran (and wrote) on every layout render.
+  const url = storeId ? match(pathname, search) : null;
 
   useEffect(() => {
-    if (!storeId) return;
-    const url = match(pathname, search);
-    if (url) pagesStore.recordVisit(storeId, url);
-  }, [storeId, pathname, search, match]);
+    if (storeId && url) pagesStore.recordVisit(storeId, url);
+  }, [storeId, url]);
 }

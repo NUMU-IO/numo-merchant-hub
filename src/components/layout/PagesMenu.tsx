@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Clock, Plus, PushPin, Star, Trash, X } from "@phosphor-icons/react";
+import { Clock, Plus, Pin as PushPin, Star, Trash2 as Trash, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +47,7 @@ export function PagesMenu({ className }: { className?: string }) {
           aria-haspopup="dialog"
           aria-expanded={open}
         >
-          <PushPin className="h-[19px] w-[19px]" weight={pinned.length ? "fill" : "regular"} />
+          <PushPin className="h-[19px] w-[19px]" fill={pinned.length ? "currentColor" : "none"} />
           {pinned.length > 0 && (
             <span className="absolute -top-0.5 -end-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-saffron px-1 text-[10px] font-bold text-navy-900 ring-2 ring-[hsl(var(--topbar))]">
               {pinned.length}
@@ -72,7 +72,7 @@ export function PagesMenu({ className }: { className?: string }) {
             </button>
             <div className="flex items-start gap-2.5">
               <span className="ichip ichip-navy mt-0.5 h-8 w-8 shrink-0 rounded-lg">
-                <PushPin className="!h-4 !w-4" weight="fill" />
+                <PushPin className="!h-4 !w-4" fill="currentColor" />
               </span>
               <div>
                 <p className="text-[13px] font-extrabold leading-tight">{t("pages.introTitle")}</p>
@@ -134,7 +134,7 @@ export function PagesMenu({ className }: { className?: string }) {
               className="flex w-full items-center justify-between px-4 py-2.5 text-[12.5px] font-bold text-navy hover:bg-muted/70 dark:text-saffron"
             >
               {t("pages.addCustom")}
-              <Plus className="h-4 w-4" weight="bold" />
+              <Plus className="h-4 w-4" strokeWidth={2.5} />
             </button>
           )}
         </div>
@@ -205,7 +205,7 @@ function PageRow({
         aria-pressed={page.pinned}
         title={page.pinned ? t("pages.unpin") : t("pages.pin")}
       >
-        <Star className="h-4 w-4" weight={page.pinned ? "fill" : "regular"} />
+        <Star className="h-4 w-4" fill={page.pinned ? "currentColor" : "none"} />
       </button>
     </li>
   );

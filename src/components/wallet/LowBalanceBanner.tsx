@@ -1,22 +1,15 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { apiClient } from "@/services/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Wallet } from "lucide-react";
-
-interface WalletState {
-  balance_cents: number;
-  is_blocked: boolean;
-  low_balance_level: number; // 0 healthy, 1 low, 2 negative, 3 blocked
-  effective_commission_bps: number;
-}
+import { walletQuery } from "./walletQuery";
 
 /**
  * Dashboard-wide wallet warning for pay-as-you-go tenants.
- * Fetches GET /wallet once per mount (server-side answer is cheap);
+ * Reads GET /wallet through the header chip's shared query;
  * renders nothing for subscription tenants or healthy balances.
  */
 const LowBalanceBanner = () => {
@@ -24,16 +17,8 @@ const LowBalanceBanner = () => {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const isAr = language === "ar";
-  const [wallet, setWallet] = useState<WalletState | null>(null);
-
   const isPayg = tenant?.plan === "payg";
-
-  useEffect(() => {
-    if (!isPayg) return;
-    apiClient<WalletState>("/wallet")
-      .then(setWallet)
-      .catch(() => {});
-  }, [isPayg]);
+  const { data: wallet } = useQuery({ ...walletQuery, enabled: isPayg });
 
   if (!isPayg || !wallet || wallet.low_balance_level < 1 || wallet.effective_commission_bps === 0) {
     return null;
