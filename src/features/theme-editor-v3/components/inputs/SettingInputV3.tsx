@@ -1761,7 +1761,8 @@ function InlineRichTextField({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (el.innerHTML !== value) el.innerHTML = value;
+    const clean = sanitizeRichText(value);
+    if (el.innerHTML !== clean) el.innerHTML = clean;
   }, [value]);
 
   const exec = useCallback((cmd: "bold" | "italic") => {
@@ -1838,12 +1839,12 @@ const RICHTEXT_ALLOWED_TAGS = new Set([
  * storefront's `<RichText>` re-sanitizes authoritatively at render; this
  * keeps the stored draft clean by stripping the obvious sinks
  * (script/style/iframe, on* handlers, javascript: URLs, inline styles) and
- * unwrapping unknown tags. DOM-based, not regex, for correctness.
+ * unwrapping unknown tags. DOM-based, not regex, for correctness. Parsed
+ * with DOMParser so nothing in the input loads or runs while it is cleaned.
  */
 function sanitizeRichText(html: string): string {
-  if (typeof document === "undefined" || !html) return html ?? "";
-  const root = document.createElement("div");
-  root.innerHTML = html;
+  if (typeof DOMParser === "undefined" || !html) return html ?? "";
+  const root = new DOMParser().parseFromString(html, "text/html").body;
   const walk = (node: Element) => {
     for (const child of Array.from(node.children)) {
       const tag = child.tagName.toUpperCase();
@@ -1862,7 +1863,9 @@ function sanitizeRichText(html: string): string {
           name.startsWith("on") ||
           name === "style" ||
           ((name === "href" || name === "src") &&
-            /^\s*javascript:/i.test(attr.value));
+            /^(javascript|vbscript|data):/i.test(
+              attr.value.replace(/[^\x21-\x7e]/g, ""),
+            ));
         if (drop) child.removeAttribute(attr.name);
       }
       if (tag === "A") child.setAttribute("rel", "noopener noreferrer");
@@ -1899,7 +1902,8 @@ function RichTextField({
   useEffect(() => {
     const el = ref.current;
     if (!el || showSource) return;
-    if (el.innerHTML !== (value || "")) el.innerHTML = value || "";
+    const clean = sanitizeRichText(value || "");
+    if (el.innerHTML !== clean) el.innerHTML = clean;
   }, [value, showSource]);
 
   const emit = useCallback(() => {
