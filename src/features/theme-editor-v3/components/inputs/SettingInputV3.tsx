@@ -1233,61 +1233,6 @@ function ImagePickerButton({
   );
 }
 
-function ResourcePickerButton({
-  value,
-  locale,
-  onChange,
-  resourceType,
-  icon,
-}: {
-  value: string;
-  locale: EditorLocale;
-  onChange: (v: unknown) => void;
-  resourceType: "product" | "collection";
-  icon: React.ReactNode;
-}) {
-  const labels = {
-    product: { en: "Select product...", ar: "اختر منتجاً..." },
-    collection: { en: "Select collection...", ar: "اختر مجموعة..." },
-  };
-
-  return (
-    <div className="space-y-2">
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full justify-start gap-2"
-        onClick={() => {
-          // TODO: Open resource picker dialog
-          // For now, use a prompt as placeholder
-          const id = window.prompt(
-            locale === "ar"
-              ? `أدخل معرف ال${resourceType === "product" ? "منتج" : "مجموعة"}:`
-              : `Enter ${resourceType} ID:`,
-            value,
-          );
-          if (id !== null) onChange(id);
-        }}
-      >
-        {icon}
-        <span className="truncate text-muted-foreground">
-          {value || labels[resourceType][locale]}
-        </span>
-      </Button>
-      {value && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full text-destructive"
-          onClick={() => onChange("")}
-        >
-          {locale === "ar" ? "إزالة" : "Remove"}
-        </Button>
-      )}
-    </div>
-  );
-}
-
 function FileUploadPicker({
   value,
   locale,

@@ -177,17 +177,6 @@ export async function cancelShipment(storeId: string, shipmentId: string): Promi
   });
 }
 
-export async function requestReturn(
-  storeId: string,
-  shipmentId: string,
-  reason: string = "Customer return"
-): Promise<Shipment> {
-  return apiClient<Shipment>(
-    `/stores/${storeId}/shipments/${shipmentId}/return?reason=${encodeURIComponent(reason)}`,
-    { method: "POST" }
-  );
-}
-
 export async function trackShipment(storeId: string, shipmentId: string): Promise<TrackingInfo> {
   return apiClient<TrackingInfo>(`/stores/${storeId}/shipments/${shipmentId}/track`);
 }
@@ -215,42 +204,6 @@ export async function updateShipment(
 
 export function getAwbUrl(storeId: string, shipmentId: string): string {
   return `/api/v1/stores/${storeId}/shipments/${shipmentId}/awb`;
-}
-
-// ── Pickups ──
-
-export async function getPickupLocations(storeId: string): Promise<unknown[]> {
-  return apiClient<unknown[]>(`/stores/${storeId}/shipments/pickups/locations`);
-}
-
-export async function createPickup(
-  storeId: string,
-  data: {
-    business_location_id: string;
-    scheduled_date: string;
-    scheduled_time_slot: string;
-    contact_name?: string;
-    contact_phone?: string;
-    notes?: string;
-  }
-): Promise<unknown> {
-  const params = new URLSearchParams();
-  Object.entries(data).forEach(([k, v]) => {
-    if (v) params.set(k, v);
-  });
-  return apiClient<unknown>(`/stores/${storeId}/shipments/pickups?${params.toString()}`, {
-    method: "POST",
-  });
-}
-
-export async function listPickups(storeId: string): Promise<unknown> {
-  return apiClient<unknown>(`/stores/${storeId}/shipments/pickups`);
-}
-
-export async function deletePickup(storeId: string, pickupId: string): Promise<void> {
-  await apiClient<void>(`/stores/${storeId}/shipments/pickups/${pickupId}`, {
-    method: "DELETE",
-  });
 }
 
 // ── Cities & Zones ──
