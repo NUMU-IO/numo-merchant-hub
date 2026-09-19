@@ -223,6 +223,12 @@ export async function listOrders(
   );
 }
 
+/** Newest orders — one cache entry shared by the Dashboard and NewOrderNotifier. */
+export const recentOrdersQuery = (storeId: string) => ({
+  queryKey: ["dashboard", "recentOrders", storeId] as const,
+  queryFn: () => listOrders(storeId, { page: 1, limit: 10 }),
+});
+
 /**
  * Per-status counts honouring the same date/search filters as the list, so
  * every tab badge agrees with the rows that tab shows. Drafts excluded.

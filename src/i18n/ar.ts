@@ -462,6 +462,9 @@
     healthNoDataSub: "تقييم متجرك هيظهر بعد أول شحنة",
     healthRecommendations: "توصيات عشان تحسن أداء متجرك",
     healthHours: "س",
+    statsLoadFailed: "مقدرناش نحمّل أرقام متجرك",
+    statsLoadFailedBody: "المبيعات والطلبات والأرباح موصلتش. مفيش حاجة ضاعت — جرّب تاني.",
+    retry: "حاول تاني",
   },
   products: {
     title: "المنتجات",
