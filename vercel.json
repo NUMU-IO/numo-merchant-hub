@@ -6,7 +6,7 @@
       "destination": "https://numueg.app/api/:path"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!assets/).*)",
       "destination": "/index.html"
     }
   ],
