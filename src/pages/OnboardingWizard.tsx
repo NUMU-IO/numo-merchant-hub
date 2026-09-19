@@ -12,7 +12,7 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { configureFromWizard, type WizardConfig } from "@/services/storeApi";
 import { track } from "@/lib/analytics";
 import { createProduct, uploadProductImage } from "@/services/productApi";
-import { getPublicStoreUrl } from "@/lib/storefront";
+import { getPublicStoreUrl, getStoreFrameUrl } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -785,7 +785,7 @@ export default function OnboardingWizard() {
             </button>
           </div>
           <iframe
-            src={getPublicStoreUrl(currentStore)!}
+            src={getStoreFrameUrl(currentStore) ?? undefined}
             className="w-full h-[350px]"
             title="Store Preview"
           />
