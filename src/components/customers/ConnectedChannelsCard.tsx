@@ -34,7 +34,7 @@ export function useCustomerSocialProfiles(storeId?: string, customerId?: string)
 
 /** Avatar + channel badge, shared row visual (mirrors the Inbox avatar). */
 export function ChannelAvatar({ profile, size = "md" }: { profile: SocialProfile; size?: "md" | "sm" }) {
-  const meta = CHANNEL_META[profile.channel];
+  const meta = CHANNEL_META[profile.channel] ?? CHANNEL_META.whatsapp;
   const Icon = meta.icon;
   const dim = size === "md" ? "h-10 w-10" : "h-8 w-8";
   return (
@@ -105,7 +105,7 @@ export function ConnectedChannelsCard({
         ) : (
           <ul className="space-y-1">
             {profiles.map((p) => {
-              const meta = CHANNEL_META[p.channel];
+              const meta = CHANNEL_META[p.channel] ?? CHANNEL_META.whatsapp;
               return (
                 <li key={`${p.kind}-${p.id}`} className="group flex items-center gap-2.5 rounded-lg p-1.5 -mx-1.5 transition-colors hover:bg-muted/50">
                   <button type="button" onClick={() => navigate(p.inbox_path)} className="flex min-w-0 flex-1 items-center gap-2.5 text-start">

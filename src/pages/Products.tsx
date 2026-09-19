@@ -7,12 +7,11 @@ import { formatMoney } from "@/lib/format-money";
 import { stockState, STOCK_STATE_STYLE } from "@/lib/products/stock-state";
 import { QuickCostPopover } from "@/components/products/QuickCostPopover";
 import { EmptyState } from "@/components/ui/empty-state";
-import { type Product, type ProductStatus } from "@/data/mock-products";
 import { listCategories, type Category } from "@/services/categoryApi";
 import {
   listProducts, deleteProduct as apiDeleteProduct,
   apiToProduct, exportProductsToCSV, bulkProductAction, duplicateProduct,
-  type BulkAction,
+  type BulkAction, type Product, type ProductStatus,
 } from "@/services/productApi";
 import { ImportDialog } from "@/components/products/ImportDialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -325,7 +324,9 @@ const Products = () => {
     unlisted: { bg: "bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-200/60 dark:border-sky-800/40", dot: "bg-sky-500" },
     draft: { bg: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200/60 dark:border-amber-800/40", dot: "bg-amber-500" },
     archived: { bg: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-200/60 dark:border-zinc-700/40", dot: "bg-zinc-400" },
+    out_of_stock: { bg: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200/60 dark:border-red-800/40", dot: "bg-red-500" },
   };
+  const statusStyle = (status: ProductStatus) => statusConfig[status] ?? statusConfig.draft;
 
   const handleDelete = async () => {
     if (!deleteTarget || !storeId || isDeleting) return;
@@ -746,8 +747,8 @@ const Products = () => {
                       ) : (
                         <span className="absolute inset-0 flex items-center justify-center text-5xl">{p.image}</span>
                       )}
-                      <Badge variant="outline" className={`absolute top-2 ${isAr ? "left-2" : "right-2"} text-[10px] font-bold gap-1 rounded-full py-0.5 px-2 ${statusConfig[p.status].bg}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${statusConfig[p.status].dot}`} />
+                      <Badge variant="outline" className={`absolute top-2 ${isAr ? "left-2" : "right-2"} text-[10px] font-bold gap-1 rounded-full py-0.5 px-2 ${statusStyle(p.status).bg}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusStyle(p.status).dot}`} />
                         {t(`products.${p.status}`)}
                       </Badge>
                     </div>
@@ -1001,8 +1002,8 @@ const Products = () => {
 
                       {/* Status badge */}
                       <TableCell>
-                        <Badge variant="outline" className={`text-[10px] font-medium gap-1.5 rounded-full py-0.5 px-2.5 ${statusConfig[p.status].bg}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${statusConfig[p.status].dot}`} />
+                        <Badge variant="outline" className={`text-[10px] font-medium gap-1.5 rounded-full py-0.5 px-2.5 ${statusStyle(p.status).bg}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${statusStyle(p.status).dot}`} />
                           {t(`products.${p.status}`)}
                         </Badge>
                       </TableCell>

@@ -463,6 +463,7 @@ export default {
     unlisted: "Link only",
     draft: "Draft",
     archived: "Archived",
+    out_of_stock: "Out of stock",
     name: "Name",
     price: "Price",
     compareAtPrice: "Compare at Price",

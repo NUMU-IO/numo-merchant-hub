@@ -158,8 +158,8 @@ export function CustomerHealthCard({ formatCurrency }: CustomerHealthCardProps) 
                     <span className="text-[13px] font-medium truncate">
                       {c.name || (isAr ? "(بدون اسم)" : "(unnamed)")}
                     </span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0 ${STATE_META[c.state].chip}`}>
-                      {isAr ? STATE_META[c.state].ar : STATE_META[c.state].en}
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0 ${STATE_META[c.state]?.chip ?? "bg-muted text-muted-foreground"}`}>
+                      {STATE_META[c.state]?.[isAr ? "ar" : "en"] ?? c.state}
                     </span>
                   </span>
                   <span className="text-[11px] text-muted-foreground tabular-nums w-20 text-end shrink-0 whitespace-nowrap hidden sm:inline">

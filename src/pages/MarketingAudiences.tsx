@@ -177,7 +177,7 @@ export default function MarketingAudiences() {
           ))
         ) : (
           audiences.map((a) => {
-            const Icon = SEGMENT_ICONS[a.segment_key];
+            const Icon = SEGMENT_ICONS[a.segment_key] ?? Users;
             const isSyncing = syncingKey === a.segment_key;
             const isSynced = !!a.meta_audience_id;
             const belowLookalikeMin =

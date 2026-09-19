@@ -253,8 +253,8 @@ export default function Assistant() {
               {digest.map((b) => (
                 <SuggestionRow
                   key={b.kind}
-                  icon={DIGEST_STYLE[b.kind].icon}
-                  tone={DIGEST_STYLE[b.kind].tone}
+                  icon={(DIGEST_STYLE[b.kind] ?? DIGEST_STYLE.orders).icon}
+                  tone={(DIGEST_STYLE[b.kind] ?? DIGEST_STYLE.orders).tone}
                   title={t(`agent.digest.cta.${b.kind}`)}
                   subtitle={blockText(t, b, locale)}
                   disabled={isStreaming}

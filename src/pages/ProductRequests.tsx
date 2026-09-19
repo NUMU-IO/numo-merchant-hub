@@ -250,7 +250,7 @@ function RequestCard({
                 variant="outline"
                 className={`border-0 text-[11px] ${STATUS_STYLE[request.status]}`}
               >
-                {isAr ? LABEL[request.status].ar : LABEL[request.status].en}
+                {LABEL[request.status]?.[isAr ? "ar" : "en"] ?? request.status}
               </Badge>
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">

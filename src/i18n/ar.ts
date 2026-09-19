@@ -472,6 +472,7 @@
     unlisted: "برابط فقط",
     draft: "مسودة",
     archived: "مؤرشف",
+    out_of_stock: "نفد المخزون",
     name: "الاسم",
     price: "السعر",
     compareAtPrice: "السعر قبل الخصم",

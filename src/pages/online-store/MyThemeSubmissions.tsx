@@ -105,7 +105,7 @@ function formatDate(iso: string | null | undefined): string {
 // ── Version row ────────────────────────────────────────────────────────────
 
 function VersionRow({ version }: { version: MarketplaceVersion }) {
-  const meta = VERSION_STATUS_VARIANT[version.status];
+  const meta = VERSION_STATUS_VARIANT[version.status] ?? { label: version.status, variant: "outline", icon: Clock };
   const Icon = meta.icon;
   // Spinner animation for building state — Loader2 renders motionless
   // without it.
@@ -166,7 +166,7 @@ function ThemeCard({
   onInstalled: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const meta = THEME_STATUS_VARIANT[theme.status];
+  const meta = THEME_STATUS_VARIANT[theme.status] ?? { label: theme.status, variant: "outline" };
 
   const versionsQuery = useQuery({
     queryKey: ["my-theme-versions", theme.id],
