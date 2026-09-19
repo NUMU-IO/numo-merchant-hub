@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
@@ -67,6 +67,11 @@ function vitePluginCSP(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    "import.meta.env.VITE_SENTRY_RELEASE": JSON.stringify(
+      loadEnv(mode, process.cwd()).VITE_SENTRY_RELEASE || process.env.VERCEL_GIT_COMMIT_SHA,
+    ),
+  },
   server: {
     host: "::",
     port: 8080,
