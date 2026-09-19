@@ -2,7 +2,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ThemeProvider } from "next-themes";
@@ -18,7 +17,7 @@ import { BrandLoadingScreen } from "@/components/NumuLoader/BrandLoader";
 import { FirstLoginGate } from "@/components/NumuLoader/FirstLoginGate";
 import { PageLoader } from "@/components/PageLoader";
 import { Suspense } from "react";
-import { lazyWithRetry as lazy } from "@/lib/lazy-with-retry";
+import { lazyWithRetry, lazyWithRetry as lazy } from "@/lib/lazy-with-retry";
 
 // Lazy-loaded pages for code splitting
 const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
