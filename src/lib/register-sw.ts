@@ -44,6 +44,18 @@ let reloading = false;
  */
 let workbox: Workbox | null = null;
 
+/**
+ * A new version has installed and is waiting, and this tab has not switched.
+ *
+ * Only installed-app merchants were ever told about an update (the toast
+ * below). A merchant in an ordinary browser tab — most of them — kept running
+ * the old build until a navigation asked for a chunk the deploy had deleted,
+ * and got an error screen. Now the tab switches at its next navigation: the
+ * merchant has just clicked to go somewhere, so a full load of that page is
+ * exactly what they expect, and no old chunk is ever requested.
+ */
+let updateWaiting = false;
+
 export function registerServiceWorker(): void {
   // Dev uses `npm run dev` with devOptions disabled — the worker is validated
   // against `npm run preview`. Registering in dev would serve stale modules
@@ -62,8 +74,8 @@ export function registerServiceWorker(): void {
   // Checked at event time, not at registration: a merchant can install the
   // app while this tab is open, and the next update should then prompt.
   const onWaiting = () => {
-    if (!isInstalledApp()) return;
-    promptForUpdate(wb);
+    updateWaiting = true;
+    if (isInstalledApp()) promptForUpdate(wb);
   };
   wb.addEventListener("waiting", onWaiting);
 
@@ -92,6 +104,26 @@ export function registerServiceWorker(): void {
       });
     });
   });
+}
+
+/**
+ * Move to the waiting version, if there is one. Call on route change.
+ *
+ * The waiting worker takes over and the "controlling" listener reloads the
+ * page — which, the router having already changed the URL, loads the page the
+ * merchant was navigating to, on the new build. The timeout covers a handover
+ * that never lands, so a navigation can never be left stranded on the old
+ * build.
+ */
+export function applyUpdateOnNavigation(): void {
+  if (!updateWaiting || !workbox || reloading) return;
+  updateWaiting = false;
+  workbox.messageSkipWaiting();
+  setTimeout(() => {
+    if (reloading) return;
+    reloading = true;
+    window.location.reload();
+  }, 3_000);
 }
 
 /**
