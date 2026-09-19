@@ -6,11 +6,11 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Tag, ShareNetwork, ChatCircleText, Image as ImageIcon,
-  Truck, Package, ArrowsLeftRight, Megaphone, ChartLineUp,
-  Clock, CheckCircle, Gift, Sparkle, Repeat, Storefront,
+  Tag, Share2 as ShareNetwork, MessageCircleMore as ChatCircleText, Image as ImageIcon,
+  Truck, Package, ArrowLeftRight as ArrowsLeftRight, Megaphone, ChartLine as ChartLineUp,
+  Clock, CircleCheck as CheckCircle, Gift, Sparkle, Repeat, Store as Storefront,
   ArrowRight, MapPin, Users,
-} from "@phosphor-icons/react";
+} from "lucide-react";
 import {
   getDashboardStats, getConversionStats, getCodRejectionStats,
 } from "@/services/analyticsApi";
@@ -342,7 +342,7 @@ const GrowthGuide = () => {
             className="gap-1.5"
             onClick={() => navigate("/marketing/promotions/new")}
           >
-            <Tag size={16} weight="bold" />
+            <Tag size={16} strokeWidth={2.5} />
             {isRTL ? "ابدأ بكوبون خصم" : "Start with a discount"}
           </Button>
           <Button
@@ -351,7 +351,7 @@ const GrowthGuide = () => {
             className="gap-1.5 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white"
             onClick={() => navigate("/channels")}
           >
-            <ShareNetwork size={16} weight="bold" />
+            <ShareNetwork size={16} strokeWidth={2.5} />
             {isRTL ? "اربط قنوات" : "Connect channels"}
           </Button>
         </div>
@@ -369,7 +369,7 @@ const GrowthGuide = () => {
               <Card key={i}>
                 <CardContent className="p-4 flex items-start gap-3">
                   <div className={`ichip ${d.tone} shrink-0`}>
-                    <d.Icon size={20} weight="duotone" />
+                    <d.Icon size={20} fill="currentColor" fillOpacity={0.2} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-[14px] font-extrabold leading-tight">
@@ -401,7 +401,7 @@ const GrowthGuide = () => {
               <CardContent className="p-5 flex flex-col gap-3 h-full">
                 <div className="flex items-start justify-between">
                   <div className={`ichip ${p.tone}`}>
-                    <p.Icon size={22} weight="duotone" />
+                    <p.Icon size={22} fill="currentColor" fillOpacity={0.2} />
                   </div>
                   {p.badge && (
                     <span
@@ -456,11 +456,11 @@ const GrowthGuide = () => {
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl souq-hoverrow text-start border-b border-border/60 last:border-b-0"
               >
                 <div className="ichip ichip-sage !w-9 !h-9">
-                  <CheckCircle size={18} weight="duotone" />
+                  <CheckCircle size={18} fill="currentColor" fillOpacity={0.2} />
                 </div>
                 <span className="flex-1 text-[13.5px] font-semibold">{w.title}</span>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock size={14} weight="duotone" />
+                  <Clock size={14} fill="currentColor" fillOpacity={0.2} />
                   <span>{isRTL ? "<5 د" : "<5 min"}</span>
                 </div>
                 <ArrowRight className="h-4 w-4 text-muted-foreground rtl:rotate-180" strokeWidth={2.2} />

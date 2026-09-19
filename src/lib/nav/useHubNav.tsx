@@ -11,18 +11,18 @@ import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
-  House, ShoppingCart, Package, Users, Storefront, Megaphone,
-  ChartLineUp, Wallet, Money, Truck, Gear, Cube as Boxes, SquaresFour,
-  Tag, NotePencil as FileEdit, ShoppingBag, FolderOpen, Receipt, SealPercent as BadgePercent,
-  Gift, Tray as Inbox, FileText, PaperPlaneTilt as Send,
-  TrendUp as TrendingUp, UserPlus, MapPin, Sparkle as Sparkles,
-  PlugsConnected as PlugZap, Envelope as Mail, Funnel as Filter, Broadcast as Radio,
-  Lightbulb, ChartLine as LineChart, Cursor as MousePointerClick,
-  ClipboardText as ClipboardList, ArrowsLeftRight as Navigation2,
-  SlidersHorizontal, Palette, User, UserGear as UserCog, UserCheck,
-  WarningCircle as AlertTriangle, ChartBar as BarChart3,
-  CreditCard, ShieldCheck, Compass, Lightning, Article,
-} from "@phosphor-icons/react";
+  House, ShoppingCart, Package, Users, Store as Storefront, Megaphone,
+  ChartLine as ChartLineUp, Wallet, Banknote as Money, Truck, Settings as Gear, Box as Boxes, LayoutGrid as SquaresFour,
+  Tag, FilePen as FileEdit, ShoppingBag, FolderOpen, Receipt, BadgePercent,
+  Gift, Inbox, FileText, Send,
+  TrendingUp, UserPlus, MapPin, Sparkle as Sparkles,
+  PlugZap, Mail, Filter, Radio,
+  Lightbulb, ChartSpline as LineChart, MousePointer2 as MousePointerClick,
+  ClipboardList, ArrowLeftRight as Navigation2,
+  SlidersHorizontal, Palette, User, UserCog, UserCheck,
+  CircleAlert as AlertTriangle, ChartColumn as BarChart3,
+  CreditCard, ShieldCheck, Compass, Zap as Lightning, Newspaper as Article,
+} from "lucide-react";
 import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
