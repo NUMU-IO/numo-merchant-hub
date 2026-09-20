@@ -28,7 +28,17 @@ import {
   type PreviewLine,
 } from "@/lib/preview-discount";
 
-export function PromotionRulePreview({ rule }: { rule: DiscountRule }) {
+export function PromotionRulePreview({
+  rule,
+  /** The merchant limited this offer to some products or a category. The
+   *  sample cart below has no catalogue behind it, so it cannot model which
+   *  of its items would qualify — say so rather than quoting a figure the
+   *  real cart will not match. */
+  scoped = false,
+}: {
+  rule: DiscountRule;
+  scoped?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const { currentStore } = useDashboardStore();
   const isAr = i18n.language === "ar";
@@ -117,6 +127,12 @@ export function PromotionRulePreview({ rule }: { rule: DiscountRule }) {
           {t("promotions.form.preview_sample_label", { count: cart.length })}
         </span>
       </div>
+
+      {scoped && (
+        <p className="text-[11px] leading-snug text-amber-600 dark:text-amber-500">
+          {t("promotions.form.scope_preview_note")}
+        </p>
+      )}
 
       <ul className="space-y-1 text-xs font-mono text-muted-foreground">
         {cart.map((li, i) => (

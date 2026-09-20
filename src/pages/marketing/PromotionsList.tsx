@@ -81,7 +81,7 @@ import {
   type PromotionSurface,
 } from "@/services/promotionApi";
 import { showError } from "@/lib/show-error";
-import { formatMoney } from "@/lib/format-money";
+import { describeDiscountRule } from "@/lib/describe-discount-rule";
 
 const PAGE_SIZE = 25;
 
@@ -190,43 +190,11 @@ export default function PromotionsList() {
 
   // Human-readable discount value for the table, e.g. "17% off" /
   // "50 EGP off" / "Free shipping". Null rule (visual surfaces) → em dash.
-  const discountLabel = (rule: DiscountRule | null | undefined): string => {
-    if (!rule) return t("promotions.list.discount_none") as string;
-    switch (rule.kind) {
-      case "percentage":
-        return t("promotions.list.discount_percent", {
-          value: rule.value_percent ?? 0,
-        }) as string;
-      case "fixed":
-        // Currency comes from the platform's active-store value, never a
-        // literal in the copy — a Saudi store's list must not read "EGP".
-        return t("promotions.list.discount_fixed", {
-          value: formatMoney(rule.value_cents ?? 0, {
-            fromCents: true,
-            locale: moneyLocale,
-          }),
-        }) as string;
-      case "free_shipping":
-        return t("promotions.list.discount_free_shipping") as string;
-      case "bogo":
-        return t("promotions.list.discount_bogo") as string;
-      case "tiered":
-        return t("promotions.list.discount_tiered") as string;
-      case "multibuy":
-        // The value IS the offer here ("3 for EGP 650"), so show it rather
-        // than a generic kind label — this column is how a merchant spots
-        // the right promotion in a long list.
-        return t("promotions.list.discount_multibuy", {
-          quantity: rule.multibuy_quantity ?? 0,
-          price: formatMoney(rule.multibuy_price_cents ?? 0, {
-            fromCents: true,
-            locale: moneyLocale,
-          }),
-        }) as string;
-      default:
-        return t("promotions.list.discount_none") as string;
-    }
-  };
+  const discountLabel = (rule: DiscountRule | null | undefined): string =>
+    describeDiscountRule(rule, t, {
+      locale: moneyLocale,
+      currency: currentStore?.default_currency,
+    });
 
   const renderRow = (p: PromotionListItem) => (
     <TableRow key={p.id} className="hover:bg-muted/30">
@@ -367,15 +335,29 @@ export default function PromotionsList() {
                 {t("promotions.list.create_cta")}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            {/* Each type carries the one line that says what it does and
+                where it shows. The bare six-name list left a merchant
+                guessing what "floating widget" even was. */}
+            <DropdownMenuContent align="end" className="w-80">
               <DropdownMenuLabel>
                 {t("promotions.list.create_label")}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               {SURFACE_OPTIONS.map(({ value, icon: Icon }) => (
-                <DropdownMenuItem key={value} onClick={() => handleNew(value)}>
-                  <Icon className="me-2 h-4 w-4" />
-                  {t(`promotions.surface.${value}`)}
+                <DropdownMenuItem
+                  key={value}
+                  onClick={() => handleNew(value)}
+                  className="items-start gap-3 py-2.5"
+                >
+                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="flex flex-col gap-0.5">
+                    <span className="font-medium leading-none">
+                      {t(`promotions.surface.${value}`)}
+                    </span>
+                    <span className="text-xs leading-snug text-muted-foreground whitespace-normal">
+                      {t(`promotions.surface_hint.${value}`)}
+                    </span>
+                  </span>
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>

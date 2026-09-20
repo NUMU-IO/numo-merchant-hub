@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Loader2, Save } from "lucide-react";
+import { Copy, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -143,12 +143,19 @@ interface FormState {
   // `multibuyPrice` is the price of the WHOLE group, not per item.
   multibuyQuantity: string;
   multibuyPrice: string;
-  // Which products/categories can form a group. Reuses the BOGO set picker,
-  // but multibuy has only one set (there's no separate give-away side), sent
-  // with role "buy_set". Mode "any" = the whole catalogue is eligible.
-  multibuyEligibleMode: BogoSetMode;
-  multibuyEligibleProductIds: string[];
-  multibuyEligibleCategoryIds: string[];
+  // What the offer applies to, sent as one target with role "buy_set".
+  // Mode "any" = the whole catalogue, and emits no target at all.
+  //
+  // Shared by three rule kinds because it is the same question each time:
+  //   * MULTIBUY   — which items can form a group;
+  //   * PERCENTAGE — which items the percentage comes off ("20% off Bags");
+  //   * FIXED      — which items the amount comes off, capped at their value.
+  // The role is what makes it a SCOPE. An untagged catalog target is an
+  // eligibility GATE, which discounts the whole cart whenever one matching
+  // item is present — the opposite of what a merchant picking "Bags" means.
+  eligibleMode: BogoSetMode;
+  eligibleProductIds: string[];
+  eligibleCategoryIds: string[];
   // TIERED fields — at least one row required when ruleKind === "tiered".
   tiers: TierFormRow[];
   // Per-promotion usage caps (Phase B). Strings so a blank input
@@ -182,9 +189,9 @@ const EMPTY_FORM: FormState = {
   bogoGetCategoryIds: [],
   multibuyQuantity: "",
   multibuyPrice: "",
-  multibuyEligibleMode: "any",
-  multibuyEligibleProductIds: [],
-  multibuyEligibleCategoryIds: [],
+  eligibleMode: "any",
+  eligibleProductIds: [],
+  eligibleCategoryIds: [],
   tiers: [{ threshold: "", percent: "" }],
   usageLimitTotal: "",
   usageLimitPerCustomer: "",
@@ -193,7 +200,11 @@ const EMPTY_FORM: FormState = {
   audienceKind: "all",
   labelEn: "",
   labelAr: "",
-  activate: false,
+  // ON by default. A merchant who fills in a discount means to run it; the
+  // old default saved a draft that never reached a single shopper and gave
+  // no sign of it, which is the #1 "my discount doesn't work" report.
+  // Switching it off is still one click, and the copy says what that does.
+  activate: true,
 };
 
 function generateCode(): string {
@@ -259,6 +270,9 @@ export default function PromotionForm() {
   // background refetch can't clobber in-progress edits (see the hydrate
   // effect below).
   const hydratedIdRef = useRef<string | null>(null);
+  // Coupon minted by a create attempt that then failed to save its promotion.
+  // Reused on retry so the merchant keeps the code they chose.
+  const mintedCouponRef = useRef<string | null>(null);
 
   // Hydrate form when editing an existing promotion.
   useEffect(() => {
@@ -332,9 +346,9 @@ export default function PromotionForm() {
       ),
       // Multibuy scopes with the same `buy_set` role BOGO uses, so the saved
       // target decomposes identically — reuse the hydrated buy set.
-      multibuyEligibleMode: buyHydrated.mode,
-      multibuyEligibleProductIds: buyHydrated.productIds,
-      multibuyEligibleCategoryIds: buyHydrated.categoryIds,
+      eligibleMode: buyHydrated.mode,
+      eligibleProductIds: buyHydrated.productIds,
+      eligibleCategoryIds: buyHydrated.categoryIds,
       tiers:
         savedTiers.length > 0
           ? savedTiers.map((row) => ({
@@ -540,16 +554,24 @@ export default function PromotionForm() {
         "get_set",
       );
     }
-    // Multibuy's eligible set. One set only — there's no give-away side —
-    // and it MUST carry role "buy_set": an untagged catalog target is an
-    // eligibility GATE, which would let the offer apply to the whole cart
-    // whenever one eligible item is present. Mode "any" emits nothing, which
-    // the engine reads as "every product qualifies".
-    if (form.ruleKind === "multibuy") {
+    // The "applies to" set. One set only — there's no give-away side — and it
+    // MUST carry role "buy_set": an untagged catalog target is an eligibility
+    // GATE, which would let the offer apply to the whole cart whenever one
+    // matching item is present. Mode "any" emits nothing, which the engine
+    // reads as "every product qualifies".
+    //
+    // Multibuy reads it as the group's eligible items; percentage and fixed
+    // read it as the lines the discount comes off ("20% off Bags" takes 20%
+    // of the bags, not of a cart that happens to contain one).
+    if (
+      form.ruleKind === "multibuy" ||
+      form.ruleKind === "percentage" ||
+      form.ruleKind === "fixed"
+    ) {
       pushSet(
-        form.multibuyEligibleMode,
-        form.multibuyEligibleProductIds,
-        form.multibuyEligibleCategoryIds,
+        form.eligibleMode,
+        form.eligibleProductIds,
+        form.eligibleCategoryIds,
         "buy_set",
       );
     }
@@ -715,8 +737,8 @@ export default function PromotionForm() {
       }
 
       // Create flow
-      let couponId: string | null = null;
-      if (surface === "discount_code") {
+      let couponId: string | null = mintedCouponRef.current;
+      if (surface === "discount_code" && couponId === null) {
         // Keep the coupon's own calculation in sync with the promotion:
         // cart apply and some checkout paths calculate from the coupon.
         let couponType: CreateCouponData["coupon_type"];
@@ -782,6 +804,12 @@ export default function PromotionForm() {
         };
         const coupon = await createCoupon(storeId, couponData);
         couponId = coupon.id;
+        // Remember it: the promotion POST below can still fail (a validation
+        // slip, a dropped connection), and the code has already been minted.
+        // Without this the retry re-mints the same code and the API rejects
+        // it as taken — the merchant is then stuck on a form they cannot
+        // save without inventing a new code.
+        mintedCouponRef.current = coupon.id;
       }
 
       const payload: CreatePromotionRequest = {
@@ -811,6 +839,26 @@ export default function PromotionForm() {
     key: K,
     value: FormState[K],
   ) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  // "Applies to" is offered for every rule whose engine side reads a
+  // `buy_set` line filter. BOGO has its own two-sided card below; tiered and
+  // free-shipping price the cart as a whole and have nothing to scope.
+  const showScopePicker =
+    form.ruleKind === "multibuy" ||
+    form.ruleKind === "percentage" ||
+    form.ruleKind === "fixed";
+  const scopeCopy =
+    form.ruleKind === "multibuy"
+      ? {
+          title: "promotions.form.multibuy_targeting_title",
+          label: "promotions.form.multibuy_eligible_set",
+          help: "promotions.form.multibuy_eligible_help",
+        }
+      : {
+          title: "promotions.form.scope_title",
+          label: "promotions.form.scope_label",
+          help: "promotions.form.scope_help",
+        };
 
   const isAuto = surface === "automatic";
   const isCode = surface === "discount_code";
@@ -846,8 +894,10 @@ export default function PromotionForm() {
           <h1 className="text-2xl font-semibold tracking-tight">
             {t(titleKey)}
           </h1>
+          {/* Says where this offer shows up, per surface — the question every
+              merchant asks after saving one ("will it appear on my theme?"). */}
           <p className="text-sm text-muted-foreground">
-            {t("promotions.form.subtitle")}
+            {t(`promotions.surface_hint.${surface}`)}
           </p>
         </div>
         <div className="flex gap-2">
@@ -868,6 +918,31 @@ export default function PromotionForm() {
           </Button>
         </div>
       </div>
+
+      {/* Go-live state first, not last. It decides whether any of the work
+          below reaches a shopper, and at the bottom of a long form it was
+          routinely missed. */}
+      {!isEdit && (
+        <Card>
+          <CardContent className="flex items-center justify-between gap-4 pt-6">
+            <div>
+              <Label htmlFor="activate-now" className="text-base font-medium">
+                {t("promotions.form.activate_now")}
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                {form.activate
+                  ? t("promotions.form.activate_on_hint")
+                  : t("promotions.form.activate_off_hint")}
+              </p>
+            </div>
+            <Switch
+              id="activate-now"
+              checked={form.activate}
+              onCheckedChange={(checked) => updateField("activate", checked)}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -908,6 +983,37 @@ export default function PromotionForm() {
                   {t("promotions.form.code_generate")}
                 </Button>
               </div>
+            </div>
+          )}
+          {/* Editing: the code is the coupon's identity — it can't be
+              re-typed here, but hiding it entirely meant the merchant had no
+              way to see WHICH code this screen edits. */}
+          {isCode && isEdit && promotionQuery.data?.code && (
+            <div className="grid gap-2">
+              <Label>{t("promotions.form.code")}</Label>
+              <div className="flex items-center gap-2">
+                <code className="rounded-md border bg-muted px-3 py-2 font-mono text-sm">
+                  {promotionQuery.data.code}
+                </code>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard
+                      ?.writeText(promotionQuery.data!.code!)
+                      .then(() =>
+                        toast.success(t("promotions.detail.code_copied") as string),
+                      );
+                  }}
+                >
+                  <Copy className="me-2 h-4 w-4" />
+                  {t("promotions.detail.copy_code")}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("promotions.form.code_locked_hint")}
+              </p>
             </div>
           )}
         </CardContent>
@@ -1196,7 +1302,10 @@ export default function PromotionForm() {
               />
             </div>
           </div>
-          <PromotionRulePreview rule={buildDiscountRule()} />
+          <PromotionRulePreview
+            rule={buildDiscountRule()}
+            scoped={showScopePicker && form.eligibleMode !== "any"}
+          />
         </CardContent>
       </Card>
       )}
@@ -1245,35 +1354,32 @@ export default function PromotionForm() {
         </Card>
       )}
 
-      {showDiscountSection && form.ruleKind === "multibuy" && (
+      {showDiscountSection && showScopePicker && (
         <Card>
           <CardHeader>
-            <CardTitle>
-              {t("promotions.form.multibuy_targeting_title")}
-            </CardTitle>
+            <CardTitle>{t(scopeCopy.title)}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-2">
-              <Label className="text-base">
-                {t("promotions.form.multibuy_eligible_set")}
-              </Label>
+              <Label className="text-base">{t(scopeCopy.label)}</Label>
               {/* Same picker as BOGO's buy side — the target is emitted with
-                  role "buy_set", which the engine reads as multibuy's
-                  eligible set. */}
+                  role "buy_set". Multibuy reads it as the group's eligible
+                  items; percentage and fixed read it as the lines the
+                  discount comes off. */}
               <BogoSetPicker
                 storeId={storeId}
                 side="eligible"
-                mode={form.multibuyEligibleMode}
-                productIds={form.multibuyEligibleProductIds}
-                categoryIds={form.multibuyEligibleCategoryIds}
+                mode={form.eligibleMode}
+                productIds={form.eligibleProductIds}
+                categoryIds={form.eligibleCategoryIds}
                 onChange={(next) => {
-                  updateField("multibuyEligibleMode", next.mode);
-                  updateField("multibuyEligibleProductIds", next.productIds);
-                  updateField("multibuyEligibleCategoryIds", next.categoryIds);
+                  updateField("eligibleMode", next.mode);
+                  updateField("eligibleProductIds", next.productIds);
+                  updateField("eligibleCategoryIds", next.categoryIds);
                 }}
               />
               <p className="text-xs text-muted-foreground">
-                {t("promotions.form.multibuy_eligible_help")}
+                {t(scopeCopy.help)}
               </p>
             </div>
           </CardContent>
@@ -1427,28 +1533,6 @@ export default function PromotionForm() {
         </CardContent>
       </Card>
 
-      {!isEdit && (
-        <Card>
-          <CardContent className="flex items-center justify-between gap-4 pt-6">
-            <div>
-              <Label
-                htmlFor="activate-now"
-                className="text-base font-medium"
-              >
-                {t("promotions.form.activate_now")}
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                {t("promotions.form.activate_now_hint")}
-              </p>
-            </div>
-            <Switch
-              id="activate-now"
-              checked={form.activate}
-              onCheckedChange={(checked) => updateField("activate", checked)}
-            />
-          </CardContent>
-        </Card>
-      )}
     </form>
   );
 }
