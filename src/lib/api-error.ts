@@ -249,16 +249,29 @@ export async function apiErrorFromResponse(res: Response): Promise<ApiError> {
   //   NUMU custom:       { error: { message: "...", code: "..." } }
   //   Generic:           { message: "..." }
   const detail = body?.detail;
+  // An object `detail` is the bilingual envelope — `{ message, message_ar }`
+  // or `{ message_en, message_ar }`. Without reading its English half here the
+  // English message fell through to the generic per-status sentence, so an
+  // endpoint that had written a precise message had it thrown away (the COD
+  // trust block was showing "This conflicts with existing data").
+  const detailObj =
+    typeof detail === "object" && detail !== null && !Array.isArray(detail)
+      ? (detail as { message?: unknown; message_en?: unknown })
+      : null;
   const detailStr =
     typeof detail === "string"
       ? detail
       : Array.isArray(detail)
         ? detail.map((d: { msg?: string }) => d?.msg).filter(Boolean).join(". ")
-        : typeof body?.error?.message === "string"
-          ? body.error.message
-          : typeof body?.message === "string"
-            ? body.message
-            : null;
+        : typeof detailObj?.message === "string"
+          ? detailObj.message
+          : typeof detailObj?.message_en === "string"
+            ? detailObj.message_en
+            : typeof body?.error?.message === "string"
+              ? body.error.message
+              : typeof body?.message === "string"
+                ? body.message
+                : null;
 
   // Bilingual envelope, in the three shapes the backend uses. FastAPI's
   // HTTPException nests under `detail`; the NUMU error helper uses `error`;

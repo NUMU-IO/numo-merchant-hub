@@ -32,14 +32,29 @@ jobs:
 
       # Merge this exact SHA rather than origin/dev, so a push landing on dev
       # mid-run cannot slip an untested commit into prod.
+      # Waits rather than failing outright: promote is normally clicked right
+      # after merging, while dev's CI is still running.
       - name: Require green CI for the dev commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SHA=$(git rev-parse origin/dev)
-          PASSED=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA" --status success --json databaseId --jq length)
-          if [ "$PASSED" = "0" ]; then
-            echo "::error::CI has not passed for dev@${SHA:0:7} (running, failed or cancelled). Promote once it is green."
+          for attempt in $(seq 1 40); do
+            STATE=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$SHA"               --json status,conclusion --jq 'map(select(.status == "completed")) | .[0].conclusion // "pending"')
+            case "$STATE" in
+              success) break ;;
+              pending)
+                echo "CI for dev@${SHA:0:7} is still running (check $attempt/40)…"
+                sleep 15
+                ;;
+              *)
+                echo "::error::CI for dev@${SHA:0:7} ended as '$STATE'. Promote once it is green."
+                exit 1
+                ;;
+            esac
+          done
+          if [ "$STATE" != "success" ]; then
+            echo "::error::CI for dev@${SHA:0:7} did not finish within 10 minutes."
             exit 1
           fi
           echo "SHA=$SHA" >> "$GITHUB_ENV"
