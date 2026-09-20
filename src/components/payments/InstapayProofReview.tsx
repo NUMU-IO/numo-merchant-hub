@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  apiAssetUrl,
   approvePaymentProof,
   fetchPaymentProofs,
   fetchSimilarPaymentProofs,
@@ -301,6 +302,9 @@ export default function InstapayProofReview({
   }
 
   const latest = proofs[proofs.length - 1];
+  // `signed_image_url` is an API path, not an absolute URL; resolve it
+  // against the API origin so it loads when the hub is served elsewhere.
+  const latestImageUrl = apiAssetUrl(latest.signed_image_url);
   const canReview = latest.status === "awaiting_review";
   const approvingThis =
     approveMutation.isPending && approveMutation.variables === latest.id;
@@ -321,15 +325,15 @@ export default function InstapayProofReview({
           </span>
         </div>
 
-        {latest.signed_image_url && !imageFailed[latest.id] ? (
+        {latestImageUrl && !imageFailed[latest.id] ? (
           <button
             type="button"
-            onClick={() => setLightboxUrl(latest.signed_image_url)}
+            onClick={() => setLightboxUrl(latestImageUrl)}
             className="block w-full cursor-zoom-in"
             aria-label={isAr ? "فتح الصورة بالحجم الكامل" : "Open image full size"}
           >
             <img
-              src={latest.signed_image_url}
+              src={latestImageUrl}
               alt="Payment proof"
               className="w-full max-h-48 object-contain rounded border bg-muted/10"
               onError={() =>
@@ -547,7 +551,7 @@ export default function InstapayProofReview({
                 >
                   <button
                     type="button"
-                    onClick={() => setLightboxUrl(sim.signed_image_url)}
+                    onClick={() => setLightboxUrl(apiAssetUrl(sim.signed_image_url) ?? null)}
                     className="shrink-0 cursor-zoom-in"
                     aria-label={
                       isAr
@@ -556,7 +560,7 @@ export default function InstapayProofReview({
                     }
                   >
                     <img
-                      src={sim.signed_image_url}
+                      src={apiAssetUrl(sim.signed_image_url)}
                       alt=""
                       className="w-10 h-10 object-cover rounded border bg-muted/20"
                     />
