@@ -477,6 +477,7 @@ export default function PromotionForm() {
       rule.multibuy_price_cents = majorToMinor(form.multibuyPrice) ?? 0;
     } else if (form.ruleKind === "tiered") {
       rule.tiers = form.tiers
+        .filter((row) => row.threshold.trim() !== "" && row.percent.trim() !== "")
         .map((row) => ({
           threshold_cents: majorToMinor(row.threshold) ?? 0,
           percent: Number(row.percent) || 0,
@@ -640,14 +641,20 @@ export default function PromotionForm() {
           return t("promotions.errors.multibuy_price_required") as string;
       }
       if (form.ruleKind === "tiered") {
+        if (form.tiers.some(
+          (row) => (row.threshold.trim() === "") !== (row.percent.trim() === ""),
+        )) return t("promotions.errors.tiers_required") as string;
         const realRows = form.tiers.filter(
           (r) => r.threshold.trim() !== "" && r.percent.trim() !== "",
         );
         if (realRows.length === 0)
           return t("promotions.errors.tiers_required") as string;
         for (const row of realRows) {
+          const threshold = majorToMinor(row.threshold);
+          if (threshold == null || threshold < 0)
+            return t("promotions.errors.tiers_required") as string;
           const pct = Number(row.percent);
-          if (Number.isNaN(pct) || pct < 0 || pct > 100)
+          if (!Number.isFinite(pct) || pct < 0 || pct > 100)
             return t("promotions.errors.tiers_percent_range") as string;
         }
       }
@@ -710,14 +717,11 @@ export default function PromotionForm() {
       // Create flow
       let couponId: string | null = null;
       if (surface === "discount_code") {
-        // 1) Create the underlying coupon. The Coupon API only knows
-        //    three types (percentage / fixed / free_shipping) and
-        //    validates `value` accordingly. For richer promotion rules
-        //    (BOGO, tiered) the *promotion's* `discount_rule` does the
-        //    actual math and the coupon is just a code holder — we
-        //    submit a benign placeholder shape so the API accepts it.
-        let couponType: "percentage" | "fixed" | "free_shipping";
+        // Keep the coupon's own calculation in sync with the promotion:
+        // cart apply and some checkout paths calculate from the coupon.
+        let couponType: CreateCouponData["coupon_type"];
         let couponValue: number;
+        let couponConfig: CreateCouponData["config"];
         if (form.ruleKind === "fixed") {
           couponType = "fixed";
           // The Coupon API speaks MAJOR units (`value` is a decimal string),
@@ -732,11 +736,19 @@ export default function PromotionForm() {
         } else if (form.ruleKind === "percentage") {
           couponType = "percentage";
           couponValue = Number(form.valuePercent);
+        } else if (form.ruleKind === "tiered") {
+          couponType = "tiered";
+          couponValue = 0;
+          couponConfig = {
+            tiers: form.tiers.filter(
+              (row) => row.threshold.trim() !== "" && row.percent.trim() !== "",
+            ).map((row) => ({
+              min_subtotal_cents: majorToMinor(row.threshold) ?? 0,
+              discount_percentage: Number(row.percent) || 0,
+            })),
+          };
         } else {
-          // BOGO / tiered / anything new. Backend only has 3 coupon
-          // types; pick `fixed` with a minimal-but-legal value (1 unit)
-          // so it passes `value > 0` validation. The promotion's
-          // `discount_rule` overrides this at calculation time.
+          // Other rule kinds still use the promotion calculator.
           couponType = "fixed";
           couponValue = 1;
         }
@@ -757,6 +769,8 @@ export default function PromotionForm() {
           code: form.code.toUpperCase(),
           coupon_type: couponType,
           value: couponValue,
+          is_active: false,
+          ...(couponConfig ? { config: couponConfig } : {}),
           min_order_amount:
             form.minSubtotalAmount.trim() && minSubtotal > 0
               ? minSubtotal
