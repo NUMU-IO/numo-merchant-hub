@@ -434,7 +434,7 @@ export function WebhooksPanel({ storeId }: { storeId: string | undefined }) {
           {secret && <CopyBox label={secret.url} text={secret.secret} />}
           <DialogFooter className="sm:justify-between">
             <a
-              href="https://docs.numueg.app/api/webhooks"
+              href="https://docs.numueg.app/go/Webhooks"
               target="_blank"
               rel="noreferrer"
               className="text-sm text-muted-foreground underline underline-offset-2"

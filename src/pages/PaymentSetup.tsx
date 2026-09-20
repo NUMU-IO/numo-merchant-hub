@@ -282,7 +282,7 @@ const PaymentSetup = () => {
       fetchFawaterakCredentials(storeId).catch(notConfigured),
       fetchMoyasarCredentials(storeId).catch(notConfigured),
       apiClient<{ payment: Record<string, { enabled?: boolean; is_configured?: boolean }> }>(
-        `/stores/${storeId}/settings`,
+        `/stores/${storeId}/settings/`,
       ),
     ])
       .then(([p, k, f, fw, m, settings]) => {
