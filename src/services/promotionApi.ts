@@ -202,7 +202,10 @@ export interface PromotionMetricsBlock {
   dismissals: number;
   redemptions: number;
   conversions: number;
+  /** Order value attributed to the promotion (paid orders only). */
   revenue_cents: number;
+  /** What the promotion took off those orders. */
+  discount_total_cents?: number;
 }
 
 // --------------------------------------------------------------------------
@@ -217,6 +220,9 @@ export interface Promotion {
   surface: PromotionSurface;
   status: PromotionStatus;
   coupon_id: string | null;
+  /** The linked coupon's code + order count — null/0 for non-code surfaces. */
+  code?: string | null;
+  usage_count?: number;
   discount_rule: DiscountRule | null;
   content: Record<string, unknown>;
   translations: Record<string, LocalizedPromotionContent>;
