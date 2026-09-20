@@ -47,6 +47,7 @@ export interface CreateCouponData {
     | "buy_x_get_y"
     | "tiered";
   value: number;
+  is_active?: boolean;
   /** Phase 8.4 — extra config for BOGO + tiered:
    *   buy_x_get_y → { buy_qty, get_qty, get_discount_percent, applicable_product_ids? }
    *   tiered      → { tiers: [{ min_subtotal_cents, percent | fixed_cents }, ...] }
