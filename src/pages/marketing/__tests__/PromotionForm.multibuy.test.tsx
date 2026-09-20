@@ -2007,6 +2007,27 @@ describe("F. money boundary: no drift on a no-edit re-save", () => {
 });
 
 describe("F2. money boundary: the coupon record uses MAJOR units", () => {
+  it("creates a tiered code with the actual tiers and cap", async () => {
+    renderForm("/marketing/promotions/new?surface=discount_code");
+    setInput("promo-name", "Tiered code");
+    setInput("promo-code", "F2453");
+    applyTemplate("tiered_3_step");
+    setInput("rule-max", "100");
+    submit();
+
+    await waitFor(() => expect(H.createCoupon).toHaveBeenCalled());
+    const [, couponData] = H.createCoupon.mock.calls.at(-1)!;
+    expect(couponData.coupon_type).toBe("tiered");
+    expect(couponData.is_active).toBe(false);
+    expect(couponData.value).toBe(0);
+    expect(couponData.max_discount_amount).toBe(100);
+    expect(couponData.config.tiers).toEqual(
+      expect.arrayContaining([
+        { min_subtotal_cents: 100000, discount_percentage: 10 },
+      ]),
+    );
+  });
+
   it("REGRESSION F29: min/max are NOT divided by 100 on the way to the coupon", async () => {
     // The Coupon API takes decimals ("50.00"), and the form's inputs now hold
     // major units — so the value passes straight through. The pre-refactor code
