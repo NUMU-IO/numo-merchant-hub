@@ -2,7 +2,7 @@
  * Store API service — CRUD for merchant stores.
  */
 
-import { apiClient } from "./api";
+import { apiClient, apiClientFormData } from "./api";
 import { compressImage } from "@/lib/image-compression";
 import type { ImageTransform } from "@/features/theme-editor-v3/components/inputs/imageTransform";
 
@@ -1054,8 +1054,15 @@ export interface PaymentProof {
   rejection_reason: string | null;
   review_decision_by: string | null;
   review_decision_at: string | null;
-  signed_image_url: string;
+  /** Null once the retention sweeper purged the R2 object (90 days on a
+   *  delivered / cancelled / refunded order). The row and its amount
+   *  survive — only the image is gone. */
+  signed_image_url: string | null;
   created_at: string;
+  /** Rail the merchant picked when recording this payment by hand from
+   *  the order page. Null on customer-submitted proofs, so a non-null
+   *  value also means "the merchant recorded this, nobody uploaded it". */
+  recorded_method?: RecordedPaymentMethod | null;
   // Phase C — populated when an OCR provider was configured for the
   // store at submission time. Pre-Phase-C / Noop rows leave these
   // null and the merchant pane hides the OCR section.
@@ -1070,6 +1077,31 @@ export interface PaymentProof {
   // for auto-approved proofs. Strings (not a closed enum) so backend
   // can grow new rules without forcing a frontend deploy.
   auto_approval_block_reasons?: string[] | null;
+}
+
+/**
+ * Resolve an API-served asset path against the API's origin.
+ *
+ * `signed_image_url` comes back as an absolute *path* (`/api/v1/stores/...`)
+ * because the proof bytes are streamed by the API rather than handed out as a
+ * presigned storage URL. Dropping that path straight into `<img src>` only
+ * works when the hub and the API share an origin. They do not when
+ * `VITE_API_URL` points elsewhere — in local dev the browser asks the Vite
+ * server for it and gets a broken image.
+ *
+ * Returns undefined for a null path, so a purged receipt renders the
+ * "image removed" state instead of a broken image.
+ */
+export function apiAssetUrl(path: string | null | undefined): string | undefined {
+  if (!path) return undefined;
+  if (/^(https?:|blob:|data:)/i.test(path)) return path;
+  const base = import.meta.env.VITE_API_URL || "";
+  if (!base) return path;
+  try {
+    return new URL(path, base).toString();
+  } catch {
+    return path;
+  }
 }
 
 export async function fetchPaymentProofs(
@@ -1098,6 +1130,67 @@ export async function rejectPaymentProof(
 ): Promise<PaymentProof> {
   return apiClient<PaymentProof>(
     `/stores/${storeId}/payment-proofs/${proofId}/reject`,
+    { method: "POST", body: JSON.stringify({ reason }) },
+  );
+}
+
+// ── Merchant-recorded payments (order page) ──────────────────────────
+//
+// The merchant attaches the Vodafone Cash / InstaPay receipt and types how
+// much was actually paid; the order shows paid / remaining until the running
+// total settles it. The amount is the merchant's — nothing reads the image.
+
+export const RECORDED_PAYMENT_METHODS = [
+  "vodafone_cash",
+  "instapay",
+  "cash",
+  "bank_transfer",
+  "other",
+] as const;
+
+export type RecordedPaymentMethod = (typeof RECORDED_PAYMENT_METHODS)[number];
+
+export interface RecordedPaymentResult {
+  payment: PaymentProof;
+  amount_paid_cents: number;
+  balance_due_cents: number;
+  order_payment_status: string;
+}
+
+export interface RecordPaymentInput {
+  amountCents: number;
+  method: RecordedPaymentMethod;
+  image: File;
+  reference?: string;
+  /** Client-generated, so a retry after a dropped connection returns the
+   *  original payment instead of recording the money twice. */
+  idempotencyKey?: string;
+}
+
+export async function recordOrderPayment(
+  storeId: string,
+  orderId: string,
+  input: RecordPaymentInput,
+): Promise<RecordedPaymentResult> {
+  const form = new FormData();
+  form.append("image", input.image);
+  form.append("amount_cents", String(input.amountCents));
+  form.append("method", input.method);
+  if (input.reference) form.append("reference", input.reference);
+  if (input.idempotencyKey) form.append("idempotency_key", input.idempotencyKey);
+  return apiClientFormData<RecordedPaymentResult>(
+    `/stores/${storeId}/orders/${orderId}/payments`,
+    form,
+  );
+}
+
+export async function voidRecordedPayment(
+  storeId: string,
+  proofId: string,
+  reason: string,
+): Promise<RecordedPaymentResult> {
+  return apiClient<RecordedPaymentResult>(
+    `/stores/${storeId}/payments/${proofId}/void`,
     { method: "POST", body: JSON.stringify({ reason }) },
   );
 }

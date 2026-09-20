@@ -1,17 +1,31 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { isManualPaymentMethod, paymentMethodLabel } from "@/services/storeApi";
+import {
+  fetchPaymentProofs,
+  isManualPaymentMethod,
+  paymentMethodLabel,
+  recordOrderPayment,
+  voidRecordedPayment,
+  type PaymentProof,
+  type RecordPaymentInput,
+} from "@/services/storeApi";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, FileText, Undo2 } from "lucide-react";
+import { CheckCircle2, FileText, Plus, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { downloadInvoicePdf, getInvoiceForOrder } from "@/services/invoiceApi";
+import { showError } from "@/lib/show-error";
 import type { Order } from "@/services/orderApi";
 import type { RefundListItem } from "@/services/refundApi";
-import InstapayProofReview from "@/components/payments/InstapayProofReview";
+import InstapayProofReview, {
+  paymentProofsQueryKey,
+} from "@/components/payments/InstapayProofReview";
+import { RecordPaymentDialog } from "@/components/orders/RecordPaymentDialog";
+import { RecordedPaymentsList } from "@/components/orders/RecordedPaymentsList";
 import { SendPaymentLinkButton } from "@/components/orders/SendPaymentLinkPicker";
 import { formatOrderCurrency, PAYMENT_STATUS_COLORS } from "./_shared";
 
@@ -37,14 +51,79 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
   const queryClient = useQueryClient();
   const fmt = (cents: number) => formatOrderCurrency(cents, language);
 
+  const [recordOpen, setRecordOpen] = useState(false);
+
+  // Same query key InstapayProofReview uses, so React Query serves this from
+  // cache rather than issuing a second request. The proofs table is where
+  // merchant-recorded part payments live.
+  const proofsQuery = useQuery<PaymentProof[]>({
+    queryKey: paymentProofsQueryKey(currentStore?.id ?? "", order.id),
+    queryFn: () => fetchPaymentProofs(currentStore!.id, order.id),
+    enabled: !!currentStore?.id,
+    staleTime: 30_000,
+  });
+  const proofs = proofsQuery.data ?? [];
+
   const refunded = refunds
     .filter((r) => r.status === "completed")
     .reduce((sum, r) => sum + r.amount, 0);
   // After a partial acceptance the collectible amount is what was kept.
   const collectible = order.collected_total ?? order.total;
-  const paid = order.is_paid ? collectible : 0;
+  // Money actually collected against this order: settled proofs, which covers
+  // both merchant-recorded part payments and an approved customer upload. A
+  // fully-paid order still short-circuits to the collectible total, so every
+  // order that predates this feature renders exactly as it did before.
+  const recorded = proofs
+    .filter((p) => p.status === "approved" || p.status === "auto_approved")
+    .reduce((sum, p) => sum + (p.declared_amount_cents ?? 0), 0);
+  const paid = order.is_paid ? collectible : recorded;
   const balance = collectible - paid - refunded;
+  const overpaid = paid > collectible;
   const returnedValue = order.partial_acceptance?.returned_value_cents ?? 0;
+
+  const orderClosed =
+    order.status === "cancelled" || order.status === "refunded";
+  const canRecordPayment = !order.is_paid && !orderClosed && !!currentStore?.id;
+
+  const invalidatePayments = () => {
+    queryClient.invalidateQueries({
+      queryKey: paymentProofsQueryKey(currentStore?.id ?? "", order.id),
+    });
+    queryClient.invalidateQueries({ queryKey: ["order", order.id] });
+    // Recording or voiding writes a `payment_recorded` / `payment_voided`
+    // system event, so the timeline has to refetch too — otherwise the entry
+    // only shows up after a page reload.
+    queryClient.invalidateQueries({
+      queryKey: ["order-timeline", currentStore?.id, order.id],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["order-activities", currentStore?.id, order.id],
+    });
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
+    queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
+  const recordPayment = useMutation({
+    mutationFn: (input: RecordPaymentInput) =>
+      recordOrderPayment(currentStore!.id, order.id, input),
+    onSuccess: () => {
+      toast.success(language === "ar" ? "تم تسجيل الدفعة" : "Payment recorded");
+      setRecordOpen(false);
+      invalidatePayments();
+    },
+    onError: (err) => showError(err, language),
+  });
+
+  const voidPayment = useMutation({
+    mutationFn: (args: { proofId: string; reason: string }) =>
+      voidRecordedPayment(currentStore!.id, args.proofId, args.reason),
+    onSuccess: () => {
+      toast.success(language === "ar" ? "تم إلغاء الدفعة" : "Payment voided");
+      invalidatePayments();
+    },
+    onError: (err) => showError(err, language),
+  });
 
   const handleDownloadInvoice = async () => {
     if (!currentStore?.id) return;
@@ -115,11 +194,20 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
 
         {/* Paid / Refunded / Balance */}
         <div className="space-y-1 text-sm border-t pt-3">
-          <Row
-            label={t("orders.paid")}
-            value={fmt(paid)}
-            valueClassName="text-primary"
-          />
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">
+              {t("orders.paid")}
+              {overpaid && (
+                <Badge
+                  variant="secondary"
+                  className="ms-2 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                >
+                  {language === "ar" ? "دفع زيادة" : "Overpaid"}
+                </Badge>
+              )}
+            </span>
+            <span className="text-primary">{fmt(paid)}</span>
+          </div>
           {returnedValue > 0 && (
             <Row
               label={t("orders.partial.returnedValue")}
@@ -160,6 +248,17 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
               {language === "ar" ? "طريقة الدفع: " : "Method: "}
               {paymentMethodLabel(order.payment_method, language === "ar")}
             </p>
+          )}
+          {canRecordPayment && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full gap-1.5"
+              onClick={() => setRecordOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {language === "ar" ? "سجّل دفعة" : "Record a payment"}
+            </Button>
           )}
           {order.payment_status !== "paid" && (
             <Button
@@ -204,20 +303,49 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
           )}
         </div>
 
-        {isManualPaymentMethod(order.payment_method) && currentStore?.id && (
-          <div className="border-t pt-3">
-            <InstapayProofReview
-              storeId={currentStore.id}
-              orderId={order.id}
-              isAr={language === "ar"}
-              onPaid={() => {
-                queryClient.invalidateQueries({ queryKey: ["orders"] });
-                queryClient.invalidateQueries({ queryKey: ["order", order.id] });
-                queryClient.invalidateQueries({ queryKey: ["analytics"] });
-                queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-              }}
-            />
-          </div>
+        {/* Payments the merchant recorded by hand, newest last. */}
+        {currentStore?.id && (
+          <RecordedPaymentsList
+            proofs={proofs}
+            isAr={language === "ar"}
+            language={language}
+            canVoid={!order.is_paid}
+            voidingId={
+              voidPayment.isPending ? voidPayment.variables?.proofId : undefined
+            }
+            onVoid={(proofId, reason) =>
+              voidPayment.mutate({ proofId, reason })
+            }
+          />
+        )}
+
+        {/* Customer-submitted proofs keep their own review pane with the
+            approve / reject CTA. The gate used to be the order's payment
+            method alone, which hid this entirely on a COD order that took a
+            Vodafone Cash prepayment — exactly the case the recorder exists
+            for. */}
+        {currentStore?.id &&
+          (isManualPaymentMethod(order.payment_method) ||
+            proofs.some((p) => !p.recorded_method)) && (
+            <div className="border-t pt-3">
+              <InstapayProofReview
+                storeId={currentStore.id}
+                orderId={order.id}
+                isAr={language === "ar"}
+                onPaid={invalidatePayments}
+              />
+            </div>
+          )}
+
+        {currentStore?.id && (
+          <RecordPaymentDialog
+            open={recordOpen}
+            onOpenChange={setRecordOpen}
+            balanceDueCents={Math.max(0, balance)}
+            currencyLanguage={language}
+            submitting={recordPayment.isPending}
+            onSubmit={(input) => recordPayment.mutate(input)}
+          />
         )}
       </CardContent>
     </Card>
