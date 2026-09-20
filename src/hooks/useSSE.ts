@@ -28,6 +28,14 @@ const MAX_RECONNECT_MS = 60_000;
 //  - anything else → exponential backoff, capped at 60 s, reset on success.
 const IMPERSONATION_TOKEN_KEY = "numu.impersonation_token";
 
+function isImpersonating(): boolean {
+  try {
+    return Boolean(sessionStorage.getItem(IMPERSONATION_TOKEN_KEY));
+  } catch {
+    return false;
+  }
+}
+
 function authHeaders(): Record<string, string> {
   const h: Record<string, string> = { Accept: "text/event-stream" };
   try {
@@ -90,11 +98,22 @@ export function useSSE<T>({
         cache: "no-store",
       });
       if (res.status === 401) {
+        // Impersonation authenticates with the handoff token, not the
+        // cookie session, so refreshing the cookie cannot revive it. It
+        // "succeeded" every time and the stream 401'd again straight after:
+        // one refresh plus one rejected stream every few seconds, forever.
+        if (isImpersonating()) {
+          setError("impersonation token expired");
+          setConnected(false);
+          return;
+        }
         if (!refreshedOnce.current) {
           refreshedOnce.current = true;
           const outcome = await refreshSession();
           if (outcome === "ok") {
-            refreshedOnce.current = false;
+            // Left set until a stream actually connects: a refresh that
+            // doesn't fix the 401 must fall through to the backoff below
+            // rather than start the cycle again.
             failures.current = 0;
             void connect();
             return;
