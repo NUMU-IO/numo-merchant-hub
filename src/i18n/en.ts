@@ -1294,7 +1294,9 @@ export default {
       discount_fixed: "{{value}} off",
       discount_free_shipping: "Free shipping",
       discount_bogo: "Buy X get Y",
+      discount_bogo_detail: "Buy {{buy}} get {{get}} at {{percent}}% off",
       discount_tiered: "Tiered",
+      discount_tiered_detail: "Tiered ({{count}} tiers)",
       discount_multibuy: "{{quantity}} for {{price}}",
       discount_none: "—",
       empty_title: "No discounts yet",
@@ -1319,6 +1321,22 @@ export default {
       popup: "Popup",
       floating_widget: "Floating widget",
       cookie_banner: "Cookie banner",
+    },
+    // One line saying what the offer does and where it shows. Used by the
+    // "New discount" menu, the form header and the offer detail page.
+    surface_hint: {
+      discount_code:
+        "A code the shopper types in the cart or at checkout. Works on every theme.",
+      automatic:
+        "Applies itself to the cart — no code to type. Shows in the cart and at checkout on every theme.",
+      announcement_bar:
+        "A bar across the top of every page. Rendered by the platform, so it works on every theme.",
+      popup:
+        "A window that opens while the visitor browses. Rendered by the platform on every theme.",
+      floating_widget:
+        "A small floating button in the corner of the screen. Rendered by the platform on every theme.",
+      cookie_banner:
+        "A cookie-consent bar for first-time visitors. Rendered by the platform on every theme.",
     },
     actions: {
       edit: "Edit",
@@ -1356,6 +1374,7 @@ export default {
       name_hint: "Only you and your team see this name.",
       code: "Code",
       code_generate: "Generate",
+      code_locked_hint: "The code itself can't be changed after it is created — create a new discount for a different code.",
       discount_rule: "Discount",
       rule_kind_label: "Discount type",
       rule_kind: {
@@ -1381,6 +1400,12 @@ export default {
       multibuy_price: "Bundle price ({{currency}})",
       multibuy_help:
         "Example: bundle size 3, bundle price 650 — the customer pays 650 {{currency}} for any 3 eligible items. The bundle repeats — 6 eligible items are charged as two bundles. The 3 most expensive eligible items form each bundle, so the customer always gets the biggest saving. If a bundle would cost more than the regular price, it simply doesn't apply.",
+      scope_title: "What the discount applies to",
+      scope_label: "Apply the discount to",
+      scope_help:
+        "Leave it on \"any product\" to discount the whole cart. Pick products or a category and the discount comes off those items only — 20% off Bags takes 20% of the bags, not of the rest of the basket.",
+      scope_preview_note:
+        "This offer is limited to the items you picked. The sample cart below shows the discount as if every item qualified.",
       multibuy_targeting_title: "Which items qualify",
       multibuy_eligible_set: "Eligible products or collection",
       multibuy_any_hint:
@@ -1460,6 +1485,8 @@ export default {
       label_ar: "Arabic label",
       activate_now: "Activate immediately",
       activate_now_hint: "Off saves as a draft so you can preview before going live.",
+      activate_on_hint: "Live for shoppers as soon as you save.",
+      activate_off_hint: "Saved as a draft — shoppers can't see it until you turn it on.",
     },
     detail: {
       back: "Back to promotions",
@@ -1467,6 +1494,30 @@ export default {
       metrics_title: "Performance",
       schedule_title: "Schedule & priority",
       priority: "Priority",
+      no_date: "Always",
+      copy_code: "Copy code",
+      code_copied: "Code copied",
+      summary_title: "How this offer works",
+      summary: {
+        discount: "Discount",
+        min_subtotal: "Minimum cart",
+        max_discount: "Maximum discount",
+        audience: "Who sees it",
+        usage: "Used",
+        where: "Where it shows",
+      },
+      usage_capped: "{{used}} of {{cap}}",
+      usage_uncapped: "{{used}} times",
+      not_live: {
+        draft: "This offer is a draft — shoppers can't see or use it yet.",
+        paused: "This offer is paused — shoppers can't use it right now.",
+        scheduled: "This offer is scheduled and starts on its start date.",
+        expired: "This offer has ended. Change its end date to run it again.",
+      },
+      no_activity_live: "No activity yet. Numbers appear as shoppers use this offer.",
+      no_activity_idle: "No activity yet — this offer has never been live.",
+      revenue_hint:
+        "Revenue and orders count paid orders only. COD orders count once you mark them paid.",
       schedule: {
         starts_at: "Starts at",
         ends_at: "Ends at",
@@ -1478,6 +1529,9 @@ export default {
         redemptions: "Redemptions",
         conversions: "Conversions",
         revenue: "Revenue",
+        uses: "Times used",
+        paid_orders: "Paid orders",
+        discount_given: "Discount given",
       },
     },
     errors: {
