@@ -139,43 +139,108 @@ export default function PromotionDetail() {
   // Surface-aware tiles. A code records no impressions and a cookie banner
   // records no revenue; listing both everywhere is what made every offer
   // look dead.
-  const tiles: { label: string; value: string }[] = isVisual
+  // Every tile carries one line saying exactly what it counts. A bare
+  // "Revenue: 1,254" leaves a merchant guessing whether that's before or after
+  // the discount, whether unpaid cash-on-delivery orders are in it, and what
+  // "uses" means next to "paid orders".
+  const tiles: { label: string; value: string; hint: string }[] = isVisual
     ? [
         {
           label: t("promotions.detail.metric.impressions") as string,
           value: formatNumber(promo.metrics.impressions),
+          hint: t("promotions.detail.metric_hint.impressions") as string,
         },
         {
           label: t("promotions.detail.metric.clicks") as string,
           value: formatNumber(promo.metrics.clicks),
+          hint: t("promotions.detail.metric_hint.clicks") as string,
         },
         {
           label: t("promotions.detail.metric.dismissals") as string,
           value: formatNumber(promo.metrics.dismissals),
+          hint: t("promotions.detail.metric_hint.dismissals") as string,
         },
         {
           label: t("promotions.detail.metric.conversions") as string,
           value: formatNumber(promo.metrics.conversions),
+          hint: t("promotions.detail.metric_hint.conversions") as string,
         },
       ]
     : [
         {
           label: t("promotions.detail.metric.uses") as string,
           value: formatNumber(usageCount),
+          hint: t("promotions.detail.metric_hint.uses") as string,
         },
         {
           label: t("promotions.detail.metric.paid_orders") as string,
           value: formatNumber(promo.metrics.conversions),
+          hint: t("promotions.detail.metric_hint.paid_orders") as string,
         },
         {
           label: t("promotions.detail.metric.revenue") as string,
           value: money(promo.metrics.revenue_cents),
+          hint: t("promotions.detail.metric_hint.revenue") as string,
         },
         {
           label: t("promotions.detail.metric.discount_given") as string,
           value: money(promo.metrics.discount_total_cents ?? 0),
+          hint: t("promotions.detail.metric_hint.discount_given") as string,
         },
       ];
+
+  // What the numbers MEAN, in the merchant's words. Only claims that the
+  // data actually supports: no ratio without both sides of it.
+  const revenueCents = promo.metrics.revenue_cents;
+  const discountCents = promo.metrics.discount_total_cents ?? 0;
+  const paidOrders = promo.metrics.conversions;
+  const insights: string[] = [];
+  if (!isVisual) {
+    if (discountCents > 0 && revenueCents > 0) {
+      insights.push(
+        t("promotions.detail.insight.return_on_discount", {
+          value: (revenueCents / discountCents).toLocaleString(
+            language === "ar" ? "ar-EG" : "en-US",
+            { maximumFractionDigits: 1 },
+          ),
+        }) as string,
+      );
+      insights.push(
+        t("promotions.detail.insight.discount_share", {
+          percent: Math.round((discountCents / (revenueCents + discountCents)) * 100),
+        }) as string,
+      );
+    }
+    if (paidOrders > 0 && revenueCents > 0) {
+      insights.push(
+        t("promotions.detail.insight.average_order", {
+          amount: money(Math.round(revenueCents / paidOrders)),
+        }) as string,
+      );
+    }
+    const awaitingPayment = usageCount - paidOrders;
+    if (awaitingPayment > 0) {
+      insights.push(
+        t("promotions.detail.insight.awaiting_payment", {
+          count: awaitingPayment,
+        }) as string,
+      );
+    }
+  } else if (promo.metrics.impressions > 0) {
+    insights.push(
+      t("promotions.detail.insight.click_rate", {
+        percent: Math.round((promo.metrics.clicks / promo.metrics.impressions) * 1000) / 10,
+      }) as string,
+    );
+    if (promo.metrics.conversions > 0) {
+      insights.push(
+        t("promotions.detail.insight.conversion_rate", {
+          percent:
+            Math.round((promo.metrics.conversions / promo.metrics.impressions) * 1000) / 10,
+        }) as string,
+      );
+    }
+  }
 
   const hasActivity =
     usageCount > 0 ||
@@ -349,9 +414,26 @@ export default function PromotionDetail() {
         <CardContent className="space-y-4">
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {tiles.map((tile) => (
-              <Metric key={tile.label} label={tile.label} value={tile.value} />
+              <Metric
+                key={tile.label}
+                label={tile.label}
+                value={tile.value}
+                hint={tile.hint}
+              />
             ))}
           </div>
+          {insights.length > 0 && (
+            <div className="rounded-lg border bg-muted/40 px-4 py-3">
+              <p className="mb-1.5 text-sm font-semibold">
+                {t("promotions.detail.insight.title")}
+              </p>
+              <ul className="list-disc space-y-1 ps-5 text-sm text-muted-foreground">
+                {insights.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {/* Zeros are the normal state of a fresh offer. Say that, rather
               than leaving a wall of noughts to be read as a broken feature. */}
           {!hasActivity && (
@@ -411,13 +493,24 @@ function usageLabel(
   }) as string;
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
   return (
     <div>
       <p className="text-xs uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
       <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+      {hint && (
+        <p className="mt-1 text-xs leading-snug text-muted-foreground">{hint}</p>
+      )}
     </div>
   );
 }
