@@ -5,6 +5,14 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { formatMoney, currencyLabel } from "@/lib/format-money";
 import { apiClient } from "@/services/api";
+import {
+  downloadInvoicePdf,
+  listInvoices,
+  type InvoiceListItem,
+} from "@/services/invoiceApi";
+import { orderPath } from "@/lib/order-path";
+import { invoiceDocumentState, invoicePaymentPill } from "@/lib/invoice-status";
+import { toast } from "sonner";
 import { StatTile } from "@/components/ui/stat-tile";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import {
   Loader2, ChevronLeft, ChevronRight, Hourglass,
   Banknote, Wallet, ArrowLeftRight, Settings2, CreditCard,
-  ArrowUpRight, Receipt, ChevronRight as ChevronRightIcon,
+  ArrowUpRight, Receipt, ChevronRight as ChevronRightIcon, Download,
 } from "lucide-react";
 
 interface Transaction {
@@ -34,16 +42,6 @@ interface Transaction {
   customer_email: string | null;
   created_at: string;
   reference_id: string | null;
-}
-
-interface Invoice {
-  id: string;
-  service: string;
-  amount_cents: number;
-  currency: string;
-  payment_status: string;
-  approved_at: string | null;
-  created_at: string;
 }
 
 // Status canonicalisation — tightened from the original. The previous
@@ -200,8 +198,11 @@ const Payments = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTx, setLoadingTx] = useState(true);
   const [txPage, setTxPage] = useState(0);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceListItem[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
+  const [invPage, setInvPage] = useState(1);
+  const [invTotalPages, setInvTotalPages] = useState(1);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const fmtBig = (cents: number) =>
     (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", { minimumFractionDigits: 2 });
@@ -216,12 +217,36 @@ const Payments = () => {
     apiClient<Balances>(`/stores/${storeId}/payments/balances`)
       .then(setBalances)
       .catch(() => {});
+  }, [storeId]);
+
+  // The store's invoice list — the same paginated source as the Invoices
+  // page. This tab used to read `/payments/invoices`, which returned the
+  // invoice NUMBER in its `id` (so the row sliced it to "INV-2026-0" and had
+  // no real id to download with), a "service" that said "Invoice" on every
+  // row, and the invoice's tax status under a "payment status" header.
+  useEffect(() => {
+    if (!storeId) return;
     setLoadingInvoices(true);
-    apiClient<Invoice[]>(`/stores/${storeId}/payments/invoices`)
-      .then(setInvoices)
+    listInvoices(storeId, { page: invPage, page_size: 20 })
+      .then((res) => {
+        setInvoices(res.items);
+        setInvTotalPages(Math.max(1, res.total_pages || 1));
+      })
       .catch(() => setInvoices([]))
       .finally(() => setLoadingInvoices(false));
-  }, [storeId]);
+  }, [storeId, invPage]);
+
+  const downloadInvoice = async (inv: InvoiceListItem) => {
+    if (!storeId || downloadingId) return;
+    setDownloadingId(inv.id);
+    try {
+      await downloadInvoicePdf(storeId, inv.id, { filename: inv.invoice_number });
+    } catch {
+      toast.error(isAr ? "تعذّر تحميل الفاتورة" : "Couldn't download the invoice");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   useEffect(() => {
     if (!storeId) return;
@@ -393,7 +418,7 @@ const Payments = () => {
         <Card className="overflow-hidden">
           <div className="souq-section-head px-5 pt-5">
             <h2 className="text-[17px] font-bold tracking-tight">
-              {isAr ? "فواتير عملياتك" : "Operation invoices"}
+              {isAr ? "فواتير الطلبات" : "Order invoices"}
             </h2>
           </div>
           <div className="overflow-x-auto">
@@ -401,23 +426,24 @@ const Payments = () => {
               <TableHeader>
                 <TableRow className="bg-muted/20 hover:bg-muted/20">
                   <TableHead className="text-[11px] font-semibold">{isAr ? "رقم الفاتورة" : "Invoice #"}</TableHead>
-                  <TableHead className="text-[11px] font-semibold">{isAr ? "الخدمة" : "Service"}</TableHead>
-                  <TableHead className="text-[11px] font-semibold">{isAr ? "السعر" : "Amount"}</TableHead>
-                  <TableHead className="text-[11px] font-semibold">{isAr ? "حالة الدفع" : "Status"}</TableHead>
-                  <TableHead className="text-[11px] font-semibold">{isAr ? "تاريخ الموافقة" : "Approved"}</TableHead>
-                  <TableHead className="text-[11px] font-semibold">{isAr ? "أُنشئت في" : "Created"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "الطلب" : "Order"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "العميل" : "Customer"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "الإجمالي" : "Total"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "حالة الدفع" : "Payment"}</TableHead>
+                  <TableHead className="text-[11px] font-semibold">{isAr ? "التاريخ" : "Date"}</TableHead>
+                  <TableHead className="w-12" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loadingInvoices ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-16">
+                    <TableCell colSpan={7} className="text-center py-16">
                       <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mx-auto" />
                     </TableCell>
                   </TableRow>
                 ) : invoices.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-20">
+                    <TableCell colSpan={7} className="text-center py-20">
                       <div className="flex flex-col items-center gap-3">
                         <div className="ichip ichip-saffron ichip-lg">
                           <Receipt className="h-6 w-6" strokeWidth={2} />
@@ -426,64 +452,118 @@ const Payments = () => {
                           {isAr ? "لا توجد فواتير لسه" : "No invoices yet"}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {isAr ? "هتظهر هنا أول ما تتوفر" : "They'll appear here when available"}
+                          {isAr
+                            ? "اطبع فاتورة أي طلب من صفحة الطلب وهتظهر هنا"
+                            : "Print an order's invoice from its page and it will appear here"}
                         </p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  invoices.map((inv) => (
-                    <TableRow key={inv.id}>
-                      <TableCell className="font-mono text-xs font-bold">{inv.id.slice(0, 10)}</TableCell>
-                      <TableCell className="text-[13px]">{inv.service}</TableCell>
-                      <TableCell>
-                        <span className="text-[13px] font-extrabold tabular-nums">{fmt(inv.amount_cents)}</span>
-                      </TableCell>
-                      <TableCell>
-                        {inv.payment_status === "paid" || inv.payment_status === "accepted" ? (
-                          <span className="souq-pill bg-emerald-500/14 text-emerald-700 dark:text-emerald-400">
-                            <span className="dot" />
-                            {isAr ? "مقبول" : "Accepted"}
+                  invoices.map((inv) => {
+                    const pay = invoicePaymentPill(inv.order_payment_status, isAr);
+                    const docState = invoiceDocumentState(inv, isAr);
+                    return (
+                      <TableRow key={inv.id}>
+                        <TableCell className="whitespace-nowrap">
+                          {/* The whole number — it used to be cut to "INV-2026-0". */}
+                          <span dir="ltr" className="font-mono text-xs font-bold">
+                            {inv.invoice_number}
                           </span>
-                        ) : inv.payment_status === "submitted" ? (
-                          <span className="souq-pill bg-blue-500/14 text-blue-700 dark:text-blue-400">
-                            <span className="dot" />
-                            {isAr ? "مُرسل" : "Submitted"}
+                          {docState && (
+                            <span className="ms-2 souq-pill bg-muted text-muted-foreground text-[10px]">
+                              {docState}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {inv.order_id ? (
+                            <Link
+                              to={orderPath({ id: inv.order_id, order_number: inv.order_number })}
+                              className="font-mono text-xs font-semibold text-primary hover:underline"
+                              dir="ltr"
+                            >
+                              {inv.order_number || (isAr ? "عرض الطلب" : "View order")}
+                            </Link>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-[13px] max-w-[180px] truncate">
+                          {inv.buyer_name || "—"}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-[13px] font-extrabold tabular-nums whitespace-nowrap">
+                            {fmt(inv.total)}
                           </span>
-                        ) : inv.payment_status === "pending" || inv.payment_status === "draft" ? (
-                          <span className="souq-pill bg-amber-500/14 text-amber-700 dark:text-amber-400">
-                            <span className="dot" />
-                            {isAr ? "مسودة" : "Draft"}
-                          </span>
-                        ) : inv.payment_status === "rejected" ? (
-                          <span className="souq-pill bg-destructive/14 text-destructive">
-                            <span className="dot" />
-                            {isAr ? "مرفوض" : "Rejected"}
-                          </span>
-                        ) : (
-                          <span className="souq-pill bg-muted text-muted-foreground">{inv.payment_status}</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {inv.approved_at ? (
-                          <>
-                            <div className="text-xs">{fmtDate(inv.approved_at)}</div>
-                            <div className="text-[10px] text-muted-foreground">{fmtTime(inv.approved_at)}</div>
-                          </>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-xs">{fmtDate(inv.created_at)}</div>
-                        <div className="text-[10px] text-muted-foreground">{fmtTime(inv.created_at)}</div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        </TableCell>
+                        <TableCell>
+                          {pay ? (
+                            <span className={`souq-pill ${pay.className}`}>
+                              <span className="dot" />
+                              {pay.label}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <div className="text-xs">{fmtDate(inv.date_issued || inv.created_at)}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {fmtTime(inv.date_issued || inv.created_at)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={downloadingId === inv.id}
+                            onClick={() => void downloadInvoice(inv)}
+                            aria-label={isAr ? "تحميل الفاتورة" : "Download invoice"}
+                            title={isAr ? "تحميل الفاتورة" : "Download invoice"}
+                          >
+                            {downloadingId === inv.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
           </div>
+          {invTotalPages > 1 && (
+            <div className="flex items-center justify-between px-5 py-3 border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={invPage <= 1}
+                onClick={() => setInvPage((p) => p - 1)}
+                className="gap-1.5"
+              >
+                <ChevronLeft className="h-4 w-4 rtl:rotate-180" strokeWidth={2.2} />
+                {isAr ? "السابق" : "Prev"}
+              </Button>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {isAr ? `صفحة ${invPage} من ${invTotalPages}` : `Page ${invPage} of ${invTotalPages}`}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={invPage >= invTotalPages}
+                onClick={() => setInvPage((p) => p + 1)}
+                className="gap-1.5"
+              >
+                {isAr ? "التالي" : "Next"}
+                <ChevronRight className="h-4 w-4 rtl:rotate-180" strokeWidth={2.2} />
+              </Button>
+            </div>
+          )}
         </Card>
       ) : (
         <Card className="overflow-hidden">
