@@ -377,4 +377,17 @@ describe("formatMoney — the rendering the pane and list depend on", () => {
     expect(formatMoney(undefined, { locale: "en" })).toBe("EGP 0");
     expect(formatMoney(Number.NaN, { locale: "en" })).toBe("EGP 0");
   });
+
+  it("fixed + signed: a ledger row (paid apps, partner earnings)", () => {
+    const opts = { fromCents: true, currency: "EGP", fixed: true, signed: true } as const;
+    expect(formatMoney(7920, { ...opts, locale: "en" })).toBe("EGP +79.20");
+    expect(formatMoney(-50000, { ...opts, locale: "en" })).toBe("EGP -500.00");
+    expect(formatMoney(0, { ...opts, locale: "en" })).toBe("EGP 0.00");
+    // Intl's Arabic sign carries U+061C (Arabic letter mark), which keeps it
+    // on the number when the amount sits in a dir="ltr" run.
+    expect(formatMoney(7920, { ...opts, locale: "ar" })).toBe("\u061C+٧٩٫٢٠ ج.م");
+    expect(formatMoney(9900, { fromCents: true, currency: "EGP", fixed: true, locale: "en" })).toBe(
+      "EGP 99.00",
+    );
+  });
 });

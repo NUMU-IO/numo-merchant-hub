@@ -44,6 +44,7 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
 import { AppSettingsPanel } from "@/components/apps/AppSettingsPanel";
+import { AppSubscriptionCard } from "@/components/apps/AppSubscriptionCard";
 import { scopeSentence } from "@/lib/appScopes";
 import {
   type AppCatalogEntry,
@@ -347,6 +348,17 @@ export default function AppDetail() {
         <p className="rounded-md border border-dashed border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
           {t("apps.suspendedHelp")}
         </p>
+      )}
+
+      {/* A NUMU-billed app: charged to the store's wallet (Phase 7). Free and
+          externally billed apps have nothing to manage here. */}
+      {install && listing?.pricing?.plan === "recurring" && (
+        <AppSubscriptionCard
+          storeId={storeId!}
+          install={install}
+          name={displayName ?? app.name}
+          priceLabel={pricingLabel}
+        />
       )}
 
       {isPartner && install && (

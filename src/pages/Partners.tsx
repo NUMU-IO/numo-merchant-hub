@@ -11,20 +11,23 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Banknote, Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { StatTile } from "@/components/ui/stat-tile";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { formatMoney } from "@/lib/format-money";
 import { showError } from "@/lib/show-error";
 import {
   acceptAgreement,
   applyPartner,
   createDevStore,
+  getPartnerEarnings,
   getPartnerMe,
   listDevStores,
   seedDevStore,
@@ -271,6 +274,7 @@ function Approved({ me }: { me: PartnerMe }) {
           </CardContent>
         </Card>
       )}
+      <Earnings />
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">{t("partners.devStores")}</CardTitle>
@@ -363,5 +367,111 @@ function Approved({ me }: { me: PartnerMe }) {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/**
+ * What NUMU owes the partner (paid apps, Phase 7): their 80% of every charge
+ * on their apps, minus the bank transfers NUMU has sent. NUMU billing for
+ * Partner Apps is behind a platform switch until legal sign-off, so an empty
+ * ledger says exactly that instead of showing zeros.
+ */
+function Earnings() {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const lang = language === "ar" ? "ar" : "en";
+  const { data, isError } = useQuery({ queryKey: ["partners", "earnings"], queryFn: getPartnerEarnings });
+
+  if (isError) {
+    return (
+      <Card>
+        <CardContent className="py-4 text-sm text-muted-foreground">
+          {t("partnerEarnings.loadFailed")}
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data) return null;
+
+  const money = (cents: number, signed = false) => (
+    <bdi dir="ltr">
+      {formatMoney(cents, { fromCents: true, currency: data.currency, locale: lang, fixed: true, signed })}
+    </bdi>
+  );
+  const empty = data.balance_cents === 0 && data.entries.length === 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">{t("partnerEarnings.title")}</CardTitle>
+        <CardDescription className="leading-relaxed">
+          {t(empty ? "partnerEarnings.notLive" : "partnerEarnings.how")}
+        </CardDescription>
+      </CardHeader>
+      {!empty && (
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <StatTile
+              icon={Wallet}
+              label={t("partnerEarnings.balance")}
+              value={money(data.balance_cents)}
+              sub={t("partnerEarnings.balanceHint")}
+            />
+            <StatTile
+              icon={Banknote}
+              tone="saffron"
+              label={t("partnerEarnings.payable")}
+              value={money(data.payable_cents)}
+              sub={t("partnerEarnings.payableHint")}
+            />
+          </div>
+          <ul className="divide-y rounded-lg border">
+            {data.entries.map((e, i) => (
+              <li key={i} className="flex items-start justify-between gap-4 p-3">
+                <div className="min-w-0 space-y-0.5">
+                  <p className="text-sm font-medium">{t(`partnerEarnings.kind_${e.kind}`)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {e.kind === "sale" && e.gross_cents != null && e.platform_fee_cents != null ? (
+                      <>
+                        {t("partnerEarnings.merchantPaid")} {money(e.gross_cents)} ·{" "}
+                        {t("partnerEarnings.numuFee")} {money(e.platform_fee_cents)}
+                      </>
+                    ) : (
+                      t(`partnerEarnings.detail_${e.kind}`)
+                    )}
+                  </p>
+                  {e.reference && (
+                    <p className="text-xs text-muted-foreground">
+                      {t("partnerEarnings.reference")}{" "}
+                      <bdi dir="ltr" className="font-mono">
+                        {e.reference}
+                      </bdi>
+                    </p>
+                  )}
+                </div>
+                <div className="shrink-0 text-end">
+                  <p
+                    className={`text-sm font-semibold tabular-nums ${
+                      e.amount_cents < 0 ? "text-destructive" : "text-success"
+                    }`}
+                  >
+                    {money(e.amount_cents, true)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    <bdi dir="ltr">
+                      {new Date(e.created_at).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </bdi>
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      )}
+    </Card>
   );
 }

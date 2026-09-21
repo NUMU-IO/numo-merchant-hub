@@ -79,6 +79,16 @@ export default function Apps() {
         {app.listing.developer.name} · {t("apps.partnerBadge")}
       </Badge>
     ) : null;
+  /** A priced app's listing label ("EGP 99 / month"), already localized. */
+  const price = (app: AppCatalogEntry) => {
+    const pricing = app.listing?.pricing;
+    const label = pricing?.locales?.[language]?.label ?? pricing?.locales?.en?.label;
+    return pricing?.plan && pricing.plan !== "free" && label ? (
+      <Badge variant="secondary" className="font-medium">
+        {label}
+      </Badge>
+    ) : null;
+  };
 
   const [catalog, setCatalog] = useState<AppCatalogEntry[] | null>(null);
   const [installs, setInstalls] = useState<AppInstallation[] | null>(null);
@@ -156,7 +166,9 @@ export default function Apps() {
         <p className="text-sm text-muted-foreground mt-1">{t("apps.subtitle")}</p>
       </div>
 
-      <Tabs defaultValue="installed">
+      {/* Radix Tabs sets dir="ltr" on its root unless told otherwise, which
+          laid every card on this page out left-to-right in Arabic. */}
+      <Tabs defaultValue="installed" dir={language === "ar" ? "rtl" : "ltr"}>
         <TabsList>
           <TabsTrigger value="installed">
             {t("apps.installedTab")} (<bdi dir="ltr">{installs?.length ?? 0}</bdi>)
@@ -176,7 +188,7 @@ export default function Apps() {
           ) : (
             installs.map((app) => (
               <Card key={app.slug}>
-                <CardContent className="py-4 flex items-center gap-4">
+                <CardContent className="py-4 flex flex-wrap items-center gap-4">
                   {app.icon_url ? (
                     <img
                       src={app.icon_url}
@@ -186,10 +198,11 @@ export default function Apps() {
                   ) : (
                     <div className="w-12 h-12 rounded bg-muted" />
                   )}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-[12rem]">
+                    <div className="flex flex-wrap items-center gap-2">
                       <div className="font-medium">{text(app).name}</div>
                       {firstParty(app)}
+                      {price(app)}
                       <Badge variant={app.is_live === false ? "outline" : "default"}>
                         {app.app_status === "suspended"
                           ? t("apps.suspended")
@@ -214,7 +227,7 @@ export default function Apps() {
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {NUMU_APP_HOME[app.slug] && app.is_enabled && (
                       <Button size="sm" onClick={() => navigate(NUMU_APP_HOME[app.slug])}>
                         {t("apps.open")}
@@ -311,7 +324,7 @@ export default function Apps() {
               const installed = installedBySlug[app.slug];
               return (
                 <Card key={app.slug}>
-                  <CardContent className="py-4 flex items-center gap-4">
+                  <CardContent className="py-4 flex flex-wrap items-center gap-4">
                     {app.icon_url ? (
                       <img
                         src={app.icon_url}
@@ -321,10 +334,11 @@ export default function Apps() {
                     ) : (
                       <div className="w-12 h-12 rounded bg-muted" />
                     )}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-[12rem]">
+                      <div className="flex flex-wrap items-center gap-2">
                         <div className="font-medium">{text(app).name}</div>
                         {firstParty(app)}
+                        {price(app)}
                         <span className="text-xs text-muted-foreground">
                           v{app.version}
                         </span>

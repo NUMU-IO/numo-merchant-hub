@@ -182,6 +182,59 @@ export async function getAppOpenUrl(storeId: string, slug: string, locale: strin
   return r.url;
 }
 
+// ─── Paid apps (Phase 7): the store's subscription ───────────────────
+
+/** Money in piasters. A paid app is charged to the store's NUMU wallet. */
+export interface AppSubscription {
+  paid: boolean;
+  price_cents: number | null;
+  currency: string | null;
+  cycle: "monthly" | "annual" | null;
+  /** null: never subscribed. */
+  status: "active" | "past_due" | "cancelled" | null;
+  /** May the store use the app right now (a paid period, or the 3-day grace). */
+  entitled: boolean;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  /** What this store renews at: the price when it subscribed. */
+  subscribed_price_cents: number | null;
+}
+
+const subscriptionPath = (storeId: string, slug: string) =>
+  `/stores/${storeId}/apps/${encodeURIComponent(slug)}/subscription`;
+
+export function getAppSubscription(storeId: string, slug: string): Promise<AppSubscription> {
+  return apiClient<AppSubscription>(subscriptionPath(storeId, slug));
+}
+
+/**
+ * Pay one period from the wallet now. Also "resume": on a store still inside
+ * a paid period it charges nothing and withdraws a pending cancellation. The
+ * payload is the same either way, so `charged` comes from the envelope's
+ * `message` ("Subscribed" vs "Already active"). An empty wallet is a 402.
+ */
+export async function subscribeApp(
+  storeId: string,
+  slug: string,
+): Promise<{ sub: AppSubscription; charged: boolean }> {
+  let message: Promise<unknown> = Promise.resolve(null);
+  const sub = await apiClient<AppSubscription>(
+    subscriptionPath(storeId, slug),
+    { method: "POST" },
+    {
+      onResponse: (res) => {
+        message = res.clone().json().then((b) => b?.message, () => null);
+      },
+    },
+  );
+  return { sub, charged: (await message) === "Subscribed" };
+}
+
+/** Stop renewing. The app keeps working until `current_period_end`. */
+export function cancelAppSubscription(storeId: string, slug: string): Promise<AppSubscription> {
+  return apiClient<AppSubscription>(subscriptionPath(storeId, slug), { method: "DELETE" });
+}
+
 export interface Consent {
   app: {
     slug: string;

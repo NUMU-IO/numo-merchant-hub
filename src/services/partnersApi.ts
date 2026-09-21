@@ -187,3 +187,33 @@ export function devInstallApp(id: string, storeId: string): Promise<{ store_id: 
     body: JSON.stringify({ store_id: storeId }),
   });
 }
+
+// ─── Earnings (Phase 7) ──────────────────────────────────────────────
+
+/** One ledger row, in piasters. `amount_cents` is signed: a sale is the
+ *  partner's 80% (+), a payout a bank transfer NUMU sent (-), an adjustment
+ *  a correction such as a refunded charge's share reversed. */
+export interface PartnerLedgerEntry {
+  kind: "sale" | "payout" | "adjustment";
+  amount_cents: number;
+  /** Sales: what the merchant paid, and NUMU's 20% of it. */
+  gross_cents: number | null;
+  platform_fee_cents: number | null;
+  app_id: string | null;
+  reference: string | null;
+  created_at: string;
+}
+
+export interface PartnerEarnings {
+  /** What NUMU owes the partner: the sum of every entry. */
+  balance_cents: number;
+  /** The balance minus sales still inside the 30-day hold. */
+  payable_cents: number;
+  currency: string;
+  /** Newest first, at most 100. */
+  entries: PartnerLedgerEntry[];
+}
+
+export function getPartnerEarnings(): Promise<PartnerEarnings> {
+  return apiClient<PartnerEarnings>("/partners/me/earnings");
+}
