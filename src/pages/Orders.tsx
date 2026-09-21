@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { escapeHtml } from "@/lib/utils";
 import { formatMoney } from "@/lib/format-money";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
@@ -34,13 +33,13 @@ import {
 import {
   ArrowLeft, CheckCircle2, Circle, Clock, Package, Truck, XCircle,
   MoreHorizontal, Printer, FileDown, FileUp, ChevronRight, ChevronDown, ArrowRightCircle, Loader2,
-  RotateCcw, AlertCircle, FileText, Search, X,
+  RotateCcw, AlertCircle, Search, X,
   RefreshCw,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { downloadInvoicePdf, getInvoiceForOrder } from "@/services/invoiceApi";
+import { printOrderInvoice } from "@/services/invoiceApi";
 import { showError } from "@/lib/show-error";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
 import InstapayProofReview from "@/components/payments/InstapayProofReview";
@@ -537,19 +536,14 @@ const Orders = () => {
     setSelected(prev => { const n = new Set(prev); if (n.has(id)) { n.delete(id); } else { n.add(id); } return n; });
   };
 
-  const handlePrint = (o: ApiOrder) => {
-    const w = window.open("", "_blank");
-    if (!w) return;
-    w.document.write(`<html><head><title>${escapeHtml(o.order_number)}</title><style>body{font-family:system-ui;padding:24px}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}</style></head><body>`);
-    w.document.write(`<h1>Order ${escapeHtml(o.order_number)}</h1>`);
-    w.document.write(`<p>Address: ${escapeHtml(o.shipping_address.address_line1)}, ${escapeHtml(o.shipping_address.city)}</p>`);
-    w.document.write(`<table><tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr>`);
-    o.line_items.forEach(item => {
-      w.document.write(`<tr><td>${escapeHtml(item.product_name)}</td><td>${escapeHtml(item.quantity)}</td><td>${formatCurrency(item.unit_price)}</td><td>${formatCurrency(item.total_price)}</td></tr>`);
-    });
-    w.document.write(`</table><p><strong>Total: ${formatCurrency(o.total)}</strong></p></body></html>`);
-    w.document.close();
-    w.print();
+  // Prints the real invoice for any order, paid or not — see OrderDetail.
+  const handlePrint = async (o: ApiOrder) => {
+    if (!currentStore?.id) return;
+    try {
+      await printOrderInvoice(currentStore.id, o.id);
+    } catch {
+      toast.error(language === "ar" ? "تعذّر فتح الفاتورة" : "Couldn't open the invoice");
+    }
   };
 
   const handleExportCSV = () => {
@@ -683,32 +677,23 @@ const Orders = () => {
                     {language === "ar" ? "تأكيد الدفع" : "Mark as Paid"}
                   </Button>
                 )}
-                {o.payment_status === "paid" && currentStore?.id && (
+                {/* Every order, paid or not — a cash-on-delivery invoice is
+                    printed at dispatch to go in the parcel, before payment. */}
+                {currentStore?.id && (
                   <Button
                     size="sm"
                     variant="outline"
                     className="w-full mt-2 gap-1.5"
                     onClick={async () => {
                       try {
-                        // Get-or-create: backend lazily issues the invoice
-                        // when the order is paid but the on-paid handler
-                        // hasn't completed yet.
-                        const invoice = await getInvoiceForOrder(currentStore.id, o.id);
-                        await downloadInvoicePdf(currentStore.id, invoice.id);
-                      } catch (err: unknown) {
-                        const e = err as { status?: number };
-                        if (e?.status === 409) {
-                          toast.error(language === "ar"
-                            ? "ضع علامة على الطلب كمدفوع أولاً لإنشاء الفاتورة"
-                            : "Mark the order as paid first to generate the invoice");
-                        } else {
-                          toast.error(language === "ar" ? "فشل تحميل الفاتورة" : "Failed to download invoice");
-                        }
+                        await printOrderInvoice(currentStore.id, o.id);
+                      } catch {
+                        toast.error(language === "ar" ? "تعذّر فتح الفاتورة" : "Couldn't open the invoice");
                       }
                     }}
                   >
-                    <FileText className="h-3.5 w-3.5" />
-                    {language === "ar" ? "تحميل الفاتورة" : "Download Invoice"}
+                    <Printer className="h-3.5 w-3.5" />
+                    {language === "ar" ? "طباعة الفاتورة" : "Print invoice"}
                   </Button>
                 )}
                 {isManualPaymentMethod(o.payment_method) && currentStore?.id && (
