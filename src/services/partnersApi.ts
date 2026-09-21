@@ -98,3 +98,92 @@ export function acceptAgreement(version: string): Promise<PartnerAccount> {
     body: JSON.stringify({ accept_agreement_version: version }),
   });
 }
+
+// ─── Partner apps (Phase 3) ──────────────────────────────────────────
+
+export type AppVersionStatus =
+  | "draft"
+  | "submitted"
+  | "in_review"
+  | "changes_requested"
+  | "rejected"
+  | "approved"
+  | "published"
+  | "superseded";
+
+export interface PartnerAppVersion {
+  id: string;
+  version: string;
+  status: AppVersionStatus;
+  change_type: string | null;
+  release_notes: { ar?: string; en?: string } | null;
+  review_notes: { ar?: string; en?: string } | null;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  published_at: string | null;
+  created_at: string;
+}
+
+export interface PartnerApp {
+  id: string;
+  slug: string;
+  name: string;
+  name_ar: string | null;
+  status: "draft" | "published" | "suspended";
+  version: string;
+  icon_url: string | null;
+  category: string | null;
+  catalog_visible: boolean;
+  client_id: string | null;
+  installs: number;
+  latest_version: PartnerAppVersion | null;
+}
+
+export interface PartnerAppDetail extends PartnerApp {
+  versions: PartnerAppVersion[];
+}
+
+const APPS = "/partners/me/apps";
+
+export function listPartnerApps(): Promise<PartnerApp[]> {
+  return apiClient<PartnerApp[]>(APPS);
+}
+
+/** The client secret is in this response only. */
+export function createPartnerApp(body: {
+  slug: string;
+  name_ar: string;
+  name_en: string;
+}): Promise<PartnerApp & { client_secret: string }> {
+  return apiClient(APPS, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function getPartnerApp(id: string): Promise<PartnerAppDetail> {
+  return apiClient<PartnerAppDetail>(`${APPS}/${id}`);
+}
+
+export function uploadAppVersion(
+  id: string,
+  body: { manifest: unknown; release_notes_ar?: string; release_notes_en?: string },
+): Promise<PartnerAppVersion> {
+  return apiClient(`${APPS}/${id}/versions`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function submitAppVersion(id: string, versionId: string): Promise<PartnerAppVersion> {
+  return apiClient(`${APPS}/${id}/versions/${versionId}/submit`, { method: "POST" });
+}
+
+export function publishAppVersion(id: string, versionId: string): Promise<PartnerAppDetail> {
+  return apiClient(`${APPS}/${id}/versions/${versionId}/publish`, { method: "POST" });
+}
+
+export function rotateAppSecret(id: string): Promise<{ client_id: string; client_secret: string }> {
+  return apiClient(`${APPS}/${id}/client-secret`, { method: "POST" });
+}
+
+export function devInstallApp(id: string, storeId: string): Promise<{ store_id: string; slug: string }> {
+  return apiClient(`${APPS}/${id}/dev-install`, {
+    method: "POST",
+    body: JSON.stringify({ store_id: storeId }),
+  });
+}

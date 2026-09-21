@@ -122,6 +122,8 @@ const Login = lazyWithRetry(() => import("@/pages/Login"));
 const VerifyEmail = lazyWithRetry(() => import("@/pages/VerifyEmail"));
 const CreateStore = lazyWithRetry(() => import("@/pages/CreateStore"));
 const Partners = lazyWithRetry(() => import("@/pages/Partners"));
+const PartnerApps = lazyWithRetry(() => import("@/pages/PartnerApps"));
+const PartnerAppDetail = lazyWithRetry(() => import("@/pages/PartnerAppDetail"));
 const ForgotPassword = lazyWithRetry(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazyWithRetry(() => import("@/pages/ResetPassword"));
 const OnboardingWizard = lazyWithRetry(() => import("@/pages/OnboardingWizard"));
@@ -341,6 +343,26 @@ const App = () => (
                     }
                   />
                   <Route path="/partners/apply" element={<Navigate to="/partners" replace />} />
+                  <Route
+                    path="/partners/apps"
+                    element={
+                      <RequireAuth>
+                        <RequireVerified>
+                          <PartnerApps />
+                        </RequireVerified>
+                      </RequireAuth>
+                    }
+                  />
+                  <Route
+                    path="/partners/apps/:id"
+                    element={
+                      <RequireAuth>
+                        <RequireVerified>
+                          <PartnerAppDetail />
+                        </RequireVerified>
+                      </RequireAuth>
+                    }
+                  />
 
                   {/* Auth + verified + store required — onboarding wizard */}
                   <Route
