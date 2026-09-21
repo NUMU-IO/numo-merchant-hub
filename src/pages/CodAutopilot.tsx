@@ -255,7 +255,7 @@ export default function CodAutopilot() {
   ];
 
   return (
-    <div className="mx-auto max-w-[1100px] p-6" dir={isAr ? "rtl" : "ltr"}>
+    <div className="mx-auto max-w-[1100px] md:p-6" dir={isAr ? "rtl" : "ltr"}>
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">

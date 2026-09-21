@@ -118,8 +118,11 @@ const AppHeader = () => {
           </span>
         </Link>
 
-        {/* "+ Add" — Zid-style quick-create menu next to the brand */}
-        <AddMenu className="ms-1" />
+        {/* "+ Add" — Zid-style quick-create menu next to the brand. Desktop
+            only: on phones the bottom nav's centre button opens the same
+            quick-add sheet, and the duplicate here is what pushed the
+            account menu off a 375px screen on every page. */}
+        <AddMenu className="ms-1 hidden md:inline-flex" />
 
         {/* Center: search pill (Zid puts search in the middle of the bar) */}
         <div className="hidden min-w-0 flex-1 justify-center px-3 md:flex">
@@ -236,7 +239,7 @@ const AppHeader = () => {
               ) : (
                 <Languages className="h-[17px] w-[17px]" />
               )}
-              <span>{isAr ? "EN" : "ع"}</span>
+              <span className="hidden sm:inline">{isAr ? "EN" : "ع"}</span>
             </Button>
             <span className="mx-0.5 hidden h-5 w-px bg-white/15 sm:block" aria-hidden />
             <PagesMenu className={cn(topbarBtn, "hidden sm:inline-flex")} />

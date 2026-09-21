@@ -277,8 +277,8 @@ export default function OnlineStoreNavigation() {
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
             {isRTL ? "التنقل" : "Navigation"}
           </h1>

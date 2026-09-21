@@ -49,9 +49,9 @@ export function NotesPage() {
   };
 
   return (
-    <div className="space-y-6 p-6" dir={isRTL ? "rtl" : "ltr"}>
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-6 md:p-6" dir={isRTL ? "rtl" : "ltr"}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold">{t("agentNotes.heading")}</h1>
           <p className="text-sm text-muted-foreground">{t("agentNotes.subheading")}</p>
         </div>

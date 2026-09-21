@@ -103,7 +103,7 @@ export default function WhatsAppOptIns() {
   };
 
   return (
-    <div className="space-y-4 p-6" dir={isAr ? "rtl" : "ltr"}>
+    <div className="space-y-4 md:p-6" dir={isAr ? "rtl" : "ltr"}>
       <header>
         <h1 className="text-2xl font-bold">
           {isAr ? "اشتراكات واتساب" : "WhatsApp opt-ins"}

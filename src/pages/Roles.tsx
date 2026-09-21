@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { MobileCard, MobileCardList, ResponsiveTable } from "@/components/ui/responsive-table";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -287,10 +288,61 @@ export default function RolesPage() {
     );
   }
 
+  const roleActions = (role: Role) => (
+    <div className="flex justify-end gap-1">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => openEdit(role)}
+        disabled={role.is_locked}
+        title={
+          role.is_locked
+            ? "Locked role cannot be edited"
+            : "Edit permissions"
+        }
+      >
+        <Edit2 className="w-4 h-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => {
+          setCloneFromId(role.id);
+          setNewName(`${role.name} (copy)`);
+          setNewSlug(`${role.slug}-copy`);
+          setNewDescription("");
+          setShowCreate(true);
+        }}
+        title="Clone role"
+      >
+        <Copy className="w-4 h-4" />
+      </Button>
+      {!role.is_locked && !role.is_owner && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setDeletingRole(role)}
+          title="Delete role"
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      )}
+    </div>
+  );
+
+  const roleTypeBadge = (role: Role) =>
+    role.is_owner ? (
+      <Badge variant="default">Owner</Badge>
+    ) : role.is_locked ? (
+      <Badge variant="secondary">Locked</Badge>
+    ) : (
+      <Badge variant="outline">Custom</Badge>
+    );
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Shield className="w-6 h-6" />
             Roles &amp; Permissions
@@ -313,6 +365,33 @@ export default function RolesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <ResponsiveTable
+            mobile={
+              roles.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No roles yet. Click &ldquo;Create role&rdquo; to add one.
+                </p>
+              ) : (
+                <MobileCardList>
+                  {roles.map((role) => (
+                    <MobileCard
+                      key={role.id}
+                      title={role.name}
+                      subtitle={role.description || undefined}
+                      badges={roleTypeBadge(role)}
+                      meta={
+                        <>
+                          <span className="font-mono">{role.slug}</span>
+                          <span>v{role.version}</span>
+                        </>
+                      }
+                      actions={roleActions(role)}
+                    />
+                  ))}
+                </MobileCardList>
+              )
+            }
+          >
           <Table>
             <TableHeader>
               <TableRow>
@@ -340,57 +419,13 @@ export default function RolesPage() {
                       {role.slug}
                     </TableCell>
                     <TableCell>
-                      {role.is_owner ? (
-                        <Badge variant="default">Owner</Badge>
-                      ) : role.is_locked ? (
-                        <Badge variant="secondary">Locked</Badge>
-                      ) : (
-                        <Badge variant="outline">Custom</Badge>
-                      )}
+                      {roleTypeBadge(role)}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       v{role.version}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEdit(role)}
-                          disabled={role.is_locked}
-                          title={
-                            role.is_locked
-                              ? "Locked role cannot be edited"
-                              : "Edit permissions"
-                          }
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setCloneFromId(role.id);
-                            setNewName(`${role.name} (copy)`);
-                            setNewSlug(`${role.slug}-copy`);
-                            setNewDescription("");
-                            setShowCreate(true);
-                          }}
-                          title="Clone role"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                        {!role.is_locked && !role.is_owner && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeletingRole(role)}
-                            title="Delete role"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
+                      {roleActions(role)}
                     </TableCell>
                   </TableRow>
                 );
@@ -404,6 +439,7 @@ export default function RolesPage() {
               )}
             </TableBody>
           </Table>
+          </ResponsiveTable>
         </CardContent>
       </Card>
 

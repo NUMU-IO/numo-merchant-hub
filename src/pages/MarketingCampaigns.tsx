@@ -198,9 +198,9 @@ export default function MarketingCampaigns() {
     iso ? new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-EG") : "—";
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+    <div className="space-y-6 md:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">
             {isAr ? "حملات التسويق" : "Marketing campaigns"}
           </h1>

@@ -994,7 +994,7 @@ const Orders = () => {
   const fmtTime = (d: string) => new Date(d).toLocaleTimeString(isAr ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div className="p-6 max-w-[1200px] mx-auto space-y-4">
+    <div className="md:p-6 max-w-[1200px] mx-auto space-y-4">
       <PageHeader
         title={isAr ? "قائمة الطلبات" : "Orders"}
         subtitle={isAr ? "تابع طلباتك وجهّزها" : "Track and fulfill your orders"}
@@ -1005,6 +1005,7 @@ const Orders = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleExportCSV}><FileDown className="me-2 h-3.5 w-3.5" />{isAr ? "تصدير الطلبات" : "Export Orders"}</DropdownMenuItem>
+              <DropdownMenuItem className="sm:hidden" onClick={() => navigate("/orders/import")}><FileUp className="me-2 h-3.5 w-3.5" />{isAr ? "استيراد" : "Import"}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
@@ -1020,10 +1021,10 @@ const Orders = () => {
             <RefreshCw className={`h-3 w-3 ${ordersQuery.isFetching ? "animate-spin" : ""}`} />
             {isAr ? "تحديث" : "Refresh"}
           </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={handleExportCSV}>
+          <Button variant="outline" size="sm" className="hidden h-8 text-xs gap-1.5 sm:inline-flex" onClick={handleExportCSV}>
             <FileDown className="h-3 w-3" />{isAr ? "تصدير الطلبات" : "Export"}
           </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => navigate("/orders/import")}>
+          <Button variant="outline" size="sm" className="hidden h-8 text-xs gap-1.5 sm:inline-flex" onClick={() => navigate("/orders/import")}>
             <FileUp className="h-3 w-3" />{isAr ? "استيراد" : "Import"}
           </Button>
           <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => navigate("/orders/create")}>
@@ -1035,7 +1036,7 @@ const Orders = () => {
       {/* Main card */}
       <div className="rounded-xl border bg-card">
         {/* Status tabs — horizontal scrollable pills */}
-        <div className="px-5 pt-4 pb-3 border-b overflow-x-auto">
+        <div className="px-3 pt-3 pb-3 border-b overflow-x-auto sm:px-5 sm:pt-4">
           <div className="flex gap-1.5 min-w-max">
             {([
               { v: "all", l: isAr ? "الكل" : "All" },
@@ -1123,7 +1124,7 @@ const Orders = () => {
         </div>
 
         {/* Search + Sort + Filter bar */}
-        <div className="flex items-center gap-2 px-5 py-3 border-b">
+        <div className="flex flex-wrap items-center gap-2 px-3 py-3 border-b sm:flex-nowrap sm:px-5">
           <DateRangePicker
             value={range}
             onChange={(r) => { setRange(r); setPage(1); }}
@@ -1133,7 +1134,7 @@ const Orders = () => {
           />
           {/* The sort / filter / view icon buttons that sat here had no
               handlers — removed rather than left as dead controls. */}
-          <div className="relative flex-1 max-w-sm ms-auto">
+          <div className="relative order-first w-full sm:order-none sm:w-auto sm:flex-1 sm:max-w-sm sm:ms-auto">
             <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               value={searchInput}
