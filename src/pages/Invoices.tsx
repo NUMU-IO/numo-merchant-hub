@@ -47,7 +47,7 @@ export default function Invoices() {
     queryKey: ["invoices", storeId, currentPage, statusFilter],
     queryFn: () => listInvoices(storeId!, {
       page: currentPage,
-      limit: PAGE_SIZE,
+      page_size: PAGE_SIZE,
       status: statusFilter === "all" ? undefined : statusFilter,
     }),
     enabled: !!storeId,
