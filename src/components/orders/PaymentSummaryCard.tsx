@@ -15,9 +15,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, FileText, Plus, Undo2 } from "lucide-react";
+import { CheckCircle2, Loader2, Plus, Printer, Undo2 } from "lucide-react";
 import { toast } from "sonner";
-import { downloadInvoicePdf, getInvoiceForOrder } from "@/services/invoiceApi";
+import { printOrderInvoice } from "@/services/invoiceApi";
 import { showError } from "@/lib/show-error";
 import type { Order } from "@/services/orderApi";
 import type { RefundListItem } from "@/services/refundApi";
@@ -125,28 +125,21 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
     onError: (err) => showError(err, language),
   });
 
-  const handleDownloadInvoice = async () => {
-    if (!currentStore?.id) return;
+  const [printingInvoice, setPrintingInvoice] = useState(false);
+  // Any order, paid or not: a cash-on-delivery merchant prints the invoice
+  // at dispatch to pack with the parcel, before any money has moved. This
+  // used to be paid-only, which hid it at exactly that moment.
+  const handlePrintInvoice = async () => {
+    if (!currentStore?.id || printingInvoice) return;
+    setPrintingInvoice(true);
     try {
-      // Get-or-create — backend lazily generates the invoice when the
-      // order is paid but the on-paid handler hasn't landed it yet.
-      const invoice = await getInvoiceForOrder(currentStore.id, order.id);
-      await downloadInvoicePdf(currentStore.id, invoice.id);
-    } catch (err: unknown) {
-      const e = err as { status?: number; message?: string };
-      if (e?.status === 409) {
-        toast.error(
-          language === "ar"
-            ? "ضع علامة على الطلب كمدفوع أولاً لإنشاء الفاتورة"
-            : "Mark the order as paid first to generate the invoice",
-        );
-      } else {
-        toast.error(
-          language === "ar"
-            ? "فشل تحميل الفاتورة"
-            : "Failed to download invoice",
-        );
-      }
+      await printOrderInvoice(currentStore.id, order.id);
+    } catch {
+      toast.error(
+        language === "ar" ? "تعذّر فتح الفاتورة" : "Couldn't open the invoice",
+      );
+    } finally {
+      setPrintingInvoice(false);
     }
   };
 
@@ -279,15 +272,20 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
               isAr={language === "ar"}
             />
           )}
-          {order.payment_status === "paid" && currentStore?.id && (
+          {currentStore?.id && (
             <Button
               size="sm"
               variant="outline"
               className="w-full gap-1.5"
-              onClick={handleDownloadInvoice}
+              onClick={handlePrintInvoice}
+              disabled={printingInvoice}
             >
-              <FileText className="h-3.5 w-3.5" />
-              {language === "ar" ? "تحميل الفاتورة" : "Download Invoice"}
+              {printingInvoice ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Printer className="h-3.5 w-3.5" />
+              )}
+              {language === "ar" ? "طباعة الفاتورة" : "Print invoice"}
             </Button>
           )}
           {order.payment_status === "paid" && onUnmarkPaid && (
