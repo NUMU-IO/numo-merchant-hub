@@ -120,16 +120,16 @@ export function BogoSetPicker({
         }
       >
         <TabsList className="w-full">
-          <TabsTrigger value="any" className="flex-1 gap-1.5">
-            <Globe className="h-3.5 w-3.5" />
+          <TabsTrigger value="any" className="min-w-0 flex-1 gap-1.5 px-1.5 text-xs sm:px-3 sm:text-sm">
+            <Globe className="hidden h-3.5 w-3.5 sm:block" />
             {isAr ? "أي منتج" : "Any product"}
           </TabsTrigger>
-          <TabsTrigger value="product" className="flex-1 gap-1.5">
-            <Package className="h-3.5 w-3.5" />
+          <TabsTrigger value="product" className="min-w-0 flex-1 gap-1.5 px-1.5 text-xs sm:px-3 sm:text-sm">
+            <Package className="hidden h-3.5 w-3.5 sm:block" />
             {isAr ? "منتجات محددة" : "Specific products"}
           </TabsTrigger>
-          <TabsTrigger value="category" className="flex-1 gap-1.5">
-            <FolderOpen className="h-3.5 w-3.5" />
+          <TabsTrigger value="category" className="min-w-0 flex-1 gap-1.5 px-1.5 text-xs sm:px-3 sm:text-sm">
+            <FolderOpen className="hidden h-3.5 w-3.5 sm:block" />
             {isAr ? "فئات محددة" : "Specific categories"}
           </TabsTrigger>
         </TabsList>

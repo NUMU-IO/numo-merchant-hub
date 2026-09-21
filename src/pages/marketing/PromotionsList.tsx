@@ -31,6 +31,11 @@ import {
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  MobileCard,
+  MobileCardList,
+  ResponsiveTable,
+} from "@/components/ui/responsive-table";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -196,6 +201,108 @@ export default function PromotionsList() {
       currency: currentStore?.default_currency,
     });
 
+  // The row's ⋯ menu — one definition, used by the desktop table and the
+  // phone card alike, so the two can never offer different actions.
+  const renderActions = (p: PromotionListItem) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          aria-label={t("promotions.list.row_actions") as string}
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          onClick={() => navigate(`/marketing/promotions/${p.id}/edit`)}
+        >
+          {t("promotions.actions.edit")}
+        </DropdownMenuItem>
+        {p.status === "active" ? (
+          <DropdownMenuItem
+            onClick={() =>
+              lifecycle.mutate({ promotionId: p.id, action: "pause" })
+            }
+          >
+            <Pause className="me-2 h-4 w-4" /> {t("promotions.actions.pause")}
+          </DropdownMenuItem>
+        ) : p.status === "draft" ||
+          p.status === "paused" ||
+          p.status === "scheduled" ? (
+          <DropdownMenuItem
+            onClick={() =>
+              lifecycle.mutate({ promotionId: p.id, action: "activate" })
+            }
+          >
+            <Play className="me-2 h-4 w-4" />{" "}
+            {t("promotions.actions.activate")}
+          </DropdownMenuItem>
+        ) : null}
+        {p.surface !== "discount_code" && (
+          <DropdownMenuItem onClick={() => duplicateMutation.mutate(p.id)}>
+            <Copy className="me-2 h-4 w-4" />{" "}
+            {t("promotions.actions.duplicate")}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          onClick={() => {
+            if (
+              confirm(t("promotions.actions.archive_confirm") as string)
+            ) {
+              archiveMutation.mutate(p.id);
+            }
+          }}
+        >
+          <Trash2 className="me-2 h-4 w-4" />{" "}
+          {t("promotions.actions.archive")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  // Phones get a card per offer instead of a 9-column table: at 375px the
+  // table squeezed each name to one word per line and ran 327px off-screen.
+  const renderCard = (p: PromotionListItem) => (
+    <MobileCard
+      key={p.id}
+      onClick={() => navigate(`/marketing/promotions/${p.id}`)}
+      title={p.name}
+      // The discount goes UNDER the name, not beside it: descriptions like
+      // "Buy 2 get 1 at 100% off" are long, and as a trailing value they
+      // truncated the offer's name to a few letters.
+      subtitle={discountLabel(p.discount_rule)}
+      badges={
+        <>
+          <PromotionStatusBadge status={p.status} />
+          <span className="text-[12px] text-muted-foreground">
+            <PromotionSurfaceLabel surface={p.surface} />
+          </span>
+          {p.code && (
+            <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[12px] font-bold text-navy" dir="ltr">
+              {p.code}
+            </span>
+          )}
+        </>
+      }
+      meta={
+        <>
+          <span>
+            {t("promotions.list.column_used")}: {p.usage_count ?? 0}
+          </span>
+          <span>
+            {formatDate(p.starts_at)} — {formatDate(p.ends_at)}
+          </span>
+        </>
+      }
+      actions={renderActions(p)}
+    />
+  );
+
   const renderRow = (p: PromotionListItem) => (
     <TableRow key={p.id} className="hover:bg-muted/30">
       <TableCell className="font-medium">
@@ -248,74 +355,14 @@ export default function PromotionsList() {
       <TableCell className="text-sm tabular-nums text-muted-foreground">
         {p.priority}
       </TableCell>
-      <TableCell className="w-12">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              aria-label={t("promotions.list.row_actions") as string}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => navigate(`/marketing/promotions/${p.id}/edit`)}
-            >
-              {t("promotions.actions.edit")}
-            </DropdownMenuItem>
-            {p.status === "active" ? (
-              <DropdownMenuItem
-                onClick={() =>
-                  lifecycle.mutate({ promotionId: p.id, action: "pause" })
-                }
-              >
-                <Pause className="me-2 h-4 w-4" /> {t("promotions.actions.pause")}
-              </DropdownMenuItem>
-            ) : p.status === "draft" ||
-              p.status === "paused" ||
-              p.status === "scheduled" ? (
-              <DropdownMenuItem
-                onClick={() =>
-                  lifecycle.mutate({ promotionId: p.id, action: "activate" })
-                }
-              >
-                <Play className="me-2 h-4 w-4" />{" "}
-                {t("promotions.actions.activate")}
-              </DropdownMenuItem>
-            ) : null}
-            {p.surface !== "discount_code" && (
-              <DropdownMenuItem onClick={() => duplicateMutation.mutate(p.id)}>
-                <Copy className="me-2 h-4 w-4" />{" "}
-                {t("promotions.actions.duplicate")}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => {
-                if (
-                  confirm(t("promotions.actions.archive_confirm") as string)
-                ) {
-                  archiveMutation.mutate(p.id);
-                }
-              }}
-            >
-              <Trash2 className="me-2 h-4 w-4" />{" "}
-              {t("promotions.actions.archive")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </TableCell>
+      <TableCell className="w-12">{renderActions(p)}</TableCell>
     </TableRow>
   );
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
             {t("promotions.list.title")}
           </h1>
@@ -324,13 +371,18 @@ export default function PromotionsList() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handlePreview} disabled={!storeId}>
+          <Button
+            variant="outline"
+            onClick={handlePreview}
+            disabled={!storeId}
+            className="flex-1 sm:flex-none"
+          >
             <ExternalLink className="me-2 h-4 w-4" />
             {t("promotions.list.preview_cta")}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button>
+              <Button className="flex-1 sm:flex-none">
                 <Plus className="me-2 h-4 w-4" />
                 {t("promotions.list.create_cta")}
               </Button>
@@ -338,7 +390,7 @@ export default function PromotionsList() {
             {/* Each type carries the one line that says what it does and
                 where it shows. The bare six-name list left a merchant
                 guessing what "floating widget" even was. */}
-            <DropdownMenuContent align="end" className="w-80">
+            <DropdownMenuContent align="end" className="w-[min(20rem,calc(100vw-2rem))]">
               <DropdownMenuLabel>
                 {t("promotions.list.create_label")}
               </DropdownMenuLabel>
@@ -366,7 +418,7 @@ export default function PromotionsList() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
+        <CardHeader className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <CardTitle className="text-base">
             {total > 0 ? t("promotions.list.count", { count: total }) : ""}
           </CardTitle>
@@ -378,7 +430,7 @@ export default function PromotionsList() {
                 setPage(0);
               }}
             >
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue
                   placeholder={t("promotions.list.filter_status") as string}
                 />
@@ -401,7 +453,7 @@ export default function PromotionsList() {
                 setPage(0);
               }}
             >
-              <SelectTrigger className="w-44">
+              <SelectTrigger className="w-full sm:w-44">
                 <SelectValue
                   placeholder={t("promotions.list.filter_surface") as string}
                 />
@@ -433,6 +485,11 @@ export default function PromotionsList() {
               />
             </div>
           ) : (
+            <ResponsiveTable
+              mobile={
+                <MobileCardList className="px-3 pb-3">{items.map(renderCard)}</MobileCardList>
+              }
+            >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -457,6 +514,7 @@ export default function PromotionsList() {
               </TableHeader>
               <TableBody>{items.map(renderRow)}</TableBody>
             </Table>
+            </ResponsiveTable>
           )}
         </CardContent>
       </Card>

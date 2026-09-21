@@ -19,6 +19,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  MobileCard,
+  MobileCardList,
+  MobileCardSkeleton,
+  ResponsiveTable,
+} from "@/components/ui/responsive-table";
+import {
   Table,
   TableBody,
   TableCell,
@@ -178,10 +184,33 @@ export default function WhatsAppDeadLetters() {
     }
   };
 
+  const replayButton = (row: DeadLetter) => (
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={(e) => {
+        e.stopPropagation();
+        onReplay(row);
+      }}
+      disabled={replaying === row.id || row.replay_state !== "not_replayed"}
+    >
+      {replaying === row.id ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <RefreshCw className="h-3 w-3 me-1" />
+      )}
+      {isAr ? "إعادة الإرسال" : "Replay"}
+    </Button>
+  );
+
+  const emptyText = isAr
+    ? "لا توجد رسائل فاشلة — كل شيء على ما يرام!"
+    : "No dead-letters — everything is sending cleanly.";
+
   return (
-    <div className="space-y-4 p-6" dir={isAr ? "rtl" : "ltr"}>
-      <header className="flex items-end justify-between">
-        <div>
+    <div className="space-y-4 md:p-6" dir={isAr ? "rtl" : "ltr"}>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold">
             {isAr ? "رسائل واتساب الفاشلة" : "WhatsApp dead-letters"}
           </h1>
@@ -197,13 +226,13 @@ export default function WhatsAppDeadLetters() {
         </Button>
       </header>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
+      <div className="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap">
+        <div className="min-w-0">
           <label className="text-xs font-medium block mb-1">
             {isAr ? "نوع المصدر" : "Context"}
           </label>
           <select
-            className="border rounded-md px-2 py-1.5 text-sm bg-background"
+            className="w-full border rounded-md px-2 py-1.5 text-sm bg-background sm:w-auto"
             value={contextFilter}
             onChange={(e) =>
               setContextFilter(
@@ -219,12 +248,12 @@ export default function WhatsAppDeadLetters() {
             ))}
           </select>
         </div>
-        <div>
+        <div className="min-w-0">
           <label className="text-xs font-medium block mb-1">
             {isAr ? "حالة إعادة الإرسال" : "Replay state"}
           </label>
           <select
-            className="border rounded-md px-2 py-1.5 text-sm bg-background"
+            className="w-full border rounded-md px-2 py-1.5 text-sm bg-background sm:w-auto"
             value={replayStateFilter}
             onChange={(e) =>
               setReplayStateFilter(
@@ -242,6 +271,47 @@ export default function WhatsAppDeadLetters() {
         </div>
       </div>
 
+      <ResponsiveTable
+        mobile={
+          loading ? (
+            <MobileCardSkeleton rows={4} />
+          ) : rows.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">{emptyText}</p>
+          ) : (
+            <MobileCardList>
+              {rows.map((row) => (
+                <MobileCard
+                  key={row.id}
+                  onClick={() => onOpenDetail(row)}
+                  title={<span className="font-mono" dir="ltr">{row.phone}</span>}
+                  subtitle={new Date(row.created_at).toLocaleString(isAr ? "ar-EG" : "en-US")}
+                  badges={
+                    <>
+                      <Badge variant="outline" className="text-xs">
+                        {row.originating_context}
+                      </Badge>
+                      <Badge
+                        variant={
+                          row.error_classification === "non_retriable"
+                            ? "destructive"
+                            : "secondary"
+                        }
+                        className="text-xs"
+                      >
+                        {row.error_classification}
+                      </Badge>
+                      <Badge variant={replayBadgeVariant(row.replay_state)} className="text-xs">
+                        {row.replay_state}
+                      </Badge>
+                    </>
+                  }
+                  actions={replayButton(row)}
+                />
+              ))}
+            </MobileCardList>
+          )
+        }
+      >
       <Table>
         <TableHeader>
           <TableRow>
@@ -267,9 +337,7 @@ export default function WhatsAppDeadLetters() {
           {!loading && rows.length === 0 && (
             <TableRow>
               <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                {isAr
-                  ? "لا توجد رسائل فاشلة — كل شيء على ما يرام!"
-                  : "No dead-letters — everything is sending cleanly."}
+                {emptyText}
               </TableCell>
             </TableRow>
           )}
@@ -312,30 +380,13 @@ export default function WhatsAppDeadLetters() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-end">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onReplay(row);
-                    }}
-                    disabled={
-                      replaying === row.id ||
-                      row.replay_state !== "not_replayed"
-                    }
-                  >
-                    {replaying === row.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3 w-3 me-1" />
-                    )}
-                    {isAr ? "إعادة الإرسال" : "Replay"}
-                  </Button>
+                  {replayButton(row)}
                 </TableCell>
               </TableRow>
             ))}
         </TableBody>
       </Table>
+      </ResponsiveTable>
 
       <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <SheetContent className="w-full sm:max-w-xl overflow-y-auto">

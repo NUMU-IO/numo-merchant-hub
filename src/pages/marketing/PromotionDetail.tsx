@@ -256,8 +256,8 @@ export default function PromotionDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <Button
             variant="ghost"
             size="sm"
@@ -289,7 +289,8 @@ export default function PromotionDetail() {
             </span>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {/* Phones: one row under the title, Edit and Pause sharing it. */}
+        <div className="flex flex-wrap gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">
           <Button
             variant="outline"
             onClick={() => navigate(`/marketing/promotions/${promo.id}/edit`)}
@@ -412,7 +413,7 @@ export default function PromotionDetail() {
           <CardTitle>{t("promotions.detail.metrics_title")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4">
             {tiles.map((tile) => (
               <Metric
                 key={tile.label}

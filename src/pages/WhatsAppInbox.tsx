@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
+  ArrowLeft,
   Search,
   Send,
   Check,
@@ -173,7 +174,7 @@ export default function WhatsAppInbox() {
 
       <div className="flex gap-4 h-[calc(100%-3rem)]">
         {/* Conversation List */}
-        <div className="w-80 flex-shrink-0 flex flex-col border rounded-lg bg-card">
+        <div className={`${selected ? "hidden md:flex" : "flex"} w-full md:w-80 flex-shrink-0 flex-col border rounded-lg bg-card`}>
           {/* Search + Filters */}
           <div className="p-3 border-b space-y-2">
             <div className="relative">
@@ -250,7 +251,7 @@ export default function WhatsAppInbox() {
         </div>
 
         {/* Message Thread */}
-        <div className="flex-1 flex flex-col border rounded-lg bg-card">
+        <div className={`${selected ? "flex" : "hidden md:flex"} flex-1 min-w-0 flex-col border rounded-lg bg-card`}>
           {!selected ? (
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
               <MessageSquare className="h-12 w-12 mb-3 opacity-30" />
@@ -260,8 +261,17 @@ export default function WhatsAppInbox() {
             <>
               {/* Thread Header */}
               <div className="flex items-center justify-between p-3 border-b">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 md:hidden"
+                    onClick={() => setSelectedId(null)}
+                    aria-label={isAr ? "رجوع للمحادثات" : "Back to conversations"}
+                  >
+                    <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
+                  </Button>
+                  <div className="w-8 h-8 shrink-0 rounded-full bg-green-100 flex items-center justify-center">
                     <User className="h-4 w-4 text-green-600" />
                   </div>
                   <div>

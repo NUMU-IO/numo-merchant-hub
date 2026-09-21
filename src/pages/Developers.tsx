@@ -44,7 +44,7 @@ export default function DevelopersPage() {
   const allowed = access?.allowed ?? false;
 
   return (
-    <div className="space-y-6 p-4 md:p-6" dir={isRTL ? "rtl" : "ltr"}>
+    <div className="space-y-6 md:p-6" dir={isRTL ? "rtl" : "ltr"}>
       <SettingsBreadcrumb current={t("Developers", "المطوّرين")} />
 
       <div className="flex items-start gap-3">

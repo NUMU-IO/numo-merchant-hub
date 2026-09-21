@@ -103,7 +103,7 @@ export default function GiftCardsPage() {
   const currency = currentStore?.default_currency || "EGP";
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-8">
+    <div className="max-w-5xl mx-auto md:p-6 space-y-8">
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight leading-tight">Gift cards</h1>
         <p className="text-sm text-muted-foreground mt-1">

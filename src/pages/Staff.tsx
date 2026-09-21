@@ -301,8 +301,8 @@ export default function StaffPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <UserCog className="w-6 h-6" />
             {isAr ? "فريق العمل" : "Staff Management"}
@@ -433,12 +433,12 @@ export default function StaffPage() {
       {/* Staff List */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-lg">{isAr ? "أعضاء الفريق" : "Team Members"}</CardTitle>
               <CardDescription>{staff.length} {isAr ? "أعضاء" : "members"}</CardDescription>
             </div>
-            <div className="relative w-64">
+            <div className="relative w-full sm:w-64">
               <Search className={`absolute ${isAr ? "right-3" : "left-3"} top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground`} />
               <Input
                 placeholder={isAr ? "دوّر في الفريق..." : "Search staff..."}

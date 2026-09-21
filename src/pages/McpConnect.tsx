@@ -40,7 +40,7 @@ export default function McpConnectPage() {
   const storeId = currentStore?.id;
 
   return (
-    <div className="space-y-6 p-4 md:p-6" dir={isRTL ? "rtl" : "ltr"}>
+    <div className="space-y-6 md:p-6" dir={isRTL ? "rtl" : "ltr"}>
       <SettingsBreadcrumb current={t("Connect your AI (MCP)", "اربط الذكاء الاصطناعي (MCP)")} />
 
       <div className="flex items-center gap-3">
