@@ -124,6 +124,7 @@ const CreateStore = lazyWithRetry(() => import("@/pages/CreateStore"));
 const Partners = lazyWithRetry(() => import("@/pages/Partners"));
 const PartnerApps = lazyWithRetry(() => import("@/pages/PartnerApps"));
 const PartnerAppDetail = lazyWithRetry(() => import("@/pages/PartnerAppDetail"));
+const OAuthAuthorize = lazyWithRetry(() => import("@/pages/OAuthAuthorize"));
 const ForgotPassword = lazyWithRetry(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazyWithRetry(() => import("@/pages/ResetPassword"));
 const OnboardingWizard = lazyWithRetry(() => import("@/pages/OnboardingWizard"));
@@ -343,6 +344,17 @@ const App = () => (
                     }
                   />
                   <Route path="/partners/apply" element={<Navigate to="/partners" replace />} />
+                  {/* Partner App consent (OAuth) — full page, no dashboard chrome */}
+                  <Route
+                    path="/oauth/authorize"
+                    element={
+                      <RequireAuth>
+                        <RequireVerified>
+                          <OAuthAuthorize />
+                        </RequireVerified>
+                      </RequireAuth>
+                    }
+                  />
                   <Route
                     path="/partners/apps"
                     element={

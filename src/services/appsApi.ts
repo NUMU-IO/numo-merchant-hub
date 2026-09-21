@@ -24,6 +24,8 @@ export interface AppCatalogEntry {
   version: string;
   blocks: AppBlockSchema[];
   listing?: AppListing;
+  /** Set for Partner Apps: how to open their consent screen. */
+  connect?: AppConnect | null;
 }
 
 /** Listing metadata every app supplies; the detail page renders what exists. */
@@ -64,6 +66,12 @@ export interface AppInstallation extends AppCatalogEntry {
   app_status?: string;
   /** enabled AND published. The single thing to show the merchant. */
   is_live?: boolean;
+  /** Partner Apps: the scopes this store consented to. */
+  granted_scopes?: string[];
+  /** Partner Apps: "pending_auth" until the app finishes connecting. */
+  install_status?: string;
+  /** Scopes the live version needs that were never granted: re-consent. */
+  missing_scopes?: string[];
 }
 
 /**
@@ -144,4 +152,64 @@ export async function uninstallApp(
     `/stores/${storeId}/apps/${encodeURIComponent(slug)}`,
     { method: "DELETE" },
   );
+}
+
+/** Partner Apps install through consent, not `installApp`. */
+export interface AppConnect {
+  client_id: string;
+  redirect_uri: string;
+  scopes: string[];
+}
+
+/** The hub URL of the consent screen for a Partner App on this store. */
+export function consentPath(connect: AppConnect, storeId: string, scopes?: string[]): string {
+  const state = crypto.randomUUID();
+  const params = new URLSearchParams({
+    client_id: connect.client_id,
+    store_id: storeId,
+    redirect_uri: connect.redirect_uri,
+    scope: (scopes ?? connect.scopes).join(" "),
+    state,
+  });
+  return `/oauth/authorize?${params.toString()}`;
+}
+
+/** A signed link to the Partner App's own admin. */
+export async function getAppOpenUrl(storeId: string, slug: string, locale: string): Promise<string> {
+  const r = await apiClient<{ url: string }>(
+    `/stores/${storeId}/apps/${encodeURIComponent(slug)}/open-url?locale=${locale === "en" ? "en" : "ar"}`,
+  );
+  return r.url;
+}
+
+export interface Consent {
+  app: {
+    slug: string;
+    name: Record<string, string>;
+    tagline: Record<string, string>;
+    icon: string | null;
+    partner: string | null;
+    pricing: { plan?: string; locales?: Record<string, { label?: string }> } | null;
+    privacy_policy_url: string | null;
+  };
+  store_id: string;
+  store_name: string;
+  scopes: string[];
+  granted_scopes: string[];
+  redirect_uri: string;
+  state: string;
+}
+
+export function getConsent(query: string): Promise<Consent> {
+  return apiClient<Consent>(`/oauth/authorize?${query}`);
+}
+
+export function approveConsent(body: {
+  client_id: string;
+  store_id: string;
+  scope: string;
+  redirect_uri: string;
+  state: string;
+}): Promise<{ redirect_url: string }> {
+  return apiClient(`/oauth/authorize/approve`, { method: "POST", body: JSON.stringify(body) });
 }

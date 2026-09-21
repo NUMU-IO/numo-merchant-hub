@@ -26,6 +26,7 @@ import {
   listAppCatalog,
   listAppInstallations,
   NUMU_APP_HOME,
+  consentPath,
   uninstallApp,
   updateAppSettings,
 } from "@/services/appsApi";
@@ -72,6 +73,10 @@ export default function Apps() {
       <Badge variant="secondary" className="gap-1">
         <BadgeCheck className="h-3 w-3" />
         {t("apps.firstParty")}
+      </Badge>
+    ) : app.listing?.developer?.name ? (
+      <Badge variant="outline">
+        {app.listing.developer.name} · {t("apps.partnerBadge")}
       </Badge>
     ) : null;
 
@@ -334,7 +339,10 @@ export default function Apps() {
                       size="sm"
                       disabled={busy === app.slug}
                       onClick={() =>
-                        withBusy(app.slug, () => installApp(storeId, app.slug))
+                        app.connect
+                          ? // A Partner App installs through consent (OAuth).
+                            navigate(consentPath(app.connect, storeId))
+                          : withBusy(app.slug, () => installApp(storeId, app.slug))
                       }
                     >
                       {busy === app.slug && (
