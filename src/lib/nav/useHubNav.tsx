@@ -29,7 +29,7 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { useNavConfig } from "@/hooks/useNavConfig";
 import { listThreads } from "@/services/inboxApi";
 import { listThemeUpdates } from "@/services/themeUpdatesApi";
-import { listAppInstallations } from "@/services/appsApi";
+import { listAppInstallations, NUMU_APP_HOME } from "@/services/appsApi";
 import { visibleSettingsSections, type SettingSection } from "@/lib/settings-sections";
 
 export type NavIconType = typeof House;
@@ -280,7 +280,9 @@ export function useHubNav() {
     channelsItems,
     channelsActive,
     appsItems,
-    installedApps: installedApps ?? [],
+    // NUMU Apps (WhatsApp, Inbox) have their own tabs; listing them here too
+    // would show them twice.
+    installedApps: (installedApps ?? []).filter((app) => !NUMU_APP_HOME[app.slug]),
     appsVisible,
     settingsVisible,
     settingsSections,

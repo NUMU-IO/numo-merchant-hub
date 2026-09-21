@@ -12,9 +12,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2 } from "lucide-react";
+import { BadgeCheck, Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   type AppCatalogEntry,
   type AppInstallation,
@@ -23,6 +25,7 @@ import {
   installApp,
   listAppCatalog,
   listAppInstallations,
+  NUMU_APP_HOME,
   uninstallApp,
   updateAppSettings,
 } from "@/services/appsApi";
@@ -53,6 +56,24 @@ export default function Apps() {
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const queryClient = useQueryClient();
+
+  /** The app's own name in the merchant's language, not the English column. */
+  const text = (app: AppCatalogEntry) => {
+    const l10n = app.listing?.app_locales?.[language] ?? app.listing?.app_locales?.en;
+    return {
+      name: l10n?.name || app.name,
+      description: l10n?.description || app.description,
+    };
+  };
+  const firstParty = (app: AppCatalogEntry) =>
+    app.listing?.developer?.is_first_party ? (
+      <Badge variant="secondary" className="gap-1">
+        <BadgeCheck className="h-3 w-3" />
+        {t("apps.firstParty")}
+      </Badge>
+    ) : null;
 
   const [catalog, setCatalog] = useState<AppCatalogEntry[] | null>(null);
   const [installs, setInstalls] = useState<AppInstallation[] | null>(null);
@@ -92,6 +113,8 @@ export default function Apps() {
     try {
       await fn();
       await refresh();
+      // The sidebar reads installs too; a NUMU App's tab follows the install.
+      void queryClient.invalidateQueries({ queryKey: ["apps", "installations"] });
     } catch (err) {
       toast({
         title: t("apps.actionFailed"),
@@ -160,7 +183,8 @@ export default function Apps() {
                   )}
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="font-medium">{app.name}</div>
+                      <div className="font-medium">{text(app).name}</div>
+                      {firstParty(app)}
                       <Badge variant={app.is_live === false ? "outline" : "default"}>
                         {app.app_status === "suspended"
                           ? t("apps.suspended")
@@ -172,9 +196,9 @@ export default function Apps() {
                         v{app.version}
                       </span>
                     </div>
-                    {app.description && (
+                    {text(app).description && (
                       <p className="text-sm text-muted-foreground mt-1">
-                        {app.description}
+                        {text(app).description}
                       </p>
                     )}
                     {app.blocks.length > 0 && (
@@ -186,6 +210,11 @@ export default function Apps() {
                     )}
                   </div>
                   <div className="flex gap-2">
+                    {NUMU_APP_HOME[app.slug] && app.is_enabled && (
+                      <Button size="sm" onClick={() => navigate(NUMU_APP_HOME[app.slug])}>
+                        {t("apps.open")}
+                      </Button>
+                    )}
                     <Button
                       variant="secondary"
                       size="sm"
@@ -214,11 +243,11 @@ export default function Apps() {
                       variant="destructive"
                       size="sm"
                       disabled={busy === app.slug}
-                      onClick={() =>
-                        withBusy(app.slug, () =>
-                          uninstallApp(storeId, app.slug),
-                        )
-                      }
+                      onClick={() => {
+                        const key = NUMU_APP_HOME[app.slug] ? "apps.uninstallConfirm" : "apps.uninstallConfirmSettings";
+                        if (!window.confirm(t(key, { name: text(app).name }))) return;
+                        void withBusy(app.slug, () => uninstallApp(storeId, app.slug));
+                      }}
                     >
                       {t("apps.uninstall")}
                     </Button>
@@ -269,7 +298,7 @@ export default function Apps() {
           ) : catalog.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
-                No apps in the catalog yet. Check back soon.
+                {t("apps.emptyCatalog")}
               </CardContent>
             </Card>
           ) : (
@@ -289,14 +318,15 @@ export default function Apps() {
                     )}
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <div className="font-medium">{app.name}</div>
+                        <div className="font-medium">{text(app).name}</div>
+                        {firstParty(app)}
                         <span className="text-xs text-muted-foreground">
                           v{app.version}
                         </span>
                       </div>
-                      {app.description && (
+                      {text(app).description && (
                         <p className="text-sm text-muted-foreground mt-1">
-                          {app.description}
+                          {text(app).description}
                         </p>
                       )}
                     </div>

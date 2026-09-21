@@ -10,6 +10,21 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchMerchantHubNav, type NavTab } from "@/services/navConfigApi";
+import { listAppCatalog, listAppInstallations, NUMU_APP_HOME } from "@/services/appsApi";
+import { useDashboardStore } from "@/contexts/StoreContext";
+
+/**
+ * The NUMU App a nav key belongs to. Behind `ff_numu_apps` these tabs follow
+ * the store's install, so every caller of `isVisible` (sidebar, mobile sheet,
+ * Settings hub) hides an uninstalled app the same way.
+ */
+function numuAppFor(key: string): string | null {
+  if (key === "whatsapp" || key.startsWith("whatsapp.") || key === "marketing.whatsapp") {
+    return "whatsapp";
+  }
+  if (key === "channels.inbox") return "inbox";
+  return null;
+}
 
 export interface NavConfigHelpers {
   isReady: boolean;
@@ -40,13 +55,40 @@ export function useNavConfig(): NavConfigHelpers {
     retry: 0,
   });
 
+  const { currentStore } = useDashboardStore();
+  // `ff_numu_apps` is per TENANT of the store, and /auth/me carries only the
+  // user's own tenant, so a merchant with stores under several tenants would
+  // read the wrong flag there. The API lists NUMU Apps in a store's catalog
+  // only when that store's tenant has the flag, so the catalog is the answer.
+  const { data: catalog } = useQuery({
+    queryKey: ["apps", "catalog", currentStore?.id],
+    queryFn: () => listAppCatalog(currentStore!.id),
+    enabled: !!currentStore?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+  const numuApps = (catalog ?? []).some((a) => NUMU_APP_HOME[a.slug]);
+  // Same key as useHubNav's query, so both read one cached list.
+  const { data: installs } = useQuery({
+    queryKey: ["apps", "installations", currentStore?.id],
+    queryFn: () => listAppInstallations(currentStore!.id),
+    enabled: numuApps && !!currentStore?.id,
+    staleTime: 120_000,
+  });
+
   return useMemo<NavConfigHelpers>(() => {
     const byKey = new Map<string, NavTab>();
     (data?.tabs ?? []).forEach((t) => byKey.set(t.key, t));
+    // Unknown until the list loads: stay visible rather than flash a tab away
+    // from a merchant who has the app.
+    const appHidden = (key: string) => {
+      const slug = numuAppFor(key);
+      if (!numuApps || !slug || !installs) return false;
+      return !installs.some((i) => i.slug === slug && i.is_enabled);
+    };
 
     return {
       isReady: !!data,
-      isVisible: (key) => byKey.get(key)?.visible ?? true,
+      isVisible: (key) => (byKey.get(key)?.visible ?? true) && !appHidden(key),
       isComingSoon: (key) => byKey.get(key)?.coming_soon ?? false,
       labelFor: (key, fallback) => byKey.get(key)?.label?.trim() || fallback,
       getTab: (key) => byKey.get(key),
@@ -58,5 +100,5 @@ export function useNavConfig(): NavConfigHelpers {
         });
       },
     };
-  }, [data]);
+  }, [data, numuApps, installs]);
 }

@@ -66,6 +66,17 @@ export interface AppInstallation extends AppCatalogEntry {
   is_live?: boolean;
 }
 
+/**
+ * NUMU Apps: NUMU's own optional features, installed from the catalog like
+ * any app but living on their own hub pages. Behind `ff_numu_apps` their
+ * sidebar entries follow the install (see useNavConfig). The API lists them
+ * only when that flag is on.
+ */
+export const NUMU_APP_HOME: Record<string, string> = {
+  whatsapp: "/whatsapp",
+  inbox: "/inbox",
+};
+
 export async function listAppCatalog(
   storeId: string,
 ): Promise<AppCatalogEntry[]> {

@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
@@ -51,6 +52,7 @@ import {
   installApp,
   listAppCatalog,
   listAppInstallations,
+  NUMU_APP_HOME,
   uninstallApp,
 } from "@/services/appsApi";
 
@@ -97,6 +99,7 @@ export default function AppDetail() {
   const navigate = useNavigate();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
+  const queryClient = useQueryClient();
 
   const [install, setInstall] = useState<AppInstallation | null>(null);
   const [entry, setEntry] = useState<AppCatalogEntry | null>(null);
@@ -154,6 +157,8 @@ export default function AppDetail() {
       await fn();
       toast.success(done);
       await load();
+      // The sidebar reads installs too; a NUMU App's tab follows the install.
+      void queryClient.invalidateQueries({ queryKey: ["apps", "installations"] });
     } catch (err) {
       showError(err, language);
     } finally {
@@ -277,6 +282,9 @@ export default function AppDetail() {
             </Button>
           ) : (
             <>
+              {NUMU_APP_HOME[app.slug] && install!.is_enabled && (
+                <Button onClick={() => navigate(NUMU_APP_HOME[app.slug])}>{t("apps.open")}</Button>
+              )}
               <Button
                 variant="outline"
                 disabled={busy}
@@ -295,9 +303,11 @@ export default function AppDetail() {
               <Button
                 variant="destructive"
                 disabled={busy}
-                onClick={() =>
-                  act(() => uninstallApp(storeId!, app.slug), t("apps.uninstall"))
-                }
+                onClick={() => {
+                  const key = NUMU_APP_HOME[app.slug] ? "apps.uninstallConfirm" : "apps.uninstallConfirmSettings";
+                  if (!window.confirm(t(key, { name: displayName }))) return;
+                  void act(() => uninstallApp(storeId!, app.slug), t("apps.uninstall"));
+                }}
               >
                 {t("apps.uninstall")}
               </Button>
