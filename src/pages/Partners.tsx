@@ -429,7 +429,11 @@ function Earnings() {
             {data.entries.map((e, i) => (
               <li key={i} className="flex items-start justify-between gap-4 p-3">
                 <div className="min-w-0 space-y-0.5">
-                  <p className="text-sm font-medium">{t(`partnerEarnings.kind_${e.kind}`)}</p>
+                  <p className="text-sm font-medium">
+                    {t(`partnerEarnings.kind_${e.kind}`)}
+                    {/* The app's own name, often Latin inside an Arabic line. */}
+                    {e.app_name && <> · <bdi>{e.app_name}</bdi></>}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {e.kind === "sale" && e.gross_cents != null && e.platform_fee_cents != null ? (
                       <>

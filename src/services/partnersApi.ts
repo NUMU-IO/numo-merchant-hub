@@ -200,6 +200,10 @@ export interface PartnerLedgerEntry {
   gross_cents: number | null;
   platform_fee_cents: number | null;
   app_id: string | null;
+  /** The app the entry is for (NUMU-api #656). Null on payouts and on
+   *  adjustments that name no app; absent from an older API. */
+  app_name?: string | null;
+  app_slug?: string | null;
   reference: string | null;
   created_at: string;
 }
