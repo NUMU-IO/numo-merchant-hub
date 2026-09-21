@@ -2,7 +2,9 @@ import { useFounderCohort } from "@/hooks/useFounderCohort";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Check, Plus } from "lucide-react";
+import { Check, Code2, Plus } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { getPartnerMe } from "@/services/partnersApi";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -506,6 +508,7 @@ const AppSidebar = () => {
                 <Plus className="h-4 w-4" strokeWidth={2.4} />
                 <span className="text-[13px]">{t("nav.newStore")}</span>
               </DropdownMenuItem>
+              <PartnerProgramItem onOpen={() => navigate("/partners")} label={t("partners.title")} />
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -515,3 +518,21 @@ const AppSidebar = () => {
 };
 
 export default AppSidebar;
+
+/** Shown only while NUMU has the Partner program open (getPartnerMe is null
+ *  otherwise), so merchants never see a door that leads nowhere. */
+function PartnerProgramItem({ onOpen, label }: { onOpen: () => void; label: string }) {
+  const { data: me } = useQuery({
+    queryKey: ["partners", "me"],
+    queryFn: getPartnerMe,
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+  });
+  if (!me) return null;
+  return (
+    <DropdownMenuItem onClick={onOpen} className="gap-2.5 rounded-lg py-2">
+      <Code2 className="h-4 w-4" />
+      <span className="text-[13px]">{label}</span>
+    </DropdownMenuItem>
+  );
+}
