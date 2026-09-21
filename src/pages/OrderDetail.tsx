@@ -3,7 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { escapeHtml } from "@/lib/utils";
 import {
   useMutation,
   useQuery,
@@ -22,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { printOrderInvoice } from "@/services/invoiceApi";
 import {
   getOrder,
   markOrderPaid,
@@ -171,29 +171,19 @@ const OrderDetail = () => {
     }
   };
 
-  const handlePrint = (o: Order) => {
-    const w = window.open("", "_blank");
-    if (!w) return;
-    w.document.write(
-      `<html><head><title>${escapeHtml(o.order_number)}</title><style>body{font-family:system-ui;padding:24px}table{width:100%;border-collapse:collapse}th,td{padding:8px;border:1px solid #ddd;text-align:left}</style></head><body>`,
-    );
-    w.document.write(`<h1>Order ${escapeHtml(o.order_number)}</h1>`);
-    w.document.write(
-      `<p>Address: ${escapeHtml(o.shipping_address.address_line1)}, ${escapeHtml(o.shipping_address.city)}</p>`,
-    );
-    w.document.write(
-      `<table><tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr>`,
-    );
-    o.line_items.forEach((item) => {
-      w.document.write(
-        `<tr><td>${escapeHtml(item.product_name)}</td><td>${escapeHtml(item.quantity)}</td><td>${formatOrderCurrency(item.unit_price, language)}</td><td>${formatOrderCurrency(item.total_price, language)}</td></tr>`,
+  // The header "Print" button prints the real invoice — issued with its own
+  // number, seller and buyer, discount, shipping and the amount due — for any
+  // order, paid or not. It used to write a bare English page (order number,
+  // one address line, a total) that merchants were packing with COD parcels
+  // in place of an invoice.
+  const handlePrint = async (o: Order) => {
+    try {
+      await printOrderInvoice(storeId!, o.id);
+    } catch {
+      toast.error(
+        language === "ar" ? "تعذّر فتح الفاتورة" : "Couldn't open the invoice",
       );
-    });
-    w.document.write(
-      `</table><p><strong>Total: ${formatOrderCurrency(o.total, language)}</strong></p></body></html>`,
-    );
-    w.document.close();
-    w.print();
+    }
   };
 
   if (orderQuery.isLoading) {

@@ -262,6 +262,50 @@ export async function downloadInvoicePdf(
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Open an order's invoice in the browser's PDF viewer, ready to print —
+ * paid or not.
+ *
+ * A cash-on-delivery order is unpaid until the courier collects, which is
+ * exactly when the merchant needs the invoice: to pack it with the parcel.
+ * The backend issues the invoice on first call (a real, numbered one) and
+ * renders it fresh each time, so it reads "due on delivery" before payment
+ * and "paid" after.
+ *
+ * The tab is opened synchronously, BEFORE the fetch: a `window.open` after
+ * an `await` is no longer inside the click, and popup blockers eat it. If the
+ * browser blocks it anyway we fall back to a download so the merchant still
+ * gets the file.
+ */
+export async function printOrderInvoice(
+  storeId: string,
+  orderId: string,
+): Promise<void> {
+  const tab = window.open("", "_blank");
+  const apiBase = import.meta.env.VITE_API_URL || "";
+  try {
+    const response = await fetch(
+      `${apiBase}/stores/${storeId}/invoices/by-order/${orderId}/pdf?_=${Date.now()}`,
+      { credentials: "include", cache: "no-store" },
+    );
+    if (!response.ok) throw new Error("Failed to load invoice");
+    const url = URL.createObjectURL(await response.blob());
+    if (tab) {
+      tab.location.href = url;
+    } else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `invoice-${orderId}.pdf`;
+      a.click();
+    }
+    // The viewer holds its own reference once loaded; give it time first.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    tab?.close();
+    throw err;
+  }
+}
+
 // ─── Invoice / Tax (seller) settings ───────────────────────────────────────
 
 export interface InvoiceSettings {
