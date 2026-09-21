@@ -121,8 +121,8 @@ export default function SettingsMetafields() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <SettingsBreadcrumb current={isAr ? "الحقول المخصصة" : "Custom fields"} />
           <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
             {isAr ? "الحقول المخصصة" : "Custom fields"}

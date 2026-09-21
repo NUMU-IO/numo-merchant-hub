@@ -114,7 +114,7 @@ export default function SettingsSectors() {
   });
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6 md:p-6">
       <SettingsBreadcrumb
         current={isAr ? "القطاع والإمكانيات" : "Sector & capabilities"}
       />

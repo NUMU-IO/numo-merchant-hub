@@ -22,7 +22,11 @@ export interface PageHeaderProps {
    RTL is handled by `dir`, not by per-page `isAr` ternaries. */
 export function PageHeader({ title, subtitle, eyebrow, actions, backTo, className }: PageHeaderProps) {
   return (
-    <div className={cn("flex items-start justify-between gap-4 flex-wrap", className)}>
+    // Mobile-first: title block, then actions on their own row, full width.
+    // `flex-wrap` alone never wrapped here — the title block has `min-w-0`, so
+    // it shrank indefinitely instead, crushing the title to one word a line
+    // beside the buttons on a phone.
+    <div className={cn("flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4", className)}>
       <div className="text-start min-w-0">
         {backTo && (
           <Link
@@ -37,7 +41,11 @@ export function PageHeader({ title, subtitle, eyebrow, actions, backTo, classNam
         <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{title}</h1>
         {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+      {actions && (
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">
+          {actions}
+        </div>
+      )}
     </div>
   );
 }

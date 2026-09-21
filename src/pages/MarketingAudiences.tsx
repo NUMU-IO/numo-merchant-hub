@@ -127,7 +127,7 @@ export default function MarketingAudiences() {
   };
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
@@ -187,7 +187,7 @@ export default function MarketingAudiences() {
 
             return (
               <Card key={a.segment_key}>
-                <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 pb-2">
+                <CardHeader className="flex-col gap-3 space-y-0 pb-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex items-start gap-3 min-w-0">
                     <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
                       <Icon className="h-5 w-5 text-primary" />
@@ -236,7 +236,7 @@ export default function MarketingAudiences() {
                     variant={isSynced ? "outline" : "default"}
                     onClick={() => handleSync(a.segment_key)}
                     disabled={!metaConnected || isSyncing}
-                    className="gap-1.5 shrink-0"
+                    className="w-full gap-1.5 shrink-0 sm:w-auto"
                     aria-label={`${
                       isSynced
                         ? isAr ? "إعادة مزامنة" : "Resync"
@@ -261,7 +261,7 @@ export default function MarketingAudiences() {
                 </CardHeader>
 
                 <CardContent className="pt-1 pb-4">
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     {a.member_count !== null && (
                       <span className="font-medium text-foreground">
                         {isAr

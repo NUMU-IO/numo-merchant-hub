@@ -345,8 +345,8 @@ export default function OnlineStoreBlog() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-extrabold leading-tight tracking-tight">
             {t("blog.title")}
           </h1>

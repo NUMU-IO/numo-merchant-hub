@@ -130,8 +130,8 @@ export function AnalyticsLayout({
     <AnalyticsContext.Provider value={ctxValue}>
       <div className="space-y-5 max-w-[1500px] mx-auto w-full">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <h1 className="text-xl font-semibold tracking-tight">
               {isAr ? title.ar : title.en}
             </h1>
@@ -139,7 +139,7 @@ export function AnalyticsLayout({
               {isAr ? subtitle.ar : subtitle.en}
             </p>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {showPeriod && (
               <DateRangePicker
                 value={range}

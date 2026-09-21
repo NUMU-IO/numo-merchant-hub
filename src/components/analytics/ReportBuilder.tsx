@@ -108,9 +108,9 @@ export function ReportBuilder({ range, formatCurrency }: ReportBuilderProps) {
             <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
             {isAr ? "أنشئ تقريرك" : "Build a Report"}
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             <Select value={metric} onValueChange={(v) => setMetric(v as Metric)}>
-              <SelectTrigger className="h-8 w-[150px] text-[12.5px]">
+              <SelectTrigger className="h-8 min-w-0 flex-1 text-[12.5px] sm:w-[150px] sm:flex-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -123,7 +123,7 @@ export function ReportBuilder({ range, formatCurrency }: ReportBuilderProps) {
             </Select>
             <span className="text-[12px] text-muted-foreground">{isAr ? "حسب" : "by"}</span>
             <Select value={dimension} onValueChange={(v) => setDimension(v as ReportDimension)}>
-              <SelectTrigger className="h-8 w-[150px] text-[12.5px]">
+              <SelectTrigger className="h-8 min-w-0 flex-1 text-[12.5px] sm:w-[150px] sm:flex-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

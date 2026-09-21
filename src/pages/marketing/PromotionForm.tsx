@@ -889,8 +889,8 @@ export default function PromotionForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">
             {t(titleKey)}
           </h1>
@@ -904,11 +904,12 @@ export default function PromotionForm() {
           <Button
             type="button"
             variant="outline"
+            className="flex-1 sm:flex-none"
             onClick={() => navigate("/marketing/promotions")}
           >
             {t("common.cancel")}
           </Button>
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={submitting} className="flex-1 sm:flex-none">
             {submitting ? (
               <Loader2 className="me-2 h-4 w-4 animate-spin" />
             ) : (
@@ -1533,6 +1534,19 @@ export default function PromotionForm() {
         </CardContent>
       </Card>
 
+      <Button
+        type="submit"
+        disabled={submitting}
+        className="w-full md:hidden"
+        size="lg"
+      >
+        {submitting ? (
+          <Loader2 className="me-2 h-4 w-4 animate-spin" />
+        ) : (
+          <Save className="me-2 h-4 w-4" />
+        )}
+        {t("common.save")}
+      </Button>
     </form>
   );
 }

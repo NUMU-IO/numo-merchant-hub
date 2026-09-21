@@ -115,8 +115,8 @@ const DraftOrders = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{t("drafts.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {t("drafts.subtitle")}
