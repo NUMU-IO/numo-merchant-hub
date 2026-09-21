@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { orderPath } from "@/lib/order-path";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -154,7 +155,7 @@ export function OrderRowExpansion({ storeId, orderId }: Props) {
         <Row label={isAr ? "الدولة" : "Country"} value={addr?.country || null} />
         <Row label={isAr ? "المدينة" : "City"} value={addr?.city || null} />
         <div className="mt-auto flex justify-end pt-3">
-          <Button size="sm" className="h-8 rounded-lg px-4" onClick={() => navigate(`/orders/${order.id}`)}>
+          <Button size="sm" className="h-8 rounded-lg px-4" onClick={() => navigate(orderPath(order))}>
             {isAr ? "عرض" : "View"}
           </Button>
         </div>
