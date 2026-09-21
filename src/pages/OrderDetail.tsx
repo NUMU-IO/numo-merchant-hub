@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -33,6 +33,7 @@ import {
 } from "@/services/orderApi";
 import { listOrderRefunds } from "@/services/refundApi";
 import { showError } from "@/lib/show-error";
+import { isUuid, orderPath } from "@/lib/order-path";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
 import { OrderHeader } from "@/components/orders/OrderHeader";
 import { OrderLineItemsCard } from "@/components/orders/OrderLineItemsCard";
@@ -57,7 +58,10 @@ import { OrderTimeline } from "@/components/orders/OrderTimeline";
  * behind the `ff_order_detail_v2` feature flag.
  */
 const OrderDetail = () => {
-  const { orderId } = useParams<{ orderId: string }>();
+  // The URL carries the order NUMBER ("/orders/ORD-767567") — what merchants
+  // see, say on the phone and paste to a colleague. Old links, notifications
+  // and screens that only know the id still arrive with the UUID; both work.
+  const { orderId: orderRef } = useParams<{ orderId: string }>();
   const { t } = useTranslation();
   const { language } = useLanguage();
   const { currentStore } = useDashboardStore();
@@ -65,11 +69,42 @@ const OrderDetail = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  // Resolve a number to the order's UUID once. Everything below stays keyed
+  // on the UUID on purpose: other components refresh this page by
+  // invalidating ["order", <uuid>], and a query keyed by the number would
+  // silently stop receiving those refreshes.
+  const refIsUuid = isUuid(orderRef);
+  const refQuery = useQuery({
+    queryKey: ["order-ref", storeId, orderRef],
+    queryFn: async () => {
+      const found = await getOrder(storeId!, orderRef!);
+      queryClient.setQueryData(["order", found.id], found);
+      return found.id;
+    },
+    enabled: !!storeId && !!orderRef && !refIsUuid,
+    staleTime: Infinity,
+  });
+  const orderId = refIsUuid ? orderRef : refQuery.data;
+
   const orderQuery = useQuery({
     queryKey: ["order", orderId],
     queryFn: () => getOrder(storeId!, orderId!),
     enabled: !!storeId && !!orderId,
   });
+
+  // Arrived by UUID: swap the address bar to the order number, so what gets
+  // copied, bookmarked or shared is the number merchants recognise.
+  const orderNumber = orderQuery.data?.order_number;
+  useEffect(() => {
+    if (refIsUuid && orderNumber) {
+      // Seed the number→id resolution first, so the page does not re-fetch
+      // (and flash its skeleton) for an order it has already loaded.
+      queryClient.setQueryData(["order-ref", storeId, orderNumber], orderId);
+      navigate(orderPath({ id: orderId!, order_number: orderNumber }), {
+        replace: true,
+      });
+    }
+  }, [refIsUuid, orderNumber, orderId, storeId, navigate, queryClient]);
 
   const refundsQuery = useQuery({
     queryKey: ["order-refunds", storeId, orderId],
@@ -186,11 +221,14 @@ const OrderDetail = () => {
     }
   };
 
-  if (orderQuery.isLoading) {
+  // v5: a query that is still waiting on the number→id resolution is
+  // disabled, not loading — count the resolution itself as loading, or the
+  // page flashes "couldn't load this order" first.
+  if (refQuery.isLoading || orderQuery.isLoading) {
     return <OrdersSkeleton />;
   }
 
-  if (orderQuery.isError || !order) {
+  if (refQuery.isError || orderQuery.isError || !order) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
         <p className="text-muted-foreground">

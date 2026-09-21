@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { printOrderInvoice } from "@/services/invoiceApi";
+import { orderPath } from "@/lib/order-path";
 import { showError } from "@/lib/show-error";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
 import InstapayProofReview from "@/components/payments/InstapayProofReview";
@@ -249,7 +250,8 @@ const Orders = () => {
   ) => {
     if (!storeId) return;
     if (e && (e.metaKey || e.ctrlKey)) {
-      navigate(`/orders/${orderId}`);
+      const row = orders.find((x) => x.id === orderId);
+      navigate(orderPath(row ?? { id: orderId }));
       return;
     }
     setExpandedOrderId((prev) => (prev === orderId ? null : orderId));
@@ -1241,7 +1243,7 @@ const Orders = () => {
                 <button
                   key={o.id}
                   type="button"
-                  onClick={() => navigate(`/orders/${o.id}`)}
+                  onClick={() => navigate(orderPath(o))}
                   className="w-full flex items-start gap-3 px-4 py-3 text-start hover:bg-muted/20 transition-colors"
                 >
                   <div onClick={e => { e.stopPropagation(); }} className="pt-0.5">

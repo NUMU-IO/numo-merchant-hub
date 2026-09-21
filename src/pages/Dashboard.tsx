@@ -71,6 +71,7 @@ import {
   Banknote,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { orderPath } from "@/lib/order-path";
 import { useCountUp } from "@/hooks/useCountUp";
 import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
 import { ActiveThemeCard } from "@/components/dashboard/ActiveThemeCard";
@@ -927,7 +928,7 @@ const Dashboard = () => {
                   {recentOrders.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => navigate(`/orders/${recentOrders[0].id}`)}
+                      onClick={() => navigate(orderPath(recentOrders[0]))}
                       className="mt-auto pt-3 border-t border-border souq-hoverrow rounded-lg p-2 -m-2 text-start"
                     >
                       <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-bold mb-1.5">
@@ -1522,7 +1523,7 @@ const Dashboard = () => {
                     <div
                       key={o.id}
                       className="flex items-center gap-3 rounded-lg p-2.5 -mx-1 souq-hoverrow"
-                      onClick={() => navigate(`/orders/${o.id}`)}
+                      onClick={() => navigate(orderPath(o))}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">

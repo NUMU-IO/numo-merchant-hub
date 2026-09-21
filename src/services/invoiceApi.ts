@@ -98,6 +98,12 @@ export interface InvoiceListItem {
   total: number;
   total_formatted: string | null;
   eta_uuid: string | null;
+  order_id?: string | null;
+  /** The billed order as merchants know it (ORD-767567). */
+  order_number?: string | null;
+  /** Whether the customer has paid — NOT the invoice's tax-authority status,
+   *  which reads "accepted" on an unpaid cash-on-delivery invoice. */
+  order_payment_status?: string | null;
   created_at: string;
 }
 
@@ -158,7 +164,9 @@ export interface CreateInvoiceData {
 
 export interface ListInvoicesParams {
   page?: number;
-  limit?: number;
+  /** The API's page-size parameter. `limit` was sent before and silently
+   *  ignored, so every caller got the default 20 per page. */
+  page_size?: number;
   status?: string;
   invoice_type?: string;
 }
@@ -232,7 +240,7 @@ export async function submitInvoice(
 export async function downloadInvoicePdf(
   storeId: string,
   invoiceId: string,
-  options: { regenerate?: boolean } = {},
+  options: { regenerate?: boolean; filename?: string } = {},
 ): Promise<void> {
   // Bypass `apiClient` because it always calls `.json()` and we need the
   // raw blob, but use the same VITE_API_URL base so local dev hits the
@@ -257,7 +265,8 @@ export async function downloadInvoicePdf(
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `invoice-${invoiceId}.pdf`;
+  // Saved under its invoice number (INV-2026-000015.pdf), not the row UUID.
+  a.download = `${(options.filename || `invoice-${invoiceId}`).replace(/[\\/]/g, "-")}.pdf`;
   a.click();
   URL.revokeObjectURL(url);
 }

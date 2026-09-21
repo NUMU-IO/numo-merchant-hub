@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { orderPath } from "@/lib/order-path";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
@@ -84,7 +85,7 @@ const DraftOrders = () => {
     onSuccess: (order) => {
       toast.success(isAr ? "تم تحويل المسودة إلى طلب" : "Draft converted to order");
       invalidate();
-      navigate(`/orders/${order.id}`);
+      navigate(orderPath(order));
     },
     onError: (err) => showError(err, language),
   });

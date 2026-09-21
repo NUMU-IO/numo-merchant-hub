@@ -1,5 +1,6 @@
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { orderPath } from "@/lib/order-path";
 import {
   X, Check, Truck, Printer, ExternalLink, Loader2,
   Banknote, CreditCard, Copy, MoreHorizontal, XCircle,
@@ -78,7 +79,7 @@ const OrderDrawer = ({ orderId, onClose }: OrderDrawerProps) => {
   const goFullPage = () => {
     if (orderId) {
       onClose();
-      navigate(`/orders/${orderId}`);
+      navigate(orderPath(order ?? { id: orderId }));
     }
   };
 
