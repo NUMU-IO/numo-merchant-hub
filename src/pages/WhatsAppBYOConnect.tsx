@@ -206,37 +206,39 @@ export default function WhatsAppBYOConnect() {
 
     try {
       window.FB.login(
-        async (response) => {
-          const code = response.authResponse?.code;
-          if (!code) {
-            setConnecting(false);
-            if (response.status !== "unknown") {
+        (response) => {
+          void (async () => {
+            const code = response.authResponse?.code;
+            if (!code) {
+              setConnecting(false);
+              if (response.status !== "unknown") {
+                toast.error(
+                  isAr
+                    ? "لم يكتمل ربط واتساب. حاول مرة أخرى."
+                    : "WhatsApp connection was not completed. Please try again."
+                );
+              }
+              return;
+            }
+
+            try {
+              await completeSignup(storeId, code, selectionRef.current);
+              await load();
+              toast.success(
+                isAr
+                  ? "تم ربط رقم واتساب الخاص بك بنجاح"
+                  : "Your WhatsApp number is now connected"
+              );
+            } catch {
               toast.error(
                 isAr
-                  ? "لم يكتمل ربط واتساب. حاول مرة أخرى."
-                  : "WhatsApp connection was not completed. Please try again."
+                  ? "تعذّر إكمال الربط مع Meta. حاول مرة أخرى."
+                  : "NUMU could not finish the Meta connection. Please try again."
               );
+            } finally {
+              setConnecting(false);
             }
-            return;
-          }
-
-          try {
-            await completeSignup(storeId, code, selectionRef.current);
-            await load();
-            toast.success(
-              isAr
-                ? "تم ربط رقم واتساب الخاص بك بنجاح"
-                : "Your WhatsApp number is now connected"
-            );
-          } catch {
-            toast.error(
-              isAr
-                ? "تعذّر إكمال الربط مع Meta. حاول مرة أخرى."
-                : "NUMU could not finish the Meta connection. Please try again."
-            );
-          } finally {
-            setConnecting(false);
-          }
+          })();
         },
         {
           config_id: config.config_id,
