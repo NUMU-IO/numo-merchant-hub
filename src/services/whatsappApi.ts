@@ -503,7 +503,7 @@ export async function byoDisconnect(storeId: string) {
 export async function getByoStatus(storeId: string) {
   return apiClient<WhatsAppStatus>(
     `/stores/${storeId}/whatsapp/byo/status`,
-    { method: "GET" }
+    { method: "GET", cache: "no-store" }
   );
 }
 

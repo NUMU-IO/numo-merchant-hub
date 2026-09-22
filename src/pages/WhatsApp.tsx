@@ -457,7 +457,11 @@ export default function WhatsApp() {
                   </Badge>
                 </div>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75 md:text-base">
-                  {isAr
+                  {isByo
+                    ? isAr
+                      ? `يتم الإرسال من ${status?.phone_display_name || "رقم واتساب الخاص بمتجرك"}${status?.display_phone_number ? ` — ${status.display_phone_number}` : ""}`
+                      : `Sending from ${status?.phone_display_name || "your store's WhatsApp number"}${status?.display_phone_number ? ` — ${status.display_phone_number}` : ""}`
+                    : isAr
                     ? "أبلغ عملاءك تلقائياً بكل خطوة في طلبهم عبر واتساب — تأكيد الطلب، الدفع، الشحن، والتسليم."
                     : "Keep every customer updated from checkout to delivery with automatic WhatsApp messages."}
                 </p>
@@ -479,6 +483,17 @@ export default function WhatsApp() {
                     <LayoutTemplate className="h-4 w-4" />
                     {isAr ? "إدارة القوالب" : "Manage templates"}
                   </Button>
+                  {isByo && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                      onClick={() => navigate("/whatsapp/byo")}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                      {isAr ? "إدارة رقمك" : "Manage your number"}
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
