@@ -223,12 +223,13 @@ export default function WhatsAppBYOConnect() {
 
             try {
               await completeSignup(storeId, code, selectionRef.current);
-              await load();
+              setConnecting(false);
               toast.success(
                 isAr
                   ? "تم ربط رقم واتساب الخاص بك بنجاح"
                   : "Your WhatsApp number is now connected"
               );
+              navigate("/whatsapp", { replace: true });
             } catch {
               toast.error(
                 isAr
