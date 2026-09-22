@@ -45,6 +45,7 @@ type MetaLoginResponse = {
 type MetaSignupSelection = {
   waba_id?: string;
   phone_number_id?: string;
+  business_id?: string;
 };
 
 declare global {
@@ -89,6 +90,7 @@ function loadMetaSdk(appId: string, graphApiVersion: string): Promise<void> {
     window.fbAsyncInit = initialize;
     const existing = document.getElementById(META_SDK_ID);
     if (existing) {
+      existing.addEventListener("load", initialize, { once: true });
       existing.addEventListener("error", () => reject(new Error("Meta SDK failed to load")), {
         once: true,
       });
@@ -118,6 +120,8 @@ export default function WhatsAppBYOConnect() {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [sdkReady, setSdkReady] = useState(false);
+  const [sdkError, setSdkError] = useState("");
   const selectionRef = useRef<MetaSignupSelection>({});
 
   const load = useCallback(async () => {
@@ -137,6 +141,18 @@ export default function WhatsAppBYOConnect() {
   }, [load]);
 
   useEffect(() => {
+    if (!config?.enabled || !config.app_id) return;
+    setSdkError("");
+    loadMetaSdk(config.app_id, config.graph_api_version)
+      .then(() => setSdkReady(true))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "Meta SDK failed to load";
+        setSdkError(message);
+        console.error("Meta Embedded Signup SDK failed", error);
+      });
+  }, [config]);
+
+  useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (
         event.origin !== "https://www.facebook.com" &&
@@ -154,6 +170,7 @@ export default function WhatsAppBYOConnect() {
           selectionRef.current = {
             waba_id: payload.data.waba_id,
             phone_number_id: payload.data.phone_number_id,
+            business_id: payload.data.business_id,
           };
         }
       } catch {
@@ -165,7 +182,7 @@ export default function WhatsAppBYOConnect() {
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  const connectOwnNumber = async () => {
+  const connectOwnNumber = () => {
     if (!storeId || !config?.enabled || !config.app_id || !config.config_id) {
       toast.error(
         isAr
@@ -174,14 +191,20 @@ export default function WhatsAppBYOConnect() {
       );
       return;
     }
+    if (!sdkReady || !window.FB) {
+      toast.error(
+        sdkError ||
+          (isAr
+            ? "نافذة Meta لا تزال قيد التحميل. حاول مرة أخرى."
+            : "Meta signup is still loading. Try again.")
+      );
+      return;
+    }
 
     setConnecting(true);
     selectionRef.current = {};
 
     try {
-      await loadMetaSdk(config.app_id, config.graph_api_version);
-      if (!window.FB) throw new Error("Meta SDK unavailable");
-
       window.FB.login(
         async (response) => {
           const code = response.authResponse?.code;
@@ -221,17 +244,21 @@ export default function WhatsAppBYOConnect() {
           override_default_response_type: true,
           extras: {
             setup: {},
-            featureType: "",
+            featureType: "whatsapp_business_app_onboarding",
             sessionInfoVersion: "3",
+            version: "v4",
+            features: [{ name: "app_only_install" }],
           },
         }
       );
-    } catch {
+    } catch (error) {
       setConnecting(false);
+      const detail = error instanceof Error ? error.message : "Meta SDK unavailable";
+      console.error("Meta Embedded Signup could not open", error);
       toast.error(
         isAr
           ? "تعذّر تحميل نافذة Meta. تحقق من المتصفح وحاول مرة أخرى."
-          : "Meta signup could not open. Check your browser and try again."
+          : `Meta signup could not open: ${detail}`
       );
     }
   };
@@ -383,19 +410,19 @@ export default function WhatsAppBYOConnect() {
                   </p>
                 )}
               </div>
-            ) : !config?.enabled ? (
+            ) : !config?.enabled || sdkError ? (
               <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
                 <Clock3 className="mt-0.5 h-4 w-4 shrink-0" />
-                {isAr
+                {sdkError || (isAr
                   ? "يجب إضافة App ID وConfig ID الخاصين بـ Meta في إعدادات NUMU أولاً."
-                  : "NUMU's Meta App ID and configuration ID must be added before signup can open."}
+                  : "NUMU's Meta App ID and configuration ID must be added before signup can open.")}
               </div>
             ) : null
           }
           action={
             <Button
               className="w-full gap-2"
-              disabled={connecting || isOwnNumber || !config?.enabled}
+              disabled={connecting || isOwnNumber || !config?.enabled || !sdkReady}
               onClick={connectOwnNumber}
             >
               {connecting ? (
@@ -409,6 +436,8 @@ export default function WhatsAppBYOConnect() {
                 ? isAr ? "متصل" : "Connected"
                 : connecting
                 ? isAr ? "جارٍ فتح Meta..." : "Opening Meta..."
+                : !sdkReady
+                ? isAr ? "جارٍ تجهيز Meta..." : "Preparing Meta..."
                 : isAr ? "الربط باستخدام Meta" : "Connect with Meta"}
             </Button>
           }
