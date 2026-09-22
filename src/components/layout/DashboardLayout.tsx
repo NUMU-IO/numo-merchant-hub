@@ -99,7 +99,7 @@ const DashboardLayout = () => {
           <div className="flex flex-1 flex-col min-w-0 dash-content">
             <ImpersonationBanner />
             <main
-              className={`flex-1 overflow-auto${
+              className={`flex-1 overflow-y-auto overflow-x-hidden${
                 onAssistant ? " bg-[hsl(var(--agent-ground))]" : ""
               }`}
             >
@@ -164,7 +164,7 @@ const DashboardLayout = () => {
               {/* Footer — inline at bottom of content like Zid */}
               <div
                 hidden={onAssistant}
-                className="mt-12 mb-6 pt-6 border-t border-border/30 flex items-center justify-between text-xs text-muted-foreground/60"
+                className="mt-12 mb-6 flex flex-col gap-3 border-t border-border/30 pt-6 text-xs text-muted-foreground/60 sm:flex-row sm:items-center sm:justify-between"
               >
                 <span>{isAr ? `© NUMU ${new Date().getFullYear()} جميع الحقوق محفوظة` : `© NUMU ${new Date().getFullYear()} All rights reserved`}</span>
                 <span className="flex items-center gap-1.5">

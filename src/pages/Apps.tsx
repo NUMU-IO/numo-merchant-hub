@@ -155,7 +155,7 @@ export default function Apps() {
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="min-w-0 space-y-4 overflow-x-hidden p-4 sm:p-6">
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight leading-tight">
           {t("apps.title")}
@@ -187,8 +187,8 @@ export default function Apps() {
             </Card>
           ) : (
             installs.map((app) => (
-              <Card key={app.slug}>
-                <CardContent className="py-4 flex flex-wrap items-center gap-4">
+              <Card key={app.slug} className="min-w-0 overflow-hidden">
+                <CardContent className="flex min-w-0 flex-col items-stretch gap-4 py-4 sm:flex-row sm:items-center">
                   {app.icon_url ? (
                     <img
                       src={app.icon_url}
@@ -198,7 +198,7 @@ export default function Apps() {
                   ) : (
                     <div className="w-12 h-12 rounded bg-muted" />
                   )}
-                  <div className="flex-1 min-w-[12rem]">
+                  <div className="w-full min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="font-medium">{text(app).name}</div>
                       {firstParty(app)}
@@ -227,7 +227,7 @@ export default function Apps() {
                       </p>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid w-full min-w-0 grid-cols-[repeat(2,minmax(0,1fr))] gap-2 [&>button]:min-w-0 [&>button]:px-2 sm:flex sm:w-auto sm:flex-wrap sm:[&>button]:px-4">
                     {NUMU_APP_HOME[app.slug] && app.is_enabled && (
                       <Button size="sm" onClick={() => navigate(NUMU_APP_HOME[app.slug])}>
                         {t("apps.open")}
@@ -323,8 +323,8 @@ export default function Apps() {
             catalog.map((app) => {
               const installed = installedBySlug[app.slug];
               return (
-                <Card key={app.slug}>
-                  <CardContent className="py-4 flex flex-wrap items-center gap-4">
+                <Card key={app.slug} className="min-w-0 overflow-hidden">
+                  <CardContent className="flex min-w-0 flex-col items-stretch gap-4 py-4 sm:flex-row sm:items-center">
                     {app.icon_url ? (
                       <img
                         src={app.icon_url}
@@ -334,7 +334,7 @@ export default function Apps() {
                     ) : (
                       <div className="w-12 h-12 rounded bg-muted" />
                     )}
-                    <div className="flex-1 min-w-[12rem]">
+                    <div className="w-full min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="font-medium">{text(app).name}</div>
                         {firstParty(app)}
@@ -349,28 +349,30 @@ export default function Apps() {
                         </p>
                       )}
                     </div>
-                    <Button
-                      size="sm"
-                      disabled={busy === app.slug}
-                      onClick={() =>
-                        app.connect
-                          ? // A Partner App installs through consent (OAuth).
-                            navigate(consentPath(app.connect, storeId))
-                          : withBusy(app.slug, () => installApp(storeId, app.slug))
-                      }
-                    >
-                      {busy === app.slug && (
-                        <Loader2 className="me-2 h-3 w-3 animate-spin" />
-                      )}
-                      {installed ? t("apps.reinstall") : t("apps.install")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate(`/apps/${encodeURIComponent(app.slug)}`)}
-                    >
-                      {t("apps.viewDetails")}
-                    </Button>
+                    <div className="grid w-full min-w-0 grid-cols-[repeat(2,minmax(0,1fr))] gap-2 [&>button]:min-w-0 [&>button]:px-2 sm:flex sm:w-auto sm:flex-wrap sm:[&>button]:px-4">
+                      <Button
+                        size="sm"
+                        disabled={busy === app.slug}
+                        onClick={() =>
+                          app.connect
+                            ? // A Partner App installs through consent (OAuth).
+                              navigate(consentPath(app.connect, storeId))
+                            : withBusy(app.slug, () => installApp(storeId, app.slug))
+                        }
+                      >
+                        {busy === app.slug && (
+                          <Loader2 className="me-2 h-3 w-3 animate-spin" />
+                        )}
+                        {installed ? t("apps.reinstall") : t("apps.install")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/apps/${encodeURIComponent(app.slug)}`)}
+                      >
+                        {t("apps.viewDetails")}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               );

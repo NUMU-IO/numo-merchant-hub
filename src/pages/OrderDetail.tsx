@@ -244,7 +244,7 @@ const OrderDetail = () => {
   if (!storeId) return null;
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+    <div className="min-w-0 space-y-6 overflow-x-hidden animate-in fade-in slide-in-from-right-4 duration-300">
       <OrderHeader
         order={order}
         onAdvanceStatus={(next) => updateStatus.mutate(next)}
@@ -254,7 +254,7 @@ const OrderDetail = () => {
       />
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+        <div className="min-w-0 space-y-4 lg:col-span-2">
           <OrderLineItemsCard order={order} />
           <PaymentSummaryCard
             order={order}
@@ -271,7 +271,7 @@ const OrderDetail = () => {
           <OrderTimeline storeId={storeId} orderId={order.id} />
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <CustomerPanel storeId={storeId} order={order} />
           <ShippingAddressCard order={order} />
           <WhatsAppCard storeId={storeId} orderId={order.id} />
