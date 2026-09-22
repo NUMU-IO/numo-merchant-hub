@@ -1516,8 +1516,14 @@ function WhatsAppPlanCard({
       })
     : null;
 
-  const blockedText =
-    access.blocked_reason === "allowance_exhausted"
+  // Uninstalled from Apps, not unpaid: telling this merchant to renew would
+  // sell them a period they already have.
+  const notInstalled = access.blocked_reason === "not_installed";
+  const blockedText = notInstalled
+    ? isAr
+      ? "تطبيق واتساب متشال أو متوقف من صفحة التطبيقات، فالرسايل واقفة. شغّله تاني من التطبيقات ويرجع يبعت على طول."
+      : "The WhatsApp app is uninstalled or turned off in Apps, so messages have stopped. Turn it back on in Apps and sending resumes right away."
+    : access.blocked_reason === "allowance_exhausted"
       ? isAr
         ? "استهلكت رسائل هذه الفترة، فالرسائل التلقائية متوقفة. جدّد الآن لتشغيلها."
         : "This period's messages are used up, so automatic messages have stopped. Renew now to switch them back on."
@@ -1575,7 +1581,7 @@ function WhatsAppPlanCard({
           </div>
         )}
 
-        {access.amount_cents != null && (
+        {access.amount_cents != null && !notInstalled && (
           <WhatsAppPayButton
             access={access}
             isAr={isAr}

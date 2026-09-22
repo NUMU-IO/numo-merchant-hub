@@ -13,6 +13,7 @@
  * All endpoints require JWT auth; `apiClient` handles cookie/CSRF.
  */
 
+import { ApiError } from "@/lib/api-error";
 import { apiClient } from "./api";
 
 export type MarketplaceThemeStatus =
@@ -70,7 +71,14 @@ export interface VersionStatus {
 }
 
 export async function listMyThemes(): Promise<MarketplaceTheme[]> {
-  return apiClient<MarketplaceTheme[]>("/marketplace/developer/themes");
+  try {
+    return await apiClient<MarketplaceTheme[]>("/marketplace/developer/themes");
+  } catch (err) {
+    // Only approved partners reach these routes; everyone else gets a 404,
+    // which for this list means "you have no submissions".
+    if (err instanceof ApiError && err.status === 404) return [];
+    throw err;
+  }
 }
 
 export async function listMyVersions(

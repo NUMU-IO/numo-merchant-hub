@@ -24,6 +24,8 @@ export interface AppCatalogEntry {
   version: string;
   blocks: AppBlockSchema[];
   listing?: AppListing;
+  /** Set for Partner Apps: how to open their consent screen. */
+  connect?: AppConnect | null;
 }
 
 /** Listing metadata every app supplies; the detail page renders what exists. */
@@ -64,7 +66,24 @@ export interface AppInstallation extends AppCatalogEntry {
   app_status?: string;
   /** enabled AND published. The single thing to show the merchant. */
   is_live?: boolean;
+  /** Partner Apps: the scopes this store consented to. */
+  granted_scopes?: string[];
+  /** Partner Apps: "pending_auth" until the app finishes connecting. */
+  install_status?: string;
+  /** Scopes the live version needs that were never granted: re-consent. */
+  missing_scopes?: string[];
 }
+
+/**
+ * NUMU Apps: NUMU's own optional features, installed from the catalog like
+ * any app but living on their own hub pages. Behind `ff_numu_apps` their
+ * sidebar entries follow the install (see useNavConfig). The API lists them
+ * only when that flag is on.
+ */
+export const NUMU_APP_HOME: Record<string, string> = {
+  whatsapp: "/whatsapp",
+  inbox: "/inbox",
+};
 
 export async function listAppCatalog(
   storeId: string,
@@ -133,4 +152,117 @@ export async function uninstallApp(
     `/stores/${storeId}/apps/${encodeURIComponent(slug)}`,
     { method: "DELETE" },
   );
+}
+
+/** Partner Apps install through consent, not `installApp`. */
+export interface AppConnect {
+  client_id: string;
+  redirect_uri: string;
+  scopes: string[];
+}
+
+/** The hub URL of the consent screen for a Partner App on this store. */
+export function consentPath(connect: AppConnect, storeId: string, scopes?: string[]): string {
+  const state = crypto.randomUUID();
+  const params = new URLSearchParams({
+    client_id: connect.client_id,
+    store_id: storeId,
+    redirect_uri: connect.redirect_uri,
+    scope: (scopes ?? connect.scopes).join(" "),
+    state,
+  });
+  return `/oauth/authorize?${params.toString()}`;
+}
+
+/** A signed link to the Partner App's own admin. */
+export async function getAppOpenUrl(storeId: string, slug: string, locale: string): Promise<string> {
+  const r = await apiClient<{ url: string }>(
+    `/stores/${storeId}/apps/${encodeURIComponent(slug)}/open-url?locale=${locale === "en" ? "en" : "ar"}`,
+  );
+  return r.url;
+}
+
+// ─── Paid apps (Phase 7): the store's subscription ───────────────────
+
+/** Money in piasters. A paid app is charged to the store's NUMU wallet. */
+export interface AppSubscription {
+  paid: boolean;
+  price_cents: number | null;
+  currency: string | null;
+  cycle: "monthly" | "annual" | null;
+  /** null: never subscribed. */
+  status: "active" | "past_due" | "cancelled" | null;
+  /** May the store use the app right now (a paid period, or the 3-day grace). */
+  entitled: boolean;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  /** What this store renews at: the price when it subscribed. */
+  subscribed_price_cents: number | null;
+}
+
+const subscriptionPath = (storeId: string, slug: string) =>
+  `/stores/${storeId}/apps/${encodeURIComponent(slug)}/subscription`;
+
+export function getAppSubscription(storeId: string, slug: string): Promise<AppSubscription> {
+  return apiClient<AppSubscription>(subscriptionPath(storeId, slug));
+}
+
+/**
+ * Pay one period from the wallet now. Also "resume": on a store still inside
+ * a paid period it charges nothing and withdraws a pending cancellation. The
+ * payload is the same either way, so `charged` comes from the envelope's
+ * `message` ("Subscribed" vs "Already active"). An empty wallet is a 402.
+ */
+export async function subscribeApp(
+  storeId: string,
+  slug: string,
+): Promise<{ sub: AppSubscription; charged: boolean }> {
+  let message: Promise<unknown> = Promise.resolve(null);
+  const sub = await apiClient<AppSubscription>(
+    subscriptionPath(storeId, slug),
+    { method: "POST" },
+    {
+      onResponse: (res) => {
+        message = res.clone().json().then((b) => b?.message, () => null);
+      },
+    },
+  );
+  return { sub, charged: (await message) === "Subscribed" };
+}
+
+/** Stop renewing. The app keeps working until `current_period_end`. */
+export function cancelAppSubscription(storeId: string, slug: string): Promise<AppSubscription> {
+  return apiClient<AppSubscription>(subscriptionPath(storeId, slug), { method: "DELETE" });
+}
+
+export interface Consent {
+  app: {
+    slug: string;
+    name: Record<string, string>;
+    tagline: Record<string, string>;
+    icon: string | null;
+    partner: string | null;
+    pricing: { plan?: string; locales?: Record<string, { label?: string }> } | null;
+    privacy_policy_url: string | null;
+  };
+  store_id: string;
+  store_name: string;
+  scopes: string[];
+  granted_scopes: string[];
+  redirect_uri: string;
+  state: string;
+}
+
+export function getConsent(query: string): Promise<Consent> {
+  return apiClient<Consent>(`/oauth/authorize?${query}`);
+}
+
+export function approveConsent(body: {
+  client_id: string;
+  store_id: string;
+  scope: string;
+  redirect_uri: string;
+  state: string;
+}): Promise<{ redirect_url: string }> {
+  return apiClient(`/oauth/authorize/approve`, { method: "POST", body: JSON.stringify(body) });
 }

@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { applyUpdateOnNavigation } from "@/lib/register-sw";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -17,6 +17,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import { BrandLoadingScreen } from "@/components/NumuLoader/BrandLoader";
 import { FirstLoginGate } from "@/components/NumuLoader/FirstLoginGate";
 import { PageLoader } from "@/components/PageLoader";
+import { getPartnerMe } from "@/services/partnersApi";
 import { Suspense, useEffect, useRef } from "react";
 import { lazyWithRetry, lazyWithRetry as lazy } from "@/lib/lazy-with-retry";
 import { showError } from "@/lib/show-error";
@@ -120,6 +121,10 @@ const Notifications = lazyWithRetry(() => import("@/pages/Notifications"));
 const Login = lazyWithRetry(() => import("@/pages/Login"));
 const VerifyEmail = lazyWithRetry(() => import("@/pages/VerifyEmail"));
 const CreateStore = lazyWithRetry(() => import("@/pages/CreateStore"));
+const Partners = lazyWithRetry(() => import("@/pages/Partners"));
+const PartnerApps = lazyWithRetry(() => import("@/pages/PartnerApps"));
+const PartnerAppDetail = lazyWithRetry(() => import("@/pages/PartnerAppDetail"));
+const OAuthAuthorize = lazyWithRetry(() => import("@/pages/OAuthAuthorize"));
 const ForgotPassword = lazyWithRetry(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazyWithRetry(() => import("@/pages/ResetPassword"));
 const OnboardingWizard = lazyWithRetry(() => import("@/pages/OnboardingWizard"));
@@ -251,9 +256,22 @@ function RouteResolver({ children }: { children: React.ReactNode }) {
   if (bootError && !isAuthenticated) return <BrandLoadingScreen error />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user && !user.is_verified) return <Navigate to="/verify-email" replace />;
-  if (!hasStores) return <Navigate to="/create-store" replace />;
+  if (!hasStores) return <NoStoreRedirect />;
 
   return <>{children}</>;
+}
+
+/** No store yet: a partner goes to their portal, everyone else creates a
+ *  store. getPartnerMe is null while the Partner program is closed, so
+ *  merchant sign-up is unchanged until it opens. */
+function NoStoreRedirect() {
+  const { data: me, isLoading } = useQuery({
+    queryKey: ["partners", "me"],
+    queryFn: getPartnerMe,
+    retry: false,
+  });
+  if (isLoading) return <BrandLoadingScreen />;
+  return <Navigate to={me?.account ? "/partners" : "/create-store"} replace />;
 }
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -309,6 +327,50 @@ const App = () => (
                       <RequireAuth>
                         <RequireVerified>
                           <CreateStore />
+                        </RequireVerified>
+                      </RequireAuth>
+                    }
+                  />
+
+                  {/* Partner portal — auth + verified, no store needed */}
+                  <Route
+                    path="/partners"
+                    element={
+                      <RequireAuth>
+                        <RequireVerified>
+                          <Partners />
+                        </RequireVerified>
+                      </RequireAuth>
+                    }
+                  />
+                  <Route path="/partners/apply" element={<Navigate to="/partners" replace />} />
+                  {/* Partner App consent (OAuth) — full page, no dashboard chrome */}
+                  <Route
+                    path="/oauth/authorize"
+                    element={
+                      <RequireAuth>
+                        <RequireVerified>
+                          <OAuthAuthorize />
+                        </RequireVerified>
+                      </RequireAuth>
+                    }
+                  />
+                  <Route
+                    path="/partners/apps"
+                    element={
+                      <RequireAuth>
+                        <RequireVerified>
+                          <PartnerApps />
+                        </RequireVerified>
+                      </RequireAuth>
+                    }
+                  />
+                  <Route
+                    path="/partners/apps/:id"
+                    element={
+                      <RequireAuth>
+                        <RequireVerified>
+                          <PartnerAppDetail />
                         </RequireVerified>
                       </RequireAuth>
                     }
