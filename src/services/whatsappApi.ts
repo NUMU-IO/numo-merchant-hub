@@ -168,7 +168,7 @@ export async function getSignupConfig(storeId: string) {
 export async function completeSignup(
   storeId: string,
   code: string,
-  selection?: { waba_id?: string; phone_number_id?: string }
+  selection?: { waba_id?: string; phone_number_id?: string; business_id?: string }
 ) {
   return apiClient<EmbeddedSignupResponse>(
     `/stores/${storeId}/whatsapp/complete-signup`,

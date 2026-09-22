@@ -45,6 +45,7 @@ type MetaLoginResponse = {
 type MetaSignupSelection = {
   waba_id?: string;
   phone_number_id?: string;
+  business_id?: string;
 };
 
 declare global {
@@ -169,6 +170,7 @@ export default function WhatsAppBYOConnect() {
           selectionRef.current = {
             waba_id: payload.data.waba_id,
             phone_number_id: payload.data.phone_number_id,
+            business_id: payload.data.business_id,
           };
         }
       } catch {
