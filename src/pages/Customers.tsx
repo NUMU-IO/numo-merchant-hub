@@ -13,6 +13,7 @@ import {
   ArrowLeft, ShoppingCart, Calendar, Phone, DollarSign,
   CheckCircle2, AlertTriangle, AlertCircle, Network, Info,
   TrendingUp, Store as StoreIcon, Truck, RotateCcw, Upload, UserPlus, MapPin,
+  Megaphone, Repeat2, Loader2,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -25,6 +26,8 @@ import type { Customer } from "@/services/customerApi";
 import { listOrders } from "@/services/orderApi";
 import type { OrderListItem } from "@/services/orderApi";
 import { CustomersSkeleton } from "@/components/skeletons/CustomersSkeleton";
+import { getCustomerAnalytics } from "@/services/analyticsApi";
+import { mtdRange } from "@/components/filters/DateRangePicker/presets";
 
 const PAGE_SIZE = 20;
 
@@ -79,6 +82,14 @@ export default function Customers() {
   const total = customersQuery.data?.total ?? 0;
   const totalPages = customersQuery.data?.total_pages ?? 1;
 
+  const customerAnalyticsQuery = useQuery({
+    queryKey: ["customers", "summary", storeId, "month-to-date"],
+    queryFn: () => getCustomerAnalytics(storeId!, mtdRange(new Date())),
+    enabled: !!storeId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const customerAnalytics = customerAnalyticsQuery.data;
+
   const formatCurrency = (cents: number) => {
     const val = cents / 100;
     return isAr ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
@@ -91,7 +102,30 @@ export default function Customers() {
     });
   };
 
-  const activeCount = customers.filter((c) => c.total_orders > 0).length;
+  const customerSegment = (customer: Customer) => {
+    if (customer.total_orders >= 3) {
+      return {
+        label: isAr ? "وفيّ" : "Loyal",
+        className: "border-violet-200 bg-violet-500/10 text-violet-700 dark:border-violet-800 dark:text-violet-300",
+      };
+    }
+    if (customer.total_orders >= 2) {
+      return {
+        label: isAr ? "متكرر" : "Returning",
+        className: "border-blue-200 bg-blue-500/10 text-blue-700 dark:border-blue-800 dark:text-blue-300",
+      };
+    }
+    if (customer.total_orders === 1) {
+      return {
+        label: isAr ? "مشتري" : "Customer",
+        className: "border-emerald-200 bg-emerald-500/10 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300",
+      };
+    }
+    return {
+      label: isAr ? "عميل محتمل" : "Lead",
+      className: "border-border bg-muted text-muted-foreground",
+    };
+  };
 
   const openCustomerDetail = async (customer: Customer) => {
     if (!storeId) return;
@@ -332,40 +366,80 @@ export default function Customers() {
         <AddCustomerDialog storeId={storeId} open={addOpen} onOpenChange={setAddOpen} />
       )}
 
-      {/* Souq segment stat tiles — ichip + label + tabular number */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* Customer health at a glance. Period metrics come from the analytics
+          endpoint; they are not extrapolated from this page's rows. */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: isAr ? "إجمالي العملاء" : "Total Customers", value: total, Icon: Users, chip: "ichip ichip-navy" },
-          { label: isAr ? "لديهم طلبات" : "With Orders", value: activeCount, Icon: ShoppingCart, chip: "ichip ichip-sage" },
-          { label: isAr ? "يقبلون التسويق" : "Accepts Marketing", value: customers.filter((c) => c.accepts_marketing).length, Icon: Network, chip: "ichip ichip-saffron" },
+          {
+            label: isAr ? "إجمالي العملاء" : "Total customers",
+            value: total.toLocaleString(isAr ? "ar-EG" : undefined),
+            hint: isAr ? "كل العملاء المسجلين" : "All customer records",
+            Icon: Users,
+            chip: "ichip ichip-navy",
+          },
+          {
+            label: isAr ? "عملاء جدد" : "New this month",
+            value: customerAnalytics?.new_customers.toLocaleString(isAr ? "ar-EG" : undefined) ?? "—",
+            hint: isAr ? "من أول الشهر" : "Month to date",
+            Icon: UserCheck,
+            chip: "ichip ichip-sage",
+          },
+          {
+            label: isAr ? "عملاء متكررون" : "Returning this month",
+            value: customerAnalytics?.returning_customers.toLocaleString(isAr ? "ar-EG" : undefined) ?? "—",
+            hint: isAr ? "اشتروا مرة أخرى" : "Bought again this month",
+            Icon: Repeat2,
+            chip: "ichip ichip-saffron",
+          },
+          {
+            label: isAr ? "متوسط قيمة العميل" : "Avg. customer value",
+            value: customerAnalytics ? formatCurrency(customerAnalytics.avg_customer_value) : "—",
+            hint: isAr ? "من أول الشهر" : "Month to date",
+            Icon: TrendingUp,
+            chip: "ichip ichip-navy",
+          },
         ].map((stat) => (
           <Card key={stat.label}>
-            <CardContent className="p-5 flex items-center gap-4">
+            <CardContent className="flex items-center gap-4 p-4 sm:p-5">
               <div className={stat.chip}>
                 <stat.Icon className="h-5 w-5" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[12.5px] font-semibold text-ink-soft mb-1">{stat.label}</p>
-                <p className="text-[22px] font-extrabold tracking-tight tabular-nums leading-none">{stat.value.toLocaleString(isAr ? "ar-EG" : undefined)}</p>
+              <div className="min-w-0 flex-1">
+                <p className="mb-1 text-[12.5px] font-semibold text-ink-soft">{stat.label}</p>
+                <p className="text-[22px] font-extrabold leading-none tracking-tight tabular-nums">{stat.value}</p>
+                <p className="mt-1.5 truncate text-[10px] text-muted-foreground">{stat.hint}</p>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
-
       {/* Customer Table */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-4">
-            <CardTitle className="text-sm font-semibold">{isAr ? "قائمة العملاء" : "Customer List"}</CardTitle>
-            <div className="relative w-64">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-sm font-semibold">{isAr ? "قائمة العملاء" : "Customer directory"}</CardTitle>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {customers.length > 0
+                  ? (debouncedSearch
+                    ? (isAr ? `${customers.length} نتيجة في هذه الصفحة` : `${customers.length} matches on this page`)
+                    : isAr
+                    ? `عرض ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, total)} من ${total}`
+                    : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, total)} of ${total}`)
+                  : (isAr ? "لا يوجد عملاء للعرض" : "No customers to show")}
+              </p>
+            </div>
+            <div className="relative w-full sm:w-72">
               <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder={isAr ? "بحث بالاسم أو الإيميل..." : "Search by name or email..."}
-                className="ps-8 h-8 text-xs rounded-lg bg-muted/40 border-transparent focus:border-border"
+                className="h-8 rounded-lg border-transparent bg-muted/40 ps-8 pe-8 text-xs focus:border-border"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+              {customersQuery.isFetching && (
+                <Loader2 className="absolute end-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />
+              )}
             </div>
           </div>
         </CardHeader>
@@ -409,21 +483,31 @@ export default function Customers() {
                           </span>
                         }
                         badges={
-                          <Badge
-                            variant="outline"
-                            className={`px-1.5 py-0 text-[10px] font-medium border ${c.is_verified ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" : "bg-muted text-muted-foreground border-border"}`}
-                          >
-                            {c.is_verified ? (
-                              <>
-                                <ShieldCheck className="me-0.5 inline h-2.5 w-2.5" />
-                                {isAr ? "مُفعّل" : "Verified"}
-                              </>
-                            ) : isAr ? (
-                              "غير مُفعّل"
-                            ) : (
-                              "Unverified"
+                          <>
+                            <Badge variant="outline" className={`border px-1.5 py-0 text-[10px] font-medium ${customerSegment(c).className}`}>
+                              {customerSegment(c).label}
+                            </Badge>
+                            {c.accepts_marketing && (
+                              <Badge variant="outline" className="border-saffron/30 bg-saffron/10 px-1.5 py-0 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                                <Megaphone className="me-0.5 h-2.5 w-2.5" />
+                                {isAr ? "تسويق" : "Marketing"}
+                              </Badge>
                             )}
-                          </Badge>
+                            {c.is_verified && (
+                              <Badge variant="outline" className="border-emerald-200 bg-emerald-500/10 px-1.5 py-0 text-[10px] font-medium text-emerald-700 dark:border-emerald-800 dark:text-emerald-300">
+                                <ShieldCheck className="me-0.5 h-2.5 w-2.5" />
+                                {isAr ? "موثّق" : "Verified"}
+                              </Badge>
+                            )}
+                          </>
+                        }
+                        meta={
+                          <>
+                            {c.location && <span>{c.location}</span>}
+                            {c.created_at && (
+                              <span>{isAr ? "انضم" : "Joined"} {formatDate(c.created_at)}</span>
+                            )}
+                          </>
                         }
                       />
                     ))}
@@ -433,42 +517,56 @@ export default function Customers() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
-                    <TableHead className="text-[11px] font-semibold h-9 ps-5">{isAr ? "الاسم" : "Name"}</TableHead>
-                    <TableHead className="text-[11px] font-semibold h-9">{isAr ? "الإيميل" : "Email"}</TableHead>
-                    <TableHead className="text-[11px] font-semibold h-9">{isAr ? "الموبايل" : "Phone"}</TableHead>
-                    <TableHead className="text-[11px] font-semibold h-9 text-center">{isAr ? "الطلبات" : "Orders"}</TableHead>
-                    <TableHead className="text-[11px] font-semibold h-9">{isAr ? "إجمالي الإنفاق" : "Total Spent"}</TableHead>
-                    <TableHead className="text-[11px] font-semibold h-9 text-center">{isAr ? "الحالة" : "Status"}</TableHead>
+                    <TableHead className="h-9 ps-5 text-[11px] font-semibold">{isAr ? "العميل" : "Customer"}</TableHead>
+                    <TableHead className="h-9 text-[11px] font-semibold">{isAr ? "التواصل" : "Contact"}</TableHead>
+                    <TableHead className="h-9 text-[11px] font-semibold">{isAr ? "الموقع" : "Location"}</TableHead>
+                    <TableHead className="h-9 text-center text-[11px] font-semibold">{isAr ? "الطلبات" : "Orders"}</TableHead>
+                    <TableHead className="h-9 text-[11px] font-semibold">{isAr ? "قيمة العميل" : "Lifetime value"}</TableHead>
+                    <TableHead className="h-9 text-[11px] font-semibold">{isAr ? "تاريخ الانضمام" : "Joined"}</TableHead>
+                    <TableHead className="h-9 text-[11px] font-semibold">{isAr ? "الشريحة" : "Segment"}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {customers.map((c) => (
                     <TableRow
                       key={c.id}
-                      className="cursor-pointer hover:bg-muted/50 transition-colors border-border/30"
+                      className="cursor-pointer border-border/30 transition-colors hover:bg-muted/50"
                       onClick={() => openCustomerDetail(c)}
                     >
-                      <TableCell className="font-medium text-[13px] py-3 ps-5">
-                        <div className="flex items-center gap-2.5">
+                      <TableCell className="py-3 ps-5">
+                        <div className="flex min-w-0 items-center gap-2.5">
                           {c.avatar_url ? (
-                            <img src={c.avatar_url} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" loading="lazy" />
+                            <img src={c.avatar_url} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" loading="lazy" />
                           ) : (
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/8 text-[10px] font-bold text-primary shrink-0">
-                            {(c.full_name || c.first_name || "?").charAt(0).toUpperCase()}
-                          </div>
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/8 text-[10px] font-bold text-primary">
+                              {(c.full_name || c.first_name || "?").charAt(0).toUpperCase()}
+                            </div>
                           )}
-                          {c.full_name || `${c.first_name} ${c.last_name}`}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate text-[13px] font-semibold">{c.full_name || `${c.first_name} ${c.last_name}`}</span>
+                              {c.is_verified && <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-label={isAr ? "موثّق" : "Verified"} />}
+                            </div>
+                            <p className="mt-0.5 text-[10px] text-muted-foreground">{c.accepts_marketing ? (isAr ? "مشترك بالتسويق" : "Marketing subscriber") : (isAr ? "بدون تسويق" : "No marketing")}</p>
+                          </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-[13px] text-muted-foreground py-3">{displayEmail(c.email)}</TableCell>
-                      <TableCell className="text-[13px] text-muted-foreground py-3"><span dir="ltr">{c.phone || "—"}</span></TableCell>
-                      <TableCell className="text-[13px] py-3 text-center tabular-nums font-medium">{c.total_orders}</TableCell>
-                      <TableCell className="text-[13px] tabular-nums font-medium py-3"><span dir="ltr">{formatCurrency(c.total_spent)}</span></TableCell>
+                      <TableCell className="py-3">
+                        <div className="max-w-[230px] text-[12px]">
+                          <p className="truncate text-foreground">{displayEmail(c.email)}</p>
+                          <p className="mt-0.5 text-muted-foreground" dir="ltr">{c.phone || "—"}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-[150px] truncate py-3 text-[12px] text-muted-foreground">{c.location || "—"}</TableCell>
                       <TableCell className="py-3 text-center">
-                        <Badge variant="outline" className={`text-[10px] font-medium px-1.5 py-0 border ${c.is_verified ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" : "bg-muted text-muted-foreground border-border"}`}>
-                          {c.is_verified ? (
-                            <><ShieldCheck className="h-2.5 w-2.5 me-0.5 inline" />{isAr ? "مُفعّل" : "Verified"}</>
-                          ) : (isAr ? "غير مُفعّل" : "Unverified")}
+                        <p className="text-[13px] font-semibold tabular-nums">{c.total_orders}</p>
+                        <p className="text-[10px] text-muted-foreground">{isAr ? "طلب" : c.total_orders === 1 ? "order" : "orders"}</p>
+                      </TableCell>
+                      <TableCell className="py-3 text-[13px] font-semibold tabular-nums"><span dir="ltr">{formatCurrency(c.total_spent)}</span></TableCell>
+                      <TableCell className="whitespace-nowrap py-3 text-[12px] text-muted-foreground">{formatDate(c.created_at)}</TableCell>
+                      <TableCell className="py-3">
+                        <Badge variant="outline" className={`border px-2 py-0.5 text-[10px] font-medium ${customerSegment(c).className}`}>
+                          {customerSegment(c).label}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -480,9 +578,11 @@ export default function Customers() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-5 py-3 border-t border-border/40">
                   <p className="text-[11px] text-muted-foreground">
-                    {isAr
-                      ? `صفحة ${currentPage} من ${totalPages} (${total} عميل)`
-                      : `Page ${currentPage} of ${totalPages} (${total} customers)`}
+                    {debouncedSearch
+                      ? (isAr ? `صفحة البحث ${currentPage}` : `Search page ${currentPage}`)
+                      : isAr
+                        ? `صفحة ${currentPage} من ${totalPages} (${total} عميل)`
+                        : `Page ${currentPage} of ${totalPages} (${total} customers)`}
                   </p>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => p - 1)}>

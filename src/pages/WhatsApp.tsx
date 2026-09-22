@@ -64,6 +64,9 @@ import {
   Ban,
   LoaderCircle,
   Receipt,
+  MessageCircle,
+  Zap,
+  LayoutTemplate,
 } from "lucide-react";
 
 // WhatsApp brand green — used sparingly for the channel identity (hero,
@@ -382,6 +385,12 @@ export default function WhatsApp() {
   // The platform gate that sits ABOVE `connected`: a store can only connect
   // a number / switch on notifications once an admin has approved access.
   const approved = access?.status === "approved";
+  const enabledNotifications = status
+    ? Object.values(status.notifications ?? {}).filter(Boolean).length
+    : 0;
+  const approvedTemplates = templates.filter(
+    (template) => template.status.toUpperCase() === "APPROVED"
+  ).length;
 
   const fmtNum = (n: number) => new Intl.NumberFormat(isAr ? "ar-EG" : "en-US").format(n);
 
@@ -421,43 +430,63 @@ export default function WhatsApp() {
 
   return (
     <>
-      <div className="p-4 md:p-8 space-y-6 max-w-6xl mx-auto" dir={dir}>
+      <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8" dir={dir}>
         {/* Hero */}
-        <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-emerald-50 to-teal-50/40 dark:from-emerald-950/30 dark:to-teal-950/10 p-6 md:p-8">
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-5">
-            <div
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-sm"
-              style={{ backgroundColor: WA_GREEN }}
-            >
-              <WhatsAppGlyph className="h-8 w-8 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-                  {isAr ? "واتساب للأعمال" : "WhatsApp Business"}
-                </h1>
-                {connected ? (
-                  <Badge className="gap-1 border-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    {isByo
-                      ? isAr
-                        ? "متصل برقمك"
-                        : "Your number"
-                      : isAr
-                      ? "مفعّل عبر NUMU"
-                      : "Live via NUMU"}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-muted-foreground">
-                    {isAr ? "غير مفعّل" : "Not active"}
-                  </Badge>
-                )}
+        <div className="relative overflow-hidden rounded-3xl border border-emerald-700/20 bg-[linear-gradient(125deg,#073f35_0%,#075e54_48%,#128c7e_100%)] p-6 text-white shadow-lg shadow-emerald-950/10 md:p-8">
+          <div className="absolute -right-16 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
+          <div className="absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-emerald-300/10 blur-3xl" />
+          <div className="relative z-10 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-start">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20 backdrop-blur">
+                <WhatsAppGlyph className="h-8 w-8 text-white" />
               </div>
-              <p className="mt-1.5 text-sm md:text-base text-muted-foreground max-w-2xl">
-                {isAr
-                  ? "أبلغ عملاءك تلقائياً بكل خطوة في طلبهم عبر واتساب — تأكيد الطلب، الدفع، الشحن، والتسليم. تصل الرسائل من رقم NUMU الموثّق دون أي إعداد."
-                  : "Automatically keep customers updated at every step on WhatsApp — order, payment, shipping and delivery. Messages go out from NUMU's verified number with zero setup."}
-              </p>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+                    {isAr ? "واتساب للأعمال" : "WhatsApp Business"}
+                  </h1>
+                  <Badge className="gap-1 border-white/15 bg-white/15 text-white hover:bg-white/15">
+                    {connected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                    {connected
+                      ? isByo
+                        ? isAr ? "متصل برقمك" : "Your number"
+                        : isAr ? "مفعّل عبر NUMU" : "Live via NUMU"
+                      : access?.status === "pending"
+                      ? isAr ? "قيد المراجعة" : "Review in progress"
+                      : isAr ? "غير مفعّل" : "Not active"}
+                  </Badge>
+                </div>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75 md:text-base">
+                  {isAr
+                    ? "أبلغ عملاءك تلقائياً بكل خطوة في طلبهم عبر واتساب — تأكيد الطلب، الدفع، الشحن، والتسليم."
+                    : "Keep every customer updated from checkout to delivery with automatic WhatsApp messages."}
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    className="gap-2 bg-white text-emerald-950 hover:bg-white/90"
+                    onClick={() => navigate("/whatsapp/inbox")}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    {isAr ? "فتح صندوق الوارد" : "Open inbox"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                    onClick={() => navigate("/channels/whatsapp/templates")}
+                  >
+                    <LayoutTemplate className="h-4 w-4" />
+                    {isAr ? "إدارة القوالب" : "Manage templates"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 divide-x divide-white/15 overflow-hidden rounded-2xl border border-white/15 bg-black/10 backdrop-blur rtl:divide-x-reverse">
+              <HeroMetric value={fmtNum(enabledNotifications)} label={isAr ? "إشعار مفعّل" : "Automations"} />
+              <HeroMetric value={fmtNum(approvedTemplates)} label={isAr ? "قالب معتمد" : "Templates"} />
+              <HeroMetric value={fmtNum(analytics?.active_conversations ?? 0)} label={isAr ? "محادثة نشطة" : "Active chats"} />
             </div>
           </div>
         </div>
@@ -507,16 +536,22 @@ export default function WhatsApp() {
         )}
 
         {/* Analytics */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">{isAr ? "الأداء" : "Performance"}</h2>
-            <div className="inline-flex rounded-lg border bg-card p-0.5">
+        <Card className="overflow-hidden border-border/70 shadow-sm">
+          <CardHeader className="border-b bg-muted/20 pb-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-lg">{isAr ? "الأداء" : "Performance"}</CardTitle>
+              <CardDescription className="mt-1">
+                {isAr ? "تابع وصول الرسائل وتفاعل العملاء." : "Track message delivery and customer engagement."}
+              </CardDescription>
+            </div>
+            <div className="inline-flex w-fit rounded-xl border bg-background p-1 shadow-sm">
               {PERIODS.map((p) => (
                 <button
                   key={p.key}
                   type="button"
                   onClick={() => setPeriod(p.key)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                     period === p.key
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground"
@@ -527,8 +562,10 @@ export default function WhatsApp() {
               ))}
             </div>
           </div>
+          </CardHeader>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <CardContent className="space-y-6 p-4 md:p-6">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard label={isAr ? "أُرسلت" : "Sent"} value={fmtNum(analytics?.total_sent ?? 0)} icon={Send} tone="default" />
             <StatCard
               label={isAr ? "وصلت" : "Delivered"}
@@ -552,16 +589,22 @@ export default function WhatsApp() {
             />
           </div>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {isAr ? "الرسائل اليومية" : "Daily messages"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <div className="rounded-2xl border bg-background p-4 md:p-5">
+            <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold">{isAr ? "الرسائل اليومية" : "Daily messages"}</h3>
+                <p className="text-xs text-muted-foreground">{isAr ? "المرسلة مقارنة بالرسائل التي وصلت." : "Sent messages compared with successful deliveries."}</p>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-muted-foreground" />{isAr ? "أُرسلت" : "Sent"}</span>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: WA_GREEN }} />{isAr ? "وصلت" : "Delivered"}</span>
+              </div>
+            </div>
               {chartData.length === 0 ? (
-                <div className="h-56 flex items-center justify-center text-sm text-muted-foreground">
-                  {isAr ? "لا توجد بيانات بعد لهذه الفترة" : "No data yet for this period"}
+                <div className="flex h-56 flex-col items-center justify-center gap-2 text-center">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted"><Send className="h-5 w-5 text-muted-foreground" /></div>
+                  <p className="text-sm font-medium">{isAr ? "لا توجد رسائل في هذه الفترة" : "No messages in this period"}</p>
+                  <p className="max-w-xs text-xs text-muted-foreground">{isAr ? "ستظهر بيانات الأداء هنا بعد إرسال أول رسالة." : "Delivery activity will appear here after your first message is sent."}</p>
                 </div>
               ) : (
                 <div className="h-56" dir="ltr">
@@ -583,13 +626,14 @@ export default function WhatsApp() {
                   </ResponsiveContainer>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </div>
+          </div>
+          </CardContent>
+        </Card>
 
         {/* Recent messages — live feed of what's actually been sent to /
             received from this store's customers on WhatsApp. */}
-        <Card>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.75fr)]">
+        <Card className="overflow-hidden border-border/70 shadow-sm">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -674,6 +718,53 @@ export default function WhatsApp() {
             )}
           </CardContent>
         </Card>
+
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Zap className="h-4 w-4 text-amber-500" />
+              {isAr ? "نظرة سريعة" : "Channel overview"}
+            </CardTitle>
+            <CardDescription>
+              {isAr ? "حالة إعداد واتساب لهذا المتجر." : "Your WhatsApp setup at a glance."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <OverviewRow
+              icon={ShieldCheck}
+              label={isAr ? "حالة الوصول" : "Access"}
+              value={approved ? (isAr ? "موافق عليه" : "Approved") : access?.status === "pending" ? (isAr ? "قيد المراجعة" : "In review") : (isAr ? "يتطلب إعداداً" : "Setup needed")}
+              complete={approved}
+            />
+            <OverviewRow
+              icon={Phone}
+              label={isAr ? "قناة الإرسال" : "Sending channel"}
+              value={connected ? (isByo ? (isAr ? "رقمك الخاص" : "Your number") : (isAr ? "رقم NUMU" : "NUMU number")) : (isAr ? "غير متصل" : "Not connected")}
+              complete={connected}
+            />
+            <OverviewRow
+              icon={Zap}
+              label={isAr ? "الإشعارات" : "Automations"}
+              value={isAr ? `${fmtNum(enabledNotifications)} مفعّل` : `${fmtNum(enabledNotifications)} enabled`}
+              complete={enabledNotifications > 0}
+            />
+            <OverviewRow
+              icon={LayoutTemplate}
+              label={isAr ? "القوالب" : "Templates"}
+              value={isAr ? `${fmtNum(approvedTemplates)} معتمد` : `${fmtNum(approvedTemplates)} approved`}
+              complete={approvedTemplates > 0}
+            />
+            <Button
+              variant="outline"
+              className="mt-4 w-full justify-between"
+              onClick={() => navigate(approved ? "/whatsapp/byo" : "/channels/whatsapp/templates")}
+            >
+              {approved ? (isAr ? "إدارة الاتصال" : "Manage connection") : (isAr ? "عرض القوالب" : "View templates")}
+              <ArrowRight className={`h-4 w-4 ${isAr ? "rotate-180" : ""}`} />
+            </Button>
+          </CardContent>
+        </Card>
+        </div>
 
         {/* Notifications — only once WhatsApp access is approved */}
         {approved && (
@@ -1017,6 +1108,42 @@ export default function WhatsApp() {
   );
 }
 
+function HeroMetric({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="min-w-0 px-3 py-4 text-center sm:px-5">
+      <p className="text-xl font-bold tabular-nums sm:text-2xl">{value}</p>
+      <p className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-wide text-white/60 sm:text-xs">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function OverviewRow({
+  icon: Icon,
+  label,
+  value,
+  complete,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  complete: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl px-2 py-3 transition-colors hover:bg-muted/50">
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${complete ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30" : "bg-muted text-muted-foreground"}`}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="truncate text-sm font-medium">{value}</p>
+      </div>
+      <span className={`h-2 w-2 shrink-0 rounded-full ${complete ? "bg-emerald-500" : "bg-amber-400"}`} />
+    </div>
+  );
+}
+
 function StatCard({
   label,
   value,
@@ -1037,15 +1164,15 @@ function StatCard({
       ? "text-sky-600 bg-sky-50 dark:bg-sky-950/30"
       : "text-foreground/70 bg-muted";
   return (
-    <Card>
-      <CardContent className="p-4">
+    <Card className="border-border/60 bg-muted/10 shadow-none">
+      <CardContent className="p-4 md:p-5">
         <div className="flex items-center justify-between">
           <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${toneClass}`}>
             <Icon className="h-4 w-4" />
           </span>
           {sub && <span className="text-xs font-medium text-muted-foreground">{sub}</span>}
         </div>
-        <p className="mt-3 text-2xl font-bold tabular-nums">{value}</p>
+        <p className="mt-4 text-2xl font-bold tabular-nums">{value}</p>
         <p className="text-xs text-muted-foreground">{label}</p>
       </CardContent>
     </Card>
@@ -1227,11 +1354,11 @@ function WhatsAppAccessGate({
   const optionalLabel = isAr ? " (اختياري)" : " (optional)";
 
   return (
-    <Card className={t.card}>
-      <CardContent className="p-6">
-        <div className="flex items-start gap-4">
+    <Card className={`${t.card} overflow-hidden rounded-2xl shadow-sm`}>
+      <CardContent className="p-5 md:p-6">
+        <div className="flex items-start gap-3 md:gap-4">
           <div
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${t.icon}`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-4 ring-background ${t.icon}`}
           >
             <HeaderIcon className="h-5 w-5" />
           </div>
@@ -1244,6 +1371,28 @@ function WhatsAppAccessGate({
                 {isAr ? "أُرسل الطلب في " : "Requested on "}
                 {fmtDate(access.requested_at)}
               </p>
+            )}
+
+            {status === "pending" && (
+              <div className="mt-5 grid grid-cols-3 gap-2 rounded-xl border bg-background/70 p-3">
+                {[
+                  { en: "Request sent", ar: "تم الإرسال", done: true },
+                  { en: "NUMU review", ar: "مراجعة NUMU", done: true },
+                  { en: "Activation", ar: "التفعيل", done: false },
+                ].map((step, index) => (
+                  <div key={step.en} className="min-w-0">
+                    <div className="mb-2 flex items-center">
+                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${step.done ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" : "bg-muted text-muted-foreground"}`}>
+                        {step.done ? <CheckCircle2 className="h-3.5 w-3.5" /> : index + 1}
+                      </span>
+                      {index < 2 && <span className={`mx-1 h-px flex-1 ${step.done ? "bg-amber-300 dark:bg-amber-700" : "bg-border"}`} />}
+                    </div>
+                    <p className="truncate text-[11px] font-medium text-muted-foreground sm:text-xs">
+                      {isAr ? step.ar : step.en}
+                    </p>
+                  </div>
+                ))}
+              </div>
             )}
 
             {priced && (

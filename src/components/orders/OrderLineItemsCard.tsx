@@ -94,7 +94,7 @@ export function OrderLineItemsCard({ order }: Props) {
   };
 
   return (
-    <Card>
+    <Card className="min-w-0 overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center justify-between">
           <span>{t("orders.lineItems")}</span>
@@ -126,7 +126,7 @@ export function OrderLineItemsCard({ order }: Props) {
                   type="button"
                   onClick={() => setOpenIndex(i)}
                   aria-label={t("orders.viewProduct", "View product")}
-                  className="flex w-full items-start gap-3 rounded-lg py-3 text-start transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex min-w-0 w-full items-start gap-3 rounded-lg py-3 text-start transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                 {/* Image / placeholder */}
                 <div className="relative h-14 w-14 rounded-lg bg-muted/50 ring-1 ring-border/40 shrink-0 overflow-hidden">

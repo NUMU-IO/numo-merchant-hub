@@ -35,7 +35,7 @@ export function OrderHeader({
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button
           variant="ghost"
           className="gap-2"
@@ -44,11 +44,11 @@ export function OrderHeader({
           <ArrowLeft className="h-4 w-4" />
           {t("orders.back")}
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
           <Button
             variant="outline"
             size="sm"
-            className="gap-1.5"
+            className="w-full min-w-0 gap-1.5 sm:w-auto"
             onClick={onPrint}
           >
             <Printer className="h-3.5 w-3.5" />
@@ -57,7 +57,7 @@ export function OrderHeader({
           {nextStatus && order.status !== "cancelled" && (
             <Button
               size="sm"
-              className="gap-1.5"
+              className="col-span-2 w-full min-w-0 gap-1.5 sm:col-span-1 sm:w-auto"
               onClick={() => onAdvanceStatus(nextStatus)}
             >
               <ArrowRightCircle className="h-3.5 w-3.5" />
@@ -70,7 +70,7 @@ export function OrderHeader({
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-1.5"
+                className="w-full min-w-0 gap-1.5 sm:w-auto"
                 onClick={onPartialAcceptance}
               >
                 <PackageOpen className="h-3.5 w-3.5" />
@@ -81,7 +81,7 @@ export function OrderHeader({
             <Button
               size="sm"
               variant="outline"
-              className="gap-1.5"
+              className="w-full min-w-0 gap-1.5 sm:w-auto"
               onClick={onMarkReturned}
             >
               <RotateCcw className="h-3.5 w-3.5" />
@@ -91,8 +91,8 @@ export function OrderHeader({
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-bold">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <h1 className="min-w-0 break-words text-xl font-bold sm:text-2xl">
           {t("orders.orderDetails")} {order.order_number}
         </h1>
         <Badge

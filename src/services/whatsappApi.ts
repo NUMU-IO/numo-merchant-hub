@@ -20,6 +20,7 @@ export interface WhatsAppConnectionStatus {
 export interface EmbeddedSignupConfig {
   app_id: string;
   config_id: string;
+  graph_api_version: string;
   enabled: boolean;
 }
 
@@ -164,10 +165,14 @@ export async function getSignupConfig(storeId: string) {
   );
 }
 
-export async function completeSignup(storeId: string, code: string) {
+export async function completeSignup(
+  storeId: string,
+  code: string,
+  selection?: { waba_id?: string; phone_number_id?: string }
+) {
   return apiClient<EmbeddedSignupResponse>(
     `/stores/${storeId}/whatsapp/complete-signup`,
-    { method: "POST", body: JSON.stringify({ code }) }
+    { method: "POST", body: JSON.stringify({ code, ...selection }) }
   );
 }
 
