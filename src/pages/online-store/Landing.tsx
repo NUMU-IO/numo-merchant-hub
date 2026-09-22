@@ -36,9 +36,8 @@ import {
 import { toast } from "sonner";
 import {
   ExternalLink, PaintRoller, Plus, FileText, ChevronRight,
-  Loader2, Globe, Pencil, Monitor, Smartphone, Copy, Check,
-  MoreHorizontal, Eye, Sparkles, Code2, ChevronDown,
-  CheckCircle2, Clock, Layers, FileEdit, Rocket,
+  Loader2, Globe, Pencil, Copy, Check,
+  MoreHorizontal, Eye, Code2, Clock, Layers, FileEdit, Rocket,
   Store, Star, Download, Tag, Lock, Unlock,
 } from "lucide-react";
 
@@ -235,7 +234,6 @@ const OnlineStoreLanding = () => {
   const storeUrl = getPublicStoreUrl(currentStore);
   const storeHost = getPublicStoreHost(currentStore);
 
-  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
   const [copied, setCopied] = useState(false);
   const queryClient = useQueryClient();
 
@@ -367,16 +365,6 @@ const OnlineStoreLanding = () => {
   // falling back to the catalog theme name.
   const themeLabel = activeInstall?.name?.trim() || liveTheme.name;
 
-  // Palette swatches from the live customization, for the hero meta row.
-  const swatches = customization?.theme
-    ? [
-        customization.theme.primary_color,
-        customization.theme.secondary_color,
-        customization.theme.accent_color,
-        customization.theme.background_color,
-      ].filter(Boolean)
-    : [];
-
   const copyLink = () => {
     if (!storeUrl) return;
     navigator.clipboard?.writeText(storeUrl).then(() => {
@@ -500,48 +488,18 @@ const OnlineStoreLanding = () => {
         </div>
       </div>
 
-      {/* ─── Live theme hero (device preview + meta) ───────────── */}
-      <div className="grid gap-4 lg:[grid-template-columns:1.6fr_1fr]">
-        {/* Device preview */}
-        <Card>
-          <CardContent className="p-5 flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-2">
-              <span className="souq-eyebrow" style={{ color: "hsl(var(--terracotta))" }}>
-                {isRTL ? "الثيم الحالي" : "Live theme"}
-              </span>
-              {/* Desktop / mobile toggle */}
-              <div className="inline-flex items-center rounded-lg border border-border bg-surface-2 p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setPreviewMode("desktop")}
-                  className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-semibold transition-colors ${
-                    previewMode === "desktop" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"
-                  }`}
-                  aria-pressed={previewMode === "desktop"}
-                >
-                  <Monitor className="h-3.5 w-3.5" strokeWidth={2.2} />
-                  <span className="hidden sm:inline">{isRTL ? "كمبيوتر" : "Desktop"}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreviewMode("mobile")}
-                  className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-semibold transition-colors ${
-                    previewMode === "mobile" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"
-                  }`}
-                  aria-pressed={previewMode === "mobile"}
-                >
-                  <Smartphone className="h-3.5 w-3.5" strokeWidth={2.2} />
-                  <span className="hidden sm:inline">{isRTL ? "موبايل" : "Mobile"}</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-surface-2/60 border border-border/60 p-4 sm:p-6 flex items-center justify-center min-h-[260px]">
-              {customizationQuery.isLoading ? (
+      {/* ─── Live theme showcase ───────────────────────────────── */}
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
+          <div className="bg-surface-2/60 p-4 sm:p-7 lg:p-10">
+            {customizationQuery.isLoading ? (
+              <div className="flex min-h-[320px] items-center justify-center">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              ) : (
+              </div>
+            ) : (
+              <div className="mx-auto grid max-w-[1080px] items-center gap-5 md:grid-cols-[minmax(0,1fr)_230px] lg:gap-8">
                 <DevicePreview
-                  mode={previewMode}
+                  mode="desktop"
                   storeUrl={storeUrl}
                   frameUrl={getStoreFrameUrl(currentStore)}
                   host={storeHost}
@@ -549,182 +507,123 @@ const OnlineStoreLanding = () => {
                   imageUrl={liveTheme.preview_image_url}
                   isRTL={isRTL}
                 />
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Theme meta + actions */}
-        <Card>
-          <CardContent className="p-5 flex flex-col gap-4">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[17px] font-extrabold truncate">{themeLabel}</span>
-                  <span className="souq-pill bg-navy text-white shrink-0">{isRTL ? "الحالي" : "Live"}</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-                  <Globe className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
-                  <span className="font-mono ltr-nums truncate">{storeHost ?? "—"}</span>
-                </div>
-              </div>
-              {/* Theme actions menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                    <MoreHorizontal className="h-4 w-4" strokeWidth={2.2} />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuLabel className="text-xs">{themeLabel}</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {storeUrl && (
-                    <DropdownMenuItem onClick={() => window.open(storeUrl, "_blank")}>
-                      <Eye className="h-3.5 w-3.5 me-2" />
-                      {isRTL ? "معاينة مباشرة" : "Live preview"}
-                      <ExternalLink className="h-3 w-3 ms-auto opacity-40" />
-                    </DropdownMenuItem>
-                  )}
-                  {activeInstall && (
-                    <DropdownMenuItem
-                      onClick={() => { setRenameValue(themeLabel); setRenameOpen(true); }}
-                    >
-                      <FileEdit className="h-3.5 w-3.5 me-2" />
-                      {isRTL ? "إعادة تسمية" : "Rename"}
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={goEditorV3}>
-                    <Sparkles className="h-3.5 w-3.5 me-2" />
-                    {isRTL ? "المحرر الجديد" : "New editor"}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={goCodeEditor}>
-                    <Code2 className="h-3.5 w-3.5 me-2" />
-                    {isRTL ? "تعديل الكود" : "Edit code"}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Status chip */}
-            <div>
-              {isPublished ? (
-                <Badge variant="outline" className="gap-1.5 border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400">
-                  <CheckCircle2 className="h-3 w-3" />
-                  <span className="text-[11px]">
-                    {isRTL ? "منشور" : "Published"}
-                    {lastPublished
-                      ? ` · ${new Date(lastPublished).toLocaleDateString(isRTL ? "ar-EG" : "en-US", { month: "short", day: "numeric" })}`
-                      : ""}
-                  </span>
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="gap-1.5 border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400">
-                  <Clock className="h-3 w-3" />
-                  <span className="text-[11px]">{isRTL ? "مسودة" : "Draft"}</span>
-                </Badge>
-              )}
-            </div>
-
-            {/* Theme description */}
-            {liveTheme.description ? (
-              <p className="text-[13px] text-muted-foreground leading-relaxed line-clamp-3">
-                {liveTheme.description}
-              </p>
-            ) : null}
-
-            {/* Details — always present so the panel never reads empty */}
-            <div className="rounded-xl border border-border/60 divide-y divide-border/60">
-              <div className="flex items-center justify-between px-3 py-2 text-[12.5px]">
-                <span className="text-muted-foreground">{isRTL ? "النطاق" : "Domain"}</span>
-                <span className="font-mono ltr-nums truncate max-w-[60%] text-end">{storeHost ?? "—"}</span>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2 text-[12.5px]">
-                <span className="text-muted-foreground">{isRTL ? "الحالة" : "Status"}</span>
-                <span className={`font-semibold ${isPublished ? "text-emerald-600" : "text-amber-600"}`}>
-                  {isPublished ? (isRTL ? "مباشر" : "Live") : (isRTL ? "مسودة" : "Draft")}
-                </span>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2 text-[12.5px]">
-                <span className="text-muted-foreground">{isRTL ? "الصفحات" : "Pages"}</span>
-                <span className="font-semibold">{pages.length}</span>
-              </div>
-              {/* Storefront password gate */}
-              <button
-                type="button"
-                onClick={openPasswordDialog}
-                className="w-full flex items-center justify-between px-3 py-2 text-[12.5px] souq-hoverrow text-start"
-              >
-                <span className="text-muted-foreground inline-flex items-center gap-1.5">
-                  {passwordStatus?.enabled || passwordStatus?.billing_locked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
-                  {isRTL ? "حماية بكلمة مرور" : "Password"}
-                </span>
-                {/* The billing lock gates the storefront regardless of the
-                    merchant's own switch, so reporting "Off" here would be a
-                    lie about what shoppers actually see. */}
-                <span className={`font-semibold inline-flex items-center gap-1 ${passwordStatus?.billing_locked ? "text-amber-600" : passwordStatus?.enabled ? "text-emerald-600" : "text-muted-foreground"}`}>
-                  {passwordStatus?.billing_locked
-                    ? (isRTL ? "مقفول للدفع" : "Locked — unpaid")
-                    : passwordStatus?.enabled
-                      ? (isRTL ? "مُفعّلة" : "On")
-                      : (isRTL ? "متوقفة" : "Off")}
-                  <ChevronRight className="h-3.5 w-3.5 rtl:rotate-180 opacity-50" />
-                </span>
-              </button>
-            </div>
-
-            {/* Palette */}
-            {swatches.length > 0 && (
-              <div className="pt-0.5">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70 mb-2">
-                  {isRTL ? "لوحة الألوان" : "Palette"}
-                </p>
-                <div className="flex items-center gap-2">
-                  {swatches.map((color, i) => (
-                    <div
-                      key={i}
-                      className="h-7 w-7 rounded-full border border-black/10 shadow-sm"
-                      style={{ background: color }}
-                      title={color}
-                    />
-                  ))}
+                <div className="hidden md:block">
+                  <DevicePreview
+                    mode="mobile"
+                    storeUrl={storeUrl}
+                    frameUrl={getStoreFrameUrl(currentStore)}
+                    host={storeHost}
+                    themeId={liveTheme.id}
+                    imageUrl={liveTheme.preview_image_url}
+                    isRTL={isRTL}
+                  />
                 </div>
               </div>
             )}
+          </div>
 
-            {/* CTAs */}
-            <div className="flex flex-col gap-2 pt-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="w-full gap-1.5">
-                    <Pencil className="h-4 w-4" strokeWidth={2.2} />
-                    {isRTL ? "تخصيص الثيم" : "Customize"}
-                    <ChevronDown className="h-3.5 w-3.5 ms-auto opacity-70" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-56">
-                  <DropdownMenuItem onClick={goEditorV3}>
-                    <Sparkles className="h-3.5 w-3.5 me-2" />
-                    <div className="flex flex-col">
-                      <span className="flex items-center gap-1.5">
-                        {isRTL ? "المحرر الجديد" : "New editor"}
-                        <Badge variant="secondary" className="h-4 text-[9px] px-1">Beta</Badge>
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {isRTL ? "أقسام وكتل بمعاينة مباشرة" : "Sections & blocks, live preview"}
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button variant="outline" className="w-full gap-1.5" onClick={goThemes}>
-                <Layers className="h-4 w-4" strokeWidth={2.2} />
-                {isRTL ? "كل الثيمات" : "Browse themes"}
-              </Button>
+          <div className="grid gap-6 border-t border-border/60 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_230px] lg:items-center lg:gap-10">
+            <div className="min-w-0 space-y-4">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <Badge
+                  className={`gap-1.5 border-0 text-white ${
+                    isPublished
+                      ? "bg-emerald-600 hover:bg-emerald-600"
+                      : "bg-amber-600 hover:bg-amber-600"
+                  }`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                  {isPublished
+                    ? (isRTL ? "مباشر الآن" : "Live now")
+                    : (isRTL ? "مسودة" : "Draft")}
+                </Badge>
+                {lastPublished && (
+                  <span>
+                    {isRTL ? "آخر تحديث" : "Last updated"}{" "}
+                    {new Date(lastPublished).toLocaleString(isRTL ? "ar-EG" : "en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-start gap-2">
+                <div className="min-w-0">
+                  <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl">{themeLabel}</h2>
+                  <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                    {liveTheme.description || (isRTL
+                      ? "هذا هو المظهر الذي يراه عملاؤك عند زيارة متجرك."
+                      : "This is what your customers see when they visit your store.")}
+                  </p>
+                  <p className="mt-1 text-xs text-terracotta">
+                    {isRTL
+                      ? "التخصيص المباشر يطبّق التغييرات فورًا على واجهة متجرك."
+                      : "Customizing live applies changes directly to your storefront."}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => { setRenameValue(themeLabel); setRenameOpen(true); }}
+                  disabled={!activeInstall}
+                  aria-label={isRTL ? "إعادة تسمية الثيم" : "Rename theme"}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+
+            <div className="flex flex-col gap-2">
+              <Button variant="accent" className="w-full gap-2" onClick={goEditorV3}>
+                <PaintRoller className="h-4 w-4" strokeWidth={2.2} />
+                {isRTL ? "خصّص المتجر المباشر" : "Customize live store"}
+              </Button>
+              {storeUrl && (
+                <Button variant="outline" className="w-full gap-2" onClick={() => window.open(storeUrl, "_blank")}>
+                  <ExternalLink className="h-4 w-4" strokeWidth={2.2} />
+                  {isRTL ? "معاينة المتجر" : "Preview store"}
+                </Button>
+              )}
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <Button variant="outline" className="gap-2" onClick={() => navigate("/online-store/themes?tab=snapshots")}>
+                  <Layers className="h-4 w-4" strokeWidth={2.2} />
+                  {isRTL ? "النسخ الاحتياطية" : "Theme backups"}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon" aria-label={isRTL ? "المزيد" : "More theme actions"}>
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuLabel className="text-xs">{themeLabel}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={openPasswordDialog}>
+                      {passwordStatus?.enabled ? <Lock className="h-3.5 w-3.5 me-2" /> : <Unlock className="h-3.5 w-3.5 me-2" />}
+                      {isRTL ? "حماية المتجر" : "Store password"}
+                    </DropdownMenuItem>
+                    {activeInstall && (
+                      <DropdownMenuItem onClick={() => { setRenameValue(themeLabel); setRenameOpen(true); }}>
+                        <FileEdit className="h-3.5 w-3.5 me-2" />
+                        {isRTL ? "إعادة تسمية" : "Rename"}
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={goCodeEditor}>
+                      <Code2 className="h-3.5 w-3.5 me-2" />
+                      {isRTL ? "تعديل الكود" : "Edit code"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ─── Quick-setup action strip ──────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
