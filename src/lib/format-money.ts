@@ -32,6 +32,13 @@ interface FormatMoneyOptions {
   locale?: "ar" | "en";
   /** Treat `value` as integer minor units (cents/piasters) and divide by 100. */
   fromCents?: boolean;
+  /** Always two decimals ("79.20"). For ledgers and charges, where the
+   *  default "79.2" reads like a typo. */
+  fixed?: boolean;
+  /** Mark credits with "+" (debits already carry "-"). Intl supplies the
+   *  sign, so the Arabic form keeps the letter mark that holds the sign on
+   *  the number inside an LTR run. */
+  signed?: boolean;
 }
 
 /**
@@ -74,7 +81,10 @@ export function formatMoney(
   const isAr = opts.locale === "ar";
   const n = typeof value === "number" && !Number.isNaN(value) ? value : 0;
   const v = opts.fromCents ? n / 100 : n;
-  const num = v.toLocaleString(localeFor(ccy, isAr));
+  const num = v.toLocaleString(localeFor(ccy, isAr), {
+    ...(opts.fixed && { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    ...(opts.signed && { signDisplay: "exceptZero" as const }),
+  });
   if (ccy === "EGP") return isAr ? `${num} ج.م` : `EGP ${num}`;
   if (ccy === "SAR") return isAr ? `${num} ${SAR_SYMBOL}` : `${SAR_SYMBOL} ${num}`;
   return isAr ? `${num} ${ccy}` : `${ccy} ${num}`;

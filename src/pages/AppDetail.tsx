@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
@@ -43,6 +44,8 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
 import { AppSettingsPanel } from "@/components/apps/AppSettingsPanel";
+import { AppSubscriptionCard } from "@/components/apps/AppSubscriptionCard";
+import { scopeSentence } from "@/lib/appScopes";
 import {
   type AppCatalogEntry,
   type AppInstallation,
@@ -51,6 +54,9 @@ import {
   installApp,
   listAppCatalog,
   listAppInstallations,
+  NUMU_APP_HOME,
+  consentPath,
+  getAppOpenUrl,
   uninstallApp,
 } from "@/services/appsApi";
 
@@ -97,6 +103,7 @@ export default function AppDetail() {
   const navigate = useNavigate();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
+  const queryClient = useQueryClient();
 
   const [install, setInstall] = useState<AppInstallation | null>(null);
   const [entry, setEntry] = useState<AppCatalogEntry | null>(null);
@@ -141,6 +148,8 @@ export default function AppDetail() {
     listing?.locales?.en?.tagline ??
     listing?.tagline;
   const installed = Boolean(install);
+  // A Partner App: installs through consent, has scopes and an "Open app".
+  const isPartner = listing?.developer ? !listing.developer.is_first_party : false;
   const pricingLabel =
     listing?.pricing?.locales?.[language]?.label ?? listing?.pricing?.locales?.en?.label;
   const compatibility =
@@ -154,6 +163,8 @@ export default function AppDetail() {
       await fn();
       toast.success(done);
       await load();
+      // The sidebar reads installs too; a NUMU App's tab follows the install.
+      void queryClient.invalidateQueries({ queryKey: ["apps", "installations"] });
     } catch (err) {
       showError(err, language);
     } finally {
@@ -236,11 +247,13 @@ export default function AppDetail() {
               <span>
                 {t("apps.by")} <span className="font-medium">{listing.developer.name}</span>
               </span>
-              {listing.developer.is_first_party && (
+              {listing.developer.is_first_party ? (
                 <Badge variant="secondary" className="gap-1">
                   <BadgeCheck className="h-3 w-3" />
                   {t("apps.firstParty")}
                 </Badge>
+              ) : (
+                <Badge variant="outline">{t("apps.partnerBadge")}</Badge>
               )}
               {listing.developer.url && (
                 <a
@@ -270,13 +283,36 @@ export default function AppDetail() {
           {!installed ? (
             <Button
               disabled={busy}
-              onClick={() => act(() => installApp(storeId!, app.slug), t("apps.installed"))}
+              onClick={() =>
+                entry?.connect
+                  ? // A Partner App installs through consent (OAuth).
+                    navigate(consentPath(entry.connect, storeId!))
+                  : act(() => installApp(storeId!, app.slug), t("apps.installed"))
+              }
             >
               {busy && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               {t("apps.install")}
             </Button>
           ) : (
             <>
+              {NUMU_APP_HOME[app.slug] && install!.is_enabled && (
+                <Button onClick={() => navigate(NUMU_APP_HOME[app.slug])}>{t("apps.open")}</Button>
+              )}
+              {isPartner && install!.is_enabled && install!.install_status === "active" && (
+                <Button
+                  disabled={busy}
+                  onClick={async () => {
+                    try {
+                      // A fresh signed link each time: the app rejects old timestamps.
+                      window.open(await getAppOpenUrl(storeId!, app.slug, language), "_blank", "noopener");
+                    } catch (err) {
+                      showError(err, language);
+                    }
+                  }}
+                >
+                  {t("apps.openApp")}
+                </Button>
+              )}
               <Button
                 variant="outline"
                 disabled={busy}
@@ -295,9 +331,11 @@ export default function AppDetail() {
               <Button
                 variant="destructive"
                 disabled={busy}
-                onClick={() =>
-                  act(() => uninstallApp(storeId!, app.slug), t("apps.uninstall"))
-                }
+                onClick={() => {
+                  const key = NUMU_APP_HOME[app.slug] ? "apps.uninstallConfirm" : "apps.uninstallConfirmSettings";
+                  if (!window.confirm(t(key, { name: displayName }))) return;
+                  void act(() => uninstallApp(storeId!, app.slug), t("apps.uninstall"));
+                }}
               >
                 {t("apps.uninstall")}
               </Button>
@@ -310,6 +348,59 @@ export default function AppDetail() {
         <p className="rounded-md border border-dashed border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
           {t("apps.suspendedHelp")}
         </p>
+      )}
+
+      {/* A NUMU-billed app: charged to the store's wallet (Phase 7). Free and
+          externally billed apps have nothing to manage here. */}
+      {install && listing?.pricing?.plan === "recurring" && (
+        <AppSubscriptionCard
+          storeId={storeId!}
+          install={install}
+          name={displayName ?? app.name}
+          priceLabel={pricingLabel}
+        />
+      )}
+
+      {isPartner && install && (
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            {install.install_status === "pending_auth" && (
+              <p className="text-sm text-muted-foreground">{t("apps.pendingAuth")}</p>
+            )}
+            {(install.missing_scopes?.length ?? 0) > 0 && entry?.connect && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/50 p-3">
+                <p className="text-sm">{t("apps.reconsent")}</p>
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    navigate(
+                      consentPath(entry.connect!, storeId!, [
+                        ...(install.granted_scopes ?? []),
+                        ...(install.missing_scopes ?? []),
+                      ]),
+                    )
+                  }
+                >
+                  {t("apps.reconsentBtn")}
+                </Button>
+              </div>
+            )}
+            <div>
+              <p className="text-sm font-semibold">{t("apps.permissions")}</p>
+              <ul className="mt-1.5 space-y-1 text-sm">
+                {(install.granted_scopes ?? []).map((s) => (
+                  <li key={s}>• {scopeSentence(t, s)}</li>
+                ))}
+              </ul>
+            </div>
+            <a
+              className="text-xs text-muted-foreground underline underline-offset-2"
+              href={`mailto:support@numueg.app?subject=${encodeURIComponent(`Report app: ${app.slug}`)}`}
+            >
+              {t("apps.report")}
+            </a>
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Gallery, before the prose: a merchant comparing apps decides with
