@@ -54,7 +54,7 @@ function vitePluginCSP(): Plugin {
                   // graph.facebook.com is hit by the SDK when exchanging
                   // the embedded-signup token; backend mirrors live on
                   // numueg.app so we keep that too.
-                  "connect-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.de.sentry.io https://graph.facebook.com https://*.facebook.com https://eu.i.posthog.com https://eu-assets.i.posthog.com",
+                  "connect-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.de.sentry.io https://connect.facebook.net https://graph.facebook.com https://*.facebook.com https://eu.i.posthog.com https://eu-assets.i.posthog.com",
                   // www.facebook.com is the Embedded Signup dialog iframe.
                   "frame-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com https://www.facebook.com https://*.facebook.com",
                   "worker-src 'self' blob:",
