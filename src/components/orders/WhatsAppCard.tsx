@@ -37,7 +37,20 @@ export function WhatsAppCard({ storeId, orderId }: Props) {
     onSuccess: (result) => {
       queryClient.setQueryData(key, { sends: result.sends });
       if (result.sent) toast.success(t("orders.whatsapp.resent"));
-      else toast.error(t("orders.whatsapp.notSent"));
+      else {
+        const failure = result.sends.find((send) => send.status === "failed");
+        toast.error(
+          failure?.error_code
+            ? t(
+                [
+                  `orders.whatsapp.err.${failure.error_code}`,
+                  "orders.whatsapp.err.generic",
+                ],
+                { code: failure.error_code },
+              )
+            : t("orders.whatsapp.notSent"),
+        );
+      }
     },
     onError: () => toast.error(t("orders.whatsapp.notSent")),
   });

@@ -760,6 +760,7 @@ export default {
       },
       err: {
         generic: "Meta rejected this message (code {{code}}).",
+        "131030": "This Meta test number can only message approved test recipients. Add the customer number in Meta's API Setup, or connect a production phone number.",
         "131042": "WhatsApp billing issue on the business account — finish business verification and add a payment method in Meta Business Manager.",
         "131026": "This number can't receive WhatsApp messages.",
         "131047": "The 24-hour reply window closed.",
