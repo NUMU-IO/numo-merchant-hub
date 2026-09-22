@@ -18,7 +18,6 @@ import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
 import { toast } from "sonner";
 import {
   ArrowLeft,
-  BadgeCheck,
   Check,
   CheckCircle2,
   Clock3,
@@ -423,26 +422,45 @@ export default function WhatsAppBYOConnect() {
             ) : null
           }
           action={
-            <Button
-              className="w-full gap-2"
-              disabled={connecting || isOwnNumber || !config?.enabled || !sdkReady}
-              onClick={connectOwnNumber}
-            >
-              {connecting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : isOwnNumber ? (
-                <BadgeCheck className="h-4 w-4" />
-              ) : (
-                <Globe2 className="h-4 w-4" />
-              )}
-              {isOwnNumber
-                ? isAr ? "متصل" : "Connected"
-                : connecting
-                ? isAr ? "جارٍ فتح Meta..." : "Opening Meta..."
-                : !sdkReady
-                ? isAr ? "جارٍ تجهيز Meta..." : "Preparing Meta..."
-                : isAr ? "الربط باستخدام Meta" : "Connect with Meta"}
-            </Button>
+            isOwnNumber ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled={connecting || switching || !config?.enabled || !sdkReady}
+                  onClick={connectOwnNumber}
+                >
+                  {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {connecting
+                    ? isAr ? "جارٍ فتح Meta..." : "Opening Meta..."
+                    : isAr ? "إعادة الربط مع Meta" : "Reconnect with Meta"}
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="w-full gap-2"
+                  disabled={connecting || switching}
+                  onClick={useSharedNumber}
+                >
+                  {switching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                  {switching
+                    ? isAr ? "جارٍ الفصل..." : "Disconnecting..."
+                    : isAr ? "فصل الرقم" : "Disconnect number"}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                className="w-full gap-2"
+                disabled={connecting || !config?.enabled || !sdkReady}
+                onClick={connectOwnNumber}
+              >
+                {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe2 className="h-4 w-4" />}
+                {connecting
+                  ? isAr ? "جارٍ فتح Meta..." : "Opening Meta..."
+                  : !sdkReady
+                  ? isAr ? "جارٍ تجهيز Meta..." : "Preparing Meta..."
+                  : isAr ? "الربط باستخدام Meta" : "Connect with Meta"}
+              </Button>
+            )
           }
         />
       </div>
