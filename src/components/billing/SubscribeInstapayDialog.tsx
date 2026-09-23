@@ -3,17 +3,20 @@ import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
+  createCardIntent,
   createInstapayIntent,
+  getInstapayIntent,
   submitInstapayProof,
   type InstapayIntent,
 } from "@/services/billingApi";
+import PlatformCardFrame, { type IntentOutcome } from "@/components/billing/PlatformCardFrame";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Loader2, Copy, Upload, CheckCircle2, Clock, XCircle,
+  Loader2, Copy, Upload, CheckCircle2, Clock, XCircle, CreditCard,
 } from "lucide-react";
 
 // Backend error details are English-only — map the known ones so the
@@ -57,6 +60,10 @@ interface Props {
   resumeIntent?: InstapayIntent | null;
   /** Opens the payment for something other than a plan (e.g. WhatsApp access). */
   createIntent?: () => Promise<InstapayIntent>;
+  /** NUMU's card page is available (plan payments only). */
+  cardAvailable?: boolean;
+  /** Platform InstaPay is configured. */
+  instapayAvailable?: boolean;
   /** Replaces the "your store is ready" line once payment activates. */
   activatedNote?: string;
   /** Called when the receipt landed (activated or queued for review). */
@@ -65,13 +72,14 @@ interface Props {
 
 const SubscribeInstapayDialog = ({
   open, onOpenChange, plan, billingCycle, amountCents, resumeIntent, createIntent,
-  activatedNote, onDone,
+  activatedNote, onDone, cardAvailable = false, instapayAvailable = true,
 }: Props) => {
   const { language } = useLanguage();
   const isAr = language === "ar";
 
   const [creating, setCreating] = useState(false);
   const [intent, setIntent] = useState<InstapayIntent | null>(null);
+  const [cardIntent, setCardIntent] = useState<InstapayIntent | null>(null);
   const [txRef, setTxRef] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -81,13 +89,14 @@ const SubscribeInstapayDialog = ({
   // Resume an open payment instead of minting a duplicate (the backend
   // enforces one open intent per tenant anyway).
   useEffect(() => {
-    if (open && resumeIntent && resumeIntent.status === "awaiting_proof") {
+    if (open && resumeIntent && resumeIntent.status === "awaiting_proof" && resumeIntent.destination) {
       setIntent(resumeIntent);
     }
   }, [open, resumeIntent]);
 
   const reset = () => {
     setIntent(null);
+    setCardIntent(null);
     setTxRef("");
     setProofFile(null);
     setResult(null);
@@ -116,6 +125,30 @@ const SubscribeInstapayDialog = ({
     } finally {
       setCreating(false);
     }
+  };
+
+  // Card is for plans only; other purchases (e.g. WhatsApp) pass createIntent.
+  const offerCard = cardAvailable && !createIntent;
+
+  const startCardPayment = async () => {
+    setCreating(true);
+    try {
+      setCardIntent(await createCardIntent(plan, billingCycle));
+    } catch (e) {
+      const raw = e instanceof Error && e.message
+        ? e.message
+        : (isAr ? "تعذر إنشاء عملية الدفع" : "Could not start the payment");
+      setError(translateError(raw, isAr));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const cardIntentStatus = async (): Promise<IntentOutcome> => {
+    const current = await getInstapayIntent(cardIntent!.id);
+    if (current.status === "succeeded") return "succeeded";
+    if (current.status === "failed") return "failed";
+    return "pending";
   };
 
   const submitProof = async () => {
@@ -214,6 +247,19 @@ const SubscribeInstapayDialog = ({
               {isAr ? "تم" : "Done"}
             </Button>
           </div>
+        ) : cardIntent?.card_form ? (
+          /* ── Card: NUMU's card page, posted straight to Kashier ───── */
+          <PlatformCardFrame
+            cardForm={cardIntent.card_form}
+            amountLabel={egp(cardIntent.amount_cents)}
+            checkStatus={cardIntentStatus}
+            onSucceeded={() => {
+              setCardIntent(null);
+              setResult("activated");
+              onDone(true);
+            }}
+            onRetry={() => setCardIntent(null)}
+          />
         ) : intent ? (
           /* ── Pay + upload proof ────────────────────────────────────── */
           <div className="space-y-4">
@@ -295,16 +341,32 @@ const SubscribeInstapayDialog = ({
                 </p>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {isAr
-                ? "هننشئ لك عنوان تحويل ورمزاً مرجعياً — حوّل المبلغ من تطبيق إنستاباي أو البنك، وارفع الإيصال، ويتفعّل اشتراكك."
-                : "We'll generate a transfer address and a reference code — transfer from your InstaPay or bank app, upload the receipt, and your subscription activates."}
-            </p>
-            <Button className="w-full" onClick={startPayment} disabled={creating}>
-              {creating
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : (isAr ? "متابعة الدفع عبر إنستاباي" : "Continue with InstaPay")}
-            </Button>
+            {offerCard && (
+              <Button className="w-full gap-2" onClick={startCardPayment} disabled={creating}>
+                {creating
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <><CreditCard className="h-4 w-4" />{isAr ? "الدفع بالبطاقة" : "Pay with card"}</>}
+              </Button>
+            )}
+            {instapayAvailable && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {isAr
+                    ? "هننشئ لك عنوان تحويل ورمزاً مرجعياً — حوّل المبلغ من تطبيق إنستاباي أو البنك، وارفع الإيصال، ويتفعّل اشتراكك."
+                    : "We'll generate a transfer address and a reference code — transfer from your InstaPay or bank app, upload the receipt, and your subscription activates."}
+                </p>
+                <Button
+                  className="w-full"
+                  variant={offerCard ? "outline" : "default"}
+                  onClick={startPayment}
+                  disabled={creating}
+                >
+                  {creating
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : (isAr ? "متابعة الدفع عبر إنستاباي" : "Continue with InstaPay")}
+                </Button>
+              </>
+            )}
           </div>
         )}
       </DialogContent>
