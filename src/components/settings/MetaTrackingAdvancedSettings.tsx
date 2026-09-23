@@ -74,8 +74,6 @@ interface SectionCopy {
     purchase_label: string;
     lead_label: string;
     none: string;
-    recommended_cod: string;
-    online_warning: string;
     save: string;
     saved: string;
   };
@@ -135,9 +133,6 @@ const COPY: Record<Lang, SectionCopy> = {
       purchase_label: "Fire Purchase on",
       lead_label: "Fire Lead on",
       none: "Don't fire (use legacy payment-webhook path)",
-      recommended_cod: "Recommended for COD-heavy stores",
-      online_warning:
-        "Online-payment merchants typically leave both at None — the payment webhook already fires Purchase on paid.",
       save: "Save timing config",
       saved: "Conversion timing saved",
     },
@@ -197,9 +192,6 @@ const COPY: Record<Lang, SectionCopy> = {
       purchase_label: "إرسال Purchase عند",
       lead_label: "إرسال Lead عند",
       none: "لا ترسل (استخدم مسار webhook الدفع التقليدي)",
-      recommended_cod: "موصى به للمتاجر التي تعتمد على الدفع عند الاستلام",
-      online_warning:
-        "تجار الدفع الإلكتروني يتركون الإعدادات على \"لا ترسل\" عادةً — webhook الدفع يرسل Purchase تلقائياً.",
       save: "حفظ إعدادات التوقيت",
       saved: "تم حفظ إعدادات التوقيت",
     },
@@ -273,20 +265,16 @@ interface CodTimingSectionProps {
 }
 
 function CodTimingSection({ settings, onSave, copy, lang, saving }: CodTimingSectionProps) {
-  const [purchaseTrigger, setPurchaseTrigger] = useState<OrderStatusTrigger | "__none">(
-    settings.purchase_trigger ?? "__none",
-  );
   const [leadTrigger, setLeadTrigger] = useState<OrderStatusTrigger | "__none">(
     settings.lead_trigger ?? "__none",
   );
 
-  const dirty =
-    (settings.purchase_trigger ?? "__none") !== purchaseTrigger ||
-    (settings.lead_trigger ?? "__none") !== leadTrigger;
+  const dirty = (settings.lead_trigger ?? "__none") !== leadTrigger;
 
   const handleSave = async () => {
     await onSave({
-      purchase_trigger: purchaseTrigger === "__none" ? null : purchaseTrigger,
+      // Purchase now fires at placement; a stored trigger only confused things.
+      purchase_trigger: null,
       lead_trigger: leadTrigger === "__none" ? null : leadTrigger,
     });
     toast.success(copy.saved);
@@ -305,21 +293,11 @@ function CodTimingSection({ settings, onSave, copy, lang, saving }: CodTimingSec
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>{copy.purchase_label}</Label>
-            <Select
-              value={purchaseTrigger}
-              onValueChange={(v) => setPurchaseTrigger(v as OrderStatusTrigger | "__none")}
-            >
-              <SelectTrigger data-testid="purchase-trigger-select">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TRIGGER_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt[lang]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {lang === "ar"
+                ? "يُرسل حدث الشراء عند إنشاء الطلب. عند توصيل طلب الدفع عند الاستلام نرسل حدث OrderDelivered منفصلًا — أنشئ عليه تحويلًا مخصصًا لتحسين الحملات على المبيعات المُسلَّمة."
+                : "Purchase is sent when the order is placed. When a COD order is delivered we send a separate OrderDelivered event; create a custom conversion on it to optimise campaigns on delivered sales."}
+            </p>
           </div>
           <div className="space-y-2">
             <Label>{copy.lead_label}</Label>
@@ -340,14 +318,6 @@ function CodTimingSection({ settings, onSave, copy, lang, saving }: CodTimingSec
             </Select>
           </div>
         </div>
-        {purchaseTrigger === "delivered" && leadTrigger === "confirmed" && (
-          <div className="rounded-md border border-green-500/30 bg-green-500/10 p-3 text-xs">
-            ✓ {copy.recommended_cod}
-          </div>
-        )}
-        {purchaseTrigger !== "__none" && (
-          <p className="text-xs text-muted-foreground">{copy.online_warning}</p>
-        )}
         <Button
           onClick={handleSave}
           disabled={!dirty || saving}
