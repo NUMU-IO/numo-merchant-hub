@@ -788,6 +788,7 @@ export default {
     partially_refunded: "Partially Refunded",
     returned: "Returned",
     pending_deposit: "Pending Deposit",
+    awaiting_payment: "Awaiting Payment",
     draft: "Draft",
     paymentSummary: "Payment summary",
     balance: "Balance",
