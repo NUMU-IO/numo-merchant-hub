@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Copy, CreditCard, Smartphone, Upload, CheckCircle2, Clock, XCircle } from "lucide-react";
+import PlatformCardFrame, { type PlatformCardForm, type IntentOutcome } from "@/components/billing/PlatformCardFrame";
 
 const PRESETS_EGP = [100, 250, 500, 1000];
 const DEFAULT_MIN_EGP = 50;
@@ -50,6 +51,7 @@ interface TopupCreated {
     qr_payload: string | null;
     expires_at: string | null;
   } | null;
+  card_form?: PlatformCardForm | null;
 }
 
 interface ProofResponse {
@@ -80,6 +82,7 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, minTopupCents, onDone
   const [amountEgp, setAmountEgp] = useState<number>(Math.max(250, minEgp));
   const [creating, setCreating] = useState(false);
   const [manualTopup, setManualTopup] = useState<TopupCreated | null>(null);
+  const [cardTopup, setCardTopup] = useState<TopupCreated | null>(null);
   const [txRef, setTxRef] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -95,6 +98,7 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, minTopupCents, onDone
 
   const reset = () => {
     setManualTopup(null);
+    setCardTopup(null);
     setTxRef("");
     setProofFile(null);
     setProofResult(null);
@@ -112,6 +116,10 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, minTopupCents, onDone
         method: "POST",
         body: JSON.stringify({ method, amount_cents: Math.round(amountEgp * 100) }),
       });
+      if (method === "card" && topup.card_form) {
+        setCardTopup(topup);
+        return;
+      }
       if (method === "card" && topup.checkout_url) {
         window.location.href = topup.checkout_url;
         return;
@@ -148,6 +156,13 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, minTopupCents, onDone
     } finally {
       setUploading(false);
     }
+  };
+
+  const cardTopupStatus = async (): Promise<IntentOutcome> => {
+    const t = await apiClient<{ status: string }>(`/wallet/topups/${cardTopup?.id}`);
+    if (t.status === "succeeded") return "succeeded";
+    if (t.status === "failed") return "failed";
+    return "pending";
   };
 
   const copy = (text: string) => {
@@ -219,6 +234,19 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, minTopupCents, onDone
               {isAr ? "تم" : "Done"}
             </Button>
           </div>
+        ) : cardTopup?.card_form ? (
+          /* ── Card: NUMU's card page, posted straight to Kashier ───── */
+          <PlatformCardFrame
+            cardForm={cardTopup.card_form}
+            amountLabel={`${(cardTopup.amount_cents / 100).toLocaleString()} ${isAr ? "ج.م" : "EGP"}`}
+            checkStatus={cardTopupStatus}
+            onSucceeded={() => {
+              setCardTopup(null);
+              setProofResult("credited");
+              onDone();
+            }}
+            onRetry={() => setCardTopup(null)}
+          />
         ) : manualTopup?.manual ? (
           /* ── Manual method: pay + upload proof ────────────────────── */
           <div className="space-y-4">
@@ -360,8 +388,8 @@ const TopUpDialog = ({ open, onOpenChange, methodsEnabled, minTopupCents, onDone
                 <TabsContent value="card" className="space-y-3 pt-3">
                   <p className="text-sm text-muted-foreground">
                     {isAr
-                      ? "ستنتقل لصفحة دفع آمنة بالبطاقة. يُضاف الرصيد فور إتمام الدفع."
-                      : "You'll be redirected to a secure card payment page. Your balance is credited the moment payment completes."}
+                      ? "ادفع ببطاقتك هنا مباشرة. يُضاف الرصيد فور إتمام الدفع."
+                      : "Pay with your card right here. Your balance is credited the moment payment completes."}
                   </p>
                   <Button className="w-full" onClick={() => createTopup("card")} disabled={creating || !amountValid}>
                     {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : (isAr ? "متابعة الدفع" : "Continue to payment")}

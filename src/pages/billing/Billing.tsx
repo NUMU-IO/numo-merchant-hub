@@ -6,7 +6,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import { apiClient } from "@/services/api";
 import {
-  getBillingPlans, listInstapayIntents, updateReminderSettings,
+  getBillingPlans, listInstapayIntents, updateReminderSettings, removePlanCard,
   type BillingPlansResponse, type InstapayIntent,
 } from "@/services/billingApi";
 import SubscribeInstapayDialog from "@/components/billing/SubscribeInstapayDialog";
@@ -192,6 +192,8 @@ const Billing = () => {
     return c === "annual" ? entry.annual_price_cents : entry.monthly_price_cents;
   };
   const instapayOn = plansData?.instapay_available ?? false;
+  const cardOn = plansData?.card_available ?? false;
+  const payOn = instapayOn || cardOn;
   const planIntent = plansData?.plan_intent;
   const currentCycle = (plansData?.current?.billing_cycle === "annual" ? "annual" : "monthly") as
     | "monthly"
@@ -200,7 +202,10 @@ const Billing = () => {
     plansData?.current?.renewal_due && ["starter", "pro"].includes(planKey),
   );
 
-  const openIntent = intents.find((i) => OPEN_INTENT_STATUSES.has(i.status));
+  // An unpaid card attempt has no transfer to resume; it never blocks paying.
+  const openIntent = intents.find(
+    (i) => OPEN_INTENT_STATUSES.has(i.status) && !(i.status === "awaiting_proof" && !i.destination),
+  );
 
   const priceLine = isPayg
     ? commissionPct !== null
@@ -395,7 +400,7 @@ const Billing = () => {
             </div>
 
             {/* Renewal due: pay now via InstaPay */}
-            {renewalDue && instapayOn && !openIntent && (
+            {renewalDue && payOn && !openIntent && (
               <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-400/10 border border-amber-300/30 px-4 py-3">
                 <div className="flex items-center gap-3">
                   <Clock className="h-5 w-5 text-amber-300" />
@@ -478,7 +483,7 @@ const Billing = () => {
                       <Button
                         size="sm"
                         className="mt-3"
-                        disabled={!instapayOn || Boolean(openIntent)}
+                        disabled={!payOn || Boolean(openIntent)}
                         onClick={() => openPaidPlanDialog(key)}
                       >
                         {planKey === key
@@ -573,7 +578,7 @@ const Billing = () => {
                   <button
                     key={key}
                     onClick={() => openPaidPlanDialog(key)}
-                    disabled={subscribing || !instapayOn || Boolean(openIntent)}
+                    disabled={subscribing || !payOn || Boolean(openIntent)}
                     className={`relative flex flex-col text-start rounded-xl border p-5 transition-colors disabled:opacity-60 ${
                       featured
                         ? "border-saffron ring-1 ring-saffron/40 bg-saffron/[0.04]"
@@ -595,9 +600,11 @@ const Billing = () => {
                     <p className="text-xs text-muted-foreground mt-1 min-h-[1rem]">
                       {cycle === "annual" && saved > 0
                         ? (isAr ? `وفّر ${saved} شهور` : `${saved} months free`)
-                        : instapayOn
-                          ? (isAr ? "الدفع عبر إنستاباي" : "Pay via InstaPay")
-                          : ""}
+                        : cardOn
+                          ? (isAr ? "الدفع بالبطاقة أو إنستاباي" : "Pay by card or InstaPay")
+                          : instapayOn
+                            ? (isAr ? "الدفع عبر إنستاباي" : "Pay via InstaPay")
+                            : ""}
                     </p>
                     <ul className="mt-4 space-y-2 flex-1">
                       {PLAN_FEATURES[key].map((f, i) => (
@@ -647,7 +654,7 @@ const Billing = () => {
               </span>
             </a>
 
-            {!instapayOn && (
+            {!payOn && (
               <p className="text-xs text-muted-foreground mt-3">
                 {isAr
                   ? "الدفع للباقات المدفوعة غير متاح حالياً — تواصل مع الدعم."
@@ -669,6 +676,32 @@ const Billing = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {plansData?.current?.saved_card && (
+                <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5 text-sm">
+                  <span className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    {isAr
+                      ? `تجديد تلقائي بالبطاقة •••• ${plansData.current.saved_card.last4 ?? ""}`
+                      : `Auto-renew with card •••• ${plansData.current.saved_card.last4 ?? ""}`}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-destructive hover:text-destructive"
+                    onClick={async () => {
+                      try {
+                        await removePlanCard();
+                        toast.success(isAr ? "تم إيقاف التجديد التلقائي" : "Auto-renew turned off");
+                        refresh();
+                      } catch {
+                        toast.error(isAr ? "تعذر إزالة البطاقة" : "Couldn't remove the card");
+                      }
+                    }}
+                  >
+                    {isAr ? "إزالة" : "Remove"}
+                  </Button>
+                </div>
+              )}
               <label className="flex items-center justify-between gap-3 text-sm font-medium">
                 {isAr ? "ذكّرني قبل التجديد بالإيميل" : "Email me before my renewal"}
                 <Switch checked={reminderEmails} onCheckedChange={setReminderEmails} />
@@ -934,6 +967,8 @@ const Billing = () => {
         billingCycle={dialogCycle}
         amountCents={planPrice(dialogPlan, dialogCycle)}
         resumeIntent={openIntent && openIntent.status === "awaiting_proof" ? openIntent : null}
+        cardAvailable={cardOn}
+        instapayAvailable={instapayOn}
         onDone={onPaymentDone}
       />
     </div>
