@@ -31,6 +31,10 @@ const STATUS_STYLE: Record<string, { pill: string; dot: string }> = {
     pill: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200/50",
     dot: "bg-amber-500",
   },
+  awaiting_payment: {
+    pill: "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-200/50",
+    dot: "bg-slate-400",
+  },
   cancelled: {
     pill: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200/50",
     dot: "bg-red-500",

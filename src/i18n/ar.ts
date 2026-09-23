@@ -797,6 +797,7 @@
     partially_refunded: "مسترد جزئياً",
     returned: "مرتجع",
     pending_deposit: "بانتظار الإيداع",
+    awaiting_payment: "بانتظار الدفع",
     draft: "مسودة",
     paymentSummary: "ملخص الدفع",
     balance: "الرصيد المتبقي",
