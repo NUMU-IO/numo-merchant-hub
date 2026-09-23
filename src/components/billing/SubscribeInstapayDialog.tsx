@@ -6,10 +6,12 @@ import {
   createCardIntent,
   createInstapayIntent,
   getInstapayIntent,
+  savePlanCard,
   submitInstapayProof,
   type InstapayIntent,
 } from "@/services/billingApi";
-import PlatformCardFrame, { type IntentOutcome } from "@/components/billing/PlatformCardFrame";
+import PlatformCardFrame, { type IntentOutcome, type SavedCard } from "@/components/billing/PlatformCardFrame";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -80,6 +82,7 @@ const SubscribeInstapayDialog = ({
   const [creating, setCreating] = useState(false);
   const [intent, setIntent] = useState<InstapayIntent | null>(null);
   const [cardIntent, setCardIntent] = useState<InstapayIntent | null>(null);
+  const [saveCard, setSaveCard] = useState(true);
   const [txRef, setTxRef] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -133,7 +136,7 @@ const SubscribeInstapayDialog = ({
   const startCardPayment = async () => {
     setCreating(true);
     try {
-      setCardIntent(await createCardIntent(plan, billingCycle));
+      setCardIntent(await createCardIntent(plan, billingCycle, saveCard));
     } catch (e) {
       const raw = e instanceof Error && e.message
         ? e.message
@@ -253,7 +256,14 @@ const SubscribeInstapayDialog = ({
             cardForm={cardIntent.card_form}
             amountLabel={egp(cardIntent.amount_cents)}
             checkStatus={cardIntentStatus}
-            onSucceeded={() => {
+            onSucceeded={async (saved: SavedCard | null) => {
+              if (saved) {
+                // The plan is paid either way; a failed save only means
+                // the next renewal is paid by hand.
+                await savePlanCard(cardIntent.id, saved).catch(() =>
+                  toast.error(isAr ? "تعذر حفظ البطاقة للتجديد التلقائي" : "Couldn't save the card for auto-renew"),
+                );
+              }
               setCardIntent(null);
               setResult("activated");
               onDone(true);
@@ -341,6 +351,16 @@ const SubscribeInstapayDialog = ({
                 </p>
               </div>
             </div>
+            {offerCard && (
+              <label className="flex items-start gap-2 text-sm cursor-pointer">
+                <Checkbox checked={saveCard} onCheckedChange={(c) => setSaveCard(c === true)} className="mt-0.5" />
+                <span>
+                  {isAr
+                    ? "احفظ البطاقة وجدّد الاشتراك تلقائياً كل دورة. يمكنك إيقافه في أي وقت من صفحة الفوترة."
+                    : "Save my card and renew automatically each cycle. You can turn this off anytime on Billing."}
+                </span>
+              </label>
+            )}
             {offerCard && (
               <Button className="w-full gap-2" onClick={startCardPayment} disabled={creating}>
                 {creating

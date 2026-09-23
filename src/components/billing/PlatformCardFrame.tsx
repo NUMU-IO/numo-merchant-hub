@@ -12,16 +12,25 @@ export interface PlatformCardForm {
   endpoint: string;
   hash: string;
   body: Record<string, unknown>;
+  /** Plan auto-renew: save/agreement fields the card page adds to the card. */
+  card_extra?: Record<string, unknown>;
 }
 
 export type IntentOutcome = "succeeded" | "failed" | "pending";
+
+/** Kashier card token from a plan payment that asked to save the card. */
+export interface SavedCard {
+  card_token: string;
+  agreement_id: string | null;
+  last4: string;
+}
 
 interface Props {
   cardForm: PlatformCardForm;
   amountLabel: string;
   /** Reads our intent's status; the platform webhook is the source of truth. */
   checkStatus: () => Promise<IntentOutcome>;
-  onSucceeded: () => void;
+  onSucceeded: (saved: SavedCard | null) => void;
   /** A card try failed; the caller mints a fresh intent (new order reference). */
   onRetry: () => void;
 }
@@ -58,6 +67,7 @@ const PlatformCardFrame = ({ cardForm, amountLabel, checkStatus, onSucceeded, on
   const [stage, setStage] = useState<Stage>("card");
   const [error, setError] = useState<string | null>(null);
   const polling = useRef(false);
+  const saved = useRef<SavedCard | null>(null);
   const origin = pageOrigin(cardForm.page_url);
 
   const fail = (message: string) => {
@@ -73,7 +83,7 @@ const PlatformCardFrame = ({ cardForm, amountLabel, checkStatus, onSucceeded, on
       const outcome = await checkStatus().catch(() => "pending" as const);
       if (outcome === "succeeded") {
         setStage("done");
-        onSucceeded();
+        onSucceeded(saved.current);
         return;
       }
       if (outcome === "failed") {
@@ -95,7 +105,10 @@ const PlatformCardFrame = ({ cardForm, amountLabel, checkStatus, onSucceeded, on
     if (!origin) return;
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== origin || event.data?.source !== "numu-pay") return;
-      if (event.data.status === "submitted") void verify();
+      if (event.data.status === "submitted") {
+        saved.current = event.data.saved ?? null;
+        void verify();
+      }
       else if (event.data.status === "failed") {
         fail(event.data.message || (isAr ? "تعذر إتمام الدفع." : "Payment failed."));
       }
