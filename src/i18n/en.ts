@@ -562,6 +562,10 @@ export default {
         title: "Trust auto-approve paused",
         body: "RTO rate {{rate}}% · {{rto}} of {{total}} auto-approved orders · {{reason}}",
       },
+      trackingReconnect: {
+        title: "Reconnect {{details}} tracking",
+        body: "Purchases aren't reaching your {{details}} ads · Reconnect in Settings → Tracking",
+      },
     },
     method: {
       unknown: "Unknown method",
@@ -788,6 +792,7 @@ export default {
     partially_refunded: "Partially Refunded",
     returned: "Returned",
     pending_deposit: "Pending Deposit",
+    awaiting_payment: "Awaiting Payment",
     draft: "Draft",
     paymentSummary: "Payment summary",
     balance: "Balance",

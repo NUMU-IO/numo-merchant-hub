@@ -718,6 +718,8 @@ export interface KashierCredentialsResponse {
   api_key_masked: string | null;
   /** Apple Pay offered inside the Kashier session when true (opt-in). */
   apple_pay_enabled?: boolean;
+  /** Which Kashier API the keys belong to; null = server default. */
+  mode?: "live" | "test" | null;
   last_configured: string | null;
 }
 
@@ -731,7 +733,7 @@ export async function fetchKashierCredentials(
 
 export async function saveKashierCredentials(
   storeId: string,
-  data: { merchant_id: string; api_key: string; secret_key?: string; apple_pay_enabled?: boolean }
+  data: { merchant_id: string; api_key: string; secret_key?: string; apple_pay_enabled?: boolean; mode?: "live" | "test" }
 ): Promise<KashierCredentialsResponse> {
   return apiClient<KashierCredentialsResponse>(
     `/stores/${storeId}/settings/payment/kashier/credentials`,

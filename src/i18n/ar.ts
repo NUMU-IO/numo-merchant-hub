@@ -571,6 +571,10 @@
         title: "تم إيقاف الموافقة التلقائية مؤقتًا",
         body: "نسبة المرتجعات {{rate}}% · {{rto}} من {{total}} طلب تمت الموافقة عليه تلقائيًا · {{reason}}",
       },
+      trackingReconnect: {
+        title: "أعد ربط تتبّع {{details}}",
+        body: "المشتريات لا تصل إلى إعلانات {{details}} · أعد الربط من الإعدادات ← التتبّع",
+      },
     },
     method: {
       unknown: "طريقة غير معروفة",
@@ -797,6 +801,7 @@
     partially_refunded: "مسترد جزئياً",
     returned: "مرتجع",
     pending_deposit: "بانتظار الإيداع",
+    awaiting_payment: "بانتظار الدفع",
     draft: "مسودة",
     paymentSummary: "ملخص الدفع",
     balance: "الرصيد المتبقي",

@@ -52,6 +52,7 @@ import {
   deriveModeFromFlags,
   disconnectMeta,
   fetchMetaTrackingStatus,
+  replayMetaFailedEvents,
   fetchRecentMetaEvents,
   fetchTrackingSettings,
   flagsForMode,
@@ -73,6 +74,7 @@ import {
   SignalPath,
   StatTrio,
   StatusPill,
+  ReplayFailedRow,
   VerifyConnectionRow,
   useCountdownMinutes,
   type ModeCardSpec,
@@ -851,6 +853,10 @@ export function MetaTrackingPanel() {
                   could match 12% of them" are different questions and a
                   merchant needs both. */}
               <MetaMatchQualityCard storeId={storeId ?? undefined} />
+
+              {storeId && (statusQuery.data?.recent_failure_rate ?? 0) > 0 && (
+                <ReplayFailedRow onReplay={() => replayMetaFailedEvents(storeId)} isAr={isAr} />
+              )}
 
               <VerifyConnectionRow
                 onVerify={handleVerify}

@@ -351,6 +351,8 @@ export interface MetaMatchQualityEvent {
   pixel_id: string;
   /** Meta's composite_score, 0.0–10.0. */
   emq_score: number;
+  /** Score from the newest snapshot at least 7 days old; null until a week of history exists. */
+  emq_week_ago?: number | null;
   total_events: number;
   dedup_rate: number | null;
   /** 7-day average % of browser Pixel events also covered by CAPI. */
@@ -392,4 +394,9 @@ export async function fetchMetaMatchQuality(
   return apiClient<MetaMatchQualityResponse>(
     `/stores/${storeId}/settings/tracking/meta/match-quality`,
   );
+}
+
+/** Re-send failed and dead-lettered deliveries, e.g. after reconnecting. */
+export async function replayMetaFailedEvents(storeId: string): Promise<unknown> {
+  return apiClient(`/stores/${storeId}/settings/tracking/meta/replay`, { method: "POST" });
 }

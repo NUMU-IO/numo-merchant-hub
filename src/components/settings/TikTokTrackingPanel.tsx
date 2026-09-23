@@ -49,7 +49,6 @@ import {
 import { cn } from "@/lib/utils";
 
 import {
-  type OrderStatusTrigger,
   type SaveTikTokTrackingPayload,
   type TikTokPixelEntry,
   type TikTokTrackingMode,
@@ -62,6 +61,7 @@ import {
   fetchTikTokReport,
   fetchTikTokTracking,
   fetchTikTokTrackingStatus,
+  replayTikTokFailedEvents,
   flagsForMode,
   saveTikTokTracking,
   sendTikTokTestEvent,
@@ -81,6 +81,7 @@ import {
   SignalPath,
   StatTrio,
   StatusPill,
+  ReplayFailedRow,
   VerifyConnectionRow,
   useCountdownMinutes,
   type ModeCardSpec,
@@ -100,16 +101,6 @@ const TIKTOK_AUTO_EVENTS = [
   "AddToCart",
   "InitiateCheckout",
   "Purchase",
-];
-
-const PURCHASE_TRIGGERS: Array<{
-  value: OrderStatusTrigger;
-  label: { en: string; ar: string };
-}> = [
-  { value: "confirmed", label: { en: "Confirmed", ar: "مؤكد" } },
-  { value: "processing", label: { en: "Processing", ar: "قيد التجهيز" } },
-  { value: "shipped", label: { en: "Shipped", ar: "تم الشحن" } },
-  { value: "delivered", label: { en: "Delivered", ar: "تم التسليم" } },
 ];
 
 export function TikTokTrackingPanel() {
@@ -154,9 +145,9 @@ export function TikTokTrackingPanel() {
   const [apiToken, setApiToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [testEventCode, setTestEventCode] = useState("");
+  const [offlineSetId, setOfflineSetId] = useState("");
   const [consentRequired, setConsentRequired] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
-  const [purchaseTrigger, setPurchaseTrigger] = useState<OrderStatusTrigger | "">("");
   // Advanced: additional pixels beyond the primary (Pixel ID field above).
   const [extraPixels, setExtraPixels] = useState<TikTokPixelEntry[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -186,10 +177,9 @@ export function TikTokTrackingPanel() {
       pixelId: settings?.pixel_id ?? "",
       mode: (derived === "off" ? "both" : derived) as Exclude<TikTokTrackingMode, "off">,
       testEventCode: settings?.test_event_code ?? "",
+      offlineSetId: settings?.offline_event_set_id ?? "",
       consentRequired: !!settings?.consent_required,
       debugMode: !!settings?.debug_mode,
-      purchaseTrigger: ((settings?.purchase_trigger as OrderStatusTrigger | null) ??
-        "") as OrderStatusTrigger | "",
       extras: (settings?.pixels ?? []).filter((p) => p.pixel_id !== settings?.pixel_id),
     };
   }, [settings]);
@@ -205,9 +195,9 @@ export function TikTokTrackingPanel() {
         : deriveModeFromFlags(s.pixel_enabled, s.api_enabled);
     setMode(derived === "off" ? "both" : derived);
     setTestEventCode(s.test_event_code ?? "");
+    setOfflineSetId(s.offline_event_set_id ?? "");
     setConsentRequired(!!s.consent_required);
     setDebugMode(!!s.debug_mode);
-    setPurchaseTrigger((s.purchase_trigger as OrderStatusTrigger | null) ?? "");
     setApiToken("");
     // Advanced multi-pixel: everything except the primary (the Pixel ID field).
     const extras = (s.pixels ?? []).filter((p) => p.pixel_id !== s.pixel_id);
@@ -274,9 +264,9 @@ export function TikTokTrackingPanel() {
     mode !== baseline.mode ||
     apiToken.trim().length > 0 ||
     testEventCode !== baseline.testEventCode ||
+    offlineSetId !== baseline.offlineSetId ||
     consentRequired !== baseline.consentRequired ||
     debugMode !== baseline.debugMode ||
-    purchaseTrigger !== baseline.purchaseTrigger ||
     JSON.stringify(extraPixels) !== JSON.stringify(baseline.extras);
 
   const blockedHint = !dirty
@@ -313,9 +303,9 @@ export function TikTokTrackingPanel() {
         pixel_enabled: flags.pixel_enabled,
         api_enabled: flags.api_enabled,
         test_event_code: testEventCode.trim() || null,
+        offline_event_set_id: offlineSetId.trim(),
         consent_required: consentRequired,
         debug_mode: debugMode,
-        purchase_trigger: purchaseTrigger || null,
       };
       if (apiToken.trim()) payload.api_access_token = apiToken.trim();
 
@@ -361,9 +351,9 @@ export function TikTokTrackingPanel() {
     setPixelId(baseline.pixelId);
     setMode(baseline.mode);
     setTestEventCode(baseline.testEventCode);
+    setOfflineSetId(baseline.offlineSetId);
     setConsentRequired(baseline.consentRequired);
     setDebugMode(baseline.debugMode);
-    setPurchaseTrigger(baseline.purchaseTrigger);
     setExtraPixels(baseline.extras);
     setApiToken("");
     setShowToken(false);
@@ -738,6 +728,27 @@ export function TikTokTrackingPanel() {
                   <Switch checked={consentRequired} onCheckedChange={setConsentRequired} />
                 </div>
 
+                {/* COD delivered signal. TikTok cannot optimise on custom events,
+                    so delivered orders go to an Offline Event Set as a Purchase. */}
+                <div className="pt-4">
+                  <Label htmlFor="tt-offline-set" className="text-[13px] font-bold">
+                    {isAr ? "معرّف مجموعة الأحداث غير المتصلة (اختياري)" : "Offline Event Set ID (optional)"}
+                  </Label>
+                  <Input
+                    id="tt-offline-set"
+                    value={offlineSetId}
+                    onChange={(e) => setOfflineSetId(e.target.value.trim())}
+                    placeholder="7123456789012345678"
+                    dir="ltr"
+                    className="mt-1.5 font-mono"
+                  />
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    {isAr
+                      ? "عند توصيل طلب الدفع عند الاستلام نرسل له حدث شراء هنا، لتحسين الحملات على المبيعات المُسلَّمة فعلًا."
+                      : "Each delivered COD order is sent here as a Purchase, so campaigns can optimise on sales that were actually delivered."}
+                  </p>
+                </div>
+
                 {/* Test event code + COD purchase timing */}
                 <div className="grid gap-4 pt-4 sm:grid-cols-2">
                   <div>
@@ -760,33 +771,13 @@ export function TikTokTrackingPanel() {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="tt-purchase-trigger" className="text-[13px] font-bold">
-                      {isAr ? "توقيت حدث الشراء (COD)" : "Purchase timing (COD)"}
-                    </Label>
-                    <Select
-                      value={purchaseTrigger || "__default"}
-                      onValueChange={(v) =>
-                        setPurchaseTrigger(v === "__default" ? "" : (v as OrderStatusTrigger))
-                      }
-                    >
-                      <SelectTrigger id="tt-purchase-trigger" className="mt-1.5">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__default">
-                          {isAr ? "عند تأكيد الدفع (افتراضي)" : "On payment (default)"}
-                        </SelectItem>
-                        {PURCHASE_TRIGGERS.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>
-                            {isAr ? t.label.ar : t.label.en}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="mt-1.5 text-[11px] leading-relaxed text-ink-faint">
+                    <div className="text-[13px] font-bold">
+                      {isAr ? "توقيت حدث الشراء" : "When Purchase is sent"}
+                    </div>
+                    <p className="mt-1.5 text-[11.5px] leading-relaxed text-muted-foreground">
                       {isAr
-                        ? "للدفع عند الاستلام: إرسال Purchase عند التسليم يخلّي ROAS مظبوط على الإيراد الحقيقي."
-                        : "For COD: firing Purchase on delivery keeps ROAS aligned with real revenue."}
+                        ? "يُرسل حدث الشراء عند إنشاء الطلب (والتحويلات اليدوية عند اعتماد الإثبات). طلبات الدفع عند الاستلام المُسلَّمة تُرسل منفصلة إلى مجموعة الأحداث غير المتصلة أعلاه."
+                        : "Purchase is sent when the order is placed (manual transfers when the proof is approved). Delivered COD orders are sent separately to the Offline Event Set above."}
                     </p>
                   </div>
                 </div>
@@ -970,6 +961,10 @@ export function TikTokTrackingPanel() {
                 eventCount={statusQuery.data?.recent_event_count ?? null}
                 isAr={isAr}
               />
+
+              {storeId && (statusQuery.data?.recent_failure_rate ?? 0) > 0 && (
+                <ReplayFailedRow onReplay={() => replayTikTokFailedEvents(storeId)} isAr={isAr} />
+              )}
 
               <VerifyConnectionRow
                 onVerify={handleVerify}
