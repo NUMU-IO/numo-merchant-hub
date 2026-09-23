@@ -351,6 +351,8 @@ export interface MetaMatchQualityEvent {
   pixel_id: string;
   /** Meta's composite_score, 0.0–10.0. */
   emq_score: number;
+  /** Score from the newest snapshot at least 7 days old; null until a week of history exists. */
+  emq_week_ago?: number | null;
   total_events: number;
   dedup_rate: number | null;
   /** 7-day average % of browser Pixel events also covered by CAPI. */
