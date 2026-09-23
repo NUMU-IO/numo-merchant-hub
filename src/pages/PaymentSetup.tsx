@@ -709,7 +709,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
 
   const [editing, setEditing] = useState(!creds?.is_configured);
   const [paymobForm, setPaymobForm] = useState({ secret_key: "", public_key: "", hmac_secret: "", card_integration_id: "", wallet_integration_id: "", apple_pay_integration_id: "" });
-  const [kashierForm, setKashierForm] = useState({ merchant_id: "", api_key: "", secret_key: "", apple_pay_enabled: kashierCreds?.apple_pay_enabled ?? false });
+  const [kashierForm, setKashierForm] = useState<{ merchant_id: string; api_key: string; secret_key: string; apple_pay_enabled: boolean; mode: "live" | "test" }>({ merchant_id: "", api_key: "", secret_key: "", apple_pay_enabled: kashierCreds?.apple_pay_enabled ?? false, mode: kashierCreds?.mode ?? "live" });
   const [fawryForm, setFawryForm] = useState({ merchant_code: "", security_key: "" });
   const [fawaterakForm, setFawaterakForm] = useState({ api_key: "", vendor_key: "", environment: "staging" });
   const [saving, setSaving] = useState(false);
@@ -733,8 +733,8 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
         const r = await saveFawaterakCredentials(storeId, { api_key: fawaterakForm.api_key, vendor_key: fawaterakForm.vendor_key, environment: fawaterakForm.environment });
         setFawaterakCreds(r); setFawaterakForm({ api_key: "", vendor_key: "", environment: "staging" });
       } else {
-        const r = await saveKashierCredentials(storeId, { merchant_id: kashierForm.merchant_id, api_key: kashierForm.api_key, secret_key: kashierForm.secret_key || undefined, apple_pay_enabled: kashierForm.apple_pay_enabled });
-        setKashierCreds(r); setKashierForm({ merchant_id: "", api_key: "", secret_key: "", apple_pay_enabled: false });
+        const r = await saveKashierCredentials(storeId, { merchant_id: kashierForm.merchant_id, api_key: kashierForm.api_key, secret_key: kashierForm.secret_key || undefined, apple_pay_enabled: kashierForm.apple_pay_enabled, mode: kashierForm.mode });
+        setKashierCreds(r); setKashierForm({ merchant_id: "", api_key: "", secret_key: "", apple_pay_enabled: false, mode: r.mode ?? "live" });
       }
       setEnabledGateway(gatewayKey); setEditing(false);
       if (validationWarning) {
@@ -841,6 +841,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
                 ] : [
                   { l: "Merchant ID", v: kashierCreds!.merchant_id },
                   { l: "API Key", v: kashierCreds!.api_key_masked },
+                  { l: "Environment", v: kashierCreds!.mode === "test" ? "Test" : "Live" },
                   ...(kashierCreds!.apple_pay_enabled ? [{ l: "Apple Pay", v: isAr ? "مُفعّل" : "Enabled" }] : []),
                 ]).map(f => (
                   <div key={f.l} className="rounded-lg bg-muted/30 px-3 py-2.5">
@@ -894,6 +895,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
                   <div className="space-y-1.5"><Label className="text-[11px] font-medium">Merchant ID</Label><Input placeholder="MID-xxx" className="h-9 text-xs" value={kashierForm.merchant_id} onChange={e => setKashierForm(f => ({ ...f, merchant_id: e.target.value }))} /></div>
                   <div className="space-y-1.5"><Label className="text-[11px] font-medium">API Key</Label><div className="relative"><Input type={showKeys ? "text" : "password"} placeholder="API key" className="h-9 text-xs pr-8" value={kashierForm.api_key} onChange={e => setKashierForm(f => ({ ...f, api_key: e.target.value }))} /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer" onClick={() => setShowKeys(!showKeys)}>{showKeys ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}</button></div></div>
                   <div className="space-y-1.5"><Label className="text-[11px] font-medium">Secret Key <span className="text-muted-foreground font-normal">({isAr ? "اختياري" : "optional"})</span></Label><Input type={showKeys ? "text" : "password"} placeholder="Secret" className="h-9 text-xs" value={kashierForm.secret_key} onChange={e => setKashierForm(f => ({ ...f, secret_key: e.target.value }))} /></div>
+                  <div className="space-y-1.5"><Label className="text-[11px] font-medium">Environment</Label><select title="Environment" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm transition-colors" value={kashierForm.mode} onChange={e => setKashierForm(f => ({ ...f, mode: e.target.value as "live" | "test" }))}><option value="live">Live</option><option value="test">Test</option></select></div>
                   <div className="sm:col-span-2 flex items-center justify-between rounded-lg border bg-muted/10 px-3 py-2.5">
                     <div>
                       <p className="text-[11px] font-medium"> Apple Pay</p>
