@@ -88,6 +88,19 @@ function EventRow({
             {event.emq_score.toFixed(1)}
           </span>
           <span className="text-xs text-muted-foreground">/ 10</span>
+          {event.emq_week_ago != null && (
+            <span
+              className={cn(
+                "ms-2 text-xs font-medium tabular-nums",
+                event.emq_score >= event.emq_week_ago
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : "text-destructive",
+              )}
+            >
+              {event.emq_score >= event.emq_week_ago ? "▲" : "▼"}{" "}
+              {Math.abs(event.emq_score - event.emq_week_ago).toFixed(1)} vs last week
+            </span>
+          )}
         </div>
       </div>
 
