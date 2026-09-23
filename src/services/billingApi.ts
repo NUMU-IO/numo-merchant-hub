@@ -1,5 +1,5 @@
 import { apiClient, apiClientFormData } from "./api";
-import type { PlatformCardForm } from "@/components/billing/PlatformCardFrame";
+import type { PlatformCardForm, SavedCard } from "@/components/billing/PlatformCardFrame";
 
 /** Plan catalog entry — prices are live from the backend (piasters). */
 export interface BillingPlan {
@@ -22,6 +22,8 @@ export interface BillingCurrentState {
   lifecycle_state: string;
   next_renewal_at: string | null;
   renewal_due: boolean;
+  /** Card saved on NUMU's card page; renewals charge it automatically. */
+  saved_card?: { last4: string | null } | null;
   reminder?: ReminderSettings;
 }
 
@@ -99,11 +101,21 @@ export const createInstapayIntent = (plan: string, billingCycle: string) =>
   });
 
 /** Plan payment by card: the hub frames NUMU's card page with card_form. */
-export const createCardIntent = (plan: string, billingCycle: string) =>
+export const createCardIntent = (plan: string, billingCycle: string, saveCard = false) =>
   apiClient<InstapayIntent>("/billing/card-intents", {
     method: "POST",
-    body: JSON.stringify({ plan, billing_cycle: billingCycle }),
+    body: JSON.stringify({ plan, billing_cycle: billingCycle, save_card: saveCard }),
   });
+
+/** Keep the card from a completed card payment for automatic renewals. */
+export const savePlanCard = (intentId: string, card: SavedCard) =>
+  apiClient<{ last4: string | null }>(`/billing/card-intents/${intentId}/saved-card`, {
+    method: "POST",
+    body: JSON.stringify(card),
+  });
+
+export const removePlanCard = () =>
+  apiClient<Record<string, never>>("/billing/saved-card", { method: "DELETE" });
 
 export const getInstapayIntent = (intentId: string) =>
   apiClient<InstapayIntent>(`/billing/instapay-intents/${intentId}`);

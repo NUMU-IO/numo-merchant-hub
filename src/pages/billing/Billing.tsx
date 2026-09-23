@@ -6,7 +6,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import { apiClient } from "@/services/api";
 import {
-  getBillingPlans, listInstapayIntents, updateReminderSettings,
+  getBillingPlans, listInstapayIntents, updateReminderSettings, removePlanCard,
   type BillingPlansResponse, type InstapayIntent,
 } from "@/services/billingApi";
 import SubscribeInstapayDialog from "@/components/billing/SubscribeInstapayDialog";
@@ -676,6 +676,32 @@ const Billing = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {plansData?.current?.saved_card && (
+                <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5 text-sm">
+                  <span className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    {isAr
+                      ? `تجديد تلقائي بالبطاقة •••• ${plansData.current.saved_card.last4 ?? ""}`
+                      : `Auto-renew with card •••• ${plansData.current.saved_card.last4 ?? ""}`}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-destructive hover:text-destructive"
+                    onClick={async () => {
+                      try {
+                        await removePlanCard();
+                        toast.success(isAr ? "تم إيقاف التجديد التلقائي" : "Auto-renew turned off");
+                        refresh();
+                      } catch {
+                        toast.error(isAr ? "تعذر إزالة البطاقة" : "Couldn't remove the card");
+                      }
+                    }}
+                  >
+                    {isAr ? "إزالة" : "Remove"}
+                  </Button>
+                </div>
+              )}
               <label className="flex items-center justify-between gap-3 text-sm font-medium">
                 {isAr ? "ذكّرني قبل التجديد بالإيميل" : "Email me before my renewal"}
                 <Switch checked={reminderEmails} onCheckedChange={setReminderEmails} />
