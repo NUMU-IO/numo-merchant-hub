@@ -72,6 +72,17 @@ describe("renderNotification", () => {
     expect(r.body.endsWith("·")).toBe(false);
   });
 
+  it("tells the merchant which tracking connection to reconnect", () => {
+    const r = renderNotification(
+      item("tracking.reconnect_required", { details: "TikTok" }, { category: "system" }),
+      t,
+      "en",
+    );
+    expect(r.title).toEqual([{ text: "Reconnect TikTok tracking" }]);
+    expect(r.body).toContain("Settings → Tracking");
+    expect(r.tone).toBe("terra");
+  });
+
   it("important rows render terra regardless of kind", () => {
     const r = renderNotification(
       item("order.cancelled", { order_number: "X" }, { is_important: true }),

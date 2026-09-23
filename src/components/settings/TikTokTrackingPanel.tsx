@@ -62,6 +62,7 @@ import {
   fetchTikTokReport,
   fetchTikTokTracking,
   fetchTikTokTrackingStatus,
+  replayTikTokFailedEvents,
   flagsForMode,
   saveTikTokTracking,
   sendTikTokTestEvent,
@@ -81,6 +82,7 @@ import {
   SignalPath,
   StatTrio,
   StatusPill,
+  ReplayFailedRow,
   VerifyConnectionRow,
   useCountdownMinutes,
   type ModeCardSpec,
@@ -970,6 +972,10 @@ export function TikTokTrackingPanel() {
                 eventCount={statusQuery.data?.recent_event_count ?? null}
                 isAr={isAr}
               />
+
+              {storeId && (statusQuery.data?.recent_failure_rate ?? 0) > 0 && (
+                <ReplayFailedRow onReplay={() => replayTikTokFailedEvents(storeId)} isAr={isAr} />
+              )}
 
               <VerifyConnectionRow
                 onVerify={handleVerify}

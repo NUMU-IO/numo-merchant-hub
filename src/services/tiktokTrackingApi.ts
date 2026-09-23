@@ -279,3 +279,8 @@ export function flagsForMode(mode: TikTokTrackingMode): {
       return { pixel_enabled: false, api_enabled: false };
   }
 }
+
+/** Re-send failed deliveries from the last 24 hours, e.g. after reconnecting. */
+export async function replayTikTokFailedEvents(storeId: string): Promise<unknown> {
+  return apiClient(`/stores/${storeId}/settings/tracking/tiktok/replay`, { method: "POST" });
+}

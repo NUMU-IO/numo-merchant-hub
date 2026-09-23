@@ -28,11 +28,15 @@ import {
   ExternalLink,
   Loader2,
   Radio,
+  RotateCcw,
   ShieldCheck,
   Store,
 } from "lucide-react";
 
+import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
+import { showError } from "@/lib/show-error";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -864,6 +868,61 @@ export function VerifyConnectionRow({
           </span>
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * "Re-send failed events" — shown only while recent deliveries are failing.
+ *
+ * After a merchant fixes a dead token, the conversions that failed in the
+ * meantime are still recoverable for a short window. The events are re-sent
+ * with their original ids, so the platform merges them instead of counting
+ * them twice.
+ */
+export function ReplayFailedRow({
+  onReplay,
+  isAr,
+}: {
+  onReplay: () => Promise<unknown>;
+  isAr: boolean;
+}) {
+  const [replaying, setReplaying] = useState(false);
+  async function handleReplay() {
+    setReplaying(true);
+    try {
+      await onReplay();
+      toast.success(isAr ? "بدأت إعادة الإرسال" : "Failed events are being re-sent");
+    } catch (err) {
+      showError(err);
+    } finally {
+      setReplaying(false);
+    }
+  }
+  return (
+    <div className="space-y-2 rounded-xl border border-border p-3.5">
+      <div className="text-[12.5px] font-extrabold">
+        {isAr ? "إعادة إرسال الأحداث الفاشلة" : "Re-send failed events"}
+      </div>
+      <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+        {isAr
+          ? "بعد إصلاح الربط، أعد إرسال المشتريات التي فشلت مؤخرًا. لن تُحسب مرتين."
+          : "After fixing the connection, re-send purchases that failed recently. They won't be counted twice."}
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full"
+        onClick={handleReplay}
+        disabled={replaying}
+      >
+        {replaying ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <RotateCcw className="h-4 w-4" />
+        )}
+        {isAr ? "إعادة الإرسال" : "Re-send failed events"}
+      </Button>
     </div>
   );
 }

@@ -393,3 +393,8 @@ export async function fetchMetaMatchQuality(
     `/stores/${storeId}/settings/tracking/meta/match-quality`,
   );
 }
+
+/** Re-send failed and dead-lettered deliveries, e.g. after reconnecting. */
+export async function replayMetaFailedEvents(storeId: string): Promise<unknown> {
+  return apiClient(`/stores/${storeId}/settings/tracking/meta/replay`, { method: "POST" });
+}
