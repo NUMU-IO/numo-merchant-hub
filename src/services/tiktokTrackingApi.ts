@@ -80,6 +80,8 @@ export interface TikTokTrackingSettings {
   pixels?: TikTokPixelEntry[] | null;
   /** TikTok advertiser id — reserved for the Marketing API phase. */
   advertiser_id?: string | null;
+  /** Offline Event Set that receives a Purchase when a COD order is delivered. */
+  offline_event_set_id?: string | null;
 }
 
 /**
@@ -103,6 +105,8 @@ export interface SaveTikTokTrackingPayload {
   purchase_trigger?: OrderStatusTrigger | null;
   pixels?: TikTokPixelEntry[] | null;
   advertiser_id?: string | null;
+  /** "" clears it; omitted keeps the saved value. */
+  offline_event_set_id?: string | null;
 }
 
 export type TikTokEventChannel = "browser" | "server" | "both";
