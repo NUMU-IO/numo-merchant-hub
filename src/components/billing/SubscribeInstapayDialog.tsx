@@ -187,7 +187,8 @@ const SubscribeInstapayDialog = ({
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent
-        className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] overflow-y-auto p-4 sm:max-w-[520px] sm:p-6"
+        className="left-3 right-3 w-auto max-w-none translate-x-0 overflow-y-auto p-4 sm:left-1/2 sm:right-auto sm:w-full sm:max-w-[520px] sm:-translate-x-1/2 sm:p-6"
+        style={{ maxHeight: "calc(100dvh - 1.5rem)" }}
         dir={isAr ? "rtl" : "ltr"}
       >
         <DialogHeader className="pe-10 text-start">
