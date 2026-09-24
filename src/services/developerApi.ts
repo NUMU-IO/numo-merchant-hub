@@ -27,6 +27,14 @@ export const WEBHOOK_EVENTS = [
   "product.created",
   "product.updated",
   "product.deleted",
+  "customer.created",
+  "customer.updated",
+  "refund.created",
+  "refund.completed",
+  "shipment.created",
+  "shipment.status_changed",
+  "inventory.level_changed",
+  "checkout.abandoned",
 ] as const;
 
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];

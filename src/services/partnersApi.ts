@@ -143,6 +143,9 @@ export interface PartnerApp {
   client_id: string | null;
   installs: number;
   latest_version: PartnerAppVersion | null;
+  /** A custom app: the one store it installs on. */
+  private_store_id: string | null;
+  private_store_name: string | null;
 }
 
 export interface PartnerAppDetail extends PartnerApp {
@@ -160,6 +163,7 @@ export function createPartnerApp(body: {
   slug: string;
   name_ar: string;
   name_en: string;
+  private_store?: string;
 }): Promise<PartnerApp & { client_secret: string }> {
   return apiClient(APPS, { method: "POST", body: JSON.stringify(body) });
 }

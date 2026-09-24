@@ -244,6 +244,8 @@ export interface Consent {
     partner: string | null;
     pricing: { plan?: string; locales?: Record<string, { label?: string }> } | null;
     privacy_policy_url: string | null;
+    /** A custom app a partner built for this one store. */
+    private?: boolean;
   };
   store_id: string;
   store_name: string;

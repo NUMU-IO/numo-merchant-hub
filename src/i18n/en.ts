@@ -213,6 +213,10 @@ export default {
     newTitle: "New app",
     slug: "Slug",
     slugHint: "Lowercase letters, numbers and dashes. It never changes.",
+    customToggle: "Custom app for one merchant's store",
+    customStore: "Store ID or subdomain",
+    customHint: "Installs only on this store, after the merchant approves it. Never listed in the App Store, not reviewed, and always free.",
+    customFor: "Custom app · {{store}}",
     nameAr: "Name in Arabic",
     nameEn: "Name in English",
     create: "Create app",
@@ -285,6 +289,7 @@ export default {
   consent: {
     title: "Install {{name}}?",
     by: "By {{partner}} · NUMU Partner",
+    custom: "Custom app built for your store by {{partner}}",
     store: "On your store {{store}}",
     wants: "This app will be able to:",
     newScopes: "New permissions it's asking for:",
