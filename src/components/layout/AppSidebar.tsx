@@ -2,9 +2,10 @@ import { useFounderCohort } from "@/hooks/useFounderCohort";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Check, Code2, Plus } from "lucide-react";
+import { ArrowUpRight, Check, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getPartnerMe } from "@/services/partnersApi";
+import { partnerPortalUrl } from "@/lib/partner-host";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -508,7 +509,11 @@ const AppSidebar = () => {
                 <Plus className="h-4 w-4" strokeWidth={2.4} />
                 <span className="text-[13px]">{t("nav.newStore")}</span>
               </DropdownMenuItem>
-              <PartnerProgramItem onOpen={() => navigate("/partners")} label={t("partners.title")} />
+              <PartnerProgramItem
+                onOpen={() => (partnerPortalUrl ? window.location.assign(partnerPortalUrl) : navigate("/partners"))}
+                label={t("partnerPortal.brand")}
+                external={Boolean(partnerPortalUrl)}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -521,7 +526,7 @@ export default AppSidebar;
 
 /** Shown only while NUMU has the Partner program open (getPartnerMe is null
  *  otherwise), so merchants never see a door that leads nowhere. */
-function PartnerProgramItem({ onOpen, label }: { onOpen: () => void; label: string }) {
+function PartnerProgramItem({ onOpen, label, external }: { onOpen: () => void; label: string; external: boolean }) {
   const { data: me } = useQuery({
     queryKey: ["partners", "me"],
     queryFn: getPartnerMe,
@@ -531,8 +536,11 @@ function PartnerProgramItem({ onOpen, label }: { onOpen: () => void; label: stri
   if (!me) return null;
   return (
     <DropdownMenuItem onClick={onOpen} className="gap-2.5 rounded-lg py-2">
-      <Code2 className="h-4 w-4" />
-      <span className="text-[13px]">{label}</span>
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-navy/5 ring-1 ring-navy/10">
+        <img src="/numu-symbol-navy-transparent.webp" alt="" width={16} height={16} className="object-contain" />
+      </span>
+      <span className="flex-1 truncate text-[13px] font-semibold">{label}</span>
+      {external && <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground rtl:-scale-x-100" />}
     </DropdownMenuItem>
   );
 }
