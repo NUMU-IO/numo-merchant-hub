@@ -369,6 +369,88 @@ export interface PartnerDashboard {
     installed_at: string;
     status: "active" | "disabled" | "pending";
   }[];
+  /** Your share of sales in the period, in piasters. */
+  net_sales_cents: number;
+  balance_cents: number;
+  payable_cents: number;
+}
+
+export type PartnerSubStatus = "active" | "trial" | "past_due" | "cancelled";
+
+export interface PartnerSubscriptions {
+  counts: Record<PartnerSubStatus, number>;
+  total: number;
+  items: {
+    id: string;
+    app_id: string;
+    app_name: string;
+    store_name: string | null;
+    status: PartnerSubStatus;
+    price_cents: number;
+    currency: string;
+    cycle: string;
+    current_period_end: string;
+    cancel_at_period_end: boolean;
+    created_at: string;
+  }[];
+}
+
+export function listPartnerSubscriptions(params: { app_id?: string }): Promise<PartnerSubscriptions> {
+  return apiClient<PartnerSubscriptions>(`/partners/me/subscriptions${query(params)}`);
+}
+
+export interface PartnerCoupon {
+  id: string;
+  app_id: string;
+  app_name: string | null;
+  code: string;
+  percent_off: number | null;
+  amount_off_cents: number | null;
+  /** Charged periods it discounts; null: every one. */
+  duration_cycles: number | null;
+  max_redemptions: number | null;
+  expires_at: string | null;
+  store_id: string | null;
+  active: boolean;
+  redemptions: number;
+  created_at: string;
+  list_price_cents?: number;
+  discount_cents?: number;
+  max_discount_cents?: number;
+  /** Worth more than your share of the price, so it is capped at it. */
+  capped?: boolean;
+}
+
+export interface NewPartnerCoupon {
+  app_id: string;
+  code: string;
+  percent_off?: number | null;
+  amount_off_cents?: number | null;
+  duration_cycles?: number | null;
+  max_redemptions?: number | null;
+  expires_at?: string | null;
+  store_id?: string | null;
+}
+
+export function listPartnerCoupons(): Promise<PartnerCoupon[]> {
+  return apiClient<PartnerCoupon[]>("/partners/me/coupons");
+}
+
+export function createPartnerCoupon(body: NewPartnerCoupon): Promise<PartnerCoupon> {
+  return apiClient<PartnerCoupon>("/partners/me/coupons", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function setPartnerCouponActive(id: string, active: boolean): Promise<PartnerCoupon> {
+  return apiClient<PartnerCoupon>(`/partners/me/coupons/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ active }),
+  });
+}
+
+export function listCouponRedemptions(
+  id: string,
+): Promise<{ id: string; store_id: string; store_name: string | null; created_at: string }[]> {
+  return apiClient(`/partners/me/coupons/${id}/redemptions`);
 }
 
 const query = (params: Record<string, string | number | boolean | undefined>) => {

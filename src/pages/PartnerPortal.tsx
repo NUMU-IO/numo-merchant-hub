@@ -11,6 +11,7 @@ import {
   Loader2,
   LogOut,
   Store,
+  Ticket,
   Trash2,
   UserCog,
   Users,
@@ -36,9 +37,15 @@ import Partners from "@/pages/Partners";
 import PartnerApps from "@/pages/PartnerApps";
 import PartnerAppDetail from "@/pages/PartnerAppDetail";
 import { PartnerNotificationBell, PartnerNotificationsPage } from "@/components/partners/PartnerNotifications";
+import { formatMoney } from "@/lib/format-money";
 import {
+  createPartnerCoupon,
   getPartnerDashboard,
   getPartnerMe,
+  listCouponRedemptions,
+  listPartnerCoupons,
+  listPartnerSubscriptions,
+  setPartnerCouponActive,
   invitePartnerMember,
   listPartnerApps,
   listPartnerTeam,
@@ -65,6 +72,7 @@ export default function PartnerPortal() {
         <Route path="apps/:id" element={<PartnerAppDetail />} />
         <Route path="dev-stores" element={<Partners />} />
         <Route path="webhooks" element={<Webhooks />} />
+        <Route path="coupons" element={<Coupons me={me} />} />
         <Route path="team" element={<Team me={me} />} />
         <Route path="profile" element={<Profile me={me} />} />
         <Route path="notifications" element={<PartnerNotificationsPage />} />
@@ -84,6 +92,7 @@ function Shell({ children }: { children: ReactNode }) {
     { to: "/apps", icon: AppWindow, label: t("partnerPortal.nav.apps") },
     { to: "/dev-stores", icon: Store, label: t("partnerPortal.nav.devStores") },
     { to: "/webhooks", icon: Webhook, label: t("partnerPortal.nav.webhooks") },
+    { to: "/coupons", icon: Ticket, label: t("partnerPortal.nav.coupons") },
     { to: "/team", icon: Users, label: t("partnerPortal.nav.team") },
     { to: "/profile", icon: UserCog, label: t("partnerPortal.nav.profile") },
   ];
@@ -195,6 +204,12 @@ function Dashboard() {
     queryKey: ["partners", "dashboard", params],
     queryFn: () => getPartnerDashboard(params),
   });
+  const { data: subs, isLoading: subsLoading } = useQuery({
+    queryKey: ["partners", "subscriptions", params.app_id],
+    queryFn: () => listPartnerSubscriptions({ app_id: params.app_id }),
+  });
+  const egp = (cents: number) =>
+    formatMoney(cents, { fromCents: true, currency: "EGP", locale: language === "ar" ? "ar" : "en", fixed: true });
   const statusLabel = (s: string) => t(`partnerPortal.install_${s}`);
   const slices = data
     ? [
@@ -222,8 +237,29 @@ function Dashboard() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile icon={Download} loading={isLoading} label={t("partnerPortal.installsTotal")} value={data?.installs_total ?? 0} />
         <StatTile icon={Trash2} tone="terra" loading={isLoading} label={t("partnerPortal.install_uninstalled")} value={data?.uninstalled ?? 0} sub={t("partnerPortal.uninstalledHint")} />
-        <StatTile icon={CreditCard} tone="saffron" label={t("partnerPortal.revenue")} value={0} sub={t("partnerPortal.billingNotLive")} />
-        <StatTile icon={Users} tone="sage" label={t("partnerPortal.subscriptions")} value={0} sub={t("partnerPortal.billingNotLive")} />
+        <StatTile
+          icon={CreditCard}
+          tone="saffron"
+          loading={isLoading}
+          label={t("partnerPortal.revenue")}
+          value={egp(data?.net_sales_cents ?? 0)}
+          sub={t("partnerPortal.revenueHint", {
+            balance: egp(data?.balance_cents ?? 0),
+            payable: egp(data?.payable_cents ?? 0),
+          })}
+        />
+        <StatTile
+          icon={Users}
+          tone="sage"
+          loading={subsLoading}
+          label={t("partnerPortal.subscriptions")}
+          value={(subs?.counts.active ?? 0) + (subs?.counts.trial ?? 0)}
+          sub={t("partnerPortal.subscriptionsHint", {
+            trial: subs?.counts.trial ?? 0,
+            pastDue: subs?.counts.past_due ?? 0,
+            cancelled: subs?.counts.cancelled ?? 0,
+          })}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -429,6 +465,245 @@ function Webhooks() {
           )}
         </CardContent>
       </Card>
+    </Page>
+  );
+}
+
+function Coupons({ me }: { me: PartnerMe }) {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const date = useDate();
+  const queryClient = useQueryClient();
+  const canManage = MANAGERS.includes(me.role ?? "owner");
+  const lang = language === "ar" ? "ar" : "en";
+  const egp = (cents: number) => formatMoney(cents, { fromCents: true, currency: "EGP", locale: lang, fixed: true });
+  const { data: coupons, isLoading } = useQuery({ queryKey: ["partners", "coupons"], queryFn: listPartnerCoupons });
+  const [appId, setAppId] = useState(ALL);
+  const [code, setCode] = useState("");
+  const [kind, setKind] = useState<"percent" | "fixed">("percent");
+  const [amount, setAmount] = useState("");
+  const [duration, setDuration] = useState<"once" | "repeating" | "forever">("once");
+  const [cycles, setCycles] = useState("3");
+  const [maxUses, setMaxUses] = useState("");
+  const [expires, setExpires] = useState("");
+  const [storeId, setStoreId] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: ["partners", "coupons"] });
+  const onError = (err: unknown) => {
+    const c = (err as { body?: { detail?: { code?: string } } })?.body?.detail?.code;
+    if (c && ["coupon_code_taken", "coupon_app_not_recurring"].includes(c)) toast.error(t(`partnerPortal.${c}`));
+    else showError(err, language);
+  };
+  const create = useMutation({
+    mutationFn: () =>
+      createPartnerCoupon({
+        app_id: appId,
+        code: code.trim(),
+        percent_off: kind === "percent" ? Number(amount) : null,
+        amount_off_cents: kind === "fixed" ? Math.round(Number(amount) * 100) : null,
+        duration_cycles: duration === "once" ? 1 : duration === "repeating" ? Number(cycles) : null,
+        max_redemptions: maxUses ? Number(maxUses) : null,
+        expires_at: expires ? new Date(`${expires}T23:59:59`).toISOString() : null,
+        store_id: storeId.trim() || null,
+      }),
+    onSuccess: (c) => {
+      toast.success(t("partnerPortal.couponCreated"));
+      if (c.capped) toast.warning(t("partnerPortal.couponCapped", { amount: egp(c.max_discount_cents ?? 0) }));
+      setCode("");
+      setAmount("");
+      refresh();
+    },
+    onError,
+  });
+  const toggle = useMutation({
+    mutationFn: (v: { id: string; active: boolean }) => setPartnerCouponActive(v.id, v.active),
+    onSuccess: refresh,
+    onError,
+  });
+  const { data: redemptions } = useQuery({
+    queryKey: ["partners", "coupons", open, "redemptions"],
+    queryFn: () => listCouponRedemptions(open as string),
+    enabled: Boolean(open),
+  });
+  const durationLabel = (n: number | null) =>
+    n === null ? t("partnerPortal.couponForever") : n === 1 ? t("partnerPortal.couponOnce") : t("partnerPortal.couponCycles", { count: n });
+  const valid = appId !== ALL && code.trim().length >= 3 && Number(amount) > 0 && (kind === "fixed" || Number(amount) <= 100);
+
+  return (
+    <Page title={t("partnerPortal.couponsTitle")} subtitle={t("partnerPortal.couponsSubtitle")}>
+      {canManage ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("partnerPortal.couponNew")}</CardTitle>
+            <CardDescription>{t("partnerPortal.couponFunding")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              className="grid gap-3 sm:grid-cols-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                create.mutate();
+              }}
+            >
+              <div className="space-y-1.5">
+                <Label>{t("partnerPortal.app")}</Label>
+                <AppFilter value={appId} onChange={setAppId} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pc-code">{t("partnerPortal.couponCode")}</Label>
+                <Input id="pc-code" dir="ltr" className="uppercase" maxLength={40} value={code} onChange={(e) => setCode(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("partnerPortal.couponDiscount")}</Label>
+                <div className="flex gap-2">
+                  <Select value={kind} onValueChange={(v) => setKind(v as "percent" | "fixed")}>
+                    <SelectTrigger className="w-36" aria-label={t("partnerPortal.couponDiscount")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="percent">{t("partnerPortal.couponPercent")}</SelectItem>
+                      <SelectItem value="fixed">{t("partnerPortal.couponFixed")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={kind === "percent" ? 100 : undefined}
+                    dir="ltr"
+                    aria-label={t("partnerPortal.couponDiscount")}
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("partnerPortal.couponDuration")}</Label>
+                <div className="flex gap-2">
+                  <Select value={duration} onValueChange={(v) => setDuration(v as "once" | "repeating" | "forever")}>
+                    <SelectTrigger className="w-44" aria-label={t("partnerPortal.couponDuration")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="once">{t("partnerPortal.couponOnce")}</SelectItem>
+                      <SelectItem value="repeating">{t("partnerPortal.couponRepeating")}</SelectItem>
+                      <SelectItem value="forever">{t("partnerPortal.couponForever")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {duration === "repeating" && (
+                    <Input type="number" min={2} max={120} dir="ltr" aria-label={t("partnerPortal.couponRepeating")} value={cycles} onChange={(e) => setCycles(e.target.value)} />
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pc-max">{t("partnerPortal.couponMax")}</Label>
+                <Input id="pc-max" type="number" min={1} dir="ltr" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pc-exp">{t("partnerPortal.couponExpires")}</Label>
+                <Input id="pc-exp" type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="pc-store">{t("partnerPortal.couponStore")}</Label>
+                <Input id="pc-store" dir="ltr" placeholder="00000000-0000-0000-0000-000000000000" value={storeId} onChange={(e) => setStoreId(e.target.value)} />
+              </div>
+              <div className="sm:col-span-2">
+                <Button type="submit" disabled={!valid || create.isPending}>
+                  {create.isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+                  {t("partnerPortal.couponCreate")}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : (
+        <p className="text-sm text-muted-foreground">{t("partnerPortal.viewOnly")}</p>
+      )}
+
+      <Card>
+        <CardContent className="overflow-x-auto pt-6">
+          {isLoading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("partnerPortal.couponCode")}</TableHead>
+                <TableHead>{t("partnerPortal.app")}</TableHead>
+                <TableHead>{t("partnerPortal.couponDiscount")}</TableHead>
+                <TableHead>{t("partnerPortal.couponDuration")}</TableHead>
+                <TableHead>{t("partnerPortal.couponRedeemed")}</TableHead>
+                <TableHead>{t("partnerPortal.status")}</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(coupons ?? []).map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-mono"><bdi dir="ltr">{c.code}</bdi></TableCell>
+                  <TableCell><bdi>{c.app_name}</bdi></TableCell>
+                  <TableCell>
+                    {c.percent_off != null ? `${c.percent_off}%` : egp(c.amount_off_cents ?? 0)}
+                    {c.capped && (
+                      <p className="text-xs text-muted-foreground">
+                        {t("partnerPortal.couponCapped", { amount: egp(c.max_discount_cents ?? 0) })}
+                      </p>
+                    )}
+                  </TableCell>
+                  <TableCell>{durationLabel(c.duration_cycles)}</TableCell>
+                  <TableCell>
+                    <button type="button" className="underline-offset-2 hover:underline" onClick={() => setOpen(open === c.id ? null : c.id)}>
+                      {c.redemptions}
+                      {c.max_redemptions != null && ` / ${c.max_redemptions}`}
+                    </button>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={c.active ? "default" : "secondary"}>
+                      {t(c.active ? "partnerPortal.couponActive" : "partnerPortal.couponDisabled")}
+                    </Badge>
+                    {c.expires_at && (
+                      <p className="text-xs text-muted-foreground">
+                        {t("partnerPortal.couponExpires")}: <bdi dir="ltr">{date(c.expires_at)}</bdi>
+                      </p>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {canManage && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={toggle.isPending}
+                        onClick={() => toggle.mutate({ id: c.id, active: !c.active })}
+                      >
+                        {t(c.active ? "partnerPortal.couponDisable" : "partnerPortal.couponEnable")}
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {coupons && coupons.length === 0 && (
+            <p className="py-6 text-center text-sm text-muted-foreground">{t("partnerPortal.couponNone")}</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {open && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("partnerPortal.couponRedemptions")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {(redemptions ?? []).map((r) => (
+              <div key={r.id} className="flex flex-wrap justify-between gap-2 border-b pb-2">
+                <span>{r.store_name ?? r.store_id}</span>
+                <bdi dir="ltr" className="text-muted-foreground">{date(r.created_at)}</bdi>
+              </div>
+            ))}
+            {redemptions && redemptions.length === 0 && (
+              <p className="text-muted-foreground">{t("partnerPortal.couponNoRedemptions")}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </Page>
   );
 }
