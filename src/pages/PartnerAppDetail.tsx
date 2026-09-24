@@ -141,9 +141,15 @@ export default function PartnerAppDetail() {
               <Badge variant={a.status === "published" ? "default" : "secondary"}>
                 {t(`partnerApps.app_${a.status}`)}
               </Badge>
-              <Badge variant="outline">
-                {t(a.catalog_visible ? "partnerApps.listed" : "partnerApps.notListed")}
-              </Badge>
+              {a.private_store_id ? (
+                <Badge variant="outline">
+                  {t("partnerApps.customFor", { store: a.private_store_name ?? a.private_store_id })}
+                </Badge>
+              ) : (
+                <Badge variant="outline">
+                  {t(a.catalog_visible ? "partnerApps.listed" : "partnerApps.notListed")}
+                </Badge>
+              )}
               <bdi dir="ltr" className="text-xs text-muted-foreground">
                 {a.slug} · v{a.version} · {t("partnerApps.installs")}: {a.installs}
               </bdi>

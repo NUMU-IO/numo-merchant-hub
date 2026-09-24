@@ -13,6 +13,7 @@ import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Loader2, ShieldCheck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -92,6 +93,11 @@ export default function OAuthAuthorize() {
                     </p>
                   )}
                   <RatingBadge rating={c.app.rating} count={c.app.reviews_count} />
+                  {c.app.private && (
+                    <Badge variant="outline" className="mt-1">
+                      {t("consent.custom", { partner: c.app.partner ?? "NUMU" })}
+                    </Badge>
+                  )}
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">

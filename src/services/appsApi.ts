@@ -343,6 +343,8 @@ export interface Consent {
     privacy_policy_url: string | null;
     rating?: number | null;
     reviews_count?: number;
+    /** A custom app a partner built for this one store. */
+    private?: boolean;
   };
   store_id: string;
   store_name: string;

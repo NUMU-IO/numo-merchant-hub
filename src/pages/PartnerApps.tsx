@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
 import { createPartnerApp, listPartnerApps } from "@/services/partnersApi";
@@ -57,13 +58,18 @@ export default function PartnerApps() {
   const queryClient = useQueryClient();
   const apps = useQuery({ queryKey: ["partners", "apps"], queryFn: listPartnerApps });
   const [form, setForm] = useState({ slug: "", name_ar: "", name_en: "" });
+  const [custom, setCustom] = useState(false);
+  const [privateStore, setPrivateStore] = useState("");
   const [secret, setSecret] = useState<string | null>(null);
 
   const create = useMutation({
-    mutationFn: () => createPartnerApp(form),
+    mutationFn: () =>
+      createPartnerApp(custom ? { ...form, private_store: privateStore.trim() } : form),
     onSuccess: (app) => {
       setSecret(app.client_secret);
       setForm({ slug: "", name_ar: "", name_en: "" });
+      setCustom(false);
+      setPrivateStore("");
       void queryClient.invalidateQueries({ queryKey: ["partners", "apps"] });
     },
     onError: (err) => showError(err, language),
@@ -102,6 +108,11 @@ export default function PartnerApps() {
                 <Badge variant={app.status === "published" ? "default" : "secondary"}>
                   {t(`partnerApps.app_${app.status}`)}
                 </Badge>
+                {app.private_store_id && (
+                  <Badge variant="outline">
+                    {t("partnerApps.customFor", { store: app.private_store_name ?? app.private_store_id })}
+                  </Badge>
+                )}
                 {app.latest_version && (
                   <Badge variant="outline">{t(`partnerApps.st_${app.latest_version.status}`)}</Badge>
                 )}
@@ -155,11 +166,31 @@ export default function PartnerApps() {
                 />
               </div>
               <p className="text-xs text-muted-foreground sm:col-span-3">{t("partnerApps.slugHint")}</p>
+              <div className="flex items-center gap-2 sm:col-span-3">
+                <Switch id="app-custom" checked={custom} onCheckedChange={setCustom} />
+                <Label htmlFor="app-custom">{t("partnerApps.customToggle")}</Label>
+              </div>
+              {custom && (
+                <div className="space-y-1.5 sm:col-span-3">
+                  <Label htmlFor="app-store">{t("partnerApps.customStore")}</Label>
+                  <Input
+                    id="app-store"
+                    dir="ltr"
+                    value={privateStore}
+                    onChange={(e) => setPrivateStore(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">{t("partnerApps.customHint")}</p>
+                </div>
+              )}
               <Button
                 type="submit"
                 className="sm:col-span-3 sm:justify-self-start"
                 disabled={
-                  form.slug.length < 3 || form.name_ar.trim().length < 2 || form.name_en.trim().length < 2 || create.isPending
+                  form.slug.length < 3 ||
+                  form.name_ar.trim().length < 2 ||
+                  form.name_en.trim().length < 2 ||
+                  (custom && !privateStore.trim()) ||
+                  create.isPending
                 }
               >
                 {create.isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
