@@ -23,20 +23,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
 import { AppSettingsPanel } from "@/components/apps/AppSettingsPanel";
+import { UninstallAppDialog } from "@/components/apps/UninstallAppDialog";
 import { AppSubscriptionCard } from "@/components/apps/AppSubscriptionCard";
 import { AppListingView, appDisplay } from "@/components/apps/AppListingView";
 import { AppReviews, AppSupport, RatingBadge } from "@/components/apps/AppFeedback";
@@ -221,25 +212,11 @@ export default function AppDetail() {
               >
                 {t("apps.uninstall")}
               </Button>
-              <AlertDialog open={confirmUninstall} onOpenChange={setConfirmUninstall}>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{t("apps.uninstall")}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {t(NUMU_APP_HOME[app.slug] ? "apps.uninstallConfirm" : "apps.uninstallConfirmSettings", { name: displayName })}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive hover:bg-destructive/90"
-                      onClick={() => void act(() => uninstallApp(storeId!, app.slug), t("apps.uninstall"))}
-                    >
-                      {t("apps.uninstall")}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <UninstallAppDialog
+                app={confirmUninstall ? { slug: app.slug, name: displayName ?? app.name, partner: !!app.connect } : null}
+                onClose={() => setConfirmUninstall(false)}
+                onConfirm={(feedback) => void act(() => uninstallApp(storeId!, app.slug, feedback), t("apps.uninstall"))}
+              />
             </>
           )}
           </>
