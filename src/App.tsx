@@ -18,6 +18,7 @@ import { BrandLoadingScreen } from "@/components/NumuLoader/BrandLoader";
 import { FirstLoginGate } from "@/components/NumuLoader/FirstLoginGate";
 import { PageLoader } from "@/components/PageLoader";
 import { getPartnerMe } from "@/services/partnersApi";
+import { isPartnerHost } from "@/lib/partner-host";
 import { Suspense, useEffect, useRef } from "react";
 import { lazyWithRetry, lazyWithRetry as lazy } from "@/lib/lazy-with-retry";
 import { showError } from "@/lib/show-error";
@@ -124,6 +125,7 @@ const CreateStore = lazyWithRetry(() => import("@/pages/CreateStore"));
 const Partners = lazyWithRetry(() => import("@/pages/Partners"));
 const PartnerApps = lazyWithRetry(() => import("@/pages/PartnerApps"));
 const PartnerAppDetail = lazyWithRetry(() => import("@/pages/PartnerAppDetail"));
+const PartnerPortal = lazyWithRetry(() => import("@/pages/PartnerPortal"));
 const OAuthAuthorize = lazyWithRetry(() => import("@/pages/OAuthAuthorize"));
 const ForgotPassword = lazyWithRetry(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazyWithRetry(() => import("@/pages/ResetPassword"));
@@ -300,6 +302,32 @@ const App = () => (
               <SwitchVersionOnNavigate />
               <FirstLoginGate>
               <Suspense fallback={<PageLoader />}>
+                {isPartnerHost ? (
+                <Routes>
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/token-handoff" element={<TokenHandoff />} />
+                  <Route
+                    path="/verify-email"
+                    element={
+                      <RequireAuth>
+                        <VerifyEmail />
+                      </RequireAuth>
+                    }
+                  />
+                  <Route
+                    path="*"
+                    element={
+                      <RequireAuth>
+                        <RequireVerified>
+                          <PartnerPortal />
+                        </RequireVerified>
+                      </RequireAuth>
+                    }
+                  />
+                </Routes>
+                ) : (
                 <Routes>
                   {/* Public */}
                   <Route path="/login" element={<Login />} />
@@ -591,6 +619,7 @@ const App = () => (
 
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                )}
               </Suspense>
               </FirstLoginGate>
             </BrowserRouter>

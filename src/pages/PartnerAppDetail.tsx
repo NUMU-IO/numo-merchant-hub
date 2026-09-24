@@ -42,6 +42,7 @@ import {
   submitAppVersion,
   uploadAppVersion,
 } from "@/services/partnersApi";
+import { partnerPath } from "@/lib/partner-host";
 import { SecretOnce } from "@/pages/PartnerApps";
 
 export default function PartnerAppDetail() {
@@ -108,7 +109,7 @@ export default function PartnerAppDetail() {
   return (
     <div className="min-h-screen bg-background text-foreground p-4 sm:p-8">
       <div className="mx-auto max-w-3xl space-y-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/partners/apps")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(partnerPath("/apps"))}>
           {t("partnerApps.title")}
         </Button>
         {app.isLoading || !a ? (

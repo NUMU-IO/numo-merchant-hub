@@ -28,8 +28,14 @@ export interface PartnerAccount {
   created_at: string;
 }
 
+export type PartnerRole = "owner" | "admin" | "developer";
+
 export interface PartnerMe {
   account: PartnerAccount | null;
+  /** The caller's role on `account`; absent from an older API. */
+  role?: PartnerRole | null;
+  /** Pending team invites addressed to the caller's email. */
+  invitations?: { id: string; partner_name: string; role: PartnerRole }[];
   agreement_version: string;
   needs_agreement: boolean;
   max_dev_stores: number;
@@ -220,4 +226,106 @@ export interface PartnerEarnings {
 
 export function getPartnerEarnings(): Promise<PartnerEarnings> {
   return apiClient<PartnerEarnings>("/partners/me/earnings");
+}
+
+// ─── Partner portal: dashboard, webhook deliveries, team ─────────────
+
+export interface PartnerDashboard {
+  installs_total: number;
+  active: number;
+  disabled: number;
+  pending: number;
+  uninstalled: number;
+  monthly: { month: string; installs: number }[];
+  latest: {
+    store_name: string | null;
+    app_id: string;
+    app_name: string;
+    installed_at: string;
+    status: "active" | "disabled" | "pending";
+  }[];
+}
+
+const query = (params: Record<string, string | number | undefined>) => {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") q.set(k, String(v));
+  const s = q.toString();
+  return s ? `?${s}` : "";
+};
+
+export function getPartnerDashboard(params: { from?: string; to?: string; app_id?: string }): Promise<PartnerDashboard> {
+  return apiClient<PartnerDashboard>(`/partners/me/dashboard${query(params)}`);
+}
+
+export type DeliveryStatus = "pending" | "success" | "failed" | "exhausted";
+
+export interface WebhookDelivery {
+  id: string;
+  app_id: string;
+  app_name: string;
+  event: string;
+  store_id: string;
+  store_name: string | null;
+  url: string;
+  status: DeliveryStatus;
+  status_code: number | null;
+  attempts: number;
+  error: string | null;
+  next_attempt_at: string | null;
+  last_attempt_at: string | null;
+  created_at: string;
+}
+
+export interface DeliveryPage {
+  items: WebhookDelivery[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export function listWebhookDeliveries(params: {
+  app_id?: string;
+  event?: string;
+  status?: string;
+  page?: number;
+}): Promise<DeliveryPage> {
+  return apiClient<DeliveryPage>(`/partners/me/webhooks/deliveries${query(params)}`);
+}
+
+export function resendWebhookDelivery(id: string): Promise<WebhookDelivery> {
+  return apiClient<WebhookDelivery>(`/partners/me/webhooks/deliveries/${id}/resend`, { method: "POST" });
+}
+
+export interface PartnerMember {
+  /** null for the owner, who is the partner account itself. */
+  id: string | null;
+  email: string;
+  name: string | null;
+  role: PartnerRole;
+  status: "invited" | "active";
+  created_at: string;
+}
+
+export function listPartnerTeam(): Promise<PartnerMember[]> {
+  return apiClient<PartnerMember[]>("/partners/me/team");
+}
+
+export function invitePartnerMember(body: { email: string; role: "admin" | "developer" }): Promise<PartnerMember> {
+  return apiClient<PartnerMember>("/partners/me/team", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function updatePartnerMember(id: string, role: "admin" | "developer"): Promise<unknown> {
+  return apiClient(`/partners/me/team/${id}`, { method: "PATCH", body: JSON.stringify({ role }) });
+}
+
+export function removePartnerMember(id: string): Promise<unknown> {
+  return apiClient(`/partners/me/team/${id}`, { method: "DELETE" });
+}
+
+export function acceptPartnerInvitation(id: string): Promise<{ partner_id: string }> {
+  return apiClient(`/partners/invitations/${id}/accept`, { method: "POST" });
+}
+
+export function updatePartnerProfile(body: Partial<PartnerProfile>): Promise<PartnerAccount> {
+  return apiClient<PartnerAccount>("/partners/me", { method: "PATCH", body: JSON.stringify(body) });
 }
