@@ -1,10 +1,15 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from "react";
-import { NavLink, Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   AppWindow,
+  ArrowUpRight,
+  CheckCircle2,
+  ChevronDown,
+  Circle,
+  Menu,
   Copy,
   BarChart3,
   CreditCard,
@@ -38,6 +43,16 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ThemeSwitch } from "@/components/layout/ThemeSwitch";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
+import { merchantHubUrl } from "@/lib/partner-host";
 import { BreakdownPie } from "@/components/analytics/BreakdownPie";
 import { BrandLoadingScreen } from "@/components/NumuLoader/BrandLoader";
 import { useAuth } from "@/contexts/AuthContext";
@@ -75,6 +90,7 @@ import {
   reportPartnerReview,
   getPartnerReferrals,
   invitePartnerMember,
+  listDevStores,
   listPartnerApps,
   listPartnerTeam,
   listWebhookDeliveries,
@@ -119,71 +135,184 @@ export default function PartnerPortal() {
   );
 }
 
+function PortalNav({ onNavigate }: { onNavigate?: () => void }) {
+  const { t } = useTranslation();
+  const groups = [
+    {
+      label: t("partnerPortal.navGroup.overview"),
+      items: [
+        { to: "/", icon: LayoutDashboard, label: t("partnerPortal.nav.dashboard") },
+        { to: "/analytics", icon: BarChart3, label: t("partnerPortal.nav.analytics") },
+      ],
+    },
+    {
+      label: t("partnerPortal.navGroup.build"),
+      items: [
+        { to: "/apps", icon: AppWindow, label: t("partnerPortal.nav.apps") },
+        { to: "/themes", icon: Palette, label: t("partnerPortal.nav.themes") },
+        { to: "/dev-stores", icon: Store, label: t("partnerPortal.nav.devStores") },
+        { to: "/webhooks", icon: Webhook, label: t("partnerPortal.nav.webhooks") },
+      ],
+    },
+    {
+      label: t("partnerPortal.navGroup.grow"),
+      items: [
+        { to: "/coupons", icon: Ticket, label: t("partnerPortal.nav.coupons") },
+        { to: "/reviews", icon: Star, label: t("appFeedback.partner.navReviews") },
+        { to: "/support", icon: LifeBuoy, label: t("appFeedback.partner.navSupport") },
+        { to: "/referrals", icon: Gift, label: t("partnerPortal.nav.referrals") },
+      ],
+    },
+    {
+      label: t("partnerPortal.navGroup.account"),
+      items: [
+        { to: "/team", icon: Users, label: t("partnerPortal.nav.team") },
+        { to: "/profile", icon: UserCog, label: t("partnerPortal.nav.profile") },
+      ],
+    },
+  ];
+  return (
+    <nav className="space-y-5" aria-label={t("partnerPortal.brand")}>
+      {groups.map((g) => (
+        <div key={g.label}>
+          <p className="mb-1.5 px-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">{g.label}</p>
+          <div className="space-y-0.5">
+            {g.items.map(({ to, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === "/"}
+                onClick={onNavigate}
+                className={({ isActive }) =>
+                  cn(
+                    "flex h-10 items-center gap-2.5 rounded-lg px-3 text-[13px] font-medium transition-colors",
+                    isActive
+                      ? "bg-navy text-primary-foreground shadow-sm hover:bg-navy-700 [&>svg]:!text-saffron"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  )
+                }
+              >
+                <Icon className="h-[18px] w-[18px] shrink-0 text-navy dark:text-saffron" />
+                <span className="truncate">{label}</span>
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+const topbarBtn =
+  "h-10 w-10 rounded-lg text-white/90 hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-white/40";
+
 function Shell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const { language, setLanguage, isSwitching } = useLanguage();
   const { user, logout } = useAuth();
+  const { pathname } = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
   const isAr = language === "ar";
-  const nav = [
-    { to: "/", icon: LayoutDashboard, label: t("partnerPortal.nav.dashboard") },
-    { to: "/analytics", icon: BarChart3, label: t("partnerPortal.nav.analytics") },
-    { to: "/apps", icon: AppWindow, label: t("partnerPortal.nav.apps") },
-    { to: "/themes", icon: Palette, label: t("partnerPortal.nav.themes") },
-    { to: "/dev-stores", icon: Store, label: t("partnerPortal.nav.devStores") },
-    { to: "/webhooks", icon: Webhook, label: t("partnerPortal.nav.webhooks") },
-    { to: "/coupons", icon: Ticket, label: t("partnerPortal.nav.coupons") },
-    { to: "/reviews", icon: Star, label: t("appFeedback.partner.navReviews") },
-    { to: "/support", icon: LifeBuoy, label: t("appFeedback.partner.navSupport") },
-    { to: "/referrals", icon: Gift, label: t("partnerPortal.nav.referrals") },
-    { to: "/team", icon: Users, label: t("partnerPortal.nav.team") },
-    { to: "/profile", icon: UserCog, label: t("partnerPortal.nav.profile") },
-  ];
+  const initial = (user?.first_name || user?.email || "N").charAt(0).toUpperCase();
+
+  useEffect(() => setMenuOpen(false), [pathname]);
+
   return (
-    <div className="min-h-screen bg-background text-foreground md:flex">
-      <aside className="border-b p-4 md:min-h-screen md:w-60 md:shrink-0 md:border-b-0 md:border-e">
-        <div className="mb-4 flex items-baseline gap-2">
-          <span className="souq-wordmark text-base font-black tracking-[0.18em]">NUMU</span>
-          <span className="text-sm font-semibold text-muted-foreground">{t("partnerPortal.brand")}</span>
-        </div>
-        <nav className="flex gap-1 overflow-x-auto md:flex-col">
-          {nav.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === "/"}
-              className={({ isActive }) =>
-                `flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-                  isActive ? "bg-muted font-semibold" : "text-muted-foreground hover:bg-muted/60"
-                }`
-              }
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-      <div className="min-w-0 flex-1">
-        <header className="flex h-14 items-center justify-end gap-2 border-b px-4">
-          <span className="hidden truncate text-sm text-muted-foreground sm:inline">{user?.email}</span>
-          <PartnerNotificationBell />
-          <ThemeSwitch />
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="dash-header">
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(topbarBtn, "md:hidden")}
+          onClick={() => setMenuOpen(true)}
+          aria-label={t("header.toggleSidebar")}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <NavLink to="/" className="flex shrink-0 items-center gap-2 ps-1 pe-2" aria-label={t("partnerPortal.brand")}>
+          <img src="/brand/numu-cream.png" alt="" className="h-8 w-auto" />
+          <span className="souq-wordmark hidden text-[20px] !text-white sm:inline">
+            {isAr ? "نُمُو" : <span className="lowercase">numu</span>}
+          </span>
+          <span className="rounded-md bg-saffron px-2 py-0.5 text-[11px] font-bold text-navy-900">
+            {t("partnerPortal.badge")}
+          </span>
+        </NavLink>
+
+        <div className="ms-auto flex min-w-0 items-center gap-1">
+          <PartnerNotificationBell className={topbarBtn} />
+          <ThemeSwitch className={cn(topbarBtn, "hidden sm:inline-flex")} />
           <Button
             variant="ghost"
             size="sm"
+            className={cn(topbarBtn, "w-auto px-2.5")}
             disabled={isSwitching}
             onClick={() => void setLanguage(isAr ? "en" : "ar")}
             aria-label={isAr ? t("header.switchToEnglish") : t("header.switchToArabic")}
           >
-            <Languages className="h-4 w-4" />
-            <span className="ms-1">{isAr ? "EN" : "ع"}</span>
+            <Languages className="h-[17px] w-[17px]" />
+            <span className="ms-1 text-xs font-bold">{isAr ? "EN" : "ع"}</span>
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => void logout()}>
-            <LogOut className="h-4 w-4" />
-            <span className="ms-1 hidden sm:inline">{t("header.logout")}</span>
-          </Button>
-        </header>
-        <main>{children}</main>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className={cn(topbarBtn, "w-auto gap-2 ps-1.5 pe-2")} aria-label={t("header.profile")}>
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt="" width={28} height={28} className="h-7 w-7 rounded-full object-cover ring-2 ring-white/30" />
+                ) : (
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-saffron text-[11px] font-bold text-navy-900">
+                    {initial}
+                  </span>
+                )}
+                <ChevronDown className="hidden h-3.5 w-3.5 text-white/70 sm:block" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 overflow-hidden rounded-xl p-0">
+              <div className="border-b bg-muted/30 p-3">
+                <p className="truncate text-xs font-semibold">
+                  {user?.first_name} {user?.last_name}
+                </p>
+                <p className="truncate text-[11px] text-muted-foreground">{user?.email}</p>
+              </div>
+              <div className="p-1.5">
+                <DropdownMenuItem asChild className="cursor-pointer gap-2.5 rounded-lg py-2 text-xs">
+                  <NavLink to="/profile">
+                    <UserCog className="h-4 w-4" />
+                    {t("partnerPortal.nav.profile")}
+                  </NavLink>
+                </DropdownMenuItem>
+                {merchantHubUrl && (
+                  <DropdownMenuItem asChild className="cursor-pointer gap-2.5 rounded-lg py-2 text-xs">
+                    <a href={merchantHubUrl}>
+                      <Store className="h-4 w-4" />
+                      <span className="flex-1">{t("partnerPortal.merchantHub")}</span>
+                      <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground rtl:-scale-x-100" />
+                    </a>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator className="my-1" />
+                <DropdownMenuItem className="cursor-pointer gap-2.5 rounded-lg py-2 text-xs text-destructive" onClick={() => void logout()}>
+                  <LogOut className="h-4 w-4" />
+                  {t("header.logout")}
+                </DropdownMenuItem>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+
+      <div className="md:flex">
+        <aside className="hidden border-e bg-sidebar md:block md:w-64 md:shrink-0">
+          <div className="sticky top-[var(--topbar-h)] max-h-[calc(100vh-var(--topbar-h))] overflow-y-auto p-3 pt-5">
+            <PortalNav />
+          </div>
+        </aside>
+        <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+          <SheetContent side={isAr ? "right" : "left"} className="w-72 overflow-y-auto bg-sidebar p-3 pt-12">
+            <SheetTitle className="sr-only">{t("partnerPortal.brand")}</SheetTitle>
+            <PortalNav onNavigate={() => setMenuOpen(false)} />
+          </SheetContent>
+        </Sheet>
+        <main className="min-w-0 flex-1">{children}</main>
       </div>
     </div>
   );
@@ -294,6 +423,7 @@ function Dashboard() {
 
   return (
     <Page title={t("partnerPortal.dashboardTitle")}>
+      <GettingStarted />
       {bar}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -405,6 +535,61 @@ function Dashboard() {
         </CardContent>
       </Card>
     </Page>
+  );
+}
+
+/** First-run checklist; disappears once every step is done. */
+function GettingStarted() {
+  const { t } = useTranslation();
+  const { data: apps } = useQuery({ queryKey: ["partners", "apps"], queryFn: listPartnerApps });
+  const { data: stores } = useQuery({ queryKey: ["partners", "dev-stores"], queryFn: listDevStores });
+  if (!apps || !stores) return null;
+  const steps = [
+    { key: "devStore", done: stores.length > 0, to: "/dev-stores" },
+    { key: "createApp", done: apps.length > 0, to: "/apps" },
+    { key: "submit", done: apps.some((a) => a.latest_version?.submitted_at || a.status === "published"), to: "/apps" },
+    { key: "publish", done: apps.some((a) => a.status === "published"), to: "/apps" },
+  ];
+  const done = steps.filter((s) => s.done).length;
+  if (done === steps.length) return null;
+  const next = steps.find((s) => !s.done);
+  return (
+    <Card className="overflow-hidden border-navy/15">
+      <CardHeader className="gap-3 bg-navy/[0.03] sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+        <div>
+          <CardTitle className="text-base">{t("partnerPortal.gettingStarted.title")}</CardTitle>
+          <CardDescription>{t("partnerPortal.gettingStarted.progress", { done, total: steps.length })}</CardDescription>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted sm:w-48" role="progressbar" aria-valuenow={done} aria-valuemin={0} aria-valuemax={steps.length}>
+          <div className="h-full rounded-full bg-saffron transition-all" style={{ width: `${(done / steps.length) * 100}%` }} />
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-2 p-4 sm:grid-cols-2">
+        {steps.map((s) => (
+          <NavLink
+            key={s.key}
+            to={s.to}
+            className={cn(
+              "flex items-start gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/50",
+              s === next && "border-navy/40 bg-navy/[0.04]",
+              s.done && "opacity-70",
+            )}
+          >
+            {s.done ? (
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+            ) : (
+              <Circle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+            )}
+            <span className="min-w-0">
+              <span className={cn("block text-[13px] font-semibold", s.done && "line-through")}>
+                {t(`partnerPortal.gettingStarted.${s.key}`)}
+              </span>
+              <span className="block text-xs text-muted-foreground">{t(`partnerPortal.gettingStarted.${s.key}Hint`)}</span>
+            </span>
+          </NavLink>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 

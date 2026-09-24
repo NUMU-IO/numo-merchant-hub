@@ -612,6 +612,26 @@ export default {
     },
   },
   partnerPortal: {
+    badge: "Partners",
+    merchantHub: "Merchant hub",
+    navGroup: {
+      overview: "Overview",
+      build: "Build",
+      grow: "Grow",
+      account: "Account",
+    },
+    gettingStarted: {
+      title: "Get started as a NUMU partner",
+      progress: "{{done}} of {{total}} steps done",
+      devStore: "Create a development store",
+      devStoreHint: "A free test store to install and try your work.",
+      createApp: "Create your first app",
+      createAppHint: "Register it to get OAuth credentials.",
+      submit: "Submit a version for review",
+      submitHint: "NUMU reviews every version before merchants see it.",
+      publish: "Get published",
+      publishHint: "Approved apps appear in the NUMU App Store.",
+    },
     brand: "NUMU Partners",
     nav: {
       dashboard: "Dashboard",
