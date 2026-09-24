@@ -378,7 +378,7 @@ export default function AppDetail() {
 
       {/* A NUMU-billed app: charged to the store's wallet (Phase 7). Free and
           externally billed apps have nothing to manage here. */}
-      {install && listing?.pricing?.plan === "recurring" && (
+      {install && (listing?.pricing?.plan === "recurring" || listing?.pricing?.plan === "usage") && (
         <AppSubscriptionCard
           storeId={storeId!}
           install={install}
