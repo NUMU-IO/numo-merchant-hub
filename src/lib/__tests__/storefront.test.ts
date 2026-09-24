@@ -109,6 +109,11 @@ describe("getStoreFrameUrl", () => {
     expect(getStoreFrameUrl(store("vionneeg.com", "active"))).toBe(canonical("vionne"));
   });
 
+  it("passes the selected language to the storefront preview", () => {
+    const url = getStoreFrameUrl(store(null), "ar");
+    expect(url && new URL(url).searchParams.get("locale")).toBe("ar");
+  });
+
   it("returns null for a store without a subdomain", () => {
     expect(getStoreFrameUrl({ subdomain: null, custom_domain: "x.com" })).toBeNull();
   });

@@ -146,6 +146,7 @@ const DevicePreview = ({
 
   const Frame = (
     <div
+      dir="ltr"
       className={
         mode === "mobile"
           ? "relative w-[230px] mx-auto rounded-[2rem] border-[6px] shadow-2xl overflow-hidden"
@@ -233,6 +234,7 @@ const OnlineStoreLanding = () => {
   // `.numueg.app` fallback here.
   const storeUrl = getPublicStoreUrl(currentStore);
   const storeHost = getPublicStoreHost(currentStore);
+  const storeFrameUrl = getStoreFrameUrl(currentStore, isRTL ? "ar" : "en");
 
   const [copied, setCopied] = useState(false);
   const queryClient = useQueryClient();
@@ -282,13 +284,13 @@ const OnlineStoreLanding = () => {
     enabled: !!storeId,
     staleTime: 60 * 1000,
   });
-  const activeInstall = installsQuery.data?.installations.find((i) => i.is_active) ?? null;
+  const installedActive = installsQuery.data?.installations.find((i) => i.is_active) ?? null;
 
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const renameMutation = useMutation({
     mutationFn: (name: string) =>
-      renameThemeInstallation(storeId!, activeInstall!.id, name),
+      renameThemeInstallation(storeId!, installedActive!.id, name),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["theme-installations", storeId] });
       toast.success(isRTL ? "تمت إعادة تسمية الثيم" : "Theme renamed");
@@ -352,18 +354,31 @@ const OnlineStoreLanding = () => {
     : undefined;
   const liveTheme: AvailableTheme =
     catalogMatch
-    || themes[0]
     || (activeThemeId
       ? ({
           id: activeThemeId,
-          name: activeThemeId.charAt(0).toUpperCase() + activeThemeId.slice(1),
+          name: activeThemeId
+            .replace(/[-_]+/g, " ")
+            .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+          nameAr: activeThemeId,
           description: "",
         } as AvailableTheme)
-      : ({ id: "souq", name: "Souq", description: "" } as AvailableTheme));
+      : themes[0])
+    || ({ id: "souq", name: "Souq", nameAr: "سوق", description: "" } as AvailableTheme);
+
+  // Installation labels are valid only for the same theme the storefront
+  // customization says is live. A stale `is_active` row must not rename every
+  // theme to the old installation's name (commonly Bazar).
+  const activeInstall = installedActive?.theme_slug === activeThemeId
+    ? installedActive
+    : null;
 
   // Card title prefers the merchant's installation label (set via Rename),
   // falling back to the catalog theme name.
-  const themeLabel = activeInstall?.name?.trim() || liveTheme.name;
+  const themeLabel =
+    activeInstall?.display_name?.trim()
+    || activeInstall?.name?.trim()
+    || (isRTL ? liveTheme.nameAr || liveTheme.name : liveTheme.name);
 
   const copyLink = () => {
     if (!storeUrl) return;
@@ -501,7 +516,7 @@ const OnlineStoreLanding = () => {
                 <DevicePreview
                   mode="desktop"
                   storeUrl={storeUrl}
-                  frameUrl={getStoreFrameUrl(currentStore)}
+                  frameUrl={storeFrameUrl}
                   host={storeHost}
                   themeId={liveTheme.id}
                   imageUrl={liveTheme.preview_image_url}
@@ -511,7 +526,7 @@ const OnlineStoreLanding = () => {
                   <DevicePreview
                     mode="mobile"
                     storeUrl={storeUrl}
-                    frameUrl={getStoreFrameUrl(currentStore)}
+                    frameUrl={storeFrameUrl}
                     host={storeHost}
                     themeId={liveTheme.id}
                     imageUrl={liveTheme.preview_image_url}
