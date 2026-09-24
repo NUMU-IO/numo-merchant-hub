@@ -1272,8 +1272,7 @@ function WhatsAppAccessGate({
       if (
         err instanceof ApiError &&
         err.status === 409 &&
-        (err.body as { detail?: { code?: string } } | null)?.detail?.code ===
-          "whatsapp_access_not_requestable"
+        err.code === "whatsapp_access_not_requestable"
       ) {
         toast.error(
           isAr

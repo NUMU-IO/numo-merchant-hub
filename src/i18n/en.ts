@@ -2240,4 +2240,27 @@ export default {
     updateAction: "Update",
     updating: "Updating to the latest version…",
   },
+  upgrade: {
+    not_in_plan: {
+      title: "Upgrade to unlock this",
+      body: "This feature isn't included in your current plan.",
+    },
+    limit: {
+      title: "You've reached your plan's limit",
+      body: "Your plan includes up to {{limit}}. Upgrade to get more.",
+    },
+    blocked: {
+      title: "Not available for your store",
+      body: "This feature is turned off for your store. Contact NUMU support if you think this is a mistake.",
+    },
+    disabled_globally: {
+      title: "Temporarily unavailable",
+      body: "This feature is paused for now. Please try again in a few minutes.",
+    },
+    upgradeTo: "Upgrade to {{plan}} to use it.",
+    resetsOn: "Your usage resets on {{date}}.",
+    seePlans: "See plans",
+    getAddon: "Get the add-on",
+    notNow: "Not now",
+  },
 };

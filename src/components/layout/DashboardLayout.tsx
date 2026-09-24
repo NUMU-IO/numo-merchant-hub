@@ -1,4 +1,5 @@
 import { FounderWelcomeDialog } from "@/components/brand/FounderWelcomeDialog";
+import { UpgradeDialog } from "@/components/billing/UpgradeDialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider } from "@/components/ui/sidebar";
@@ -160,6 +161,8 @@ const DashboardLayout = () => {
               {/* First hub load of a trial: says how long they have and what
                   happens when it ends, so the lock is never a surprise. */}
               <TrialWelcomeDialog />
+
+              <UpgradeDialog />
 
               {/* Footer — inline at bottom of content like Zid */}
               <div

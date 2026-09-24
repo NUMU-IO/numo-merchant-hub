@@ -20,7 +20,10 @@ import { PageLoader } from "@/components/PageLoader";
 import { getPartnerMe } from "@/services/partnersApi";
 import { Suspense, useEffect, useRef } from "react";
 import { lazyWithRetry, lazyWithRetry as lazy } from "@/lib/lazy-with-retry";
+import { ApiError } from "@/lib/api-error";
 import { showError } from "@/lib/show-error";
+import { useUpgradeDialog } from "@/hooks/useUpgradeDialog";
+import { entitlementKeys, type UpgradeDetails } from "@/services/entitlementsApi";
 import i18n from "@/i18n";
 
 // Lazy-loaded pages for code splitting
@@ -164,6 +167,18 @@ const queryClient = new QueryClient({
   // opt out; everything else would otherwise fail silently.
   mutationCache: new MutationCache({
     onError: (error, _variables, _context, mutation) => {
+      if (
+        error instanceof ApiError &&
+        (error.code === "FEATURE_NOT_AVAILABLE" || error.code === "PLAN_LIMIT_EXCEEDED")
+      ) {
+        void queryClient.invalidateQueries({ queryKey: entitlementKeys.all });
+        useUpgradeDialog.getState().open((error.details ?? {}) as UpgradeDetails);
+        return;
+      }
+      if (error instanceof ApiError && error.code === "FEATURE_TEMPORARILY_DISABLED") {
+        showError(error, i18n.language);
+        return;
+      }
       if (mutation.options.onError || mutation.meta?.skipErrorToast) return;
       showError(error, i18n.language);
     },

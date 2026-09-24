@@ -82,7 +82,7 @@ function isSessionExpiredError(err: unknown): boolean {
 /**
  * Backend 409 from autosave when the draft ETag is stale — another tab or
  * session saved a newer draft. The response carries the server's current
- * etag + draft under `detail` so we can offer reload vs keep-my-changes
+ * etag + draft under `error` so we can offer reload vs keep-my-changes
  * instead of silently clobbering. Returns null for any other error.
  */
 interface EtagConflict {
@@ -92,15 +92,12 @@ interface EtagConflict {
 
 function readEtagConflict(err: unknown): EtagConflict | null {
   if (!(err instanceof ApiError) || err.status !== 409) return null;
-  const detail = (err.body as { detail?: Record<string, unknown> } | null)
-    ?.detail;
-  if (!detail) return null;
-  const currentEtag = (detail.current_etag as string | undefined) ?? null;
-  if (detail.code !== "stale_etag" && !currentEtag) return null;
-  return {
-    currentEtag,
-    currentDraft: (detail.current_draft as ThemeSettingsV3 | undefined) ?? null,
-  };
+  const error = (
+    err.body as { error?: { current_etag?: string; current_draft?: ThemeSettingsV3 } } | null
+  )?.error;
+  const currentEtag = error?.current_etag ?? null;
+  if (err.code !== "stale_etag" && !currentEtag) return null;
+  return { currentEtag, currentDraft: error?.current_draft ?? null };
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
