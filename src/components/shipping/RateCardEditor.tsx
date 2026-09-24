@@ -10,10 +10,12 @@
  *   - flat              → one amount field
  *   - free_over         → amount + threshold with live preview
  *   - weight_band       → editable band table + optional per-extra-kg
- *   - carrier_api       → schema-only; not wired in MVP (hidden from type menu)
+ *   - carrier_api       → live rates from an installed shipping app (shown
+ *                         only when one with a rates_url is installed)
  */
 
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,8 +31,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useDashboardStore } from "@/contexts/StoreContext";
+import { type Carrier, carrierName, listCarriers } from "@/services/carrierApi";
 import type {
   RateConfig,
+  RateConfigCarrierApi,
   RateConfigFlat,
   RateConfigFreeOver,
   RateConfigWeightBand,
@@ -97,12 +102,28 @@ function defaultConfigFor(type: RateType): RateConfig {
 export function RateCardEditor({ draft, onChange, onRemove, currency = "EGP" }: Props) {
   const { language } = useLanguage();
   const ar = language === "ar";
+  const storeId = useDashboardStore().currentStore?.id;
+  const carriersQ = useQuery({
+    queryKey: ["carriers", storeId],
+    queryFn: () => listCarriers(storeId!),
+    enabled: !!storeId,
+  });
+  const rateApps = (carriersQ.data ?? []).filter(
+    (c) => c.tier === "app" && c.capabilities.supports_live_rates,
+  );
+  const types = rateApps.length
+    ? [...MVP_TYPES, { value: "carrier_api" as RateType, en: "Live rates from a shipping app", ar: "أسعار مباشرة من تطبيق شحن" }]
+    : MVP_TYPES;
 
   function updateType(next: RateType) {
+    const config = defaultConfigFor(next);
     onChange({
       ...draft,
       rate_type: next,
-      config: defaultConfigFor(next),
+      config:
+        config.type === "carrier_api" && rateApps[0]
+          ? { ...config, carrier: rateApps[0].slug, service_code: "standard" }
+          : config,
     });
   }
 
@@ -180,7 +201,7 @@ export function RateCardEditor({ draft, onChange, onRemove, currency = "EGP" }: 
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {MVP_TYPES.map((t) => (
+            {types.map((t) => (
               <SelectItem key={t.value} value={t.value}>
                 {ar ? t.ar : t.en}
               </SelectItem>
@@ -211,6 +232,59 @@ export function RateCardEditor({ draft, onChange, onRemove, currency = "EGP" }: 
           onPatch={updateConfig}
         />
       )}
+      {draft.rate_type === "carrier_api" && (
+        <CarrierApiFields
+          config={draft.config as RateConfigCarrierApi}
+          apps={rateApps}
+          onPatch={updateConfig}
+        />
+      )}
+    </div>
+  );
+}
+
+function CarrierApiFields({
+  config,
+  apps,
+  onPatch,
+}: {
+  config: RateConfigCarrierApi;
+  apps: Carrier[];
+  onPatch: (patch: Partial<RateConfig>) => void;
+}) {
+  const { language } = useLanguage();
+  const ar = language === "ar";
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div>
+        <Label className="mb-1 block text-xs">{ar ? "تطبيق الشحن" : "Shipping app"}</Label>
+        <Select value={config.carrier} onValueChange={(v) => onPatch({ carrier: v })}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {apps.map((c) => (
+              <SelectItem key={c.slug} value={c.slug}>
+                {carrierName(c, ar)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label className="mb-1 block text-xs">{ar ? "كود الخدمة" : "Service code"}</Label>
+        <Input
+          dir="ltr"
+          value={config.service_code}
+          onChange={(e) => onPatch({ service_code: e.target.value.trim() })}
+          placeholder="standard"
+        />
+      </div>
+      <p className="text-[11px] leading-relaxed text-muted-foreground sm:col-span-2">
+        {ar
+          ? "السعر بييجي من التطبيق وقت الدفع. لو التطبيق مردّش في ٣ ثواني الاختيار ده بيختفي، فسيب سعر ثابت جنبه احتياطي."
+          : "The price comes from the app at checkout. If the app doesn't answer within 3 seconds this option is hidden, so keep a flat rate beside it as a fallback."}
+      </p>
     </div>
   );
 }
