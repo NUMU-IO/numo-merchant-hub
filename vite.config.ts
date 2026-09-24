@@ -55,8 +55,10 @@ function vitePluginCSP(): Plugin {
                   // the embedded-signup token; backend mirrors live on
                   // numueg.app so we keep that too.
                   "connect-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.de.sentry.io https://connect.facebook.net https://graph.facebook.com https://*.facebook.com https://eu.i.posthog.com https://eu-assets.i.posthog.com",
-                  // www.facebook.com is the Embedded Signup dialog iframe.
-                  "frame-src 'self' https://numueg.app https://*.numueg.app https://accounts.google.com https://www.facebook.com https://*.facebook.com",
+                  // Embedded Partner Apps live on their own https origins, which
+                  // a build-time policy can't list; the iframe sandbox and the
+                  // bridge's origin check are what confine them.
+                  "frame-src 'self' https:",
                   "worker-src 'self' blob:",
                 ].join("; ") + ";",
             },
