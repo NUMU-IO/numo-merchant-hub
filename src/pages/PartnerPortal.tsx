@@ -43,7 +43,6 @@ import { BrandLoadingScreen } from "@/components/NumuLoader/BrandLoader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
-import { Textarea } from "@/components/ui/textarea";
 import {
   NewTicketForm,
   ReviewItem,

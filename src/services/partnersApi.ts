@@ -634,6 +634,8 @@ export function replyPartnerTicket(id: string, form: FormData): Promise<SupportT
 
 export function closePartnerTicket(id: string): Promise<SupportThread> {
   return apiClient<SupportThread>(`/partners/me/support/${id}/close`, { method: "POST" });
+}
+
 export interface PartnerReferrals {
   code: string | null;
   link: string | null;
