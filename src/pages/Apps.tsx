@@ -10,6 +10,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -105,6 +115,7 @@ export default function Apps() {
   const [catalog, setCatalog] = useState<AppCatalogEntry[] | null>(null);
   const [installs, setInstalls] = useState<AppInstallation[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [uninstalling, setUninstalling] = useState<{ slug: string; name: string } | null>(null);
   const [activeTab, setActiveTab] = useState("installed");
   const [catalogSearch, setCatalogSearch] = useState("");
 
@@ -361,11 +372,7 @@ export default function Apps() {
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
                               disabled={isBusy}
-                              onClick={() => {
-                                const key = NUMU_APP_HOME[app.slug] ? "apps.uninstallConfirm" : "apps.uninstallConfirmSettings";
-                                if (!window.confirm(t(key, { name: appCopy.name }))) return;
-                                void withBusy(app.slug, () => uninstallApp(storeId, app.slug));
-                              }}
+                              onClick={() => setUninstalling({ slug: app.slug, name: appCopy.name })}
                             >
                               <Trash2 className="me-2 h-4 w-4" />
                               {t("apps.uninstall")}
@@ -563,6 +570,29 @@ export default function Apps() {
           )}
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={!!uninstalling} onOpenChange={(open) => !open && setUninstalling(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("apps.uninstall")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {uninstalling &&
+                t(NUMU_APP_HOME[uninstalling.slug] ? "apps.uninstallConfirm" : "apps.uninstallConfirmSettings", {
+                  name: uninstalling.name,
+                })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => uninstalling && void withBusy(uninstalling.slug, () => uninstallApp(storeId, uninstalling.slug))}
+            >
+              {t("apps.uninstall")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

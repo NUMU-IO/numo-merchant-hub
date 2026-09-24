@@ -198,6 +198,7 @@ export default {
     seeded: "Has sample data",
     open: "Open in dashboard",
     visit: "Visit storefront",
+    storeId: "Store ID",
     limitReached: "You've reached the limit of {{max}} development stores.",
     applied: "Application sent",
     created: "Development store created",
