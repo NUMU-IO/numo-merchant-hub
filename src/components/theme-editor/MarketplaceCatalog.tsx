@@ -600,6 +600,8 @@ export function MarketplaceCatalog({
         currentlyActiveName={activeThemeName}
         priceCents={installTarget?.price_cents ?? 0}
         currency={installTarget?.currency ?? "EGP"}
+        storeId={storeId}
+        themeId={installTarget?.id}
         loading={installMutation.isPending}
         onConfirm={() =>
           installTarget && installMutation.mutate(installTarget.id)

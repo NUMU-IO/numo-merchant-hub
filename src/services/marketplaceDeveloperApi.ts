@@ -48,6 +48,8 @@ export interface MarketplaceTheme {
   description_ar: string | null;
   short_description: string | null;
   price_cents: number;
+  /** A new price waiting for the next approved version. */
+  pending_price_cents?: number | null;
   currency: string;
   status: MarketplaceThemeStatus;
   thumbnail_url: string | null;
@@ -95,6 +97,8 @@ export interface ListingInput {
   category?: string | null;
   tags?: string[];
   screenshots?: ThemeScreenshot[];
+  /** Waits for review: applied when NUMU approves the next version. */
+  price_cents?: number;
 }
 
 export interface VersionStatus {
