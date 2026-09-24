@@ -186,9 +186,15 @@ const SubscribeInstapayDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
-      <DialogContent className="sm:max-w-[480px]" dir={isAr ? "rtl" : "ltr"}>
-        <DialogHeader>
-          <DialogTitle>
+      <DialogContent
+        className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] overflow-y-auto p-4 sm:max-w-[520px] sm:p-6"
+        dir={isAr ? "rtl" : "ltr"}
+      >
+        <DialogHeader className="pe-10 text-start">
+          <DialogTitle className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-navy/10 text-navy">
+              <CreditCard className="h-4 w-4" aria-hidden="true" />
+            </span>
             {isAr
               ? `الاشتراك في ${planName} — ${cycleLabel}`
               : `Subscribe to ${planName} — ${cycleLabel}`}
