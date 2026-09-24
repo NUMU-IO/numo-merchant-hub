@@ -100,6 +100,7 @@ export interface ThemeInstallation {
   id: string;
   name: string | null;
   display_name?: string | null;
+  theme_slug?: string | null;
   theme_name?: string | null;
   is_active: boolean;
 }
