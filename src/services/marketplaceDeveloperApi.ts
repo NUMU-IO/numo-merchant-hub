@@ -14,7 +14,7 @@
  */
 
 import { ApiError } from "@/lib/api-error";
-import { apiClient } from "./api";
+import { apiClient, apiClientFormData } from "./api";
 
 export type MarketplaceThemeStatus =
   | "draft"
@@ -29,20 +29,38 @@ export type MarketplaceVersionStatus =
   | "build_failed"
   | "pending_review"
   | "approved"
+  | "changes_requested"
   | "rejected"
   | "published";
+
+export interface ThemeScreenshot {
+  url: string;
+  alt?: string | null;
+  viewport?: "desktop" | "mobile";
+}
 
 export interface MarketplaceTheme {
   id: string;
   name: string;
+  name_ar: string | null;
   slug: string;
   description: string | null;
+  description_ar: string | null;
   short_description: string | null;
   price_cents: number;
+  /** A new price waiting for the next approved version. */
+  pending_price_cents?: number | null;
   currency: string;
   status: MarketplaceThemeStatus;
   thumbnail_url: string | null;
   preview_url: string | null;
+  demo_store_url: string | null;
+  tags: string[];
+  supported_languages: string[];
+  supported_features: Record<string, unknown>;
+  author_name: string | null;
+  screenshots: ThemeScreenshot[];
+  feature_tags: string[];
   category: string | null;
   install_count: number;
   average_rating: number;
@@ -60,6 +78,27 @@ export interface MarketplaceVersion {
   css_url: string | null;
   checksum: string | null;
   created_at: string | null;
+  review_notes?: string | null;
+  build_log?: string | null;
+  lint_status?: string | null;
+  lint_issues?: { issues?: { rule?: string; severity?: string; message?: string }[] } | null;
+  certification_tier?: string | null;
+}
+
+export interface ListingInput {
+  name?: string;
+  name_ar?: string | null;
+  slug?: string;
+  description?: string | null;
+  description_ar?: string | null;
+  short_description?: string | null;
+  thumbnail_url?: string | null;
+  demo_store_url?: string | null;
+  category?: string | null;
+  tags?: string[];
+  screenshots?: ThemeScreenshot[];
+  /** Waits for review: applied when NUMU approves the next version. */
+  price_cents?: number;
 }
 
 export interface VersionStatus {
@@ -135,5 +174,58 @@ export async function activateTheme(
       method: "POST",
       body: JSON.stringify({ marketplace_theme_id: themeId }),
     },
+  );
+}
+
+export async function createListing(body: ListingInput): Promise<MarketplaceTheme> {
+  return apiClient<MarketplaceTheme>("/marketplace/developer/themes", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateListing(
+  themeId: string,
+  body: ListingInput,
+): Promise<MarketplaceTheme> {
+  return apiClient<MarketplaceTheme>(
+    `/marketplace/developer/themes/${encodeURIComponent(themeId)}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+}
+
+/**
+ * Upload a theme ZIP and submit it for review: the same two calls
+ * `numu-theme submit` makes.
+ */
+export async function submitThemeBundle(
+  themeId: string,
+  file: File,
+  versionString: string,
+  releaseNotes: string,
+): Promise<VersionStatus> {
+  const form = new FormData();
+  form.append("file", file);
+  const upload = await apiClientFormData<{ source_zip_path: string }>(
+    "/themes/upload?queue_build=false",
+    form,
+  );
+  return apiClient<VersionStatus>(
+    `/marketplace/developer/themes/${encodeURIComponent(themeId)}/versions`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        version_string: versionString,
+        source_zip_path: upload.source_zip_path,
+        release_notes: releaseNotes || null,
+      }),
+    },
+  );
+}
+
+export async function publishVersion(versionId: string): Promise<VersionStatus> {
+  return apiClient<VersionStatus>(
+    `/marketplace/developer/versions/${encodeURIComponent(versionId)}/publish`,
+    { method: "POST" },
   );
 }

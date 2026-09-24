@@ -13,12 +13,26 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Activity, AlertTriangle, Gauge, Loader2, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StatTile } from "@/components/ui/stat-tile";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ApiError } from "@/lib/api-error";
@@ -26,13 +40,17 @@ import { showError } from "@/lib/show-error";
 import {
   devInstallApp,
   getPartnerApp,
+  listAppApiLogs,
   listDevStores,
   publishAppVersion,
   rotateAppSecret,
   submitAppVersion,
   uploadAppVersion,
 } from "@/services/partnersApi";
+import { partnerPath } from "@/lib/partner-host";
 import { SecretOnce } from "@/pages/PartnerApps";
+import { AppReviewTimeline } from "@/components/partners/AppReviewTimeline";
+import { AppListingEditor, listingEditable, useAppListing } from "@/components/partners/AppListingEditor";
 
 export default function PartnerAppDetail() {
   const { id = "" } = useParams();
@@ -42,7 +60,11 @@ export default function PartnerAppDetail() {
   const queryClient = useQueryClient();
   const app = useQuery({ queryKey: ["partners", "apps", id], queryFn: () => getPartnerApp(id) });
   const devStores = useQuery({ queryKey: ["partners", "dev-stores"], queryFn: listDevStores });
+  const listing = useAppListing(id);
+  const draft = listing.data?.draft;
+  const canAttachListing = Boolean(draft) && listingEditable(draft?.status);
   const [secret, setSecret] = useState<string | null>(null);
+  const [confirmRotate, setConfirmRotate] = useState(false);
   const [manifest, setManifest] = useState("");
   const [notesAr, setNotesAr] = useState("");
   const [notesEn, setNotesEn] = useState("");
@@ -77,8 +99,16 @@ export default function PartnerAppDetail() {
     },
   });
   const act = useMutation({
-    mutationFn: async ({ kind, versionId }: { kind: "submit" | "publish"; versionId: string }) => {
-      if (kind === "submit") await submitAppVersion(id, versionId);
+    mutationFn: async ({
+      kind,
+      versionId,
+      withListing = false,
+    }: {
+      kind: "submit" | "publish";
+      versionId: string;
+      withListing?: boolean;
+    }) => {
+      if (kind === "submit") await submitAppVersion(id, versionId, withListing);
       else await publishAppVersion(id, versionId);
     },
     onSuccess: (_r, { kind }) => {
@@ -97,7 +127,7 @@ export default function PartnerAppDetail() {
   return (
     <div className="min-h-screen bg-background text-foreground p-4 sm:p-8">
       <div className="mx-auto max-w-3xl space-y-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/partners/apps")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(partnerPath("/apps"))}>
           {t("partnerApps.title")}
         </Button>
         {app.isLoading || !a ? (
@@ -111,7 +141,11 @@ export default function PartnerAppDetail() {
               <Badge variant={a.status === "published" ? "default" : "secondary"}>
                 {t(`partnerApps.app_${a.status}`)}
               </Badge>
-              {a.status === "published" && (
+              {a.private_store_id ? (
+                <Badge variant="outline">
+                  {t("partnerApps.customFor", { store: a.private_store_name ?? a.private_store_id })}
+                </Badge>
+              ) : (
                 <Badge variant="outline">
                   {t(a.catalog_visible ? "partnerApps.listed" : "partnerApps.notListed")}
                 </Badge>
@@ -121,6 +155,12 @@ export default function PartnerAppDetail() {
               </bdi>
             </div>
 
+            <Tabs defaultValue="overview">
+              <TabsList>
+                <TabsTrigger value="overview">{t("partnerPortal.overviewTab")}</TabsTrigger>
+                <TabsTrigger value="logs">{t("partnerPortal.apiLogsTab")}</TabsTrigger>
+              </TabsList>
+              <TabsContent value="overview" className="space-y-6">
             {secret && <SecretOnce secret={secret} onDone={() => setSecret(null)} />}
 
             <Card>
@@ -136,12 +176,22 @@ export default function PartnerAppDetail() {
                   size="sm"
                   variant="outline"
                   disabled={rotate.isPending}
-                  onClick={() => {
-                    if (window.confirm(t("partnerApps.rotateConfirm"))) rotate.mutate();
-                  }}
+                  onClick={() => setConfirmRotate(true)}
                 >
                   {t("partnerApps.rotate")}
                 </Button>
+                <AlertDialog open={confirmRotate} onOpenChange={setConfirmRotate}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{t("partnerApps.rotate")}</AlertDialogTitle>
+                      <AlertDialogDescription>{t("partnerApps.rotateConfirm")}</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => rotate.mutate()}>{t("partnerApps.rotate")}</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </CardContent>
             </Card>
 
@@ -172,6 +222,16 @@ export default function PartnerAppDetail() {
                           {t("partnerApps.submit")}
                         </Button>
                       )}
+                      {(v.status === "draft" || v.status === "changes_requested") && canAttachListing && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={act.isPending}
+                          onClick={() => act.mutate({ kind: "submit", versionId: v.id, withListing: true })}
+                        >
+                          {t("partnerApps.submitWithListing")}
+                        </Button>
+                      )}
                       {v.status === "approved" && (
                         <Button
                           size="sm"
@@ -196,6 +256,10 @@ export default function PartnerAppDetail() {
                 ))}
               </CardContent>
             </Card>
+
+            <AppReviewTimeline appId={id} />
+
+            <AppListingEditor appId={id} catalogVisible={a.catalog_visible} />
 
             <Card>
               <CardHeader>
@@ -283,9 +347,171 @@ export default function PartnerAppDetail() {
                 )}
               </CardContent>
             </Card>
+              </TabsContent>
+              <TabsContent value="logs">
+                <ApiLogs appId={id} />
+              </TabsContent>
+            </Tabs>
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+const ALL = "all";
+
+function ApiLogs({ appId }: { appId: string }) {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const locale = language === "ar" ? "ar-EG" : "en-GB";
+  const [hours, setHours] = useState("24");
+  const [statusClass, setStatusClass] = useState(ALL);
+  const [route, setRoute] = useState(ALL);
+  const [store, setStore] = useState<{ id: string; name: string } | null>(null);
+  const [page, setPage] = useState(1);
+  const params = {
+    hours: Number(hours),
+    status_class: statusClass === ALL ? undefined : statusClass,
+    route: route === ALL ? undefined : route,
+    store_id: store?.id,
+    page,
+  };
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["partners", "api-logs", appId, params],
+    queryFn: () => listAppApiLogs(appId, params),
+  });
+  const filter = (fn: (v: string) => void) => (v: string) => {
+    fn(v);
+    setPage(1);
+  };
+  const pct = (v: number | null | undefined) =>
+    v == null ? "—" : `${(v * 100).toLocaleString(locale, { maximumFractionDigits: 1 })}%`;
+  const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
+  const s = data?.stats;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">{t("partnerPortal.apiLogsHint")}</p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile icon={Activity} loading={isLoading} label={t("partnerPortal.requests")} value={(s?.requests ?? 0).toLocaleString(locale)} />
+        <StatTile icon={AlertTriangle} tone="terra" loading={isLoading} label={t("partnerPortal.errorRate")} value={pct(s?.error_rate)} />
+        <StatTile icon={Timer} tone="saffron" loading={isLoading} label={t("partnerPortal.p95")} value={s?.p95_ms != null ? `${s.p95_ms} ms` : "—"} />
+        <StatTile icon={Gauge} tone="sage" loading={isLoading} label={t("partnerPortal.rateLimited")} value={(s?.rate_limited ?? 0).toLocaleString(locale)} />
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Select value={hours} onValueChange={filter(setHours)}>
+          <SelectTrigger className="w-40" aria-label={t("partnerPortal.time")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="24">{t("partnerPortal.last24h")}</SelectItem>
+            <SelectItem value="168">{t("partnerPortal.last7d")}</SelectItem>
+            <SelectItem value="336">{t("partnerPortal.last14d")}</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={statusClass} onValueChange={filter(setStatusClass)}>
+          <SelectTrigger className="w-36" aria-label={t("partnerPortal.status")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("partnerPortal.allStatusClasses")}</SelectItem>
+            {["2xx", "3xx", "4xx", "5xx"].map((c) => (
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={route} onValueChange={filter(setRoute)}>
+          <SelectTrigger className="w-72" aria-label={t("partnerPortal.request")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("partnerPortal.allRoutes")}</SelectItem>
+            {(data?.routes ?? []).map((r) => (
+              <SelectItem key={r} value={r}>
+                <span dir="ltr">{r}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {store && (
+          <Button size="sm" variant="secondary" onClick={() => filter(() => setStore(null))("")}>
+            {store.name} ×
+          </Button>
+        )}
+      </div>
+      <Card>
+        <CardContent className="overflow-x-auto pt-6">
+          {isLoading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+          {isError && <p className="text-sm text-destructive">{t("partnerPortal.logsUnavailable")}</p>}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("partnerPortal.time")}</TableHead>
+                <TableHead>{t("partnerPortal.request")}</TableHead>
+                <TableHead>{t("partnerPortal.status")}</TableHead>
+                <TableHead>{t("partnerPortal.latency")}</TableHead>
+                <TableHead>{t("partnerPortal.store")}</TableHead>
+                <TableHead>{t("partnerPortal.requestId")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(data?.items ?? []).map((l, i) => (
+                <TableRow key={`${l.request_id}-${i}`}>
+                  <TableCell>
+                    <bdi dir="ltr" className="whitespace-nowrap text-xs">
+                      {new Date(l.at).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                    </bdi>
+                  </TableCell>
+                  <TableCell>
+                    <code dir="ltr" className="text-xs">
+                      {l.method} {l.route}
+                    </code>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={l.status < 400 ? "default" : l.status < 500 && !l.rate_limited ? "secondary" : "destructive"} dir="ltr">
+                      {l.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell dir="ltr" className="text-xs">{Math.round(l.latency_ms)} ms</TableCell>
+                  <TableCell>
+                    {l.store_id ? (
+                      <button
+                        type="button"
+                        className="text-start text-xs underline-offset-2 hover:underline"
+                        onClick={() => filter(() => setStore({ id: l.store_id!, name: l.store_name ?? l.store_id!.slice(0, 8) }))("")}
+                      >
+                        {l.store_name ?? l.store_id.slice(0, 8)}
+                      </button>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <code dir="ltr" className="text-[11px] text-muted-foreground">{l.request_id ?? "—"}</code>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {data && data.items.length === 0 && (
+            <p className="py-6 text-center text-sm text-muted-foreground">{t("partnerPortal.noLogs")}</p>
+          )}
+          {data && data.total > data.page_size && (
+            <div className="flex items-center justify-end gap-2 pt-4">
+              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                {t("partnerPortal.prev")}
+              </Button>
+              <span dir="ltr" className="text-sm text-muted-foreground">{page} / {pages}</span>
+              <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage(page + 1)}>
+                {t("partnerPortal.next")}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

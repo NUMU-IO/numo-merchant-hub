@@ -226,6 +226,7 @@ function carrierBlurb(carrier: Carrier, isAr: boolean): string {
       : "Handle fulfilment yourself or use your own courier.";
   }
   const bits: string[] = [];
+  if (carrier.tier === "app") bits.push(isAr ? "تطبيق شحن" : "Shipping app");
   if (carrier.capabilities.supports_cod) bits.push(isAr ? "الدفع عند الاستلام" : "COD");
   if (carrier.capabilities.supports_tracking) bits.push(isAr ? "تتبّع" : "tracking");
   if (carrier.capabilities.supports_labels) bits.push(isAr ? "بوالص" : "waybills");
@@ -672,7 +673,7 @@ const Logistics = () => {
                 /* Only Bosta has a detail view today; the others open it
                    once their provider is complete (P4). Manual is a
                    toggle, not a page. */
-                const hasDetail = carrier.slug === "bosta" || carrier.credential_fields.length > 0;
+                const hasDetail = carrier.slug === "bosta" || carrier.tier === "app" || carrier.credential_fields.length > 0;
                 const clickable = hasDetail && carrier.slug !== "manual";
                 const Row = clickable ? "button" : "div";
                 const open = () =>
@@ -689,6 +690,7 @@ const Logistics = () => {
                       >
                         <CarrierMark
                           slug={carrier.slug}
+                          iconUrl={carrier.icon_url}
                           name={carrier.name_en}
                           brandColor={carrier.brand_color}
                           size={22}

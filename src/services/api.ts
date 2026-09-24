@@ -233,7 +233,7 @@ export async function apiClient<T>(
 
   // Handle CSRF token expiry: refresh token and retry once
   if (res.status === 403) {
-    const body = await res.json().catch(() => null);
+    const body = await res.clone().json().catch(() => null);
     if (body?.detail === "CSRF validation failed") {
       // Forced: the header now always mirrors the cookie, so a 403 means the
       // cookie itself is no longer accepted. Re-reading it would resend the
@@ -259,7 +259,7 @@ export async function apiClient<T>(
         );
       }
     } else {
-      throw new ApiError(403, body?.detail || null);
+      throw await apiErrorFromResponse(res);
     }
   }
 
@@ -381,7 +381,7 @@ export async function apiClientFormData<T>(
   }
 
   if (res.status === 403) {
-    const body = await res.json().catch(() => null);
+    const body = await res.clone().json().catch(() => null);
     if (body?.detail === "CSRF validation failed") {
       await initCSRF(true);
       try {
@@ -390,7 +390,7 @@ export async function apiClientFormData<T>(
         throw apiErrorFromNetwork(err);
       }
     } else {
-      throw new ApiError(403, body?.detail || null);
+      throw await apiErrorFromResponse(res);
     }
   }
 

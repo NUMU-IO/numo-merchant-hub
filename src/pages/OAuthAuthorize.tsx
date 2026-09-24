@@ -13,12 +13,15 @@ import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Loader2, ShieldCheck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
 import { scopeSentence } from "@/lib/appScopes";
 import { approveConsent, getConsent } from "@/services/appsApi";
+import { formatMoney } from "@/lib/format-money";
+import { RatingBadge } from "@/components/apps/AppFeedback";
 
 export default function OAuthAuthorize() {
   const { t } = useTranslation();
@@ -89,6 +92,12 @@ export default function OAuthAuthorize() {
                       {t("consent.by", { partner: c.app.partner })}
                     </p>
                   )}
+                  <RatingBadge rating={c.app.rating} count={c.app.reviews_count} />
+                  {c.app.private && (
+                    <Badge variant="outline" className="mt-1">
+                      {t("consent.custom", { partner: c.app.partner ?? "NUMU" })}
+                    </Badge>
+                  )}
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -110,10 +119,31 @@ export default function OAuthAuthorize() {
               </div>
 
               {price && (
-                <p className="text-sm">
-                  <span className="font-semibold">{t("consent.price")}: </span>
-                  {price}
-                </p>
+                <div className="space-y-1 text-sm">
+                  <p>
+                    <span className="font-semibold">{t("consent.price")}: </span>
+                    {price}
+                  </p>
+                  {(c.app.pricing?.vat_cents ?? 0) > 0 && (
+                    <p className="text-xs">
+                      {t("appBilling.vatLine", {
+                        amount: formatMoney(c.app.pricing?.vat_cents ?? 0, {
+                          fromCents: true,
+                          currency: c.app.pricing?.currency || "EGP",
+                          locale: lang,
+                          fixed: true,
+                        }),
+                      })}
+                    </p>
+                  )}
+                  {c.app.pricing?.charged_from_wallet && (
+                    <p className="text-xs text-muted-foreground">
+                      {c.app.pricing.trial_available && c.app.pricing.trial_days
+                        ? t("consent.walletTrial", { days: c.app.pricing.trial_days })
+                        : t("consent.wallet")}
+                    </p>
+                  )}
+                </div>
               )}
               <p className="flex items-start gap-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />

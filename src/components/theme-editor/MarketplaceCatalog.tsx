@@ -99,7 +99,7 @@ function satisfactionPercent(theme: CatalogTheme): number | null {
   return Math.max(0, Math.min(100, Math.round((rating / 5) * 100)));
 }
 
-function CatalogCard({
+export function CatalogCard({
   theme,
   installed,
   busy,
@@ -600,6 +600,8 @@ export function MarketplaceCatalog({
         currentlyActiveName={activeThemeName}
         priceCents={installTarget?.price_cents ?? 0}
         currency={installTarget?.currency ?? "EGP"}
+        storeId={storeId}
+        themeId={installTarget?.id}
         loading={installMutation.isPending}
         onConfirm={() =>
           installTarget && installMutation.mutate(installTarget.id)

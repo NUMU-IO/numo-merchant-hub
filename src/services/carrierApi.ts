@@ -59,7 +59,8 @@ export interface Carrier {
   slug: string;
   name_en: string;
   name_ar: string;
-  tier: "native" | "aggregator" | "manual";
+  /** `app` = an installed partner shipping app, slug `app:<app-slug>`. */
+  tier: "native" | "aggregator" | "manual" | "app";
   brand_color: string | null;
   is_default: boolean;
   is_selectable: boolean;
@@ -70,6 +71,8 @@ export interface Carrier {
   credential_fields: CarrierCredentialField[];
   supported_operations: string[];
   status: CarrierConnectionStatus;
+  /** Shipping apps only: the app's listing icon. */
+  icon_url?: string | null;
 }
 
 // ── Calls ──

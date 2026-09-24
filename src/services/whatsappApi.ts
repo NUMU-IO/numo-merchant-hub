@@ -578,7 +578,7 @@ export async function getWhatsAppAccess(storeId: string) {
 /**
  * Ask a platform admin to grant this store WhatsApp access. Returns the
  * updated access object (HTTP 201). Rejects with an `ApiError` — a 409
- * whose `body.detail.code === "whatsapp_access_not_requestable"` means the
+ * whose `code === "whatsapp_access_not_requestable"` means the
  * store's current status isn't requestable (e.g. already pending/approved).
  */
 export async function requestWhatsAppAccess(

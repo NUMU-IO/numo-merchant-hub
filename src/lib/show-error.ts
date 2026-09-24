@@ -4,6 +4,9 @@
  */
 
 import { toast } from "sonner";
+import i18n from "@/i18n";
+import { useUpgradeDialog } from "@/hooks/useUpgradeDialog";
+import type { UpgradeDetails } from "@/services/entitlementsApi";
 import { ApiError } from "./api-error";
 
 /**
@@ -22,6 +25,17 @@ export function showError(
   const isAr = lang === "ar";
 
   if (err instanceof ApiError) {
+    if (err.code === "FEATURE_NOT_AVAILABLE" || err.code === "PLAN_LIMIT_EXCEEDED") {
+      useUpgradeDialog.getState().open((err.details ?? {}) as UpgradeDetails);
+      return;
+    }
+    // Switched off platform-wide: not the merchant's doing, so no upsell. The
+    // id collapses the MutationCache's toast and the caller's into one.
+    if (err.code === "FEATURE_TEMPORARILY_DISABLED") {
+      toast.warning(i18n.t("upgrade.disabled_globally.body", { lng: lang }), { id: err.code });
+      return;
+    }
+
     const msg = err.toUserMessage(lang);
 
     // For 429 (rate limit), use a warning style

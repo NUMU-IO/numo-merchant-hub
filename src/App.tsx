@@ -18,9 +18,13 @@ import { BrandLoadingScreen } from "@/components/NumuLoader/BrandLoader";
 import { FirstLoginGate } from "@/components/NumuLoader/FirstLoginGate";
 import { PageLoader } from "@/components/PageLoader";
 import { getPartnerMe } from "@/services/partnersApi";
+import { isPartnerHost } from "@/lib/partner-host";
 import { Suspense, useEffect, useRef } from "react";
 import { lazyWithRetry, lazyWithRetry as lazy } from "@/lib/lazy-with-retry";
+import { ApiError } from "@/lib/api-error";
 import { showError } from "@/lib/show-error";
+import { useUpgradeDialog } from "@/hooks/useUpgradeDialog";
+import { entitlementKeys, type UpgradeDetails } from "@/services/entitlementsApi";
 import i18n from "@/i18n";
 
 // Lazy-loaded pages for code splitting
@@ -114,6 +118,7 @@ const McpConnect = lazyWithRetry(() => import("@/pages/McpConnect"));
 const Developers = lazyWithRetry(() => import("@/pages/Developers"));
 const Apps = lazyWithRetry(() => import("@/pages/Apps"));
 const AppDetail = lazyWithRetry(() => import("@/pages/AppDetail"));
+const EmbeddedApp = lazyWithRetry(() => import("@/pages/EmbeddedApp"));
 const GiftCards = lazyWithRetry(() => import("@/pages/GiftCards"));
 const Locations = lazyWithRetry(() => import("@/pages/Locations"));
 const PresentmentCurrencies = lazyWithRetry(() => import("@/pages/PresentmentCurrencies"));
@@ -124,6 +129,7 @@ const CreateStore = lazyWithRetry(() => import("@/pages/CreateStore"));
 const Partners = lazyWithRetry(() => import("@/pages/Partners"));
 const PartnerApps = lazyWithRetry(() => import("@/pages/PartnerApps"));
 const PartnerAppDetail = lazyWithRetry(() => import("@/pages/PartnerAppDetail"));
+const PartnerPortal = lazyWithRetry(() => import("@/pages/PartnerPortal"));
 const OAuthAuthorize = lazyWithRetry(() => import("@/pages/OAuthAuthorize"));
 const ForgotPassword = lazyWithRetry(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazyWithRetry(() => import("@/pages/ResetPassword"));
@@ -164,6 +170,18 @@ const queryClient = new QueryClient({
   // opt out; everything else would otherwise fail silently.
   mutationCache: new MutationCache({
     onError: (error, _variables, _context, mutation) => {
+      if (
+        error instanceof ApiError &&
+        (error.code === "FEATURE_NOT_AVAILABLE" || error.code === "PLAN_LIMIT_EXCEEDED")
+      ) {
+        void queryClient.invalidateQueries({ queryKey: entitlementKeys.all });
+        useUpgradeDialog.getState().open((error.details ?? {}) as UpgradeDetails);
+        return;
+      }
+      if (error instanceof ApiError && error.code === "FEATURE_TEMPORARILY_DISABLED") {
+        showError(error, i18n.language);
+        return;
+      }
       if (mutation.options.onError || mutation.meta?.skipErrorToast) return;
       showError(error, i18n.language);
     },
@@ -300,6 +318,32 @@ const App = () => (
               <SwitchVersionOnNavigate />
               <FirstLoginGate>
               <Suspense fallback={<PageLoader />}>
+                {isPartnerHost ? (
+                <Routes>
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/token-handoff" element={<TokenHandoff />} />
+                  <Route
+                    path="/verify-email"
+                    element={
+                      <RequireAuth>
+                        <VerifyEmail />
+                      </RequireAuth>
+                    }
+                  />
+                  <Route
+                    path="*"
+                    element={
+                      <RequireAuth>
+                        <RequireVerified>
+                          <PartnerPortal />
+                        </RequireVerified>
+                      </RequireAuth>
+                    }
+                  />
+                </Routes>
+                ) : (
                 <Routes>
                   {/* Public */}
                   <Route path="/login" element={<Login />} />
@@ -548,6 +592,7 @@ const App = () => (
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/apps" element={<Apps />} />
                     <Route path="/apps/:slug" element={<AppDetail />} />
+                    <Route path="/apps/:slug/app" element={<EmbeddedApp />} />
                     <Route path="/gift-cards" element={<GiftCards />} />
                     <Route path="/locations" element={<Locations />} />
                     <Route
@@ -591,6 +636,7 @@ const App = () => (
 
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                )}
               </Suspense>
               </FirstLoginGate>
             </BrowserRouter>

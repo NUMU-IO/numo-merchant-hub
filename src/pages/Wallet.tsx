@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { apiClient } from "@/services/api";
+import { apiClient, apiClientBlob } from "@/services/api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,8 @@ interface WalletTx {
   order_id: string | null;
   note: string | null;
   created_at: string;
+  invoice_id?: string | null;
+  invoice_number?: string | null;
 }
 
 interface TopupHistoryItem {
@@ -72,6 +74,7 @@ const KIND_LABELS: Record<string, { en: string; ar: string }> = {
   commission_reversal: { en: "Commission reversal", ar: "استرداد عمولة" },
   adjustment: { en: "Adjustment", ar: "تسوية" },
   app_charge: { en: "App subscription", ar: "اشتراك تطبيق" },
+  app_charge_reversal: { en: "App refund", ar: "استرداد تطبيق" },
 };
 
 const Wallet = () => {
@@ -86,6 +89,20 @@ const Wallet = () => {
   const [loading, setLoading] = useState(true);
   const [topupOpen, setTopupOpen] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openInvoice = async (id: string) => {
+    const tab = window.open("", "_blank");
+    try {
+      const blob = await apiClientBlob(`/wallet/app-invoices/${id}`);
+      const url = URL.createObjectURL(new Blob([blob], { type: "text/html" }));
+      if (tab) tab.location.href = url;
+      else window.location.assign(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      tab?.close();
+      toast.error(isAr ? "تعذر فتح الفاتورة" : "Couldn't open the invoice");
+    }
+  };
 
   const fmt = (cents: number) =>
     (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", { minimumFractionDigits: 2 });
@@ -335,6 +352,15 @@ const Wallet = () => {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-[240px] truncate">
                       {t.note || (t.order_id ? `#${t.order_id.slice(0, 8)}` : "—")}
+                      {t.invoice_id && (
+                        <button
+                          type="button"
+                          className="block text-xs text-primary underline-offset-2 hover:underline"
+                          onClick={() => void openInvoice(t.invoice_id as string)}
+                        >
+                          {isAr ? "الفاتورة" : "Invoice"} <bdi dir="ltr">{t.invoice_number}</bdi>
+                        </button>
+                      )}
                     </TableCell>
                     <TableCell className={`text-end tabular-nums font-medium ${credit ? "text-green-600" : "text-red-600"}`}>
                       {credit ? "+" : ""}{fmt(t.amount_cents)}

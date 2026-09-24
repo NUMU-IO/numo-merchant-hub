@@ -45,7 +45,7 @@ export default function DevelopersPage() {
 
   return (
     <div className="space-y-6 md:p-6" dir={isRTL ? "rtl" : "ltr"}>
-      <SettingsBreadcrumb current={t("Developers", "المطوّرين")} />
+      <SettingsBreadcrumb current={t("API & webhooks", "الـ API والـ Webhooks")} />
 
       <div className="flex items-start gap-3">
         <div className="rounded-lg bg-primary/10 p-2">
@@ -53,7 +53,7 @@ export default function DevelopersPage() {
         </div>
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold">{t("Developers", "المطوّرين")}</h1>
+            <h1 className="text-2xl font-bold">{t("API & webhooks", "الـ API والـ Webhooks")}</h1>
             {access?.allowed && (
               <Badge className="border-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                 {access.source === "grant"

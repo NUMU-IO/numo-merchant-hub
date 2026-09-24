@@ -70,6 +70,14 @@ const EVENT_LABELS: Record<string, { en: string; ar: string }> = {
   "product.created": { en: "Product created", ar: "تم إنشاء منتج" },
   "product.updated": { en: "Product updated", ar: "تم تعديل منتج" },
   "product.deleted": { en: "Product deleted", ar: "تم حذف منتج" },
+  "customer.created": { en: "Customer created", ar: "عميل جديد" },
+  "customer.updated": { en: "Customer updated", ar: "تم تعديل بيانات عميل" },
+  "refund.created": { en: "Refund requested", ar: "طلب استرجاع فلوس جديد" },
+  "refund.completed": { en: "Refund completed", ar: "تم استرجاع الفلوس" },
+  "shipment.created": { en: "Shipment created", ar: "شحنة جديدة" },
+  "shipment.status_changed": { en: "Shipment status or tracking changed", ar: "حالة الشحنة أو رقم التتبع اتغيّر" },
+  "inventory.level_changed": { en: "Stock level changed", ar: "المخزون اتغيّر" },
+  "checkout.abandoned": { en: "Checkout abandoned", ar: "سلة متروكة" },
 };
 
 export function WebhooksPanel({ storeId }: { storeId: string | undefined }) {
