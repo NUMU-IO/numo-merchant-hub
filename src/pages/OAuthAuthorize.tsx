@@ -110,10 +110,19 @@ export default function OAuthAuthorize() {
               </div>
 
               {price && (
-                <p className="text-sm">
-                  <span className="font-semibold">{t("consent.price")}: </span>
-                  {price}
-                </p>
+                <div className="space-y-1 text-sm">
+                  <p>
+                    <span className="font-semibold">{t("consent.price")}: </span>
+                    {price}
+                  </p>
+                  {c.app.pricing?.charged_from_wallet && (
+                    <p className="text-xs text-muted-foreground">
+                      {c.app.pricing.trial_available && c.app.pricing.trial_days
+                        ? t("consent.walletTrial", { days: c.app.pricing.trial_days })
+                        : t("consent.wallet")}
+                    </p>
+                  )}
+                </div>
               )}
               <p className="flex items-start gap-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />

@@ -72,6 +72,7 @@ const KIND_LABELS: Record<string, { en: string; ar: string }> = {
   commission_reversal: { en: "Commission reversal", ar: "استرداد عمولة" },
   adjustment: { en: "Adjustment", ar: "تسوية" },
   app_charge: { en: "App subscription", ar: "اشتراك تطبيق" },
+  app_charge_reversal: { en: "App refund", ar: "استرداد تطبيق" },
 };
 
 const Wallet = () => {

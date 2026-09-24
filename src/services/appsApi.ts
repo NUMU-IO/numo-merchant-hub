@@ -201,6 +201,19 @@ export interface AppSubscription {
   cancel_at_period_end: boolean;
   /** What this store renews at: the price when it subscribed. */
   subscribed_price_cents: number | null;
+  /** Free days the app offers before the first charge (0: none). */
+  trial_days: number;
+  /** This store hasn't had the app's free trial yet. */
+  trial_available: boolean;
+  /** The current period is the free trial. */
+  is_trial: boolean;
+  /** Metered charges, taken from the wallet as the app reports them. */
+  usage: {
+    unit: Record<string, string>;
+    unit_price_cents: number | null;
+    cap_cents: number;
+    used_cents: number;
+  } | null;
 }
 
 const subscriptionPath = (storeId: string, slug: string) =>
@@ -245,7 +258,15 @@ export interface Consent {
     tagline: Record<string, string>;
     icon: string | null;
     partner: string | null;
-    pricing: { plan?: string; locales?: Record<string, { label?: string }> } | null;
+    pricing: {
+      plan?: string;
+      locales?: Record<string, { label?: string }>;
+      trial_days?: number;
+      /** NUMU charges the store's wallet once the merchant subscribes. */
+      charged_from_wallet?: boolean;
+      /** This store hasn't had the app's free trial yet. */
+      trial_available?: boolean;
+    } | null;
     privacy_policy_url: string | null;
   };
   store_id: string;
