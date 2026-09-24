@@ -221,6 +221,16 @@ export function PartnerThemeDetail() {
     },
     onError: (err) => showError(err, language),
   });
+  const [price, setPrice] = useState("");
+  const setListingPrice = useMutation({
+    mutationFn: () => updateListing(id, { price_cents: Math.round(Number(price || 0) * 100) }),
+    onSuccess: () => {
+      toast.success(t("partnerThemes.priceSaved"));
+      setPrice("");
+      refresh();
+    },
+    onError: (err) => showError(err, language),
+  });
   const submit = useMutation({
     mutationFn: () => submitThemeBundle(id, bundle!, version.trim(), notes.trim()),
     onSuccess: () => {
@@ -323,9 +333,32 @@ export function PartnerThemeDetail() {
               {field("demo_store_url", "ltr")}
               {field("thumbnail_url", "ltr")}
               <div className="space-y-1.5">
-                <Label htmlFor="listing-price">{t("partnerThemes.price")}</Label>
-                <Input id="listing-price" dir="ltr" value={t("partnerThemes.free")} disabled />
-                <p className="text-xs text-muted-foreground">{t("partnerThemes.paidSoon")}</p>
+                <Label htmlFor="listing-price">{t("partnerThemes.priceEgp")}</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="listing-price"
+                    type="number"
+                    min={0}
+                    dir="ltr"
+                    placeholder={theme.price_cents ? String(theme.price_cents / 100) : t("partnerThemes.free")}
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={price === "" || setListingPrice.isPending}
+                    onClick={() => setListingPrice.mutate()}
+                  >
+                    {t("partnerThemes.setPrice")}
+                  </Button>
+                </div>
+                {theme.pending_price_cents != null && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("partnerThemes.pendingPrice", { price: theme.pending_price_cents / 100 })}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">{t("partnerThemes.priceHint")}</p>
               </div>
               <div className="sm:col-span-2">{field("screenshots", "ltr", true)}</div>
               <p className="text-xs text-muted-foreground sm:col-span-2">{t("partnerThemes.imageHint")}</p>

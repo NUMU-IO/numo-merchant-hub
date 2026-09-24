@@ -211,6 +211,32 @@ export function getThemeDetail(slug: string): Promise<ThemeDetailResponse> {
 const STORE_BASE = (storeId: string) =>
   `/stores/${storeId}/marketplace`;
 
+export interface ThemePurchaseQuote {
+  list_price_cents: number;
+  vat_cents: number;
+  vat_bps: number;
+  total_cents: number;
+  currency: string;
+  paid: boolean;
+  purchased: boolean;
+}
+
+/** The price plus VAT on NUMU's fee, and whether this store owns the theme. */
+export function getThemePurchase(storeId: string, themeId: string): Promise<ThemePurchaseQuote> {
+  return apiClient<ThemePurchaseQuote>(`${STORE_BASE(storeId)}/themes/${themeId}/purchase`);
+}
+
+/**
+ * Buy a paid theme for this store from the NUMU wallet, then install it.
+ * Once per store: a retry charges nothing. A short wallet is a 402 with
+ * `needed_cents` and `balance_cents`.
+ */
+export function buyTheme(storeId: string, themeId: string): Promise<{ charged: boolean }> {
+  return apiClient<{ charged: boolean }>(`${STORE_BASE(storeId)}/themes/${themeId}/purchase`, {
+    method: "POST",
+  });
+}
+
 /** What's installed on a given store. */
 export function listInstalled(storeId: string): Promise<InstalledListResponse> {
   return apiClient<InstalledListResponse>(`${STORE_BASE(storeId)}/installed`);
