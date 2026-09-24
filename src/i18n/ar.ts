@@ -330,6 +330,13 @@
     decidedOn: "اتقرر {{date}}",
   },
   partnerNotifications: {
+    reviewNew: "تقييم جديد {{rating}} نجوم",
+    reviewNewBody: "من {{store}}. تقدر ترد علنًا.",
+    reviewHidden: "تم إخفاء تقييم {{rating}} نجوم",
+    reviewHiddenBody: "نُمو أخفته بعد بلاغ، ومبقاش بيتحسب في تقييمك.",
+    supportNew: "تذكرة دعم جديدة",
+    supportReply: "رد جديد من تاجر",
+    supportStaffReply: "رد فريق نُمو",
     status: {
       submitted: "اتبعت للمراجعة",
       in_review: "في المراجعة",

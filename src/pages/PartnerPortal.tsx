@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from "react";
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { useEffect, useState, type ReactNode } from "react";
+import { NavLink, Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -86,6 +86,7 @@ export default function PartnerPortal() {
         <Route path="webhooks" element={<Webhooks />} />
         <Route path="reviews" element={<Reviews />} />
         <Route path="support" element={<Support />} />
+        <Route path="support/:id" element={<Support />} />
         <Route path="team" element={<Team me={me} />} />
         <Route path="profile" element={<Profile me={me} />} />
         <Route path="notifications" element={<PartnerNotificationsPage />} />
@@ -472,7 +473,8 @@ function Reviews() {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const queryClient = useQueryClient();
-  const [appId, setAppId] = useState(ALL);
+  const [searchParams] = useSearchParams();
+  const [appId, setAppId] = useState(searchParams.get("app") ?? ALL);
   const [rating, setRating] = useState(ALL);
   const [page, setPage] = useState(1);
   const [replying, setReplying] = useState<AppReview | null>(null);
@@ -618,9 +620,13 @@ function Reviews() {
 function Support() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const { id: linkedId } = useParams();
   const [kind, setKind] = useState<"app" | "partner">("app");
   const [status, setStatus] = useState(ALL);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(linkedId ?? null);
+  useEffect(() => {
+    if (linkedId) setOpenId(linkedId);
+  }, [linkedId]);
   const [composing, setComposing] = useState(false);
   const params = { kind, status: status === ALL ? undefined : status };
   const { data } = useQuery({
