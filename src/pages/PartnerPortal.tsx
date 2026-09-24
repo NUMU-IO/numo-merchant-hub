@@ -35,6 +35,7 @@ import { showError } from "@/lib/show-error";
 import Partners from "@/pages/Partners";
 import PartnerApps from "@/pages/PartnerApps";
 import PartnerAppDetail from "@/pages/PartnerAppDetail";
+import { PartnerNotificationBell, PartnerNotificationsPage } from "@/components/partners/PartnerNotifications";
 import {
   getPartnerDashboard,
   getPartnerMe,
@@ -66,6 +67,7 @@ export default function PartnerPortal() {
         <Route path="webhooks" element={<Webhooks />} />
         <Route path="team" element={<Team me={me} />} />
         <Route path="profile" element={<Profile me={me} />} />
+        <Route path="notifications" element={<PartnerNotificationsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>
@@ -113,6 +115,7 @@ function Shell({ children }: { children: ReactNode }) {
       <div className="min-w-0 flex-1">
         <header className="flex h-14 items-center justify-end gap-2 border-b px-4">
           <span className="hidden truncate text-sm text-muted-foreground sm:inline">{user?.email}</span>
+          <PartnerNotificationBell />
           <ThemeSwitch />
           <Button
             variant="ghost"

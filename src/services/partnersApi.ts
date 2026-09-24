@@ -6,6 +6,7 @@
  */
 
 import { apiClient } from "./api";
+import type { AppCatalogEntry } from "./appsApi";
 import { ApiError } from "@/lib/api-error";
 
 export type PartnerStatus = "pending" | "approved" | "rejected" | "suspended";
@@ -175,8 +176,15 @@ export function uploadAppVersion(
   return apiClient(`${APPS}/${id}/versions`, { method: "POST", body: JSON.stringify(body) });
 }
 
-export function submitAppVersion(id: string, versionId: string): Promise<PartnerAppVersion> {
-  return apiClient(`${APPS}/${id}/versions/${versionId}/submit`, { method: "POST" });
+export function submitAppVersion(
+  id: string,
+  versionId: string,
+  withListing = false,
+): Promise<PartnerAppVersion> {
+  return apiClient(`${APPS}/${id}/versions/${versionId}/submit`, {
+    method: "POST",
+    body: JSON.stringify({ with_listing: withListing }),
+  });
 }
 
 export function publishAppVersion(id: string, versionId: string): Promise<PartnerAppDetail> {
@@ -191,6 +199,123 @@ export function devInstallApp(id: string, storeId: string): Promise<{ store_id: 
   return apiClient(`${APPS}/${id}/dev-install`, {
     method: "POST",
     body: JSON.stringify({ store_id: storeId }),
+  });
+}
+
+// ─── Review and listing ──────────────────────────────────────────────
+
+export type ReviewStatus = "submitted" | "in_review" | "approved" | "changes_requested" | "rejected";
+
+export interface ReviewRound {
+  id: string;
+  round: number;
+  subject: "version" | "listing" | "version_listing";
+  version: string | null;
+  version_id: string | null;
+  listing_id: string | null;
+  status: ReviewStatus;
+  submitted_at: string;
+  decided_at: string | null;
+  notes: { ar?: string; en?: string } | null;
+  checklist: Record<string, boolean> | null;
+}
+
+export interface AppReviews {
+  rounds: ReviewRound[];
+  open: {
+    review_id: string;
+    position: number;
+    queue_length: number;
+    submitted_at: string;
+    expected_by: string;
+  } | null;
+  sla_business_days: number;
+}
+
+export function getAppReviews(id: string): Promise<AppReviews> {
+  return apiClient<AppReviews>(`${APPS}/${id}/reviews`);
+}
+
+type Bi = { ar: string; en: string };
+
+export interface ListingContent {
+  name: Bi;
+  tagline: Bi;
+  description: Bi;
+  screenshots: { src: string; caption?: Bi }[];
+  video_url: string | null;
+  category: string;
+  keywords: { ar: string[]; en: string[] };
+}
+
+export type ListingStatus =
+  | "draft"
+  | "submitted"
+  | "in_review"
+  | "approved"
+  | "changes_requested"
+  | "rejected"
+  | "live"
+  | "superseded";
+
+export interface ListingDraft {
+  id: string;
+  status: ListingStatus;
+  content: ListingContent;
+  version_id: string | null;
+  submitted_at: string | null;
+  updated_at: string;
+}
+
+export interface AppListingState {
+  listed: boolean;
+  categories: string[];
+  live: ListingContent;
+  draft: ListingDraft | null;
+  preview: AppCatalogEntry;
+}
+
+export function getAppListing(id: string): Promise<AppListingState> {
+  return apiClient<AppListingState>(`${APPS}/${id}/listing`);
+}
+
+export function saveAppListing(id: string, body: ListingContent): Promise<ListingDraft> {
+  return apiClient(`${APPS}/${id}/listing`, { method: "PUT", body: JSON.stringify(body) });
+}
+
+export function submitAppListing(id: string): Promise<ListingDraft> {
+  return apiClient(`${APPS}/${id}/listing/submit`, { method: "POST" });
+}
+
+export function uploadListingScreenshot(id: string, file: File): Promise<{ url: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiClient(`${APPS}/${id}/listing/screenshots`, { method: "POST", body: form });
+}
+
+// ─── Notifications ───────────────────────────────────────────────────
+
+export interface PartnerNotification {
+  id: string;
+  kind: "review_status" | "payout_recorded" | "platform_notice" | "subscription_past_due" | string;
+  data: Record<string, unknown>;
+  app_id: string | null;
+  link: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+export function listPartnerNotifications(params: { limit?: number; unread?: boolean } = {}): Promise<{
+  items: PartnerNotification[];
+  unread_count: number;
+}> {
+  return apiClient(`/partners/me/notifications${query(params)}`);
+}
+
+export function markPartnerNotificationsRead(ids?: string[]): Promise<{ updated: number }> {
+  return apiClient("/partners/me/notifications/read", {
+    method: "POST",
+    body: JSON.stringify(ids ? { ids } : {}),
   });
 }
 
@@ -246,7 +371,7 @@ export interface PartnerDashboard {
   }[];
 }
 
-const query = (params: Record<string, string | number | undefined>) => {
+const query = (params: Record<string, string | number | boolean | undefined>) => {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") q.set(k, String(v));
   const s = q.toString();
