@@ -21,7 +21,7 @@ import {
   ClipboardList, ArrowLeftRight as Navigation2,
   SlidersHorizontal, Palette, User, UserCog, UserCheck,
   CircleAlert as AlertTriangle, ChartColumn as BarChart3,
-  CreditCard, ShieldCheck, Compass, Zap as Lightning, Newspaper as Article,
+  CreditCard, ShieldCheck, Compass, Zap as Lightning, Newspaper as Article, BadgeDollarSign,
 } from "lucide-react";
 import { WhatsAppGlyph } from "@/components/whatsapp/WhatsAppGlyph";
 import { useAuth } from "@/contexts/AuthContext";
@@ -198,7 +198,7 @@ export function useHubNav() {
     leaf("fi.invoices", t("nav.invoices"), "/invoices", Receipt, "payments.invoices"),
     leaf("fi.setup", t("nav.paymentSetup"), "/payment-setup", CreditCard, "payments.payment-setup"),
     leaf("fi.trust", t("nav.trustNetwork"), "/trust-network", ShieldCheck, "payments.trust-network"),
-    leaf("fi.billing", t("nav.billing"), "/billing", Sparkles, "payments.billing"),
+    leaf("fi.billing", t("nav.billing"), "/billing", BadgeDollarSign, "payments.billing"),
   ];
   const staffSub = [
     leaf("st.members", t("nav.members"), "/staff", User, "staff.members"),

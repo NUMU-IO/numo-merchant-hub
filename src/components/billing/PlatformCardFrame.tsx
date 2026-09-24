@@ -165,7 +165,7 @@ const PlatformCardFrame = ({ cardForm, amountLabel, checkStatus, onSucceeded, on
     <iframe
       title={isAr ? "الدفع بالبطاقة" : "Card payment"}
       src={src}
-      className="w-full h-[540px] border-0"
+      className="h-[450px] w-full border-0"
       referrerPolicy="no-referrer"
     />
   );
