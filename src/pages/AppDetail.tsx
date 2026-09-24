@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
@@ -39,6 +39,7 @@ import { showError } from "@/lib/show-error";
 import { AppSettingsPanel } from "@/components/apps/AppSettingsPanel";
 import { AppSubscriptionCard } from "@/components/apps/AppSubscriptionCard";
 import { AppListingView, appDisplay } from "@/components/apps/AppListingView";
+import { AppReviews, AppSupport, RatingBadge } from "@/components/apps/AppFeedback";
 import { scopeSentence } from "@/lib/appScopes";
 import {
   type AppCatalogEntry,
@@ -59,6 +60,7 @@ export default function AppDetail() {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const queryClient = useQueryClient();
@@ -155,9 +157,12 @@ export default function AppDetail() {
         app={app}
         language={language}
         badges={
-          install?.app_status === "suspended" && (
-            <Badge variant="outline">{t("apps.suspended")}</Badge>
-          )
+          <>
+            {install?.app_status === "suspended" && (
+              <Badge variant="outline">{t("apps.suspended")}</Badge>
+            )}
+            <RatingBadge rating={entry?.rating} count={entry?.reviews_count} />
+          </>
         }
         actions={
           <>
@@ -300,6 +305,12 @@ export default function AppDetail() {
       )}
 
       </AppListingView>
+      <AppReviews storeId={storeId!} slug={app.slug} />
+
+      {isPartner && (
+        <AppSupport storeId={storeId!} slug={app.slug} initialTicketId={searchParams.get("support")} />
+      )}
+
       {/* ── Settings, only once it is installed ── */}
       {install && (install.settings_schema?.length ?? 0) > 0 && (
         <Card>

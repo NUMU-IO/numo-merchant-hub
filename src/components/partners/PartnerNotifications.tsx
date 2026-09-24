@@ -85,6 +85,30 @@ function render(item: NotificationItem, t: TFunction, lang: "ar" | "en"): Render
         icon: "payment",
         tone: "terra",
       };
+    case "review_new":
+    case "review_reported_hidden":
+      return {
+        title: [
+          { text: String(d.app_name ?? ""), em: true },
+          { text: ` · ${t(`partnerNotifications.${item.kind === "review_new" ? "reviewNew" : "reviewHidden"}`, { rating: d.rating ?? "" })}` },
+        ],
+        body: item.kind === "review_new"
+          ? t("partnerNotifications.reviewNewBody", { store: d.store_name ?? "" })
+          : t("partnerNotifications.reviewHiddenBody"),
+        icon: "request",
+        tone: item.kind === "review_new" ? "saffron" : "terra",
+      };
+    case "support_ticket_new":
+    case "support_reply":
+      return {
+        title: [
+          { text: t(`partnerNotifications.${item.kind === "support_reply" ? (d.from === "staff" ? "supportStaffReply" : "supportReply") : "supportNew"}`) + " · " },
+          { text: String(d.subject ?? ""), em: true },
+        ],
+        body: [d.app_name, d.store_name].filter(Boolean).join(" · "),
+        icon: "request",
+        tone: d.from === "staff" ? "sage" : "navy",
+      };
     default:
       return { title: [{ text: item.kind }], body: "", icon: "alert", tone: "navy" };
   }

@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from "react";
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { useEffect, useState, type ReactNode } from "react";
+import { NavLink, Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -8,9 +8,11 @@ import {
   Download,
   LayoutDashboard,
   Languages,
+  LifeBuoy,
   Loader2,
   LogOut,
   Palette,
+  Star,
   Store,
   Ticket,
   Trash2,
@@ -34,6 +36,14 @@ import { BrandLoadingScreen } from "@/components/NumuLoader/BrandLoader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  NewTicketForm,
+  ReviewItem,
+  Stars,
+  TicketList,
+  TicketThread,
+} from "@/components/apps/AppFeedback";
 import Partners from "@/pages/Partners";
 import PartnerApps from "@/pages/PartnerApps";
 import PartnerAppDetail from "@/pages/PartnerAppDetail";
@@ -48,6 +58,14 @@ import {
   listPartnerCoupons,
   listPartnerSubscriptions,
   setPartnerCouponActive,
+  closePartnerTicket,
+  getPartnerTicket,
+  listPartnerReviews,
+  listPartnerTickets,
+  openPartnerTicket,
+  replyPartnerReview,
+  replyPartnerTicket,
+  reportPartnerReview,
   invitePartnerMember,
   listPartnerApps,
   listPartnerTeam,
@@ -58,6 +76,7 @@ import {
   updatePartnerProfile,
   type PartnerMe,
 } from "@/services/partnersApi";
+import type { AppReview, SupportThread } from "@/services/appsApi";
 
 const ALL = "all";
 const MANAGERS = ["owner", "admin"];
@@ -77,6 +96,9 @@ export default function PartnerPortal() {
         <Route path="dev-stores" element={<Partners />} />
         <Route path="webhooks" element={<Webhooks />} />
         <Route path="coupons" element={<Coupons me={me} />} />
+        <Route path="reviews" element={<Reviews />} />
+        <Route path="support" element={<Support />} />
+        <Route path="support/:id" element={<Support />} />
         <Route path="team" element={<Team me={me} />} />
         <Route path="profile" element={<Profile me={me} />} />
         <Route path="notifications" element={<PartnerNotificationsPage />} />
@@ -98,6 +120,8 @@ function Shell({ children }: { children: ReactNode }) {
     { to: "/dev-stores", icon: Store, label: t("partnerPortal.nav.devStores") },
     { to: "/webhooks", icon: Webhook, label: t("partnerPortal.nav.webhooks") },
     { to: "/coupons", icon: Ticket, label: t("partnerPortal.nav.coupons") },
+    { to: "/reviews", icon: Star, label: t("appFeedback.partner.navReviews") },
+    { to: "/support", icon: LifeBuoy, label: t("appFeedback.partner.navSupport") },
     { to: "/team", icon: Users, label: t("partnerPortal.nav.team") },
     { to: "/profile", icon: UserCog, label: t("partnerPortal.nav.profile") },
   ];
@@ -215,6 +239,10 @@ function Dashboard() {
   });
   const egp = (cents: number) =>
     formatMoney(cents, { fromCents: true, currency: "EGP", locale: language === "ar" ? "ar" : "en", fixed: true });
+  const { data: reviews, isLoading: reviewsLoading } = useQuery({
+    queryKey: ["partners", "reviews", { app_id: params.app_id }],
+    queryFn: () => listPartnerReviews({ app_id: params.app_id }),
+  });
   const statusLabel = (s: string) => t(`partnerPortal.install_${s}`);
   const slices = data
     ? [
@@ -239,7 +267,7 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile icon={Download} loading={isLoading} label={t("partnerPortal.installsTotal")} value={data?.installs_total ?? 0} />
         <StatTile icon={Trash2} tone="terra" loading={isLoading} label={t("partnerPortal.install_uninstalled")} value={data?.uninstalled ?? 0} sub={t("partnerPortal.uninstalledHint")} />
         <StatTile
@@ -264,6 +292,14 @@ function Dashboard() {
             pastDue: subs?.counts.past_due ?? 0,
             cancelled: subs?.counts.cancelled ?? 0,
           })}
+        />
+        <StatTile
+          icon={Star}
+          tone="saffron"
+          loading={reviewsLoading}
+          label={t("appFeedback.partner.averageRating")}
+          value={reviews?.summary.average != null ? <bdi dir="ltr">{reviews.summary.average.toFixed(1)}</bdi> : "—"}
+          sub={t("appFeedback.reviewsCount", { count: reviews?.summary.count ?? 0 })}
         />
       </div>
 
@@ -709,6 +745,247 @@ function Coupons({ me }: { me: PartnerMe }) {
           </CardContent>
         </Card>
       )}
+    </Page>
+  );
+}
+
+function Reviews() {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const [appId, setAppId] = useState(searchParams.get("app") ?? ALL);
+  const [rating, setRating] = useState(ALL);
+  const [page, setPage] = useState(1);
+  const [replying, setReplying] = useState<AppReview | null>(null);
+  const [reply, setReply] = useState("");
+  const params = {
+    app_id: appId === ALL ? undefined : appId,
+    rating: rating === ALL ? undefined : Number(rating),
+    page,
+  };
+  const { data, isLoading } = useQuery({
+    queryKey: ["partners", "reviews", params],
+    queryFn: () => listPartnerReviews(params),
+  });
+  const onError = (err: unknown) => showError(err, language);
+  const save = useMutation({
+    mutationFn: () => replyPartnerReview(replying!.id, reply.trim()),
+    onSuccess: () => {
+      toast.success(t("appFeedback.partner.replySaved"));
+      setReplying(null);
+      void queryClient.invalidateQueries({ queryKey: ["partners", "reviews"] });
+    },
+    onError,
+  });
+  const report = useMutation({
+    mutationFn: (v: { id: string; reason: string }) => reportPartnerReview(v.id, v.reason),
+    onSuccess: () => {
+      toast.success(t("appFeedback.reported"));
+      void queryClient.invalidateQueries({ queryKey: ["partners", "reviews"] });
+    },
+    onError,
+  });
+  const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
+  const filter = (fn: (v: string) => void) => (v: string) => {
+    fn(v);
+    setPage(1);
+  };
+
+  return (
+    <Page title={t("appFeedback.partner.reviewsTitle")} subtitle={t("appFeedback.partner.reviewsSubtitle")}>
+      <div className="flex flex-wrap items-center gap-3">
+        <AppFilter value={appId} onChange={filter(setAppId)} />
+        <Select value={rating} onValueChange={filter(setRating)}>
+          <SelectTrigger className="w-40" aria-label={t("appFeedback.partner.allRatings")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("appFeedback.partner.allRatings")}</SelectItem>
+            {[5, 4, 3, 2, 1].map((n) => (
+              <SelectItem key={n} value={String(n)}>
+                {t("appFeedback.ratingLabel", { n })}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {data && data.summary.count > 0 && (
+          <span className="ms-auto flex items-center gap-2 text-sm">
+            <Stars value={data.summary.average ?? 0} />
+            <bdi dir="ltr" className="font-semibold">{data.summary.average?.toFixed(1)}</bdi>
+            <span className="text-muted-foreground">
+              ({t("appFeedback.reviewsCount", { count: data.summary.count })})
+            </span>
+          </span>
+        )}
+      </div>
+      {isLoading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+      {data && data.items.length === 0 && <p className="text-sm text-muted-foreground">{t("appFeedback.noReviews")}</p>}
+      <div className="space-y-3">
+        {(data?.items ?? []).map((r) => (
+          <div key={r.id} className="space-y-2">
+            <ReviewItem
+              review={r}
+              actions={
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setReplying(r);
+                      setReply(r.reply_body ?? "");
+                    }}
+                  >
+                    {r.reply_body ? t("appFeedback.partner.editReply") : t("appFeedback.partner.reply")}
+                  </Button>
+                  {!r.reported && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        const reason = window.prompt(t("appFeedback.reportReason"))?.trim();
+                        if (reason && reason.length >= 3) report.mutate({ id: r.id, reason });
+                      }}
+                    >
+                      {t("appFeedback.report")}
+                    </Button>
+                  )}
+                </>
+              }
+            />
+            {replying?.id === r.id && (
+              <form
+                className="space-y-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  save.mutate();
+                }}
+              >
+                <Textarea
+                  aria-label={t("appFeedback.partner.replyPlaceholder")}
+                  placeholder={t("appFeedback.partner.replyPlaceholder")}
+                  maxLength={2000}
+                  value={reply}
+                  onChange={(e) => setReply(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <Button type="submit" size="sm" disabled={!reply.trim() || save.isPending}>
+                    {save.isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+                    {t("appFeedback.partner.reply")}
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setReplying(null)}>
+                    {t("common.cancel")}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
+        ))}
+      </div>
+      {data && data.total > data.page_size && (
+        <div className="flex items-center justify-end gap-2">
+          <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            {t("partnerPortal.prev")}
+          </Button>
+          <span dir="ltr" className="text-sm text-muted-foreground">{page} / {pages}</span>
+          <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage(page + 1)}>
+            {t("partnerPortal.next")}
+          </Button>
+        </div>
+      )}
+    </Page>
+  );
+}
+
+function Support() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const { id: linkedId } = useParams();
+  const [kind, setKind] = useState<"app" | "partner">("app");
+  const [status, setStatus] = useState(ALL);
+  const [openId, setOpenId] = useState<string | null>(linkedId ?? null);
+  useEffect(() => {
+    if (linkedId) setOpenId(linkedId);
+  }, [linkedId]);
+  const [composing, setComposing] = useState(false);
+  const params = { kind, status: status === ALL ? undefined : status };
+  const { data } = useQuery({
+    queryKey: ["partners", "support", params],
+    queryFn: () => listPartnerTickets(params),
+  });
+  const { data: thread } = useQuery({
+    queryKey: ["partners", "support", "thread", openId],
+    queryFn: () => getPartnerTicket(openId!),
+    enabled: Boolean(openId),
+  });
+  const settle = (next: SupportThread) => {
+    queryClient.setQueryData(["partners", "support", "thread", next.ticket.id], next);
+    void queryClient.invalidateQueries({ queryKey: ["partners", "support", params] });
+  };
+
+  return (
+    <Page title={t("appFeedback.partner.supportTitle")} subtitle={t("appFeedback.partner.supportSubtitle")}>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-1 rounded-lg border p-1">
+          {(["app", "partner"] as const).map((k) => (
+            <Button
+              key={k}
+              size="sm"
+              variant={kind === k ? "secondary" : "ghost"}
+              onClick={() => {
+                setKind(k);
+                setOpenId(null);
+                setComposing(false);
+              }}
+            >
+              {k === "app" ? t("appFeedback.partner.fromMerchants") : t("appFeedback.partner.toNumu")}
+            </Button>
+          ))}
+        </div>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className="w-40" aria-label={t("partnerPortal.status")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("partnerPortal.allStatuses")}</SelectItem>
+            {["open", "answered", "closed"].map((s) => (
+              <SelectItem key={s} value={s}>
+                {t(`appFeedback.status_${s}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {kind === "partner" && !composing && !openId && (
+          <Button size="sm" className="ms-auto" onClick={() => setComposing(true)}>
+            {t("appFeedback.partner.askNumu")}
+          </Button>
+        )}
+      </div>
+      <Card>
+        <CardContent className="pt-6">
+          {composing ? (
+            <NewTicketForm
+              onCancel={() => setComposing(false)}
+              onSubmit={async (form) => {
+                const next = await openPartnerTicket(form);
+                settle(next);
+                setComposing(false);
+                setOpenId(next.ticket.id);
+              }}
+            />
+          ) : openId && thread ? (
+            <TicketThread
+              thread={thread}
+              viewer="partner"
+              onBack={() => setOpenId(null)}
+              onReply={async (form) => settle(await replyPartnerTicket(openId, form))}
+              onClose={async () => settle(await closePartnerTicket(openId))}
+            />
+          ) : (
+            <TicketList tickets={data?.items ?? []} onOpen={setOpenId} />
+          )}
+        </CardContent>
+      </Card>
     </Page>
   );
 }

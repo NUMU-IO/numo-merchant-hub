@@ -53,6 +53,7 @@ import {
   updateAppSettings,
 } from "@/services/appsApi";
 import { AppSettingsPanel } from "@/components/apps/AppSettingsPanel";
+import { RatingBadge } from "@/components/apps/AppFeedback";
 
 /**
  * Apps page — Phase 6.
@@ -514,9 +515,10 @@ export default function Apps() {
                             <h3 className="truncate text-base font-extrabold">{appCopy.name}</h3>
                             {installed && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-label={t("apps.installed")} />}
                           </div>
-                          <div className="mt-1 flex flex-wrap gap-1.5">
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
                             {firstParty(app)}
                             {price(app)}
+                            <RatingBadge rating={app.rating} count={app.reviews_count} />
                           </div>
                         </div>
                       </div>

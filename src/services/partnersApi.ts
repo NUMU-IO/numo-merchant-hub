@@ -8,6 +8,7 @@
 import { apiClient } from "./api";
 import type { AppCatalogEntry } from "./appsApi";
 import { ApiError } from "@/lib/api-error";
+import type { AppReview, AppReviewPage, SupportThread, TicketPage } from "./appsApi";
 
 export type PartnerStatus = "pending" | "approved" | "rejected" | "suspended";
 
@@ -535,4 +536,38 @@ export function acceptPartnerInvitation(id: string): Promise<{ partner_id: strin
 
 export function updatePartnerProfile(body: Partial<PartnerProfile>): Promise<PartnerAccount> {
   return apiClient<PartnerAccount>("/partners/me", { method: "PATCH", body: JSON.stringify(body) });
+}
+
+// ─── Reviews and support ─────────────────────────────────────────────
+
+export function listPartnerReviews(params: { app_id?: string; rating?: number; page?: number }): Promise<AppReviewPage> {
+  return apiClient<AppReviewPage>(`/partners/me/reviews${query(params)}`);
+}
+
+export function replyPartnerReview(id: string, body: string): Promise<AppReview> {
+  return apiClient<AppReview>(`/partners/me/reviews/${id}/reply`, { method: "PUT", body: JSON.stringify({ body }) });
+}
+
+export function reportPartnerReview(id: string, reason: string): Promise<unknown> {
+  return apiClient(`/partners/me/reviews/${id}/report`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+export function listPartnerTickets(params: { kind?: string; status?: string; page?: number }): Promise<TicketPage> {
+  return apiClient<TicketPage>(`/partners/me/support${query(params)}`);
+}
+
+export function openPartnerTicket(form: FormData): Promise<SupportThread> {
+  return apiClient<SupportThread>("/partners/me/support", { method: "POST", body: form });
+}
+
+export function getPartnerTicket(id: string): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/partners/me/support/${id}`);
+}
+
+export function replyPartnerTicket(id: string, form: FormData): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/partners/me/support/${id}/messages`, { method: "POST", body: form });
+}
+
+export function closePartnerTicket(id: string): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/partners/me/support/${id}/close`, { method: "POST" });
 }

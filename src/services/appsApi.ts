@@ -26,6 +26,9 @@ export interface AppCatalogEntry {
   listing?: AppListing;
   /** Set for Partner Apps: how to open their consent screen. */
   connect?: AppConnect | null;
+  /** Average of visible reviews; null until the first one. */
+  rating?: number | null;
+  reviews_count?: number;
 }
 
 /** Listing metadata every app supplies; the detail page renders what exists. */
@@ -298,6 +301,8 @@ export interface Consent {
       vat_cents?: number;
     } | null;
     privacy_policy_url: string | null;
+    rating?: number | null;
+    reviews_count?: number;
   };
   store_id: string;
   store_name: string;
@@ -319,4 +324,133 @@ export function approveConsent(body: {
   state: string;
 }): Promise<{ redirect_url: string }> {
   return apiClient(`/oauth/authorize/approve`, { method: "POST", body: JSON.stringify(body) });
+}
+
+// ─── Reviews and support ─────────────────────────────────────────────
+
+export interface AppReview {
+  id: string;
+  app_id: string;
+  app_name?: string | null;
+  store_name: string | null;
+  rating: number;
+  body: string | null;
+  reply_body: string | null;
+  replied_at: string | null;
+  is_hidden: boolean;
+  reported: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RatingSummary {
+  average: number | null;
+  count: number;
+  distribution: Record<string, number>;
+}
+
+export interface AppReviewPage {
+  summary: RatingSummary;
+  items: AppReview[];
+  total: number;
+  page: number;
+  page_size: number;
+  mine?: AppReview | null;
+  can_review?: boolean;
+}
+
+const reviewsPath = (storeId: string, slug: string) =>
+  `/stores/${storeId}/apps/${encodeURIComponent(slug)}/reviews`;
+
+export function listAppReviews(storeId: string, slug: string, page = 1): Promise<AppReviewPage> {
+  return apiClient<AppReviewPage>(`${reviewsPath(storeId, slug)}?page=${page}`);
+}
+
+export function saveAppReview(
+  storeId: string,
+  slug: string,
+  body: { rating: number; body: string | null },
+): Promise<AppReview> {
+  return apiClient<AppReview>(reviewsPath(storeId, slug), { method: "PUT", body: JSON.stringify(body) });
+}
+
+export function deleteAppReview(storeId: string, slug: string): Promise<unknown> {
+  return apiClient(reviewsPath(storeId, slug), { method: "DELETE" });
+}
+
+export function reportAppReview(storeId: string, slug: string, id: string, reason: string): Promise<unknown> {
+  return apiClient(`${reviewsPath(storeId, slug)}/${id}/report`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export type TicketStatus = "open" | "answered" | "closed";
+
+export interface SupportTicket {
+  id: string;
+  kind: "app" | "partner";
+  subject: string;
+  status: TicketStatus;
+  app_id: string | null;
+  app_name: string | null;
+  app_slug: string | null;
+  store_id: string | null;
+  store_name: string | null;
+  partner_name: string | null;
+  last_message_at: string | null;
+  created_at: string;
+}
+
+export interface SupportAttachment {
+  url: string;
+  name: string;
+  content_type: string;
+  size: number;
+}
+
+export interface SupportThread {
+  ticket: SupportTicket;
+  messages: {
+    id: string;
+    author_role: "merchant" | "partner" | "staff";
+    body: string;
+    attachments: SupportAttachment[];
+    created_at: string;
+  }[];
+}
+
+export interface TicketPage {
+  items: SupportTicket[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+/** Multipart: the message and up to 3 images or PDFs. */
+export function supportForm(fields: Record<string, string>, files: File[]): FormData {
+  const form = new FormData();
+  for (const [k, v] of Object.entries(fields)) form.append(k, v);
+  for (const f of files) form.append("files", f);
+  return form;
+}
+
+export function listAppTickets(storeId: string): Promise<TicketPage> {
+  return apiClient<TicketPage>(`/stores/${storeId}/app-support?page_size=100`);
+}
+
+export function openAppTicket(storeId: string, form: FormData): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/stores/${storeId}/app-support`, { method: "POST", body: form });
+}
+
+export function getAppTicket(storeId: string, id: string): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/stores/${storeId}/app-support/${id}`);
+}
+
+export function replyAppTicket(storeId: string, id: string, form: FormData): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/stores/${storeId}/app-support/${id}/messages`, { method: "POST", body: form });
+}
+
+export function closeAppTicket(storeId: string, id: string): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/stores/${storeId}/app-support/${id}/close`, { method: "POST" });
 }

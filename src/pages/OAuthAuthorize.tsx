@@ -20,6 +20,7 @@ import { showError } from "@/lib/show-error";
 import { scopeSentence } from "@/lib/appScopes";
 import { approveConsent, getConsent } from "@/services/appsApi";
 import { formatMoney } from "@/lib/format-money";
+import { RatingBadge } from "@/components/apps/AppFeedback";
 
 export default function OAuthAuthorize() {
   const { t } = useTranslation();
@@ -90,6 +91,7 @@ export default function OAuthAuthorize() {
                       {t("consent.by", { partner: c.app.partner })}
                     </p>
                   )}
+                  <RatingBadge rating={c.app.rating} count={c.app.reviews_count} />
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
