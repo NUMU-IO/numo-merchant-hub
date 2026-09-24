@@ -524,6 +524,7 @@ export default {
       payment_proof_submitted: "A payment proof is waiting for review",
       payment_reversed: "A payment was un-marked",
       order_partial_acceptance: "A customer kept part of an order",
+      plan_orders_over_limit: "You passed this month's order limit",
     },
     tabs: {
       all: "All",
@@ -565,6 +566,10 @@ export default {
       trackingReconnect: {
         title: "Reconnect {{details}} tracking",
         body: "Purchases aren't reaching your {{details}} ads · Reconnect in Settings → Tracking",
+      },
+      planOrdersOverLimit: {
+        title: "You passed your plan's {{limit}} orders this month",
+        body: "New orders still come in · Upgrade for unlimited orders",
       },
     },
     method: {
