@@ -4,8 +4,10 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AppWindow,
+  Copy,
   CreditCard,
   Download,
+  Gift,
   LayoutDashboard,
   Languages,
   Loader2,
@@ -23,6 +25,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -32,12 +36,14 @@ import { BrandLoadingScreen } from "@/components/NumuLoader/BrandLoader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
+import { formatMoney } from "@/lib/format-money";
 import Partners from "@/pages/Partners";
 import PartnerApps from "@/pages/PartnerApps";
 import PartnerAppDetail from "@/pages/PartnerAppDetail";
 import {
   getPartnerDashboard,
   getPartnerMe,
+  getPartnerReferrals,
   invitePartnerMember,
   listPartnerApps,
   listPartnerTeam,
@@ -47,6 +53,7 @@ import {
   updatePartnerMember,
   updatePartnerProfile,
   type PartnerMe,
+  type PartnerService,
 } from "@/services/partnersApi";
 
 const ALL = "all";
@@ -64,6 +71,7 @@ export default function PartnerPortal() {
         <Route path="apps/:id" element={<PartnerAppDetail />} />
         <Route path="dev-stores" element={<Partners />} />
         <Route path="webhooks" element={<Webhooks />} />
+        <Route path="referrals" element={<Referrals />} />
         <Route path="team" element={<Team me={me} />} />
         <Route path="profile" element={<Profile me={me} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -82,6 +90,7 @@ function Shell({ children }: { children: ReactNode }) {
     { to: "/apps", icon: AppWindow, label: t("partnerPortal.nav.apps") },
     { to: "/dev-stores", icon: Store, label: t("partnerPortal.nav.devStores") },
     { to: "/webhooks", icon: Webhook, label: t("partnerPortal.nav.webhooks") },
+    { to: "/referrals", icon: Gift, label: t("partnerPortal.nav.referrals") },
     { to: "/team", icon: Users, label: t("partnerPortal.nav.team") },
     { to: "/profile", icon: UserCog, label: t("partnerPortal.nav.profile") },
   ];
@@ -548,6 +557,40 @@ function Profile({ me }: { me: PartnerMe }) {
   const queryClient = useQueryClient();
   const account = me.account!;
   const canEdit = MANAGERS.includes(me.role ?? "owner");
+  const dir = account.directory_profile ?? {};
+  const [listing, setListing] = useState({
+    directory_listed: account.directory_listed ?? false,
+    logo_url: dir.logo_url ?? "",
+    bio_ar: dir.bio_ar ?? "",
+    bio_en: dir.bio_en ?? "",
+    city: dir.city ?? "",
+    services: dir.services ?? [],
+    languages: dir.languages ?? [],
+  });
+  const saveListing = useMutation({
+    mutationFn: () =>
+      updatePartnerProfile({
+        directory_listed: listing.directory_listed,
+        directory_profile: {
+          logo_url: listing.logo_url.trim() || null,
+          bio_ar: listing.bio_ar.trim() || null,
+          bio_en: listing.bio_en.trim() || null,
+          city: listing.city.trim() || null,
+          services: listing.services,
+          languages: listing.languages,
+        },
+      }),
+    onSuccess: () => {
+      toast.success(t("partnerPortal.saved"));
+      void queryClient.invalidateQueries({ queryKey: ["partners", "me"] });
+    },
+    onError: (err) => showError(err, language),
+  });
+  const toggle = (key: "services" | "languages", value: string) =>
+    setListing((l) => {
+      const list = l[key] as string[];
+      return { ...l, [key]: list.includes(value) ? list.filter((v) => v !== value) : [...list, value] };
+    });
   const [form, setForm] = useState({
     display_name: account.display_name,
     legal_name: account.legal_name ?? "",
@@ -609,6 +652,190 @@ function Profile({ me }: { me: PartnerMe }) {
               <p className="text-sm text-muted-foreground">{t("partnerPortal.viewOnly")}</p>
             )}
           </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            {t("partnerPortal.directoryTitle")}
+            {account.verified && <Badge>{t("partnerPortal.badge_verified")}</Badge>}
+            {account.directory_hidden && <Badge variant="destructive">{t("partnerPortal.directoryHiddenByNumu")}</Badge>}
+          </CardTitle>
+          <CardDescription>{t("partnerPortal.directorySubtitle")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveListing.mutate();
+            }}
+          >
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Checkbox
+                disabled={!canEdit}
+                checked={listing.directory_listed}
+                onCheckedChange={(v) => setListing((l) => ({ ...l, directory_listed: v === true }))}
+              />
+              {t("partnerPortal.directoryListed")}
+            </label>
+            <div className="space-y-1.5">
+              <Label htmlFor="pp-logo">{t("partnerPortal.logoUrl")}</Label>
+              <Input
+                id="pp-logo"
+                type="url"
+                dir="ltr"
+                disabled={!canEdit}
+                value={listing.logo_url}
+                onChange={(e) => setListing((l) => ({ ...l, logo_url: e.target.value }))}
+              />
+            </div>
+            {(["bio_ar", "bio_en"] as const).map((key) => (
+              <div key={key} className="space-y-1.5">
+                <Label htmlFor={`pp-${key}`}>{t(`partnerPortal.${key}`)}</Label>
+                <Textarea
+                  id={`pp-${key}`}
+                  dir={key === "bio_ar" ? "rtl" : "ltr"}
+                  maxLength={600}
+                  disabled={!canEdit}
+                  value={listing[key]}
+                  onChange={(e) => setListing((l) => ({ ...l, [key]: e.target.value }))}
+                />
+              </div>
+            ))}
+            <div className="space-y-1.5">
+              <Label htmlFor="pp-city">{t("partnerPortal.city")}</Label>
+              <Input
+                id="pp-city"
+                maxLength={80}
+                disabled={!canEdit}
+                value={listing.city}
+                onChange={(e) => setListing((l) => ({ ...l, city: e.target.value }))}
+              />
+            </div>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">{t("partnerPortal.services")}</legend>
+              <div className="flex flex-wrap gap-4">
+                {(["apps", "themes", "setup", "marketing"] as PartnerService[]).map((s) => (
+                  <label key={s} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      disabled={!canEdit}
+                      checked={listing.services.includes(s)}
+                      onCheckedChange={() => toggle("services", s)}
+                    />
+                    {t(`partnerPortal.service_${s}`)}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">{t("partnerPortal.languages")}</legend>
+              <div className="flex flex-wrap gap-4">
+                {(["ar", "en", "fr"] as const).map((lang) => (
+                  <label key={lang} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      disabled={!canEdit}
+                      checked={listing.languages.includes(lang)}
+                      onCheckedChange={() => toggle("languages", lang)}
+                    />
+                    {t(`partnerPortal.lang_${lang}`)}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            {canEdit && (
+              <Button type="submit" disabled={saveListing.isPending}>
+                {saveListing.isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+                {t("partnerPortal.save")}
+              </Button>
+            )}
+          </form>
+        </CardContent>
+      </Card>
+    </Page>
+  );
+}
+
+function Referrals() {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const date = useDate();
+  const { data, isLoading } = useQuery({ queryKey: ["partners", "referrals"], queryFn: getPartnerReferrals });
+  const money = (cents: number) => formatMoney(cents, { fromCents: true, currency: "EGP", locale: language === "ar" ? "ar" : "en", fixed: true });
+  const copy = async () => {
+    if (!data?.link) return;
+    try {
+      await navigator.clipboard.writeText(data.link);
+      toast.success(t("partnerPortal.copied"));
+    } catch {
+      toast.error(t("partnerPortal.copyFailed"));
+    }
+  };
+
+  return (
+    <Page
+      title={t("partnerPortal.referralsTitle")}
+      subtitle={
+        data ? t("partnerPortal.referralsSubtitle", { pct: data.referral_bps / 100, months: data.referral_months }) : undefined
+      }
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t("partnerPortal.referralLink")}</CardTitle>
+          <CardDescription>{t("partnerPortal.referralLinkHint")}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex gap-2">
+          <Input readOnly dir="ltr" value={data?.link ?? ""} aria-label={t("partnerPortal.referralLink")} />
+          <Button type="button" variant="outline" onClick={copy} disabled={!data?.link}>
+            <Copy className="me-2 h-4 w-4" />
+            {t("partnerPortal.copy")}
+          </Button>
+        </CardContent>
+      </Card>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <StatTile icon={Store} loading={isLoading} label={t("partnerPortal.referredStores")} value={data?.stores.length ?? 0} />
+        <StatTile
+          icon={CreditCard}
+          tone="sage"
+          loading={isLoading}
+          label={t("partnerPortal.earnedToDate")}
+          value={money(data?.earned_cents ?? 0)}
+        />
+      </div>
+      <Card>
+        <CardContent className="pt-6">
+          {data && data.stores.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("partnerPortal.noReferrals")}</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("partnerPortal.store")}</TableHead>
+                  <TableHead>{t("partnerPortal.signedUp")}</TableHead>
+                  <TableHead>{t("partnerPortal.plan")}</TableHead>
+                  <TableHead>{t("partnerPortal.status")}</TableHead>
+                  <TableHead>{t("partnerPortal.firstPayment")}</TableHead>
+                  <TableHead className="text-end">{t("partnerPortal.earned")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(data?.stores ?? []).map((r) => (
+                  <TableRow key={r.tenant_id}>
+                    <TableCell>
+                      <bdi>{r.store_name}</bdi>
+                    </TableCell>
+                    <TableCell>{date(r.signed_up_at)}</TableCell>
+                    <TableCell>{r.plan}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{r.status}</Badge>
+                    </TableCell>
+                    <TableCell>{r.first_paid_at ? date(r.first_paid_at) : "—"}</TableCell>
+                    <TableCell className="text-end">{money(r.earned_cents)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </Page>

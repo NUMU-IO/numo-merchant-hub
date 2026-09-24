@@ -26,6 +26,23 @@ export interface PartnerAccount {
   review_notes: { ar?: string; en?: string } | null;
   reviewed_at: string | null;
   created_at: string;
+  referral_bps?: number;
+  referral_months?: number;
+  directory_listed?: boolean;
+  directory_profile?: DirectoryProfile | null;
+  verified?: boolean;
+  directory_hidden?: boolean;
+}
+
+export type PartnerService = "apps" | "themes" | "setup" | "marketing";
+
+export interface DirectoryProfile {
+  logo_url?: string | null;
+  bio_ar?: string | null;
+  bio_en?: string | null;
+  services?: PartnerService[];
+  languages?: ("ar" | "en" | "fr")[];
+  city?: string | null;
 }
 
 export type PartnerRole = "owner" | "admin" | "developer";
@@ -326,6 +343,29 @@ export function acceptPartnerInvitation(id: string): Promise<{ partner_id: strin
   return apiClient(`/partners/invitations/${id}/accept`, { method: "POST" });
 }
 
-export function updatePartnerProfile(body: Partial<PartnerProfile>): Promise<PartnerAccount> {
+export function updatePartnerProfile(
+  body: Partial<PartnerProfile> & { directory_listed?: boolean; directory_profile?: DirectoryProfile },
+): Promise<PartnerAccount> {
   return apiClient<PartnerAccount>("/partners/me", { method: "PATCH", body: JSON.stringify(body) });
+}
+
+export interface PartnerReferrals {
+  code: string | null;
+  link: string | null;
+  referral_bps: number;
+  referral_months: number;
+  earned_cents: number;
+  stores: {
+    tenant_id: string;
+    store_name: string;
+    signed_up_at: string;
+    plan: string;
+    status: string;
+    first_paid_at: string | null;
+    earned_cents: number;
+  }[];
+}
+
+export function getPartnerReferrals(): Promise<PartnerReferrals> {
+  return apiClient<PartnerReferrals>("/partners/me/referrals");
 }
