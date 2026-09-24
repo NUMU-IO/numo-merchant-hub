@@ -23,8 +23,10 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { formatMoney } from "@/lib/format-money";
 import { showError } from "@/lib/show-error";
+import { isPartnerHost, partnerPath } from "@/lib/partner-host";
 import {
   acceptAgreement,
+  acceptPartnerInvitation,
   applyPartner,
   createDevStore,
   getPartnerEarnings,
@@ -47,18 +49,22 @@ export default function Partners() {
     // light-only, and in dark mode it put light text on cream.
     <div className="min-h-screen bg-background text-foreground p-4 sm:p-8">
       <div className="mx-auto max-w-3xl space-y-6">
-        <div className="flex items-center justify-between gap-4">
-          <span className="souq-wordmark text-base font-black tracking-[0.18em]">NUMU</span>
-          {hasStores && (
-            <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
-              {t("partners.backToDashboard")}
-            </Button>
-          )}
-        </div>
+        {!isPartnerHost && (
+          <div className="flex items-center justify-between gap-4">
+            <span className="souq-wordmark text-base font-black tracking-[0.18em]">NUMU</span>
+            {hasStores && (
+              <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
+                {t("partners.backToDashboard")}
+              </Button>
+            )}
+          </div>
+        )}
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">{t("partners.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t("partners.subtitle")}</p>
         </div>
+
+        {!!me?.invitations?.length && <Invitations invitations={me.invitations} />}
 
         {isLoading ? (
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -92,6 +98,39 @@ export default function Partners() {
         )}
       </div>
     </div>
+  );
+}
+
+function Invitations({ invitations }: { invitations: NonNullable<PartnerMe["invitations"]> }) {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const queryClient = useQueryClient();
+  const accept = useMutation({
+    mutationFn: acceptPartnerInvitation,
+    onSuccess: () => {
+      toast.success(t("partnerPortal.joined"));
+      void queryClient.invalidateQueries({ queryKey: ["partners"] });
+    },
+    onError: (err) => showError(err, language),
+  });
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">{t("partnerPortal.invitationsTitle")}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {invitations.map((inv) => (
+          <div key={inv.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+            <p className="text-sm">
+              {t("partnerPortal.invitedAs", { partner: inv.partner_name, role: t(`partnerPortal.role_${inv.role}`) })}
+            </p>
+            <Button size="sm" disabled={accept.isPending} onClick={() => accept.mutate(inv.id)}>
+              {t("partnerPortal.accept")}
+            </Button>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -259,7 +298,7 @@ function Approved({ me }: { me: PartnerMe }) {
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
           <p className="text-sm">{t("partnerApps.subtitle")}</p>
-          <Button size="sm" onClick={() => navigate("/partners/apps")}>
+          <Button size="sm" onClick={() => navigate(partnerPath("/apps"))}>
             {t("partnerApps.title")}
           </Button>
         </CardContent>
@@ -335,6 +374,10 @@ function Approved({ me }: { me: PartnerMe }) {
               <Button
                 size="sm"
                 onClick={async () => {
+                  if (isPartnerHost) {
+                    window.open(window.location.origin.replace("//partners.", "//merchant."), "_blank", "noopener");
+                    return;
+                  }
                   await refetchStores(s.id);
                   navigate("/");
                 }}

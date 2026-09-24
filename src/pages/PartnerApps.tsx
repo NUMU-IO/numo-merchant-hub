@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
 import { createPartnerApp, listPartnerApps } from "@/services/partnersApi";
+import { partnerPath } from "@/lib/partner-host";
 
 export function SecretOnce({ secret, onDone }: { secret: string; onDone: () => void }) {
   const { t } = useTranslation();
@@ -72,7 +73,7 @@ export default function PartnerApps() {
     // The app's own surface: the cream auth backdrop is light-only.
     <div className="min-h-screen bg-background text-foreground p-4 sm:p-8">
       <div className="mx-auto max-w-3xl space-y-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/partners")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(partnerPath(""))}>
           {t("partnerApps.back")}
         </Button>
         <div>
@@ -104,7 +105,7 @@ export default function PartnerApps() {
                 {app.latest_version && (
                   <Badge variant="outline">{t(`partnerApps.st_${app.latest_version.status}`)}</Badge>
                 )}
-                <Button size="sm" onClick={() => navigate(`/partners/apps/${app.id}`)}>
+                <Button size="sm" onClick={() => navigate(partnerPath(`/apps/${app.id}`))}>
                   {t("partnerApps.open")}
                 </Button>
               </div>
