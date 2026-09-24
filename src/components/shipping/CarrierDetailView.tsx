@@ -9,6 +9,7 @@
  */
 
 import { ArrowLeft } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ export const CarrierDetailView = ({
   onToggleAutoCreate,
 }: Props) => {
   const name = carrierName(carrier, isAr);
+  const isApp = carrier.tier === "app";
   const supported = (
     Object.keys(CAPABILITY_LABELS) as (keyof CarrierCapabilities)[]
   ).filter((key) => carrier.capabilities[key]);
@@ -78,6 +80,7 @@ export const CarrierDetailView = ({
         >
           <CarrierMark
             slug={carrier.slug}
+            iconUrl={carrier.icon_url}
             name={carrier.name_en}
             brandColor={carrier.brand_color}
             size={26}
@@ -112,7 +115,25 @@ export const CarrierDetailView = ({
         </div>
       )}
 
-      {carrier.status.is_configured && (
+      {isApp && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h2 className="text-[13px] font-bold">
+            {isAr ? "متوصّل عن طريق تطبيق" : "Connected through an app"}
+          </h2>
+          <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted-foreground">
+            {isAr
+              ? "اختاره وانت بتعمل شحنة أو شحنات مرة واحدة. عشان أسعاره تظهر في الدفع، ضيف سعر \"أسعار مباشرة من تطبيق شحن\" في منطقة الشحن، وسيب سعر ثابت جنبه احتياطي."
+              : "Pick it when you create one or many shipments. To show its prices at checkout, add a \"Live rates from a shipping app\" rate to a shipping zone, and keep a flat rate beside it as a fallback."}
+          </p>
+          <Button asChild variant="outline" size="sm" className="mt-3">
+            <Link to={`/apps/${carrier.slug.replace(/^app:/, "")}`}>
+              {isAr ? "إعدادات التطبيق" : "App settings"}
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {!isApp && carrier.status.is_configured && (
         <div className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-4">
           <div className="min-w-0">
             <h2 className="text-[13px] font-bold">
@@ -133,7 +154,7 @@ export const CarrierDetailView = ({
         </div>
       )}
 
-      <div className="rounded-2xl border border-border bg-card p-4">
+      {!isApp && <div className="rounded-2xl border border-border bg-card p-4">
         <h2 className="text-[13px] font-bold">
           {isAr ? "بيانات الربط" : "Connection details"}
         </h2>
@@ -151,7 +172,7 @@ export const CarrierDetailView = ({
           onVerify={onVerify}
           onDisconnect={onDisconnect}
         />
-      </div>
+      </div>}
     </div>
   );
 };
