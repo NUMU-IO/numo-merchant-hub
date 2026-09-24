@@ -621,6 +621,26 @@
     },
   },
   partnerPortal: {
+    badge: "الشركاء",
+    merchantHub: "لوحة التاجر",
+    navGroup: {
+      overview: "نظرة عامة",
+      build: "التطوير",
+      grow: "النمو",
+      account: "الحساب",
+    },
+    gettingStarted: {
+      title: "ابدأ كشريك في نُمو",
+      progress: "أنجزت {{done}} من {{total}} خطوات",
+      devStore: "أنشئ متجر تطوير",
+      devStoreHint: "متجر تجريبي مجاني لتثبيت أعمالك وتجربتها.",
+      createApp: "أنشئ أول تطبيق",
+      createAppHint: "سجّله لتحصل على بيانات OAuth.",
+      submit: "أرسل إصدارًا للمراجعة",
+      submitHint: "تراجع نُمو كل إصدار قبل أن يظهر للتجار.",
+      publish: "انشر تطبيقك",
+      publishHint: "تظهر التطبيقات المعتمدة في متجر تطبيقات نُمو.",
+    },
     brand: "شركاء نُمو",
     nav: {
       dashboard: "لوحة التحكم",

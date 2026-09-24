@@ -8,3 +8,8 @@ export const partnerPath = (path: string) => (isPartnerHost ? path || "/" : `/pa
 export const partnerPortalUrl = window.location.hostname.startsWith("merchant.")
   ? `${window.location.protocol}//${window.location.host.replace(/^merchant\./, "partners.")}/`
   : null;
+
+/** The merchant hub's origin, for the way back from partners.<domain>. */
+export const merchantHubUrl = isPartnerHost
+  ? `${window.location.protocol}//${window.location.host.replace(/^partners\./, "merchant.")}/`
+  : null;

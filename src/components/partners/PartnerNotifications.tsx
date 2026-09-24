@@ -166,7 +166,7 @@ function List({ items, onOpen, compact }: { items: PartnerNotification[]; onOpen
   );
 }
 
-export function PartnerNotificationBell() {
+export function PartnerNotificationBell({ className }: { className?: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -179,7 +179,7 @@ export function PartnerNotificationBell() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted"
+          className={className ? `relative inline-flex items-center justify-center ${className}` : "relative inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted"}
           aria-label={unread > 0 ? t("notifications.ariaUnread", { count: unread }) : t("notifications.title")}
           aria-haspopup="dialog"
           aria-expanded={open}
