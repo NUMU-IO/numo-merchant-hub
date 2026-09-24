@@ -211,6 +211,21 @@ export interface AppSubscription {
     cap_cents: number;
     used_cents: number;
   } | null;
+  /** The next charge: VAT (14%) is on NUMU's fee only, added on top. */
+  next_charge: AppChargeQuote | null;
+  /** A partner coupon still discounting this store's periods. */
+  coupon: { code: string; cycles_left: number | null } | null;
+}
+
+export interface AppChargeQuote {
+  list_price_cents: number;
+  discount_cents: number;
+  /** The coupon was larger than the partner's share and was capped. */
+  discount_capped: boolean;
+  vat_cents: number;
+  vat_bps: number;
+  total_cents: number;
+  coupon?: { code: string; duration_cycles: number | null } | null;
 }
 
 const subscriptionPath = (storeId: string, slug: string) =>
@@ -229,11 +244,12 @@ export function getAppSubscription(storeId: string, slug: string): Promise<AppSu
 export async function subscribeApp(
   storeId: string,
   slug: string,
+  couponCode?: string,
 ): Promise<{ sub: AppSubscription; charged: boolean }> {
   let message: Promise<unknown> = Promise.resolve(null);
   const sub = await apiClient<AppSubscription>(
     subscriptionPath(storeId, slug),
-    { method: "POST" },
+    { method: "POST", body: JSON.stringify({ coupon_code: couponCode || null }) },
     {
       onResponse: (res) => {
         message = res.clone().json().then((b) => b?.message, () => null);
@@ -241,6 +257,17 @@ export async function subscribeApp(
     },
   );
   return { sub, charged: (await message) === "Subscribed" };
+}
+
+/** What subscribing costs now; a coupon this store can't use is a 422 `{ code }`. */
+export function quoteAppSubscription(
+  storeId: string,
+  slug: string,
+  couponCode: string,
+): Promise<AppChargeQuote> {
+  return apiClient<AppChargeQuote>(
+    `${subscriptionPath(storeId, slug)}/quote?coupon_code=${encodeURIComponent(couponCode)}`,
+  );
 }
 
 /** Stop renewing. The app keeps working until `current_period_end`. */
@@ -263,6 +290,9 @@ export interface Consent {
       charged_from_wallet?: boolean;
       /** This store hasn't had the app's free trial yet. */
       trial_available?: boolean;
+      currency?: string;
+      /** VAT on NUMU's fee, added on top of the price each period. */
+      vat_cents?: number;
     } | null;
     privacy_policy_url: string | null;
   };

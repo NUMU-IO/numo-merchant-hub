@@ -29,15 +29,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ApiError } from "@/lib/api-error";
 import { formatMoney } from "@/lib/format-money";
 import { showError } from "@/lib/show-error";
 import {
+  type AppChargeQuote,
   type AppInstallation,
   cancelAppSubscription,
   getAppSubscription,
+  quoteAppSubscription,
   subscribeApp,
 } from "@/services/appsApi";
 
@@ -83,6 +86,26 @@ export function AppSubscriptionCard({
   /** Set by a 402: what the wallet holds and what one period needs. */
   const [short, setShort] = useState<{ balance: number; needed: number } | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [code, setCode] = useState("");
+  const [quote, setQuote] = useState<AppChargeQuote | null>(null);
+
+  const couponError = (err: unknown) => {
+    const c =
+      err instanceof ApiError && err.status === 422
+        ? (err.body as { detail?: { code?: string } } | null)?.detail?.code
+        : undefined;
+    return c && c.startsWith("coupon_") ? `appBilling.${c}` : undefined;
+  };
+
+  const applyCoupon = useMutation({
+    mutationFn: () => quoteAppSubscription(storeId, install.slug, code.trim()),
+    onSuccess: setQuote,
+    onError: (err) => {
+      const key = couponError(err);
+      if (key) toast.error(t(key));
+      else showError(err, language);
+    },
+  });
 
   const money = (cents: number) =>
     formatMoney(cents, {
@@ -100,17 +123,22 @@ export function AppSubscriptionCard({
 
   const subscribe = useMutation({
     // "resume" is the same POST; the variable only picks the toast.
-    mutationFn: (_intent: "subscribe" | "resume") => subscribeApp(storeId, install.slug),
+    mutationFn: (_intent: "subscribe" | "resume") =>
+      subscribeApp(storeId, install.slug, quote?.coupon?.code),
     onMutate: () => setShort(null),
     onSuccess: ({ sub: next, charged }, intent) => {
       queryClient.setQueryData(queryKey, next);
+      setQuote(null);
+      setCode("");
       // The header's wallet chip shows the balance this just moved.
       if (charged) void queryClient.invalidateQueries({ queryKey: ["wallet"] });
       toast.success(
         charged && next.is_trial
           ? t("appBilling.trialToast")
           : charged
-          ? t("appBilling.subscribedToast", { amount: money(next.subscribed_price_cents ?? 0) })
+          ? t("appBilling.subscribedToast", {
+              amount: money(quote?.total_cents ?? next.subscribed_price_cents ?? 0),
+            })
           : intent === "resume"
             ? t("appBilling.resumedToast", {
                 date: next.current_period_end ? day(next.current_period_end) : "",
@@ -126,7 +154,9 @@ export function AppSubscriptionCard({
         return;
       }
       const conflict =
-        err instanceof ApiError && err.status === 409 ? CONFLICTS[err.serverDetail ?? ""] : undefined;
+        err instanceof ApiError && err.status === 409
+          ? CONFLICTS[err.serverDetail ?? ""]
+          : couponError(err);
       if (conflict) toast.error(t(conflict));
       else showError(err, language);
     },
@@ -188,6 +218,7 @@ export function AppSubscriptionCard({
               : t("appBilling.pastDueStopped")
             : t("appBilling.cancelled");
   const spinner = <Loader2 className="me-2 h-4 w-4 animate-spin" />;
+  const charge = quote ?? sub?.next_charge ?? null;
 
   return (
     <Card>
@@ -206,6 +237,34 @@ export function AppSubscriptionCard({
         ) : (
           <>
             {price && <p className="text-lg font-bold">{price}</p>}
+            {charge && charge.vat_cents > 0 && (
+              <div className="space-y-0.5 text-sm">
+                {charge.discount_cents > 0 && (
+                  <p>
+                    {t("appBilling.discountLine", {
+                      code: quote?.coupon?.code ?? sub.coupon?.code ?? "",
+                      amount: money(charge.discount_cents),
+                    })}
+                  </p>
+                )}
+                <p className="text-muted-foreground">
+                  {t("appBilling.vatLine", { amount: money(charge.vat_cents) })}
+                </p>
+                <p className="font-medium">
+                  {t("appBilling.totalLine", { amount: money(charge.total_cents) })}
+                </p>
+                {charge.discount_capped && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("appBilling.couponCapped", { amount: money(charge.discount_cents) })}
+                  </p>
+                )}
+              </div>
+            )}
+            {sub.coupon && !quote && (
+              <p className="text-xs text-muted-foreground">
+                {t("appBilling.couponActive", { code: sub.coupon.code })}
+              </p>
+            )}
             <p className="text-xs leading-relaxed text-muted-foreground">
               {t("appBilling.how", { days })}
             </p>
@@ -313,6 +372,34 @@ export function AppSubscriptionCard({
                 </>
               ) : (
                 <>
+                  {!ending && (
+                    <div className="flex w-full flex-wrap items-center gap-2">
+                      <Input
+                        className="h-9 max-w-[12rem] uppercase"
+                        aria-label={t("appBilling.couponLabel")}
+                        placeholder={t("appBilling.couponLabel")}
+                        value={code}
+                        maxLength={40}
+                        disabled={Boolean(quote)}
+                        onChange={(e) => setCode(e.target.value)}
+                      />
+                      {quote ? (
+                        <Button size="sm" variant="ghost" onClick={() => setQuote(null)}>
+                          {t("appBilling.couponRemove")}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!code.trim() || applyCoupon.isPending}
+                          onClick={() => applyCoupon.mutate()}
+                        >
+                          {applyCoupon.isPending && spinner}
+                          {t("appBilling.couponApply")}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   <Button
                     disabled={busy || Boolean(blocked)}
                     onClick={() => subscribe.mutate(ending ? "resume" : "subscribe")}

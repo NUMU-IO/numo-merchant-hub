@@ -19,6 +19,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
 import { scopeSentence } from "@/lib/appScopes";
 import { approveConsent, getConsent } from "@/services/appsApi";
+import { formatMoney } from "@/lib/format-money";
 
 export default function OAuthAuthorize() {
   const { t } = useTranslation();
@@ -115,6 +116,18 @@ export default function OAuthAuthorize() {
                     <span className="font-semibold">{t("consent.price")}: </span>
                     {price}
                   </p>
+                  {(c.app.pricing?.vat_cents ?? 0) > 0 && (
+                    <p className="text-xs">
+                      {t("appBilling.vatLine", {
+                        amount: formatMoney(c.app.pricing?.vat_cents ?? 0, {
+                          fromCents: true,
+                          currency: c.app.pricing?.currency || "EGP",
+                          locale: lang,
+                          fixed: true,
+                        }),
+                      })}
+                    </p>
+                  )}
                   {c.app.pricing?.charged_from_wallet && (
                     <p className="text-xs text-muted-foreground">
                       {c.app.pricing.trial_available && c.app.pricing.trial_days
