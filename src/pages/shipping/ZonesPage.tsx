@@ -97,6 +97,9 @@ export default function ZonesPage() {
     if (rate.rate_type === "weight_band") {
       return `${rate.label} ${ar ? "(حسب الوزن)" : "(by weight)"}`;
     }
+    if (rate.rate_type === "carrier_api") {
+      return `${rate.label} ${ar ? "(أسعار مباشرة)" : "(live rates)"}`;
+    }
     return rate.label;
   }
 
