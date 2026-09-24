@@ -113,6 +113,7 @@ export default {
   apps: {
     partnerBadge: "NUMU Partner",
     openApp: "Open app",
+    embeddedUnavailable: "This app can't open right now. Check it's enabled, then try again.",
     permissions: "What it can do on your store",
     reconsent: "This app's new version needs more permissions. Review them to keep it fully working.",
     reconsentBtn: "Review permissions",

@@ -313,6 +313,7 @@ export default function AppDetail() {
                 <Button
                   disabled={busy}
                   onClick={async () => {
+                    if (listing?.embedded) return navigate(`/apps/${app.slug}/app`);
                     try {
                       // A fresh signed link each time: the app rejects old timestamps.
                       window.open(await getAppOpenUrl(storeId!, app.slug, language), "_blank", "noopener");

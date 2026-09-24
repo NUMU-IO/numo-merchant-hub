@@ -53,6 +53,8 @@ export interface AppListing {
   /** Language codes the app's own shopper-facing output supports. */
   languages?: string[];
   compatibility?: { locales?: Record<string, { text?: string }> } | null;
+  /** Partner App that renders inside the hub at `/apps/<slug>/app`. */
+  embedded?: boolean;
 }
 
 export interface AppInstallation extends AppCatalogEntry {
@@ -180,6 +182,22 @@ export async function getAppOpenUrl(storeId: string, slug: string, locale: strin
     `/stores/${storeId}/apps/${encodeURIComponent(slug)}/open-url?locale=${locale === "en" ? "en" : "ar"}`,
   );
   return r.url;
+}
+
+export interface AppSession {
+  token: string;
+  /** The URL to frame, carrying `session_token`. */
+  url: string;
+  /** The only origin the embedded app may post messages from. */
+  origin: string;
+}
+
+/** A 60-second session token for an embedded Partner App. */
+export function getAppSession(storeId: string, slug: string, locale: string): Promise<AppSession> {
+  return apiClient<AppSession>(
+    `/stores/${storeId}/apps/${encodeURIComponent(slug)}/session-token?locale=${locale === "en" ? "en" : "ar"}`,
+    { method: "POST" },
+  );
 }
 
 // ─── Paid apps (Phase 7): the store's subscription ───────────────────
