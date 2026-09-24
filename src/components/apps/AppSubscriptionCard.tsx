@@ -18,6 +18,16 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -71,6 +81,7 @@ export function AppSubscriptionCard({
   });
   /** Set by a 402: what the wallet holds and what one period needs. */
   const [short, setShort] = useState<{ balance: number; needed: number } | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   const money = (cents: number) =>
     formatMoney(cents, {
@@ -233,17 +244,29 @@ export function AppSubscriptionCard({
 
             <div className="flex flex-wrap items-center gap-3">
               {state === "active" && !ending ? (
-                <Button
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => {
-                    const date = sub.current_period_end ? day(sub.current_period_end) : "";
-                    if (window.confirm(t("appBilling.cancelConfirm", { name, date }))) cancel.mutate();
-                  }}
-                >
-                  {cancel.isPending && spinner}
-                  {t("appBilling.cancel")}
-                </Button>
+                <>
+                  <Button variant="outline" disabled={busy} onClick={() => setConfirmCancel(true)}>
+                    {cancel.isPending && spinner}
+                    {t("appBilling.cancel")}
+                  </Button>
+                  <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>{t("appBilling.cancel")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {t("appBilling.cancelConfirm", {
+                            name,
+                            date: sub.current_period_end ? day(sub.current_period_end) : "",
+                          })}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => cancel.mutate()}>{t("appBilling.cancel")}</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
               ) : (
                 <>
                   <Button

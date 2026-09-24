@@ -17,6 +17,16 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +53,7 @@ export default function PartnerAppDetail() {
   const app = useQuery({ queryKey: ["partners", "apps", id], queryFn: () => getPartnerApp(id) });
   const devStores = useQuery({ queryKey: ["partners", "dev-stores"], queryFn: listDevStores });
   const [secret, setSecret] = useState<string | null>(null);
+  const [confirmRotate, setConfirmRotate] = useState(false);
   const [manifest, setManifest] = useState("");
   const [notesAr, setNotesAr] = useState("");
   const [notesEn, setNotesEn] = useState("");
@@ -136,12 +147,22 @@ export default function PartnerAppDetail() {
                   size="sm"
                   variant="outline"
                   disabled={rotate.isPending}
-                  onClick={() => {
-                    if (window.confirm(t("partnerApps.rotateConfirm"))) rotate.mutate();
-                  }}
+                  onClick={() => setConfirmRotate(true)}
                 >
                   {t("partnerApps.rotate")}
                 </Button>
+                <AlertDialog open={confirmRotate} onOpenChange={setConfirmRotate}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{t("partnerApps.rotate")}</AlertDialogTitle>
+                      <AlertDialogDescription>{t("partnerApps.rotateConfirm")}</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => rotate.mutate()}>{t("partnerApps.rotate")}</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </CardContent>
             </Card>
 

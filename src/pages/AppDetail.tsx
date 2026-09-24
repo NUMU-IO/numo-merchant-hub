@@ -40,6 +40,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
@@ -109,6 +119,7 @@ export default function AppDetail() {
   const [entry, setEntry] = useState<AppCatalogEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [confirmUninstall, setConfirmUninstall] = useState(false);
 
   const load = useMemo(
     () => async () => {
@@ -331,14 +342,29 @@ export default function AppDetail() {
               <Button
                 variant="destructive"
                 disabled={busy}
-                onClick={() => {
-                  const key = NUMU_APP_HOME[app.slug] ? "apps.uninstallConfirm" : "apps.uninstallConfirmSettings";
-                  if (!window.confirm(t(key, { name: displayName }))) return;
-                  void act(() => uninstallApp(storeId!, app.slug), t("apps.uninstall"));
-                }}
+                onClick={() => setConfirmUninstall(true)}
               >
                 {t("apps.uninstall")}
               </Button>
+              <AlertDialog open={confirmUninstall} onOpenChange={setConfirmUninstall}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{t("apps.uninstall")}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {t(NUMU_APP_HOME[app.slug] ? "apps.uninstallConfirm" : "apps.uninstallConfirmSettings", { name: displayName })}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive hover:bg-destructive/90"
+                      onClick={() => void act(() => uninstallApp(storeId!, app.slug), t("apps.uninstall"))}
+                    >
+                      {t("apps.uninstall")}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </>
           )}
         </div>

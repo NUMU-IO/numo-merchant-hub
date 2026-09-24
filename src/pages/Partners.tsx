@@ -11,7 +11,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Banknote, Loader2, Wallet } from "lucide-react";
+import { Banknote, Copy, Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -293,6 +293,22 @@ function Approved({ me }: { me: PartnerMe }) {
                     {s.url.replace("https://", "")}
                   </bdi>
                 )}
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <span>{t("partners.storeId")}:</span>
+                  <code dir="ltr" className="break-all rounded bg-muted px-1.5 py-0.5">{s.id}</code>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    aria-label={t("partnerApps.copy")}
+                    onClick={() => {
+                      void navigator.clipboard.writeText(s.id);
+                      toast.success(t("partnerApps.copied"));
+                    }}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
               {s.seeded ? (
                 <Badge variant="secondary">{t("partners.seeded")}</Badge>
