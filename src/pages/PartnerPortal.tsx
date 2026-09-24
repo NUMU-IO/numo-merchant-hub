@@ -10,6 +10,7 @@ import {
   Languages,
   Loader2,
   LogOut,
+  Palette,
   Store,
   Ticket,
   Trash2,
@@ -38,6 +39,7 @@ import PartnerApps from "@/pages/PartnerApps";
 import PartnerAppDetail from "@/pages/PartnerAppDetail";
 import { PartnerNotificationBell, PartnerNotificationsPage } from "@/components/partners/PartnerNotifications";
 import { formatMoney } from "@/lib/format-money";
+import PartnerThemes, { PartnerThemeDetail } from "@/pages/PartnerThemes";
 import {
   createPartnerCoupon,
   getPartnerDashboard,
@@ -70,6 +72,8 @@ export default function PartnerPortal() {
         <Route index element={<Dashboard />} />
         <Route path="apps" element={<PartnerApps />} />
         <Route path="apps/:id" element={<PartnerAppDetail />} />
+        <Route path="themes" element={<PartnerThemes />} />
+        <Route path="themes/:id" element={<PartnerThemeDetail />} />
         <Route path="dev-stores" element={<Partners />} />
         <Route path="webhooks" element={<Webhooks />} />
         <Route path="coupons" element={<Coupons me={me} />} />
@@ -90,6 +94,7 @@ function Shell({ children }: { children: ReactNode }) {
   const nav = [
     { to: "/", icon: LayoutDashboard, label: t("partnerPortal.nav.dashboard") },
     { to: "/apps", icon: AppWindow, label: t("partnerPortal.nav.apps") },
+    { to: "/themes", icon: Palette, label: t("partnerPortal.nav.themes") },
     { to: "/dev-stores", icon: Store, label: t("partnerPortal.nav.devStores") },
     { to: "/webhooks", icon: Webhook, label: t("partnerPortal.nav.webhooks") },
     { to: "/coupons", icon: Ticket, label: t("partnerPortal.nav.coupons") },
