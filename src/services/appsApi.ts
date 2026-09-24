@@ -53,6 +53,9 @@ export interface AppListing {
   /** Language codes the app's own shopper-facing output supports. */
   languages?: string[];
   compatibility?: { locales?: Record<string, { text?: string }> } | null;
+  /** A YouTube or Vimeo URL. */
+  video_url?: string | null;
+  keywords?: { ar?: string[]; en?: string[] };
 }
 
 export interface AppInstallation extends AppCatalogEntry {
