@@ -288,6 +288,8 @@ export default {
     wants: "This app will be able to:",
     newScopes: "New permissions it's asking for:",
     price: "Price",
+    wallet: "Charged from your NUMU wallet after you install, when you subscribe.",
+    walletTrial: "Free for {{days}} days, then charged from your NUMU wallet after you install, when you subscribe.",
     privacy: "Privacy policy",
     notice: "It can only do what's listed here, only on this store. You can uninstall it any time, and its access stops right away.",
     approve: "Install app",
@@ -328,6 +330,15 @@ export default {
     alreadyActive: "Your subscription is already active.",
     cancelledToast: "Cancelled. The app keeps working until {{date}}.",
     loadFailed: "We couldn't load this app's subscription.",
+    st_trial: "Free trial",
+    trialEnds: "Trial ends",
+    trial: "Free trial. Nothing is charged until that date; then it renews from your wallet unless you cancel.",
+    startTrial: "Start {{days}}-day free trial",
+    trialToast: "Your free trial started. Nothing was charged.",
+    usageTitle: "Usage this period",
+    usageLine: "{{used}} of {{cap}}",
+    usageUnit: "{{price}} per {{unit}}",
+    usageHow: "Usage is charged to your wallet as it happens, never more than {{cap}} a period.",
   },
   partnerEarnings: {
     title: "Earnings",
@@ -565,6 +576,30 @@ export default {
       trackingReconnect: {
         title: "Reconnect {{details}} tracking",
         body: "Purchases aren't reaching your {{details}} ads · Reconnect in Settings → Tracking",
+      },
+      appSubscriptionStarted: {
+        title: "Subscribed to {{app}}",
+        body: "{{amount}} paid from your wallet · Renews on {{date}}",
+      },
+      appTrialStarted: {
+        title: "Your free trial of {{app}} started",
+        body: "Nothing is charged until {{date}} · Then {{amount}} from your wallet",
+      },
+      appTrialEnding: {
+        title: "Your {{app}} trial ends on {{date}}",
+        body: "{{amount}} will be charged from your wallet · Cancel before then to pay nothing",
+      },
+      appRenewalCharged: {
+        title: "{{app}} renewed",
+        body: "{{amount}} paid from your wallet · Next renewal {{date}}",
+      },
+      appRenewalFailed: {
+        title: "{{app}} couldn't renew",
+        body: "Your wallet couldn't cover {{amount}} · Top up and subscribe again within 3 days to keep it working",
+      },
+      appUsageCapReached: {
+        title: "{{app}} reached its usage limit",
+        body: "You approved up to {{amount}} this period · Further usage charges are refused until the next period",
       },
     },
     method: {

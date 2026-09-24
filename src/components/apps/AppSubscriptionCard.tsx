@@ -42,6 +42,7 @@ const CONFLICTS: Record<string, string> = {
 const BADGE = {
   none: "secondary",
   active: "success",
+  trial: "success",
   past_due: "warning",
   cancelled: "outline",
 } as const;
@@ -95,7 +96,9 @@ export function AppSubscriptionCard({
       // The header's wallet chip shows the balance this just moved.
       if (charged) void queryClient.invalidateQueries({ queryKey: ["wallet"] });
       toast.success(
-        charged
+        charged && next.is_trial
+          ? t("appBilling.trialToast")
+          : charged
           ? t("appBilling.subscribedToast", { amount: money(next.subscribed_price_cents ?? 0) })
           : intent === "resume"
             ? t("appBilling.resumedToast", {
@@ -141,8 +144,9 @@ export function AppSubscriptionCard({
     );
   }
 
-  const state = sub?.status ?? "none";
-  const ending = state === "active" && Boolean(sub?.cancel_at_period_end);
+  const state = sub?.status === "active" && sub.is_trial ? "trial" : (sub?.status ?? "none");
+  const live = state === "active" || state === "trial";
+  const ending = live && Boolean(sub?.cancel_at_period_end);
   // The API refuses to charge an install that isn't live (409), and never
   // renews one: say so up front rather than after a click.
   const blocked =
@@ -163,10 +167,10 @@ export function AppSubscriptionCard({
       ? t("appBilling.none")
       : ending
         ? t("appBilling.ending")
-        : state === "active"
+        : live
           ? blocked
             ? t("appBilling.wontRenew")
-            : t("appBilling.active")
+            : t(state === "trial" ? "appBilling.trial" : "appBilling.active")
           : state === "past_due"
             ? sub?.entitled
               ? t("appBilling.pastDueGrace")
@@ -196,15 +200,55 @@ export function AppSubscriptionCard({
             </p>
             {sub.current_period_end && (
               <dl className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                <dt className="text-muted-foreground">{t("appBilling.paidThrough")}</dt>
+                <dt className="text-muted-foreground">
+                  {t(sub.is_trial ? "appBilling.trialEnds" : "appBilling.paidThrough")}
+                </dt>
                 <dd className="font-medium">
                   <bdi dir="ltr">{day(sub.current_period_end)}</bdi>
                 </dd>
               </dl>
             )}
             <p className="text-sm leading-relaxed">{message}</p>
+            {sub.usage && (
+              <div className="space-y-1 rounded-md border p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{t("appBilling.usageTitle")}</span>
+                  <span>
+                    {t("appBilling.usageLine", {
+                      used: money(sub.usage.used_cents),
+                      cap: money(sub.usage.cap_cents),
+                    })}
+                  </span>
+                </div>
+                <div
+                  className="h-1.5 overflow-hidden rounded-full bg-muted"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={sub.usage.cap_cents}
+                  aria-valuenow={sub.usage.used_cents}
+                >
+                  <div
+                    className="h-full bg-primary"
+                    style={{
+                      width: `${Math.min(100, (sub.usage.used_cents / sub.usage.cap_cents) * 100)}%`,
+                    }}
+                  />
+                </div>
+                {sub.usage.unit_price_cents != null && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("appBilling.usageUnit", {
+                      price: money(sub.usage.unit_price_cents),
+                      unit: sub.usage.unit[lang] ?? sub.usage.unit.en,
+                    })}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {t("appBilling.usageHow", { cap: money(sub.usage.cap_cents) })}
+                </p>
+              </div>
+            )}
             {/* Renewals keep the price the store subscribed at. */}
-            {state === "active" &&
+            {live &&
               !ending &&
               sub.subscribed_price_cents != null &&
               sub.price_cents != null &&
@@ -232,7 +276,7 @@ export function AppSubscriptionCard({
             )}
 
             <div className="flex flex-wrap items-center gap-3">
-              {state === "active" && !ending ? (
+              {live && !ending ? (
                 <Button
                   variant="outline"
                   disabled={busy}
@@ -251,7 +295,11 @@ export function AppSubscriptionCard({
                     onClick={() => subscribe.mutate(ending ? "resume" : "subscribe")}
                   >
                     {subscribe.isPending && spinner}
-                    {ending ? t("appBilling.resume") : t("appBilling.subscribe", { price })}
+                    {ending
+                      ? t("appBilling.resume")
+                      : sub.trial_available && sub.trial_days
+                        ? t("appBilling.startTrial", { days: sub.trial_days })
+                        : t("appBilling.subscribe", { price })}
                   </Button>
                   {blocked && <p className="text-xs text-muted-foreground">{blocked}</p>}
                 </>
