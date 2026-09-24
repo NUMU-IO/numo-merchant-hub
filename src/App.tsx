@@ -118,6 +118,7 @@ const McpConnect = lazyWithRetry(() => import("@/pages/McpConnect"));
 const Developers = lazyWithRetry(() => import("@/pages/Developers"));
 const Apps = lazyWithRetry(() => import("@/pages/Apps"));
 const AppDetail = lazyWithRetry(() => import("@/pages/AppDetail"));
+const EmbeddedApp = lazyWithRetry(() => import("@/pages/EmbeddedApp"));
 const GiftCards = lazyWithRetry(() => import("@/pages/GiftCards"));
 const Locations = lazyWithRetry(() => import("@/pages/Locations"));
 const PresentmentCurrencies = lazyWithRetry(() => import("@/pages/PresentmentCurrencies"));
@@ -591,6 +592,7 @@ const App = () => (
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/apps" element={<Apps />} />
                     <Route path="/apps/:slug" element={<AppDetail />} />
+                    <Route path="/apps/:slug/app" element={<EmbeddedApp />} />
                     <Route path="/gift-cards" element={<GiftCards />} />
                     <Route path="/locations" element={<Locations />} />
                     <Route
