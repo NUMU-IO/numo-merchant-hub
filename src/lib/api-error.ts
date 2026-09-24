@@ -14,7 +14,7 @@ export class ApiError extends Error {
   fieldErrors: Record<string, string> | null;
   /** Raw parsed response body, if any. Carries structured error payloads the
    *  flat `serverDetail` string can't represent — e.g. the 409 stale-etag
-   *  conflict `{ detail: { current_etag, current_draft } }`. */
+   *  conflict `{ error: { code, current_etag, current_draft } }`. */
   body: unknown;
   /** Arabic message supplied BY THE SERVER, when it ships one. Several
    *  endpoints (duplicate SKU, for one) deliberately return a bilingual
@@ -39,6 +39,20 @@ export class ApiError extends Error {
     this.fieldErrors = fieldErrors ?? null;
     this.body = body ?? null;
     this.serverDetailAr = serverDetailAr ?? null;
+  }
+
+  /** `error.code` of the API's error envelope, e.g. "FEATURE_NOT_AVAILABLE". */
+  get code(): string | null {
+    const code = (this.body as { error?: { code?: unknown } } | null)?.error?.code;
+    return typeof code === "string" ? code : null;
+  }
+
+  /** `error.details` of the envelope. Which keys it has depends on `code`. */
+  get details(): Record<string, unknown> | null {
+    const details = (this.body as { error?: { details?: unknown } } | null)?.error?.details;
+    return details && typeof details === "object" && !Array.isArray(details)
+      ? (details as Record<string, unknown>)
+      : null;
   }
 
   /** Get a user-friendly message in the given language */

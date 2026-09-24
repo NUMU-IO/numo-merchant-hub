@@ -105,9 +105,9 @@ export function AppSubscriptionCard({
       );
     },
     onError: (err) => {
-      if (err instanceof ApiError && err.status === 402) {
-        const d = (err.body as { detail?: { needed_cents?: number; balance_cents?: number } } | null)
-          ?.detail;
+      if (err instanceof ApiError && err.code === "insufficient_wallet_balance") {
+        const d = (err.body as { error?: { needed_cents?: number; balance_cents?: number } } | null)
+          ?.error;
         setShort({ balance: d?.balance_cents ?? 0, needed: d?.needed_cents ?? 0 });
         return;
       }
