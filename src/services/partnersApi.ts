@@ -8,6 +8,7 @@
 import { apiClient } from "./api";
 import type { AppCatalogEntry } from "./appsApi";
 import { ApiError } from "@/lib/api-error";
+import type { AppReview, AppReviewPage, SupportThread, TicketPage } from "./appsApi";
 
 export type PartnerStatus = "pending" | "approved" | "rejected" | "suspended";
 
@@ -27,6 +28,23 @@ export interface PartnerAccount {
   review_notes: { ar?: string; en?: string } | null;
   reviewed_at: string | null;
   created_at: string;
+  referral_bps?: number;
+  referral_months?: number;
+  directory_listed?: boolean;
+  directory_profile?: DirectoryProfile | null;
+  verified?: boolean;
+  directory_hidden?: boolean;
+}
+
+export type PartnerService = "apps" | "themes" | "setup" | "marketing";
+
+export interface DirectoryProfile {
+  logo_url?: string | null;
+  bio_ar?: string | null;
+  bio_en?: string | null;
+  services?: PartnerService[];
+  languages?: ("ar" | "en" | "fr")[];
+  city?: string | null;
 }
 
 export type PartnerRole = "owner" | "admin" | "developer";
@@ -144,6 +162,9 @@ export interface PartnerApp {
   client_id: string | null;
   installs: number;
   latest_version: PartnerAppVersion | null;
+  /** A custom app: the one store it installs on. */
+  private_store_id: string | null;
+  private_store_name: string | null;
 }
 
 export interface PartnerAppDetail extends PartnerApp {
@@ -161,6 +182,7 @@ export function createPartnerApp(body: {
   slug: string;
   name_ar: string;
   name_en: string;
+  private_store?: string;
 }): Promise<PartnerApp & { client_secret: string }> {
   return apiClient(APPS, { method: "POST", body: JSON.stringify(body) });
 }
@@ -369,6 +391,88 @@ export interface PartnerDashboard {
     installed_at: string;
     status: "active" | "disabled" | "pending";
   }[];
+  /** Your share of sales in the period, in piasters. */
+  net_sales_cents: number;
+  balance_cents: number;
+  payable_cents: number;
+}
+
+export type PartnerSubStatus = "active" | "trial" | "past_due" | "cancelled";
+
+export interface PartnerSubscriptions {
+  counts: Record<PartnerSubStatus, number>;
+  total: number;
+  items: {
+    id: string;
+    app_id: string;
+    app_name: string;
+    store_name: string | null;
+    status: PartnerSubStatus;
+    price_cents: number;
+    currency: string;
+    cycle: string;
+    current_period_end: string;
+    cancel_at_period_end: boolean;
+    created_at: string;
+  }[];
+}
+
+export function listPartnerSubscriptions(params: { app_id?: string }): Promise<PartnerSubscriptions> {
+  return apiClient<PartnerSubscriptions>(`/partners/me/subscriptions${query(params)}`);
+}
+
+export interface PartnerCoupon {
+  id: string;
+  app_id: string;
+  app_name: string | null;
+  code: string;
+  percent_off: number | null;
+  amount_off_cents: number | null;
+  /** Charged periods it discounts; null: every one. */
+  duration_cycles: number | null;
+  max_redemptions: number | null;
+  expires_at: string | null;
+  store_id: string | null;
+  active: boolean;
+  redemptions: number;
+  created_at: string;
+  list_price_cents?: number;
+  discount_cents?: number;
+  max_discount_cents?: number;
+  /** Worth more than your share of the price, so it is capped at it. */
+  capped?: boolean;
+}
+
+export interface NewPartnerCoupon {
+  app_id: string;
+  code: string;
+  percent_off?: number | null;
+  amount_off_cents?: number | null;
+  duration_cycles?: number | null;
+  max_redemptions?: number | null;
+  expires_at?: string | null;
+  store_id?: string | null;
+}
+
+export function listPartnerCoupons(): Promise<PartnerCoupon[]> {
+  return apiClient<PartnerCoupon[]>("/partners/me/coupons");
+}
+
+export function createPartnerCoupon(body: NewPartnerCoupon): Promise<PartnerCoupon> {
+  return apiClient<PartnerCoupon>("/partners/me/coupons", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function setPartnerCouponActive(id: string, active: boolean): Promise<PartnerCoupon> {
+  return apiClient<PartnerCoupon>(`/partners/me/coupons/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ active }),
+  });
+}
+
+export function listCouponRedemptions(
+  id: string,
+): Promise<{ id: string; store_id: string; store_name: string | null; created_at: string }[]> {
+  return apiClient(`/partners/me/coupons/${id}/redemptions`);
 }
 
 const query = (params: Record<string, string | number | boolean | undefined>) => {
@@ -380,6 +484,47 @@ const query = (params: Record<string, string | number | boolean | undefined>) =>
 
 export function getPartnerDashboard(params: { from?: string; to?: string; app_id?: string }): Promise<PartnerDashboard> {
   return apiClient<PartnerDashboard>(`/partners/me/dashboard${query(params)}`);
+}
+
+export interface PartnerAnalytics {
+  months: { month: string; installs: number; uninstalls: number; active_stores: number; churn_rate: number | null }[];
+  reasons: { reason: string; count: number }[];
+  notes: { app_id: string; reason: string | null; text: string; created_at: string }[];
+  paid_active: number;
+  trial_to_paid: number | null;
+  trial_note: string | null;
+  api: { app_id: string; app_name: string; requests: number; errors: number; error_rate: number | null }[];
+  api_from: string | null;
+}
+
+export function getPartnerAnalytics(params: { from?: string; to?: string; app_id?: string }): Promise<PartnerAnalytics> {
+  return apiClient<PartnerAnalytics>(`/partners/me/analytics${query(params)}`);
+}
+
+export interface ApiLogPage {
+  items: {
+    at: string;
+    request_id: string | null;
+    method: string;
+    route: string;
+    status: number;
+    latency_ms: number;
+    rate_limited: boolean;
+    store_id: string | null;
+    store_name: string | null;
+  }[];
+  total: number;
+  page: number;
+  page_size: number;
+  stats: { requests: number; errors: number; error_rate: number | null; p95_ms: number | null; rate_limited: number };
+  routes: string[];
+}
+
+export function listAppApiLogs(
+  appId: string,
+  params: { status_class?: string; route?: string; store_id?: string; hours?: number; page?: number },
+): Promise<ApiLogPage> {
+  return apiClient<ApiLogPage>(`/partners/me/apps/${appId}/api-logs${query(params)}`);
 }
 
 export type DeliveryStatus = "pending" | "success" | "failed" | "exhausted";
@@ -451,6 +596,63 @@ export function acceptPartnerInvitation(id: string): Promise<{ partner_id: strin
   return apiClient(`/partners/invitations/${id}/accept`, { method: "POST" });
 }
 
-export function updatePartnerProfile(body: Partial<PartnerProfile>): Promise<PartnerAccount> {
+export function updatePartnerProfile(
+  body: Partial<PartnerProfile> & { directory_listed?: boolean; directory_profile?: DirectoryProfile },
+): Promise<PartnerAccount> {
   return apiClient<PartnerAccount>("/partners/me", { method: "PATCH", body: JSON.stringify(body) });
+}
+
+// ─── Reviews and support ─────────────────────────────────────────────
+
+export function listPartnerReviews(params: { app_id?: string; rating?: number; page?: number }): Promise<AppReviewPage> {
+  return apiClient<AppReviewPage>(`/partners/me/reviews${query(params)}`);
+}
+
+export function replyPartnerReview(id: string, body: string): Promise<AppReview> {
+  return apiClient<AppReview>(`/partners/me/reviews/${id}/reply`, { method: "PUT", body: JSON.stringify({ body }) });
+}
+
+export function reportPartnerReview(id: string, reason: string): Promise<unknown> {
+  return apiClient(`/partners/me/reviews/${id}/report`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+export function listPartnerTickets(params: { kind?: string; status?: string; page?: number }): Promise<TicketPage> {
+  return apiClient<TicketPage>(`/partners/me/support${query(params)}`);
+}
+
+export function openPartnerTicket(form: FormData): Promise<SupportThread> {
+  return apiClient<SupportThread>("/partners/me/support", { method: "POST", body: form });
+}
+
+export function getPartnerTicket(id: string): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/partners/me/support/${id}`);
+}
+
+export function replyPartnerTicket(id: string, form: FormData): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/partners/me/support/${id}/messages`, { method: "POST", body: form });
+}
+
+export function closePartnerTicket(id: string): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/partners/me/support/${id}/close`, { method: "POST" });
+}
+
+export interface PartnerReferrals {
+  code: string | null;
+  link: string | null;
+  referral_bps: number;
+  referral_months: number;
+  earned_cents: number;
+  stores: {
+    tenant_id: string;
+    store_name: string;
+    signed_up_at: string;
+    plan: string;
+    status: string;
+    first_paid_at: string | null;
+    earned_cents: number;
+  }[];
+}
+
+export function getPartnerReferrals(): Promise<PartnerReferrals> {
+  return apiClient<PartnerReferrals>("/partners/me/referrals");
 }

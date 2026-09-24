@@ -26,6 +26,9 @@ export interface AppCatalogEntry {
   listing?: AppListing;
   /** Set for Partner Apps: how to open their consent screen. */
   connect?: AppConnect | null;
+  /** Average of visible reviews; null until the first one. */
+  rating?: number | null;
+  reviews_count?: number;
 }
 
 /** Listing metadata every app supplies; the detail page renders what exists. */
@@ -56,6 +59,8 @@ export interface AppListing {
   /** A YouTube or Vimeo URL. */
   video_url?: string | null;
   keywords?: { ar?: string[]; en?: string[] };
+  /** Partner App that renders inside the hub at `/apps/<slug>/app`. */
+  embedded?: boolean;
 }
 
 export interface AppInstallation extends AppCatalogEntry {
@@ -147,12 +152,34 @@ export async function disableApp(
   );
 }
 
+export const UNINSTALL_REASONS = [
+  "not_needed",
+  "missing_features",
+  "too_expensive",
+  "bugs",
+  "hard_to_use",
+  "poor_support",
+  "switched_app",
+  "temporary",
+  "other",
+] as const;
+
+export interface UninstallFeedback {
+  reason?: string;
+  reason_text?: string;
+}
+
 export async function uninstallApp(
   storeId: string,
   slug: string,
+  feedback: UninstallFeedback = {},
 ): Promise<void> {
+  const qs = new URLSearchParams();
+  if (feedback.reason) qs.set("reason", feedback.reason);
+  if (feedback.reason_text) qs.set("reason_text", feedback.reason_text);
+  const q = qs.toString();
   await apiClient<{ slug: string }>(
-    `/stores/${storeId}/apps/${encodeURIComponent(slug)}`,
+    `/stores/${storeId}/apps/${encodeURIComponent(slug)}${q ? `?${q}` : ""}`,
     { method: "DELETE" },
   );
 }
@@ -185,6 +212,22 @@ export async function getAppOpenUrl(storeId: string, slug: string, locale: strin
   return r.url;
 }
 
+export interface AppSession {
+  token: string;
+  /** The URL to frame, carrying `session_token`. */
+  url: string;
+  /** The only origin the embedded app may post messages from. */
+  origin: string;
+}
+
+/** A 60-second session token for an embedded Partner App. */
+export function getAppSession(storeId: string, slug: string, locale: string): Promise<AppSession> {
+  return apiClient<AppSession>(
+    `/stores/${storeId}/apps/${encodeURIComponent(slug)}/session-token?locale=${locale === "en" ? "en" : "ar"}`,
+    { method: "POST" },
+  );
+}
+
 // ─── Paid apps (Phase 7): the store's subscription ───────────────────
 
 /** Money in piasters. A paid app is charged to the store's NUMU wallet. */
@@ -201,6 +244,34 @@ export interface AppSubscription {
   cancel_at_period_end: boolean;
   /** What this store renews at: the price when it subscribed. */
   subscribed_price_cents: number | null;
+  /** Free days the app offers before the first charge (0: none). */
+  trial_days: number;
+  /** This store hasn't had the app's free trial yet. */
+  trial_available: boolean;
+  /** The current period is the free trial. */
+  is_trial: boolean;
+  /** Metered charges, taken from the wallet as the app reports them. */
+  usage: {
+    unit: Record<string, string>;
+    unit_price_cents: number | null;
+    cap_cents: number;
+    used_cents: number;
+  } | null;
+  /** The next charge: VAT (14%) is on NUMU's fee only, added on top. */
+  next_charge: AppChargeQuote | null;
+  /** A partner coupon still discounting this store's periods. */
+  coupon: { code: string; cycles_left: number | null } | null;
+}
+
+export interface AppChargeQuote {
+  list_price_cents: number;
+  discount_cents: number;
+  /** The coupon was larger than the partner's share and was capped. */
+  discount_capped: boolean;
+  vat_cents: number;
+  vat_bps: number;
+  total_cents: number;
+  coupon?: { code: string; duration_cycles: number | null } | null;
 }
 
 const subscriptionPath = (storeId: string, slug: string) =>
@@ -219,11 +290,12 @@ export function getAppSubscription(storeId: string, slug: string): Promise<AppSu
 export async function subscribeApp(
   storeId: string,
   slug: string,
+  couponCode?: string,
 ): Promise<{ sub: AppSubscription; charged: boolean }> {
   let message: Promise<unknown> = Promise.resolve(null);
   const sub = await apiClient<AppSubscription>(
     subscriptionPath(storeId, slug),
-    { method: "POST" },
+    { method: "POST", body: JSON.stringify({ coupon_code: couponCode || null }) },
     {
       onResponse: (res) => {
         message = res.clone().json().then((b) => b?.message, () => null);
@@ -231,6 +303,17 @@ export async function subscribeApp(
     },
   );
   return { sub, charged: (await message) === "Subscribed" };
+}
+
+/** What subscribing costs now; a coupon this store can't use is a 422 `{ code }`. */
+export function quoteAppSubscription(
+  storeId: string,
+  slug: string,
+  couponCode: string,
+): Promise<AppChargeQuote> {
+  return apiClient<AppChargeQuote>(
+    `${subscriptionPath(storeId, slug)}/quote?coupon_code=${encodeURIComponent(couponCode)}`,
+  );
 }
 
 /** Stop renewing. The app keeps working until `current_period_end`. */
@@ -245,8 +328,23 @@ export interface Consent {
     tagline: Record<string, string>;
     icon: string | null;
     partner: string | null;
-    pricing: { plan?: string; locales?: Record<string, { label?: string }> } | null;
+    pricing: {
+      plan?: string;
+      locales?: Record<string, { label?: string }>;
+      trial_days?: number;
+      /** NUMU charges the store's wallet once the merchant subscribes. */
+      charged_from_wallet?: boolean;
+      /** This store hasn't had the app's free trial yet. */
+      trial_available?: boolean;
+      currency?: string;
+      /** VAT on NUMU's fee, added on top of the price each period. */
+      vat_cents?: number;
+    } | null;
     privacy_policy_url: string | null;
+    rating?: number | null;
+    reviews_count?: number;
+    /** A custom app a partner built for this one store. */
+    private?: boolean;
   };
   store_id: string;
   store_name: string;
@@ -268,4 +366,133 @@ export function approveConsent(body: {
   state: string;
 }): Promise<{ redirect_url: string }> {
   return apiClient(`/oauth/authorize/approve`, { method: "POST", body: JSON.stringify(body) });
+}
+
+// ─── Reviews and support ─────────────────────────────────────────────
+
+export interface AppReview {
+  id: string;
+  app_id: string;
+  app_name?: string | null;
+  store_name: string | null;
+  rating: number;
+  body: string | null;
+  reply_body: string | null;
+  replied_at: string | null;
+  is_hidden: boolean;
+  reported: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RatingSummary {
+  average: number | null;
+  count: number;
+  distribution: Record<string, number>;
+}
+
+export interface AppReviewPage {
+  summary: RatingSummary;
+  items: AppReview[];
+  total: number;
+  page: number;
+  page_size: number;
+  mine?: AppReview | null;
+  can_review?: boolean;
+}
+
+const reviewsPath = (storeId: string, slug: string) =>
+  `/stores/${storeId}/apps/${encodeURIComponent(slug)}/reviews`;
+
+export function listAppReviews(storeId: string, slug: string, page = 1): Promise<AppReviewPage> {
+  return apiClient<AppReviewPage>(`${reviewsPath(storeId, slug)}?page=${page}`);
+}
+
+export function saveAppReview(
+  storeId: string,
+  slug: string,
+  body: { rating: number; body: string | null },
+): Promise<AppReview> {
+  return apiClient<AppReview>(reviewsPath(storeId, slug), { method: "PUT", body: JSON.stringify(body) });
+}
+
+export function deleteAppReview(storeId: string, slug: string): Promise<unknown> {
+  return apiClient(reviewsPath(storeId, slug), { method: "DELETE" });
+}
+
+export function reportAppReview(storeId: string, slug: string, id: string, reason: string): Promise<unknown> {
+  return apiClient(`${reviewsPath(storeId, slug)}/${id}/report`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export type TicketStatus = "open" | "answered" | "closed";
+
+export interface SupportTicket {
+  id: string;
+  kind: "app" | "partner";
+  subject: string;
+  status: TicketStatus;
+  app_id: string | null;
+  app_name: string | null;
+  app_slug: string | null;
+  store_id: string | null;
+  store_name: string | null;
+  partner_name: string | null;
+  last_message_at: string | null;
+  created_at: string;
+}
+
+export interface SupportAttachment {
+  url: string;
+  name: string;
+  content_type: string;
+  size: number;
+}
+
+export interface SupportThread {
+  ticket: SupportTicket;
+  messages: {
+    id: string;
+    author_role: "merchant" | "partner" | "staff";
+    body: string;
+    attachments: SupportAttachment[];
+    created_at: string;
+  }[];
+}
+
+export interface TicketPage {
+  items: SupportTicket[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+/** Multipart: the message and up to 3 images or PDFs. */
+export function supportForm(fields: Record<string, string>, files: File[]): FormData {
+  const form = new FormData();
+  for (const [k, v] of Object.entries(fields)) form.append(k, v);
+  for (const f of files) form.append("files", f);
+  return form;
+}
+
+export function listAppTickets(storeId: string): Promise<TicketPage> {
+  return apiClient<TicketPage>(`/stores/${storeId}/app-support?page_size=100`);
+}
+
+export function openAppTicket(storeId: string, form: FormData): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/stores/${storeId}/app-support`, { method: "POST", body: form });
+}
+
+export function getAppTicket(storeId: string, id: string): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/stores/${storeId}/app-support/${id}`);
+}
+
+export function replyAppTicket(storeId: string, id: string, form: FormData): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/stores/${storeId}/app-support/${id}/messages`, { method: "POST", body: form });
+}
+
+export function closeAppTicket(storeId: string, id: string): Promise<SupportThread> {
+  return apiClient<SupportThread>(`/stores/${storeId}/app-support/${id}/close`, { method: "POST" });
 }

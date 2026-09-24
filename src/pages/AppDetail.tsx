@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
@@ -23,22 +23,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { showError } from "@/lib/show-error";
 import { AppSettingsPanel } from "@/components/apps/AppSettingsPanel";
+import { UninstallAppDialog } from "@/components/apps/UninstallAppDialog";
 import { AppSubscriptionCard } from "@/components/apps/AppSubscriptionCard";
 import { AppListingView, appDisplay } from "@/components/apps/AppListingView";
+import { AppReviews, AppSupport, RatingBadge } from "@/components/apps/AppFeedback";
 import { scopeSentence } from "@/lib/appScopes";
 import {
   type AppCatalogEntry,
@@ -59,6 +51,7 @@ export default function AppDetail() {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { currentStore } = useDashboardStore();
   const storeId = currentStore?.id;
   const queryClient = useQueryClient();
@@ -155,9 +148,12 @@ export default function AppDetail() {
         app={app}
         language={language}
         badges={
-          install?.app_status === "suspended" && (
-            <Badge variant="outline">{t("apps.suspended")}</Badge>
-          )
+          <>
+            {install?.app_status === "suspended" && (
+              <Badge variant="outline">{t("apps.suspended")}</Badge>
+            )}
+            <RatingBadge rating={entry?.rating} count={entry?.reviews_count} />
+          </>
         }
         actions={
           <>
@@ -183,6 +179,7 @@ export default function AppDetail() {
                 <Button
                   disabled={busy}
                   onClick={async () => {
+                    if (listing?.embedded) return navigate(`/apps/${app.slug}/app`);
                     try {
                       // A fresh signed link each time: the app rejects old timestamps.
                       window.open(await getAppOpenUrl(storeId!, app.slug, language), "_blank", "noopener");
@@ -216,25 +213,11 @@ export default function AppDetail() {
               >
                 {t("apps.uninstall")}
               </Button>
-              <AlertDialog open={confirmUninstall} onOpenChange={setConfirmUninstall}>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{t("apps.uninstall")}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {t(NUMU_APP_HOME[app.slug] ? "apps.uninstallConfirm" : "apps.uninstallConfirmSettings", { name: displayName })}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive hover:bg-destructive/90"
-                      onClick={() => void act(() => uninstallApp(storeId!, app.slug), t("apps.uninstall"))}
-                    >
-                      {t("apps.uninstall")}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <UninstallAppDialog
+                app={confirmUninstall ? { slug: app.slug, name: displayName ?? app.name, partner: !!app.connect } : null}
+                onClose={() => setConfirmUninstall(false)}
+                onConfirm={(feedback) => void act(() => uninstallApp(storeId!, app.slug, feedback), t("apps.uninstall"))}
+              />
             </>
           )}
           </>
@@ -248,7 +231,7 @@ export default function AppDetail() {
 
       {/* A NUMU-billed app: charged to the store's wallet (Phase 7). Free and
           externally billed apps have nothing to manage here. */}
-      {install && listing?.pricing?.plan === "recurring" && (
+      {install && (listing?.pricing?.plan === "recurring" || listing?.pricing?.plan === "usage") && (
         <AppSubscriptionCard
           storeId={storeId!}
           install={install}
@@ -300,6 +283,12 @@ export default function AppDetail() {
       )}
 
       </AppListingView>
+      <AppReviews storeId={storeId!} slug={app.slug} />
+
+      {isPartner && (
+        <AppSupport storeId={storeId!} slug={app.slug} initialTicketId={searchParams.get("support")} />
+      )}
+
       {/* ── Settings, only once it is installed ── */}
       {install && (install.settings_schema?.length ?? 0) > 0 && (
         <Card>
