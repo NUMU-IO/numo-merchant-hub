@@ -533,6 +533,7 @@
       payment_proof_submitted: "في إثبات دفع مستني مراجعتك",
       payment_reversed: "تم عكس عملية دفع",
       order_partial_acceptance: "عميل استلم جزء من طلب",
+      plan_orders_over_limit: "عديت حد الطلبات بتاع الشهر ده",
     },
     tabs: {
       all: "الكل",
@@ -574,6 +575,10 @@
       trackingReconnect: {
         title: "أعد ربط تتبّع {{details}}",
         body: "المشتريات لا تصل إلى إعلانات {{details}} · أعد الربط من الإعدادات ← التتبّع",
+      },
+      planOrdersOverLimit: {
+        title: "عديت الـ{{limit}} طلب اللي في باقتك الشهر ده",
+        body: "الطلبات الجديدة لسه بتوصل عادي · رقّي باقتك لطلبات بلا حدود",
       },
     },
     method: {
