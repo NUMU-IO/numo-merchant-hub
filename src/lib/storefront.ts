@@ -117,8 +117,14 @@ export function getPublicStoreUrl(
  */
 export function getStoreFrameUrl(
   store: StoreUrlSource | null | undefined,
+  locale?: "ar" | "en",
 ): string | null {
-  return store?.subdomain ? getStoreUrl(store.subdomain) : null;
+  if (!store?.subdomain) return null;
+  const frameUrl = getStoreUrl(store.subdomain);
+  if (!locale) return frameUrl;
+  const url = new URL(frameUrl);
+  url.searchParams.set("locale", locale);
+  return url.toString();
 }
 
 /** Same as {@link getPublicStoreUrl} but bare host — for display/chrome bars. */
