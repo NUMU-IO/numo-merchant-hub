@@ -1,12 +1,15 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ReactElement, type ReactNode } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Activity,
   AppWindow,
+  BarChart3,
   CreditCard,
   Download,
   LayoutDashboard,
+  Percent,
   Languages,
   Loader2,
   LogOut,
@@ -16,7 +19,7 @@ import {
   Users,
   Webhook,
 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +39,7 @@ import Partners from "@/pages/Partners";
 import PartnerApps from "@/pages/PartnerApps";
 import PartnerAppDetail from "@/pages/PartnerAppDetail";
 import {
+  getPartnerAnalytics,
   getPartnerDashboard,
   getPartnerMe,
   invitePartnerMember,
@@ -60,6 +64,7 @@ export default function PartnerPortal() {
     <Shell>
       <Routes>
         <Route index element={<Dashboard />} />
+        <Route path="analytics" element={<Analytics />} />
         <Route path="apps" element={<PartnerApps />} />
         <Route path="apps/:id" element={<PartnerAppDetail />} />
         <Route path="dev-stores" element={<Partners />} />
@@ -79,6 +84,7 @@ function Shell({ children }: { children: ReactNode }) {
   const isAr = language === "ar";
   const nav = [
     { to: "/", icon: LayoutDashboard, label: t("partnerPortal.nav.dashboard") },
+    { to: "/analytics", icon: BarChart3, label: t("partnerPortal.nav.analytics") },
     { to: "/apps", icon: AppWindow, label: t("partnerPortal.nav.apps") },
     { to: "/dev-stores", icon: Store, label: t("partnerPortal.nav.devStores") },
     { to: "/webhooks", icon: Webhook, label: t("partnerPortal.nav.webhooks") },
@@ -180,14 +186,40 @@ function AppFilter({ value, onChange }: { value: string; onChange: (v: string) =
   );
 }
 
-function Dashboard() {
+const TOOLTIP_STYLE = {
+  background: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: "10px",
+  fontSize: "12px",
+};
+
+function useRangeFilter() {
   const { t } = useTranslation();
-  const { language } = useLanguage();
-  const date = useDate();
   const [appId, setAppId] = useState(ALL);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const params = { app_id: appId === ALL ? undefined : appId, from: from || undefined, to: to || undefined };
+  const bar = (
+    <div className="flex flex-wrap items-end gap-3">
+      <AppFilter value={appId} onChange={setAppId} />
+      <div className="space-y-1">
+        <Label htmlFor="pp-from">{t("partnerPortal.from")}</Label>
+        <Input id="pp-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="pp-to">{t("partnerPortal.to")}</Label>
+        <Input id="pp-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+      </div>
+    </div>
+  );
+  return { params, bar };
+}
+
+function Dashboard() {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const date = useDate();
+  const { params, bar } = useRangeFilter();
   const { data, isLoading } = useQuery({
     queryKey: ["partners", "dashboard", params],
     queryFn: () => getPartnerDashboard(params),
@@ -204,17 +236,7 @@ function Dashboard() {
 
   return (
     <Page title={t("partnerPortal.dashboardTitle")}>
-      <div className="flex flex-wrap items-end gap-3">
-        <AppFilter value={appId} onChange={setAppId} />
-        <div className="space-y-1">
-          <Label htmlFor="pp-from">{t("partnerPortal.from")}</Label>
-          <Input id="pp-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="pp-to">{t("partnerPortal.to")}</Label>
-          <Input id="pp-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </div>
-      </div>
+      {bar}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile icon={Download} loading={isLoading} label={t("partnerPortal.installsTotal")} value={data?.installs_total ?? 0} />
@@ -249,7 +271,7 @@ function Dashboard() {
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={32} />
                     <Tooltip
-                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", fontSize: "12px" }}
+                      contentStyle={TOOLTIP_STYLE}
                       formatter={(v: number) => [v, t("partnerPortal.installs")]}
                     />
                     <Bar dataKey="installs" fill="hsl(var(--navy))" radius={[4, 4, 0, 0]} />
@@ -295,6 +317,171 @@ function Dashboard() {
           )}
         </CardContent>
       </Card>
+    </Page>
+  );
+}
+
+function ChartCard({ title, hint, empty, children }: { title: string; hint?: string; empty: boolean; children: ReactElement }) {
+  const { t } = useTranslation();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+        {hint && <CardDescription>{hint}</CardDescription>}
+      </CardHeader>
+      <CardContent>
+        {empty ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">{t("partnerPortal.noData")}</p>
+        ) : (
+          <div className="h-60" dir="ltr">
+            <ResponsiveContainer width="100%" height="100%">
+              {children}
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Analytics() {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const locale = language === "ar" ? "ar-EG" : "en-GB";
+  const date = useDate();
+  const { params, bar } = useRangeFilter();
+  const { data, isLoading } = useQuery({
+    queryKey: ["partners", "analytics", params],
+    queryFn: () => getPartnerAnalytics(params),
+  });
+  const pct = (v: number | null | undefined) =>
+    v == null ? "—" : `${(v * 100).toLocaleString(locale, { maximumFractionDigits: 1 })}%`;
+  const months = data?.months ?? [];
+  const last = months[months.length - 1];
+  const hasActivity = months.some((m) => m.installs || m.uninstalls || m.active_stores);
+  const churn = months.map((m) => ({ month: m.month, churn: m.churn_rate == null ? null : +(m.churn_rate * 100).toFixed(1) }));
+  const requests = (data?.api ?? []).reduce((n, a) => n + a.requests, 0);
+  const errors = (data?.api ?? []).reduce((n, a) => n + a.errors, 0);
+  const reason = (r: string | null) => t(`apps.uninstallReason_${r ?? "unspecified"}`);
+  const grid = <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />;
+  const xAxis = <XAxis dataKey="month" tick={{ fontSize: 11 }} />;
+
+  return (
+    <Page title={t("partnerPortal.analyticsTitle")}>
+      {bar}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile icon={Store} loading={isLoading} label={t("partnerPortal.activeStores")} value={last?.active_stores ?? 0} />
+        <StatTile icon={Percent} tone="terra" loading={isLoading} label={t("partnerPortal.churn")} value={pct(last?.churn_rate)} sub={last?.month} />
+        <StatTile
+          icon={CreditCard}
+          tone="saffron"
+          loading={isLoading}
+          label={t("partnerPortal.paidActive")}
+          value={data?.paid_active ?? 0}
+          sub={`${t("partnerPortal.trialToPaid")}: ${pct(data?.trial_to_paid)}${data?.trial_note ? ` · ${t("partnerPortal.trialNotTracked")}` : ""}`}
+        />
+        <StatTile
+          icon={Activity}
+          tone="sage"
+          loading={isLoading}
+          label={t("partnerPortal.apiHealth")}
+          value={requests ? pct(errors / requests) : "—"}
+          sub={`${t("partnerPortal.requests")}: ${requests.toLocaleString(locale)}`}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartCard title={t("partnerPortal.activeStores")} hint={t("partnerPortal.activeStoresHint")} empty={!hasActivity}>
+          <LineChart data={months}>
+            {grid}
+            {xAxis}
+            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={32} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [v, t("partnerPortal.activeStores")]} />
+            <Line type="monotone" dataKey="active_stores" stroke="hsl(var(--navy))" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ChartCard>
+        <ChartCard title={t("partnerPortal.installsVsUninstalls")} empty={!hasActivity}>
+          <BarChart data={months}>
+            {grid}
+            {xAxis}
+            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={32} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar dataKey="installs" name={t("partnerPortal.installs")} fill="hsl(var(--navy))" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="uninstalls" name={t("partnerPortal.uninstalls")} fill="hsl(var(--terracotta))" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ChartCard>
+        <ChartCard title={t("partnerPortal.churn")} hint={t("partnerPortal.churnHint")} empty={!churn.some((c) => c.churn != null)}>
+          <LineChart data={churn}>
+            {grid}
+            {xAxis}
+            <YAxis tick={{ fontSize: 11 }} width={40} unit="%" />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v}%`, t("partnerPortal.churn")]} />
+            <Line type="monotone" dataKey="churn" stroke="hsl(var(--terracotta))" strokeWidth={2} connectNulls />
+          </LineChart>
+        </ChartCard>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("partnerPortal.uninstallReasons")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data?.reasons.length ? (
+              <BreakdownPie data={data.reasons.map((r) => ({ name: reason(r.reason), value: r.count }))} locale={locale} />
+            ) : (
+              <p className="py-10 text-center text-sm text-muted-foreground">{t("partnerPortal.noData")}</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t("partnerPortal.apiHealth")}</CardTitle>
+          <CardDescription>{t("partnerPortal.apiHealthHint")}</CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("partnerPortal.app")}</TableHead>
+                <TableHead>{t("partnerPortal.requests")}</TableHead>
+                <TableHead>{t("partnerPortal.errors")}</TableHead>
+                <TableHead>{t("partnerPortal.errorRate")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(data?.api ?? []).map((a) => (
+                <TableRow key={a.app_id}>
+                  <TableCell><bdi>{a.app_name}</bdi></TableCell>
+                  <TableCell dir="ltr">{a.requests.toLocaleString(locale)}</TableCell>
+                  <TableCell dir="ltr">{a.errors.toLocaleString(locale)}</TableCell>
+                  <TableCell dir="ltr">{pct(a.error_rate)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {!!data?.notes.length && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("partnerPortal.reasonNotes")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {data.notes.map((n, i) => (
+              <div key={i} className="rounded-lg border p-3 text-sm">
+                <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="secondary">{reason(n.reason)}</Badge>
+                  <bdi dir="ltr">{date(n.created_at)}</bdi>
+                </div>
+                <p className="whitespace-pre-line">{n.text}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </Page>
   );
 }

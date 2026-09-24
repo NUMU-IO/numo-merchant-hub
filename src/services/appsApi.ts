@@ -144,12 +144,34 @@ export async function disableApp(
   );
 }
 
+export const UNINSTALL_REASONS = [
+  "not_needed",
+  "missing_features",
+  "too_expensive",
+  "bugs",
+  "hard_to_use",
+  "poor_support",
+  "switched_app",
+  "temporary",
+  "other",
+] as const;
+
+export interface UninstallFeedback {
+  reason?: string;
+  reason_text?: string;
+}
+
 export async function uninstallApp(
   storeId: string,
   slug: string,
+  feedback: UninstallFeedback = {},
 ): Promise<void> {
+  const qs = new URLSearchParams();
+  if (feedback.reason) qs.set("reason", feedback.reason);
+  if (feedback.reason_text) qs.set("reason_text", feedback.reason_text);
+  const q = qs.toString();
   await apiClient<{ slug: string }>(
-    `/stores/${storeId}/apps/${encodeURIComponent(slug)}`,
+    `/stores/${storeId}/apps/${encodeURIComponent(slug)}${q ? `?${q}` : ""}`,
     { method: "DELETE" },
   );
 }

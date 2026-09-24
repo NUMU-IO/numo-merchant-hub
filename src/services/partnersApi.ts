@@ -257,6 +257,47 @@ export function getPartnerDashboard(params: { from?: string; to?: string; app_id
   return apiClient<PartnerDashboard>(`/partners/me/dashboard${query(params)}`);
 }
 
+export interface PartnerAnalytics {
+  months: { month: string; installs: number; uninstalls: number; active_stores: number; churn_rate: number | null }[];
+  reasons: { reason: string; count: number }[];
+  notes: { app_id: string; reason: string | null; text: string; created_at: string }[];
+  paid_active: number;
+  trial_to_paid: number | null;
+  trial_note: string | null;
+  api: { app_id: string; app_name: string; requests: number; errors: number; error_rate: number | null }[];
+  api_from: string | null;
+}
+
+export function getPartnerAnalytics(params: { from?: string; to?: string; app_id?: string }): Promise<PartnerAnalytics> {
+  return apiClient<PartnerAnalytics>(`/partners/me/analytics${query(params)}`);
+}
+
+export interface ApiLogPage {
+  items: {
+    at: string;
+    request_id: string | null;
+    method: string;
+    route: string;
+    status: number;
+    latency_ms: number;
+    rate_limited: boolean;
+    store_id: string | null;
+    store_name: string | null;
+  }[];
+  total: number;
+  page: number;
+  page_size: number;
+  stats: { requests: number; errors: number; error_rate: number | null; p95_ms: number | null; rate_limited: number };
+  routes: string[];
+}
+
+export function listAppApiLogs(
+  appId: string,
+  params: { status_class?: string; route?: string; store_id?: string; hours?: number; page?: number },
+): Promise<ApiLogPage> {
+  return apiClient<ApiLogPage>(`/partners/me/apps/${appId}/api-logs${query(params)}`);
+}
+
 export type DeliveryStatus = "pending" | "success" | "failed" | "exhausted";
 
 export interface WebhookDelivery {
