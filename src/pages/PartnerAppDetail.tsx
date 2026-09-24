@@ -44,6 +44,8 @@ import {
 } from "@/services/partnersApi";
 import { partnerPath } from "@/lib/partner-host";
 import { SecretOnce } from "@/pages/PartnerApps";
+import { AppReviewTimeline } from "@/components/partners/AppReviewTimeline";
+import { AppListingEditor, listingEditable, useAppListing } from "@/components/partners/AppListingEditor";
 
 export default function PartnerAppDetail() {
   const { id = "" } = useParams();
@@ -53,6 +55,9 @@ export default function PartnerAppDetail() {
   const queryClient = useQueryClient();
   const app = useQuery({ queryKey: ["partners", "apps", id], queryFn: () => getPartnerApp(id) });
   const devStores = useQuery({ queryKey: ["partners", "dev-stores"], queryFn: listDevStores });
+  const listing = useAppListing(id);
+  const draft = listing.data?.draft;
+  const canAttachListing = Boolean(draft) && listingEditable(draft?.status);
   const [secret, setSecret] = useState<string | null>(null);
   const [confirmRotate, setConfirmRotate] = useState(false);
   const [manifest, setManifest] = useState("");
@@ -89,8 +94,16 @@ export default function PartnerAppDetail() {
     },
   });
   const act = useMutation({
-    mutationFn: async ({ kind, versionId }: { kind: "submit" | "publish"; versionId: string }) => {
-      if (kind === "submit") await submitAppVersion(id, versionId);
+    mutationFn: async ({
+      kind,
+      versionId,
+      withListing = false,
+    }: {
+      kind: "submit" | "publish";
+      versionId: string;
+      withListing?: boolean;
+    }) => {
+      if (kind === "submit") await submitAppVersion(id, versionId, withListing);
       else await publishAppVersion(id, versionId);
     },
     onSuccess: (_r, { kind }) => {
@@ -123,11 +136,9 @@ export default function PartnerAppDetail() {
               <Badge variant={a.status === "published" ? "default" : "secondary"}>
                 {t(`partnerApps.app_${a.status}`)}
               </Badge>
-              {a.status === "published" && (
-                <Badge variant="outline">
-                  {t(a.catalog_visible ? "partnerApps.listed" : "partnerApps.notListed")}
-                </Badge>
-              )}
+              <Badge variant="outline">
+                {t(a.catalog_visible ? "partnerApps.listed" : "partnerApps.notListed")}
+              </Badge>
               <bdi dir="ltr" className="text-xs text-muted-foreground">
                 {a.slug} · v{a.version} · {t("partnerApps.installs")}: {a.installs}
               </bdi>
@@ -194,6 +205,16 @@ export default function PartnerAppDetail() {
                           {t("partnerApps.submit")}
                         </Button>
                       )}
+                      {(v.status === "draft" || v.status === "changes_requested") && canAttachListing && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={act.isPending}
+                          onClick={() => act.mutate({ kind: "submit", versionId: v.id, withListing: true })}
+                        >
+                          {t("partnerApps.submitWithListing")}
+                        </Button>
+                      )}
                       {v.status === "approved" && (
                         <Button
                           size="sm"
@@ -218,6 +239,10 @@ export default function PartnerAppDetail() {
                 ))}
               </CardContent>
             </Card>
+
+            <AppReviewTimeline appId={id} />
+
+            <AppListingEditor appId={id} catalogVisible={a.catalog_visible} />
 
             <Card>
               <CardHeader>

@@ -5,6 +5,7 @@ import {
   formatTimeAgo,
   renderNotification,
   type NotificationIcon,
+  type RenderedNotification,
 } from "@/lib/notifications/render";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
@@ -30,16 +31,18 @@ interface Props {
   onOpen: (item: NotificationItem) => void;
   /** Compact = bell dropdown; default = full page. */
   compact?: boolean;
+  /** Copy for a feed other than the merchant's (the partner portal). */
+  render?: (item: NotificationItem) => RenderedNotification;
 }
 
 /**
  * One feed row — Zid layout: icon tile, bold title with the customer
  * name emphasised, muted body, time on the end, unread dot under the tile.
  */
-export function NotificationRow({ item, onOpen, compact }: Props) {
+export function NotificationRow({ item, onOpen, compact, render }: Props) {
   const { t } = useTranslation();
   const { language } = useLanguage();
-  const r = renderNotification(item, t, language === "ar" ? "ar" : "en");
+  const r = render ? render(item) : renderNotification(item, t, language === "ar" ? "ar" : "en");
   const Icon = ICONS[r.icon];
 
   return (
