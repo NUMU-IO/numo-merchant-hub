@@ -342,6 +342,7 @@
     subject: {
       version: "نسخة {{version}}",
       listing: "صفحة التطبيق في المتجر",
+      app: "التطبيق",
     },
     payoutTitle: "اتحوّلك فلوس",
     payoutBody: "اتحوّل {{amount}}. المرجع {{reference}}.",

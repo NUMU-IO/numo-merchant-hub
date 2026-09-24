@@ -333,6 +333,7 @@ export default {
     subject: {
       version: "Version {{version}}",
       listing: "App Store listing",
+      app: "The app",
     },
     payoutTitle: "Payout sent",
     payoutBody: "{{amount}} transferred. Reference {{reference}}.",

@@ -51,7 +51,7 @@ function render(item: NotificationItem, t: TFunction, lang: "ar" | "en"): Render
           { text: String(d.app_name ?? ""), em: true },
           { text: ` · ${t(`partnerNotifications.status.${status}`)}` },
         ],
-        body: t(`partnerNotifications.subject.${d.subject === "listing" ? "listing" : "version"}`, {
+        body: t(`partnerNotifications.subject.${d.subject === "listing" || d.subject === "app" ? d.subject : "version"}`, {
           version: d.version ?? "",
         }),
         icon: "request",
