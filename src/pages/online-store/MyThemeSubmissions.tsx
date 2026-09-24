@@ -84,6 +84,7 @@ const VERSION_STATUS_VARIANT: Record<
   build_failed: { label: "Build failed", variant: "destructive", icon: XCircle },
   pending_review: { label: "Pending review", variant: "secondary", icon: Clock },
   approved: { label: "Approved", variant: "default", icon: CheckCircle2 },
+  changes_requested: { label: "Changes requested", variant: "secondary", icon: Clock },
   rejected: { label: "Rejected", variant: "destructive", icon: XCircle },
   published: { label: "Published", variant: "default", icon: CheckCircle2 },
 };

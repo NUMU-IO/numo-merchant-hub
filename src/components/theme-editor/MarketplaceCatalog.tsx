@@ -99,7 +99,7 @@ function satisfactionPercent(theme: CatalogTheme): number | null {
   return Math.max(0, Math.min(100, Math.round((rating / 5) * 100)));
 }
 
-function CatalogCard({
+export function CatalogCard({
   theme,
   installed,
   busy,
