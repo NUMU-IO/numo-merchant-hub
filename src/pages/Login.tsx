@@ -29,14 +29,14 @@ import AnimatedCharacters from "@/components/AnimatedCharacters";
 
 const loginSchema = z.object({
   email: z.string().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة"),
-  password: z.string().min(12, "كلمة المرور يجب أن تكون 12 حرفًا على الأقل"),
+  password: z.string().min(1, "كلمة المرور مطلوبة"),
 });
 
 const registerSchema = z.object({
   firstName: z.string().min(2, "الاسم الأول يجب أن يكون حرفين على الأقل").max(50, "الاسم الأول طويل جدًا"),
   lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل").max(50, "اسم العائلة طويل جدًا"),
   email: z.string().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة"),
-  password: z.string().min(12, "كلمة المرور يجب أن تكون 12 حرفًا على الأقل"),
+  password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
   // Phone is required on signup, but stays optional *here* on purpose:
   // this schema runs on every keystroke, and a required rule would show
   // "phone is required" before the user has reached the field. Presence
