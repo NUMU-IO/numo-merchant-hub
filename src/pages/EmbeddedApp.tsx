@@ -28,14 +28,20 @@ export default function EmbeddedApp() {
     let live = true;
     setSession(null);
     setFailed(false);
-    getAppSession(storeId, slug, language).then(
-      (s) => {
-        if (live) setSession(s);
-      },
-      () => {
-        if (live) setFailed(true);
-      },
-    );
+    // Right after an install the app's server is still exchanging its code,
+    // and until it does NUMU answers 404; a few short retries cover that.
+    const attempt = (left: number) =>
+      getAppSession(storeId, slug, language).then(
+        (s) => {
+          if (live) setSession(s);
+        },
+        () => {
+          if (!live) return;
+          if (left > 0) setTimeout(() => live && attempt(left - 1), 1500);
+          else setFailed(true);
+        },
+      );
+    attempt(3);
     return () => {
       live = false;
     };
