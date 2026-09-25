@@ -75,8 +75,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
         // Selection priority: explicit preferId (e.g. a just-created store)
         // → saved id → first store. Persist so the choice survives reloads.
         const savedId = localStorage.getItem(STORE_KEY);
+        // ?store=<id> (the partner portal's "open merchant dashboard") picks
+        // a store, but only one of the signed-in user's own.
+        const linkedId = new URLSearchParams(window.location.search).get("store");
         const selected =
           (preferId && items.find((s) => s.id === preferId)) ||
+          (linkedId && items.find((s) => s.id === linkedId)) ||
           items.find((s) => s.id === savedId) ||
           items[0];
         setCurrentStore(selected);

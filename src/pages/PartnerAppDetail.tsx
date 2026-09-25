@@ -1,19 +1,38 @@
 /**
- * Partner portal → one app (apps plan, Phase 3).
+ * Partner portal → one app, edited in tabs:
  *
- * Credentials (client id; rotating shows the new secret once), versions
- * (each a numu.app.json: upload → submit → NUMU review → publish, with
- * NUMU's notes in the partner's language), and installing the app on one of
- * the partner's own development stores at any status.
+ * - General: OAuth credentials, the permissions the app asks merchants for,
+ *   and embedding in the merchant hub.
+ * - App details: the store listing (reviewed on its own), the app's links
+ *   and support contacts, and installing it on a development store.
+ * - Webhooks: endpoint groups, each receiving the events it picks.
+ * - Plans: what merchants pay.
+ * - Publish: what still blocks review, "Submit for review", the review
+ *   history and versions. The CLI's manifest upload stays here too.
  *
- * Webhooks, installs detail and earnings arrive with Phases 4 and 7.
+ * General, links, webhooks and plans save into the app's draft
+ * (``/draft``), which may be incomplete; "Submit for review" turns it and the
+ * listing into the next version.
  */
 
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, Gauge, Loader2, Timer } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  Gauge,
+  Loader2,
+  Plus,
+  Send,
+  Timer,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,334 +46,990 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ApiError } from "@/lib/api-error";
 import { showError } from "@/lib/show-error";
+import { cn } from "@/lib/utils";
 import {
   devInstallApp,
+  getAppDraft,
   getPartnerApp,
   listAppApiLogs,
   listDevStores,
   publishAppVersion,
   rotateAppSecret,
-  submitAppVersion,
+  saveAppDraft,
+  saveAppListing,
+  submitAppDraft,
   uploadAppVersion,
+  uploadListingScreenshot,
+  type AppDraft,
+  type AppDraftState,
+  type AppPricing,
+  type ListingContent,
 } from "@/services/partnersApi";
 import { partnerPath } from "@/lib/partner-host";
-import { SecretOnce } from "@/pages/PartnerApps";
+import { SecretOnce, appStatusChip } from "@/pages/PartnerApps";
 import { AppReviewTimeline } from "@/components/partners/AppReviewTimeline";
-import { AppListingEditor, listingEditable, useAppListing } from "@/components/partners/AppListingEditor";
+import { listingEditable, useAppListing } from "@/components/partners/AppListingEditor";
+
+const TABS = ["general", "app-details", "webhooks", "plans", "publish", "logs"] as const;
+type Tab = (typeof TABS)[number];
+const DOCS = "https://docs.numueg.app";
+
+function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+  return (
+    <section className="space-y-4 border-b py-6 first:pt-0 last:border-b-0 last:pb-0">
+      <div>
+        <h3 className="text-lg font-bold">{title}</h3>
+        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function CopyField({ label, value, masked, action }: { label: string; value: string; masked?: boolean; action?: ReactNode }) {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      <div className="flex h-12 items-center gap-2 rounded-lg border bg-card px-3">
+        <code dir="ltr" className="flex-1 truncate text-sm">
+          {masked ? "•".repeat(36) : value}
+        </code>
+        {action}
+        {!masked && (
+          <button
+            type="button"
+            aria-label={t("partnerApps.copy")}
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              void navigator.clipboard.writeText(value);
+              toast.success(t("partnerApps.copied"));
+            }}
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function useDraft(id: string) {
+  const qc = useQueryClient();
+  const { language } = useLanguage();
+  const { t } = useTranslation();
+  const draft = useQuery({ queryKey: ["partners", "apps", id, "draft"], queryFn: () => getAppDraft(id) });
+  const save = useMutation({
+    mutationFn: (changes: Partial<Record<keyof AppDraft, unknown>>) => saveAppDraft(id, changes),
+    onSuccess: (state) => {
+      qc.setQueryData(["partners", "apps", id, "draft"], state);
+      toast.success(t("partnerApps.saved"));
+    },
+    onError: (err) => showError(err, language),
+  });
+  return { draft, save };
+}
+
+// ─── General ─────────────────────────────────────────────────────────
+
+const LEVELS = ["none", "read", "write"] as const;
+
+function scopeLevel(scopes: string[], domain: string) {
+  if (scopes.includes(`${domain}:write`)) return "write";
+  if (scopes.includes(`${domain}:read`)) return "read";
+  return "none";
+}
+
+function GeneralTab({ appId, clientId, state }: { appId: string; clientId: string | null; state: AppDraftState }) {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const { save } = useDraft(appId);
+  const [secret, setSecret] = useState<string | null>(null);
+  const [confirmRotate, setConfirmRotate] = useState(false);
+  const oauth = state.draft.oauth ?? { redirect_urls: [], scopes: [] };
+  const [scopes, setScopes] = useState<string[]>(oauth.scopes);
+  const [embedded, setEmbedded] = useState(Boolean(state.draft.embedded));
+  const [embeddedPath, setEmbeddedPath] = useState(state.draft.embedded_path ?? "");
+
+  const domains = useMemo(() => {
+    const out = new Map<string, Set<string>>();
+    for (const s of state.meta.scopes) {
+      const [d, level] = s.split(":");
+      out.set(d, (out.get(d) ?? new Set()).add(level));
+    }
+    return [...out.entries()];
+  }, [state.meta.scopes]);
+
+  const setLevel = (domain: string, level: (typeof LEVELS)[number]) => {
+    const rest = scopes.filter((s) => !s.startsWith(`${domain}:`));
+    setScopes(level === "none" ? rest : level === "read" ? [...rest, `${domain}:read`] : [...rest, `${domain}:read`, `${domain}:write`]);
+  };
+
+  const rotate = useMutation({
+    mutationFn: () => rotateAppSecret(appId),
+    onSuccess: (r) => setSecret(r.client_secret),
+    onError: (err) => showError(err, language),
+  });
+
+  return (
+    <div>
+      <Section title={t("partnerApps.general")} description={t("partnerApps.generalBody")}>
+        <div />
+      </Section>
+      <Section title={t("partnerApps.apiKeys")} description={t("partnerApps.apiKeysBody")}>
+        {secret && <SecretOnce secret={secret} onDone={() => setSecret(null)} />}
+        <CopyField label={t("partnerApps.authorizeUrl")} value={state.meta.authorize_url} />
+        <CopyField label={t("partnerApps.tokenUrl")} value={state.meta.token_url} />
+        <CopyField label={t("partnerApps.clientId")} value={clientId ?? ""} />
+        <CopyField
+          label={t("partnerApps.clientSecret")}
+          value=""
+          masked
+          action={
+            <Button size="sm" variant="outline" className="rounded-full" onClick={() => setConfirmRotate(true)} disabled={rotate.isPending}>
+              {t("partnerApps.rotate")}
+            </Button>
+          }
+        />
+        <div className="rounded-xl bg-primary/5 p-4">
+          <p className="font-semibold">{t("partnerApps.testAuth")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("partnerApps.testAuthBody")}</p>
+          <Button asChild variant="outline" size="sm" className="mt-3 rounded-full">
+            <a href={`${DOCS}/go/Overview`} target="_blank" rel="noreferrer">
+              <ExternalLink className="me-1.5 h-4 w-4" />
+              {t("partnerApps.devDocs")}
+            </a>
+          </Button>
+        </div>
+        <AlertDialog open={confirmRotate} onOpenChange={setConfirmRotate}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("partnerApps.rotate")}</AlertDialogTitle>
+              <AlertDialogDescription>{t("partnerApps.rotateConfirm")}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+              <AlertDialogAction onClick={() => rotate.mutate()}>{t("partnerApps.rotate")}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </Section>
+
+      <Section title={t("partnerApps.permissions")} description={t("partnerApps.permissionsBody")}>
+        <div className="divide-y rounded-xl border">
+          {domains.map(([domain, levels]) => {
+            const current = scopeLevel(scopes, domain);
+            const options = LEVELS.filter((l) => l === "none" || levels.has(l));
+            return (
+              <div key={domain} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div>
+                  <p className="font-medium">{t(`partnerApps.scope_${domain}`, { defaultValue: domain })}</p>
+                  <bdi dir="ltr" className="text-xs text-muted-foreground">{domain}</bdi>
+                </div>
+                <div className="inline-flex rounded-lg border p-0.5">
+                  {options.map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => setLevel(domain, l)}
+                      className={cn(
+                        "rounded-md px-3 py-1.5 text-xs",
+                        current === l ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+                      )}
+                    >
+                      {t(`partnerApps.level_${l}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <Button
+          className="rounded-full"
+          disabled={save.isPending}
+          onClick={() => save.mutate({ oauth: { ...oauth, scopes } })}
+        >
+          {t("partnerApps.savePermissions")}
+        </Button>
+      </Section>
+
+      <Section title={t("partnerApps.embedTitle")} description={t("partnerApps.embedBody")}>
+        <div className="flex items-center gap-2">
+          <Switch id="embedded" checked={embedded} onCheckedChange={setEmbedded} />
+          <Label htmlFor="embedded">{t("partnerApps.embedToggle")}</Label>
+        </div>
+        {embedded && (
+          <div className="max-w-md space-y-1.5">
+            <Label htmlFor="embedded-path">{t("partnerApps.embedPath")}</Label>
+            <Input id="embedded-path" dir="ltr" placeholder="/" value={embeddedPath} onChange={(e) => setEmbeddedPath(e.target.value)} />
+          </div>
+        )}
+        <Button
+          variant="outline"
+          className="rounded-full"
+          disabled={save.isPending}
+          onClick={() => save.mutate({ embedded, embedded_path: embedded && embeddedPath.trim() ? embeddedPath.trim() : null })}
+        >
+          {t("partnerApps.saveEmbed")}
+        </Button>
+      </Section>
+    </div>
+  );
+}
+
+// ─── App details ─────────────────────────────────────────────────────
+
+const EMPTY_BI = { ar: "", en: "" };
+const MAX_SHOTS = 8;
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      {children}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function Counted({
+  value,
+  max,
+  onChange,
+  dir,
+  rows,
+  placeholder,
+}: {
+  value: string;
+  max: number;
+  onChange: (v: string) => void;
+  dir: "rtl" | "ltr";
+  rows?: number;
+  placeholder?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      {rows ? (
+        <Textarea dir={dir} rows={rows} maxLength={max} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      ) : (
+        <Input dir={dir} maxLength={max} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      )}
+      <p className="text-end text-xs text-muted-foreground" dir="ltr">
+        {value.length} / {max}
+      </p>
+    </div>
+  );
+}
+
+/** Everything merchants see on the app's page, and how NUMU reaches the
+ *  app and its developer, in one form. The texts, images, category and tags
+ *  are the listing (reviewed); links, contacts and the icon are the draft. */
+function AppDetailsTab({ appId, state }: { appId: string; state: AppDraftState }) {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const qc = useQueryClient();
+  const listing = useAppListing(appId);
+  const { save: saveDraft } = useDraft(appId);
+  const d = state.draft;
+
+  const [form, setForm] = useState<ListingContent | null>(null);
+  const [tag, setTag] = useState("");
+  const [appUrl, setAppUrl] = useState(d.app_url ?? "");
+  const [redirects, setRedirects] = useState((d.oauth?.redirect_urls ?? []).join("\n"));
+  const [dev, setDev] = useState({
+    support_email: d.developer?.support_email ?? "",
+    support_url: d.developer?.support_url ?? "",
+    privacy_policy_url: d.developer?.privacy_policy_url ?? "",
+    terms_url: d.developer?.terms_url ?? "",
+  });
+  const [icon, setIcon] = useState(d.icon ?? "");
+  const [uploading, setUploading] = useState<"icon" | "shot" | null>(null);
+
+  useEffect(() => {
+    if (!listing.data || form) return;
+    const c = listing.data.draft?.content ?? listing.data.live;
+    setForm({ ...c, name: c.name ?? EMPTY_BI, tagline: c.tagline ?? EMPTY_BI, description: c.description ?? EMPTY_BI });
+  }, [listing.data, form]);
+
+  const locked = listing.data?.draft && !listingEditable(listing.data.draft.status);
+  const tags = form ? [...new Set([...form.keywords.ar, ...form.keywords.en])] : [];
+  const setTags = (next: string[]) => form && setForm({ ...form, keywords: { ar: next, en: next } });
+  const bi = (key: "name" | "tagline" | "description", lang: "ar" | "en", v: string) =>
+    form && setForm({ ...form, [key]: { ...form[key], [lang]: v } });
+
+  const upload = async (file: File, kind: "icon" | "shot") => {
+    setUploading(kind);
+    try {
+      const { url } = await uploadListingScreenshot(appId, file);
+      if (kind === "icon") setIcon(url);
+      else if (form) setForm({ ...form, screenshots: [...form.screenshots, { src: url }].slice(0, MAX_SHOTS) });
+    } catch (err) {
+      showError(err, language);
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (form && !locked) {
+        await saveAppListing(appId, { ...form, video_url: form.video_url?.trim() || null });
+      }
+      await saveDraft.mutateAsync({
+        app_url: appUrl.trim() || null,
+        icon: icon || null,
+        oauth: {
+          ...(d.oauth ?? { scopes: [] }),
+          redirect_urls: redirects.split(/\s+/).map((u) => u.trim()).filter(Boolean),
+        },
+        developer: Object.fromEntries(Object.entries(dev).filter(([, v]) => v.trim()).map(([k, v]) => [k, v.trim()])),
+      });
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["partners", "apps", appId] }),
+    onError: (err) => showError(err, language),
+  });
+
+  if (!form) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />;
+
+  return (
+    <div>
+      <Section title={t("partnerApps.tab_app_details")} description={t("partnerApps.detailsBody")}>
+        {locked && (
+          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            {t("partnerApps.listingInReview")}
+          </p>
+        )}
+      </Section>
+
+      <Section title={t("partnerApps.basicInfo")}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("partnerApps.nameAr")}>
+            <Input dir="rtl" value={form.name.ar} onChange={(e) => bi("name", "ar", e.target.value)} />
+          </Field>
+          <Field label={t("partnerApps.nameEn")}>
+            <Input dir="ltr" value={form.name.en} onChange={(e) => bi("name", "en", e.target.value)} />
+          </Field>
+          <Field label={t("partnerApps.appUrl")} hint={t("partnerApps.httpsOnly")}>
+            <Input dir="ltr" placeholder="https://" value={appUrl} onChange={(e) => setAppUrl(e.target.value)} />
+          </Field>
+          <Field label={t("partnerApps.videoUrl")} hint={t("partnerApps.videoHint")}>
+            <Input
+              dir="ltr"
+              placeholder="https://www.youtube.com/watch?v=..."
+              value={form.video_url ?? ""}
+              onChange={(e) => setForm({ ...form, video_url: e.target.value })}
+            />
+          </Field>
+          <Field label={t("partnerApps.category")}>
+            <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+              <SelectTrigger>
+                <SelectValue placeholder={t("partnerApps.categoryPlaceholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                {state.meta.categories.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {t(`partnerListing.cat.${c}`, { defaultValue: c })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t("partnerApps.tags")}>
+            <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border px-2 py-1.5">
+              {tags.map((x) => (
+                <span key={x} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+                  {x}
+                  <button type="button" aria-label={t("partnerApps.remove")} onClick={() => setTags(tags.filter((y) => y !== x))}>
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+              <input
+                value={tag}
+                placeholder={tags.length ? "" : t("partnerApps.tagsPlaceholder")}
+                aria-label={t("partnerApps.tags")}
+                className="min-w-24 flex-1 bg-transparent text-sm outline-none"
+                onChange={(e) => setTag(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.key === "Enter" || e.key === ",") && tag.trim()) {
+                    e.preventDefault();
+                    if (!tags.includes(tag.trim()) && tags.length < 10) setTags([...tags, tag.trim()]);
+                    setTag("");
+                  }
+                }}
+              />
+            </div>
+          </Field>
+        </div>
+      </Section>
+
+      <Section title={t("partnerApps.linksTitle")} description={t("partnerApps.linksBody")}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("partnerApps.redirectUrls")} hint={t("partnerApps.redirectHint")}>
+            <Textarea dir="ltr" rows={3} placeholder="https://example.com/oauth/callback" value={redirects} onChange={(e) => setRedirects(e.target.value)} />
+          </Field>
+          <Field label={t("partnerApps.supportEmail")} hint={t("partnerApps.supportEmailHint")}>
+            <Input dir="ltr" type="email" value={dev.support_email} onChange={(e) => setDev({ ...dev, support_email: e.target.value })} />
+          </Field>
+        </div>
+      </Section>
+
+      <Section title={t("partnerApps.supportTitle")} description={t("partnerApps.supportBody")}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("partnerApps.supportUrl")} hint={t("partnerApps.supportUrlHint")}>
+            <Input dir="ltr" placeholder="https://wa.me/20xxxxxxxxxx" value={dev.support_url} onChange={(e) => setDev({ ...dev, support_url: e.target.value })} />
+          </Field>
+          <Field label={t("partnerApps.privacyUrl")} hint={t("partnerApps.privacyHint")}>
+            <Input dir="ltr" placeholder="https://your-app.example.com/privacy" value={dev.privacy_policy_url} onChange={(e) => setDev({ ...dev, privacy_policy_url: e.target.value })} />
+          </Field>
+          <Field label={t("partnerApps.termsUrl")}>
+            <Input dir="ltr" placeholder="https://your-app.example.com/terms" value={dev.terms_url} onChange={(e) => setDev({ ...dev, terms_url: e.target.value })} />
+          </Field>
+        </div>
+      </Section>
+
+      <Section title={t("partnerApps.descriptions")}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("partnerApps.shortAr")}>
+            <Counted dir="rtl" max={80} value={form.tagline.ar} onChange={(v) => bi("tagline", "ar", v)} />
+          </Field>
+          <Field label={t("partnerApps.shortEn")}>
+            <Counted dir="ltr" max={80} value={form.tagline.en} onChange={(v) => bi("tagline", "en", v)} />
+          </Field>
+          <Field label={t("partnerApps.longAr")}>
+            <Counted dir="rtl" rows={5} max={4000} value={form.description.ar} onChange={(v) => bi("description", "ar", v)} />
+          </Field>
+          <Field label={t("partnerApps.longEn")}>
+            <Counted dir="ltr" rows={5} max={4000} value={form.description.en} onChange={(v) => bi("description", "en", v)} />
+          </Field>
+        </div>
+      </Section>
+
+      <Section title={t("partnerApps.iconTitle")} description={t("partnerApps.iconBody")}>
+        <div className="flex items-center gap-4">
+          {icon ? <img src={icon} alt="" className="h-16 w-16 rounded-xl border object-cover" /> : <div className="h-16 w-16 rounded-xl border border-dashed" />}
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm hover:bg-muted">
+            {uploading === "icon" && <Loader2 className="h-4 w-4 animate-spin" />}
+            {icon ? t("partnerApps.replace") : t("partnerApps.uploadIcon")}
+            <input type="file" accept="image/png,image/jpeg" className="sr-only" onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0], "icon")} />
+          </label>
+        </div>
+      </Section>
+
+      <Section title={t("partnerApps.screenshots")} description={t("partnerApps.screenshotsBody", { max: MAX_SHOTS })}>
+        <p className="text-sm text-muted-foreground">
+          {t("partnerApps.screenshotCount", { n: form.screenshots.length, max: MAX_SHOTS })}
+        </p>
+        {form.screenshots.length > 0 && (
+          <div className="flex flex-wrap gap-3">
+            {form.screenshots.map((s, i) => (
+              <div key={s.src} className="relative">
+                <img src={s.src} alt="" className="h-24 w-40 rounded-lg border object-cover" />
+                <button
+                  type="button"
+                  aria-label={t("partnerApps.remove")}
+                  className="absolute end-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-card/90 shadow"
+                  onClick={() => setForm({ ...form, screenshots: form.screenshots.filter((_, j) => j !== i) })}
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {form.screenshots.length < MAX_SHOTS && (
+          <label
+            className="flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed py-8 text-center text-sm hover:bg-muted/40"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const file = e.dataTransfer.files?.[0];
+              if (file) void upload(file, "shot");
+            }}
+          >
+            {uploading === "shot" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5 text-muted-foreground" />}
+            <span className="font-medium">{t("partnerApps.dropImage")}</span>
+            <span className="text-xs text-muted-foreground">{t("partnerApps.imageTypes")}</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0], "shot")} />
+          </label>
+        )}
+      </Section>
+
+      <Button className="my-6 rounded-full" disabled={save.isPending} onClick={() => save.mutate()}>
+        {save.isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+        {t("partnerApps.saveDetails")}
+      </Button>
+
+      <DevStoreSection appId={appId} />
+    </div>
+  );
+}
+
+function DevStoreSection({ appId }: { appId: string }) {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const stores = useQuery({ queryKey: ["partners", "dev-stores"], queryFn: listDevStores });
+  const [installed, setInstalled] = useState<Set<string>>(new Set());
+  const install = useMutation({
+    mutationFn: (storeId: string) => devInstallApp(appId, storeId),
+    onSuccess: (_r, storeId) => {
+      setInstalled((s) => new Set(s).add(storeId));
+      toast.success(t("partnerApps.devInstalled"));
+    },
+    onError: (err) => showError(err, language),
+  });
+  return (
+    <Section title={t("partnerApps.devInstall")} description={t("partnerApps.devInstallBody")}>
+      {(stores.data ?? []).length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t("partnerApps.noDevStores")}</p>
+      ) : (
+        <ul className="divide-y rounded-xl border">
+          {stores.data!.map((s) => (
+            <li key={s.id} className="flex items-center justify-between gap-3 p-3">
+              <div className="min-w-0">
+                <p className="font-medium">{s.name}</p>
+                {s.url && (
+                  <bdi dir="ltr" className="truncate text-xs text-muted-foreground">{s.url}</bdi>
+                )}
+              </div>
+              {installed.has(s.id) ? (
+                <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {t("partnerApps.installed")}
+                </span>
+              ) : (
+                <Button size="sm" variant="outline" className="rounded-full" disabled={install.isPending} onClick={() => install.mutate(s.id)}>
+                  {t("partnerApps.devInstallBtn")}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
+// ─── Webhooks ────────────────────────────────────────────────────────
+
+const LIFECYCLE = ["app.uninstalled", "store.redact"];
+
+function WebhooksTab({ appId, state }: { appId: string; state: AppDraftState }) {
+  const { t } = useTranslation();
+  const { save } = useDraft(appId);
+  const initial = useMemo(() => {
+    const byUrl = new Map<string, string[]>();
+    for (const w of state.draft.webhooks ?? []) byUrl.set(w.url, [...(byUrl.get(w.url) ?? []), w.event]);
+    return [...byUrl.entries()].map(([url, events]) => ({ url, events }));
+  }, [state.draft.webhooks]);
+  const [groups, setGroups] = useState(initial);
+  const update = (i: number, g: { url: string; events: string[] }) => setGroups(groups.map((x, j) => (j === i ? g : x)));
+  const hasUninstall = groups.some((g) => g.url.trim() && g.events.includes("app.uninstalled"));
+
+  return (
+    <Section title={t("partnerApps.webhooksTitle")} description={t("partnerApps.webhooksBody")}>
+      {!hasUninstall && (
+        <p className="flex items-center gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {t("partnerApps.uninstallRequired")}
+        </p>
+      )}
+      {groups.length === 0 ? (
+        <div className="rounded-xl border border-dashed py-12 text-center">
+          <p className="font-semibold">{t("partnerApps.noWebhookGroups")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("partnerApps.noWebhookGroupsBody")}</p>
+        </div>
+      ) : (
+        groups.map((g, i) => (
+          <div key={i} className="space-y-3 rounded-xl border p-4">
+            <div className="flex items-end gap-2">
+              <div className="flex-1 space-y-1.5">
+                <Label htmlFor={`wh-${i}`}>{t("partnerApps.webhookUrl")}</Label>
+                <Input id={`wh-${i}`} dir="ltr" placeholder="https://" value={g.url} onChange={(e) => update(i, { ...g, url: e.target.value })} />
+              </div>
+              <Button variant="ghost" size="icon" aria-label={t("partnerApps.remove")} onClick={() => setGroups(groups.filter((_, j) => j !== i))}>
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {state.meta.events.map((ev) => (
+                <label key={ev} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={g.events.includes(ev)}
+                    onCheckedChange={(on) =>
+                      update(i, { ...g, events: on ? [...g.events, ev] : g.events.filter((x) => x !== ev) })
+                    }
+                  />
+                  <bdi dir="ltr" className={cn(LIFECYCLE.includes(ev) && "font-semibold")}>{ev}</bdi>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" className="rounded-full" onClick={() => setGroups([...groups, { url: "", events: ["app.uninstalled"] }])}>
+          <Plus className="me-1.5 h-4 w-4" />
+          {t("partnerApps.addWebhookGroup")}
+        </Button>
+        <Button
+          className="rounded-full"
+          disabled={save.isPending}
+          onClick={() =>
+            save.mutate({
+              webhooks: groups
+                .filter((g) => g.url.trim())
+                .flatMap((g) => g.events.map((event) => ({ event, url: g.url.trim() }))),
+            })
+          }
+        >
+          {t("partnerApps.saveWebhooks")}
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
+// ─── Plans ───────────────────────────────────────────────────────────
+
+function PlansTab({ appId, state }: { appId: string; state: AppDraftState }) {
+  const { t } = useTranslation();
+  const { save } = useDraft(appId);
+  const current = state.draft.pricing ?? { model: "free" };
+  const [p, setP] = useState<AppPricing>(current);
+  const billing = state.meta.billing_enabled;
+  const models: AppPricing["model"][] = ["free", "external", "recurring"];
+
+  return (
+    <Section title={t("partnerApps.plansTitle")} description={t("partnerApps.plansBody")}>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {models.map((m) => {
+          const locked = m === "recurring" && !billing;
+          return (
+            <button
+              key={m}
+              type="button"
+              disabled={locked}
+              onClick={() => setP(m === "recurring" ? { model: m, price_cents: p.price_cents ?? 9900, cycle: p.cycle ?? "monthly", trial_days: p.trial_days } : m === "external" ? { model: m, label: p.label ?? { ar: "", en: "" } } : { model: m })}
+              className={cn(
+                "rounded-xl border p-4 text-start transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                p.model === m ? "border-primary ring-1 ring-primary" : "hover:bg-muted/40",
+              )}
+            >
+              <p className="font-semibold">{t(`partnerApps.plan_${m}`)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {locked ? t("partnerApps.billingNotLive") : t(`partnerApps.plan_${m}Body`)}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+      {current.model === "usage" && <p className="text-sm text-muted-foreground">{t("partnerApps.usageViaCli")}</p>}
+      {p.model === "external" && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="label-ar">{t("partnerApps.priceLabelAr")}</Label>
+            <Input id="label-ar" dir="rtl" value={p.label?.ar ?? ""} onChange={(e) => setP({ ...p, label: { ar: e.target.value, en: p.label?.en ?? "" } })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="label-en">{t("partnerApps.priceLabelEn")}</Label>
+            <Input id="label-en" dir="ltr" value={p.label?.en ?? ""} onChange={(e) => setP({ ...p, label: { ar: p.label?.ar ?? "", en: e.target.value } })} />
+          </div>
+        </div>
+      )}
+      {p.model === "recurring" && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="price">{t("partnerApps.priceEgp")}</Label>
+            <Input id="price" type="number" min={5} dir="ltr" value={(p.price_cents ?? 0) / 100} onChange={(e) => setP({ ...p, price_cents: Math.round(Number(e.target.value) * 100) })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("partnerApps.cycle")}</Label>
+            <Select value={p.cycle ?? "monthly"} onValueChange={(v) => setP({ ...p, cycle: v as "monthly" | "annual" })}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="monthly">{t("partnerApps.monthly")}</SelectItem>
+                <SelectItem value="annual">{t("partnerApps.annual")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="trial">{t("partnerApps.trialDays")}</Label>
+            <Input id="trial" type="number" min={0} max={90} dir="ltr" value={p.trial_days ?? 0} onChange={(e) => setP({ ...p, trial_days: Number(e.target.value) || undefined })} />
+          </div>
+        </div>
+      )}
+      <Button className="rounded-full" disabled={save.isPending || current.model === "usage"} onClick={() => save.mutate({ pricing: p })}>
+        {t("partnerApps.savePlan")}
+      </Button>
+    </Section>
+  );
+}
+
+// ─── Publish ─────────────────────────────────────────────────────────
+
+function PublishTab({ appId, state, onChanged }: { appId: string; state: AppDraftState; onChanged: () => void }) {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const qc = useQueryClient();
+  const app = useQuery({ queryKey: ["partners", "apps", appId], queryFn: () => getPartnerApp(appId) });
+  const a = app.data;
+  const chip = a ? appStatusChip(a) : null;
+  const ready = state.problems.length === 0;
+
+  const submit = useMutation({
+    mutationFn: () => submitAppDraft(appId),
+    onSuccess: () => {
+      toast.success(t("partnerApps.submitted"));
+      void qc.invalidateQueries({ queryKey: ["partners", "apps", appId] });
+      onChanged();
+    },
+    onError: (err) => showError(err, language),
+  });
+  const publish = useMutation({
+    mutationFn: (versionId: string) => publishAppVersion(appId, versionId),
+    onSuccess: () => {
+      toast.success(t("partnerApps.published"));
+      void qc.invalidateQueries({ queryKey: ["partners", "apps"] });
+    },
+    onError: (err) => showError(err, language),
+  });
+
+  return (
+    <div>
+      <Section title={t("partnerApps.publishTitle")} description={t("partnerApps.publishBody")}>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-semibold">{t("partnerApps.currentStatus")}</span>
+          {chip && <span className={cn("rounded-full px-2.5 py-0.5 text-xs", chip.tone)}>{t(`partnerApps.chip_${chip.key}`)}</span>}
+        </div>
+        {ready ? (
+          <p className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="h-4 w-4" />
+            {t("partnerApps.readyToSubmit", { version: state.next_version })}
+          </p>
+        ) : (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
+            <p className="mb-2 text-sm font-semibold text-amber-900 dark:text-amber-200">{t("partnerApps.stillMissing")}</p>
+            <ul dir="ltr" className="list-disc space-y-1 ps-5 text-xs text-amber-900 dark:text-amber-200">
+              {state.problems.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="text-sm text-muted-foreground">{t("partnerApps.submitExplain")}</p>
+        <Button className="w-fit rounded-full" disabled={!ready || submit.isPending} onClick={() => submit.mutate()}>
+          {submit.isPending ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Send className="me-2 h-4 w-4 rtl:-scale-x-100" />}
+          {a?.private_store_id ? t("partnerApps.saveVersion") : t("partnerApps.submitForReview")}
+        </Button>
+      </Section>
+
+      {a && a.versions.length > 0 && (
+        <Section title={t("partnerApps.versions")}>
+          <ul className="divide-y rounded-xl border">
+            {a.versions.map((v) => (
+              <li key={v.id} className="flex flex-wrap items-center gap-3 p-3">
+                <bdi dir="ltr" className="font-medium">v{v.version}</bdi>
+                <Badge variant={v.status === "published" ? "default" : "secondary"}>{t(`partnerApps.st_${v.status}`)}</Badge>
+                {v.review_notes && (
+                  <p className="w-full whitespace-pre-line text-sm text-muted-foreground">
+                    {v.review_notes[language as "ar" | "en"] ?? v.review_notes.en}
+                  </p>
+                )}
+                <div className="flex-1" />
+                {v.status === "approved" && (
+                  <Button size="sm" className="rounded-full" disabled={publish.isPending} onClick={() => publish.mutate(v.id)}>
+                    {t("partnerApps.publish")}
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      <div className="py-6">
+        <AppReviewTimeline appId={appId} />
+      </div>
+
+      <ManifestUpload appId={appId} onUploaded={onChanged} />
+    </div>
+  );
+}
+
+function ManifestUpload({ appId, onUploaded }: { appId: string; onUploaded: () => void }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [manifest, setManifest] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const upload = useMutation({
+    mutationFn: (parsed: unknown) => uploadAppVersion(appId, { manifest: parsed }),
+    onSuccess: () => {
+      toast.success(t("partnerApps.uploaded"));
+      setManifest("");
+      setError(null);
+      void qc.invalidateQueries({ queryKey: ["partners", "apps", appId] });
+      onUploaded();
+    },
+    onError: (err) => {
+      const body = err instanceof ApiError ? (err.body as { error?: unknown } | null) : null;
+      setError(body?.error ? JSON.stringify(body.error, null, 2) : String(err));
+    },
+  });
+  return (
+    <Section title={t("partnerApps.upload")} description={t("partnerApps.manifestHint")}>
+      {!open ? (
+        <Button variant="outline" size="sm" className="w-fit rounded-full" onClick={() => setOpen(true)}>
+          {t("partnerApps.uploadOpen")}
+        </Button>
+      ) : (
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            try {
+              upload.mutate(JSON.parse(manifest));
+            } catch {
+              setError(t("partnerApps.badJson"));
+            }
+          }}
+        >
+          <Textarea dir="ltr" rows={10} className="font-mono text-xs" value={manifest} onChange={(e) => setManifest(e.target.value)} aria-label={t("partnerApps.manifest")} />
+          <input
+            type="file"
+            accept="application/json,.json"
+            aria-label={t("partnerApps.chooseFile")}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (file) setManifest(await file.text());
+            }}
+          />
+          {error && (
+            <pre dir="ltr" className="max-h-60 overflow-auto rounded-md border border-destructive/50 p-2 text-xs text-destructive">
+              {error}
+            </pre>
+          )}
+          <Button type="submit" disabled={!manifest.trim() || upload.isPending}>
+            {upload.isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+            {t("partnerApps.uploadBtn")}
+          </Button>
+        </form>
+      )}
+    </Section>
+  );
+}
+
+// ─── Page ────────────────────────────────────────────────────────────
 
 export default function PartnerAppDetail() {
   const { id = "" } = useParams();
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const location = useLocation();
+  const qc = useQueryClient();
   const app = useQuery({ queryKey: ["partners", "apps", id], queryFn: () => getPartnerApp(id) });
-  const devStores = useQuery({ queryKey: ["partners", "dev-stores"], queryFn: listDevStores });
-  const listing = useAppListing(id);
-  const draft = listing.data?.draft;
-  const canAttachListing = Boolean(draft) && listingEditable(draft?.status);
-  const [secret, setSecret] = useState<string | null>(null);
-  const [confirmRotate, setConfirmRotate] = useState(false);
-  const [manifest, setManifest] = useState("");
-  const [notesAr, setNotesAr] = useState("");
-  const [notesEn, setNotesEn] = useState("");
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [devStore, setDevStore] = useState("");
-  const refresh = () => void queryClient.invalidateQueries({ queryKey: ["partners", "apps"] });
+  const { draft } = useDraft(id);
+  const hashTab = location.hash.slice(1) as Tab;
+  const tab: Tab = TABS.includes(hashTab) ? hashTab : "general";
+  const [secret, setSecret] = useState<string | null>(
+    (location.state as { secret?: string } | null)?.secret ?? null,
+  );
+  // Remounting a tab reseeds its form from the draft after a CLI upload or
+  // a submission changed it underneath.
+  const [epoch, setEpoch] = useState(0);
+  const changed = () => {
+    void qc.invalidateQueries({ queryKey: ["partners", "apps", id, "draft"] });
+    setEpoch((e) => e + 1);
+  };
 
-  const rotate = useMutation({
-    mutationFn: () => rotateAppSecret(id),
-    onSuccess: (r) => setSecret(r.client_secret),
-    onError: (err) => showError(err, language),
-  });
-  const upload = useMutation({
-    mutationFn: (parsed: unknown) =>
-      uploadAppVersion(id, {
-        manifest: parsed,
-        release_notes_ar: notesAr.trim() || undefined,
-        release_notes_en: notesEn.trim() || undefined,
-      }),
-    onSuccess: () => {
-      toast.success(t("partnerApps.uploaded"));
-      setManifest("");
-      setNotesAr("");
-      setNotesEn("");
-      setUploadError(null);
-      refresh();
-    },
-    onError: (err) => {
-      // A manifest can break several rules at once; show every one.
-      const body = err instanceof ApiError ? (err.body as { error?: unknown } | null) : null;
-      setUploadError(body?.error ? JSON.stringify(body.error, null, 2) : String(err));
-    },
-  });
-  const act = useMutation({
-    mutationFn: async ({
-      kind,
-      versionId,
-      withListing = false,
-    }: {
-      kind: "submit" | "publish";
-      versionId: string;
-      withListing?: boolean;
-    }) => {
-      if (kind === "submit") await submitAppVersion(id, versionId, withListing);
-      else await publishAppVersion(id, versionId);
-    },
-    onSuccess: (_r, { kind }) => {
-      toast.success(t(kind === "submit" ? "partnerApps.submitted" : "partnerApps.published"));
-      refresh();
-    },
-    onError: (err) => showError(err, language),
-  });
-  const install = useMutation({
-    mutationFn: () => devInstallApp(id, devStore),
-    onSuccess: () => toast.success(t("partnerApps.devInstalled")),
-    onError: (err) => showError(err, language),
-  });
+  useEffect(() => {
+    if (secret) window.history.replaceState({}, "");
+  }, [secret]);
 
   const a = app.data;
+  const state = draft.data;
+  const chip = a ? appStatusChip(a) : null;
+
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 sm:p-8">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate(partnerPath("/apps"))}>
-          {t("partnerApps.title")}
-        </Button>
-        {app.isLoading || !a ? (
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-extrabold tracking-tight">
-                {language === "ar" && a.name_ar ? a.name_ar : a.name}
-              </h1>
-              <Badge variant={a.status === "published" ? "default" : "secondary"}>
-                {t(`partnerApps.app_${a.status}`)}
-              </Badge>
-              {a.private_store_id ? (
-                <Badge variant="outline">
-                  {t("partnerApps.customFor", { store: a.private_store_name ?? a.private_store_id })}
-                </Badge>
-              ) : (
-                <Badge variant="outline">
-                  {t(a.catalog_visible ? "partnerApps.listed" : "partnerApps.notListed")}
-                </Badge>
-              )}
-              <bdi dir="ltr" className="text-xs text-muted-foreground">
-                {a.slug} · v{a.version} · {t("partnerApps.installs")}: {a.installs}
-              </bdi>
-            </div>
+    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-10">
+      {app.isLoading || !a ? (
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      ) : (
+        <>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              aria-label={t("partnerApps.title")}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border bg-card hover:bg-muted"
+              onClick={() => navigate(partnerPath("/apps"))}
+            >
+              <ArrowRight className="h-4 w-4 ltr:rotate-180" />
+            </button>
+            {a.icon_url ? (
+              <img src={a.icon_url} alt="" className="h-10 w-10 rounded-lg object-cover" />
+            ) : (
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/80 font-bold text-primary-foreground">
+                {a.name.charAt(0).toUpperCase()}
+              </span>
+            )}
+            <h1 className="text-xl font-bold">{language === "ar" && a.name_ar ? a.name_ar : a.name}</h1>
+            {chip && <span className={cn("rounded-full px-2.5 py-0.5 text-xs", chip.tone)}>{t(`partnerApps.chip_${chip.key}`)}</span>}
+          </div>
 
-            <Tabs defaultValue="overview">
-              <TabsList>
-                <TabsTrigger value="overview">{t("partnerPortal.overviewTab")}</TabsTrigger>
-                <TabsTrigger value="logs">{t("partnerPortal.apiLogsTab")}</TabsTrigger>
-              </TabsList>
-              <TabsContent value="overview" className="space-y-6">
-            {secret && <SecretOnce secret={secret} onDone={() => setSecret(null)} />}
+          {secret && <SecretOnce secret={secret} onDone={() => setSecret(null)} />}
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">{t("partnerApps.credentials")}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap items-center gap-3">
-                <span className="text-sm">{t("partnerApps.clientId")}</span>
-                <code dir="ltr" className="rounded-md bg-muted px-2 py-1 text-xs">
-                  {a.client_id}
-                </code>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={rotate.isPending}
-                  onClick={() => setConfirmRotate(true)}
-                >
-                  {t("partnerApps.rotate")}
-                </Button>
-                <AlertDialog open={confirmRotate} onOpenChange={setConfirmRotate}>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>{t("partnerApps.rotate")}</AlertDialogTitle>
-                      <AlertDialogDescription>{t("partnerApps.rotateConfirm")}</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => rotate.mutate()}>{t("partnerApps.rotate")}</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">{t("partnerApps.versions")}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {a.versions.length === 0 && (
-                  <p className="text-sm text-muted-foreground">{t("partnerApps.noVersions")}</p>
+          <nav className="flex gap-1 overflow-x-auto rounded-2xl bg-card px-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)]" aria-label={t("partnerApps.title")}>
+            {TABS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => navigate({ hash: key }, { replace: true })}
+                className={cn(
+                  "shrink-0 border-b-2 px-4 py-4 text-sm transition-colors",
+                  tab === key ? "border-primary font-semibold text-primary" : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
-                {a.versions.map((v) => (
-                  <div key={v.id} className="space-y-2 rounded-lg border p-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <bdi dir="ltr" className="font-medium">
-                        v{v.version}
-                      </bdi>
-                      <Badge variant={v.status === "published" ? "default" : "secondary"}>
-                        {t(`partnerApps.st_${v.status}`)}
-                      </Badge>
-                      <div className="flex-1" />
-                      {(v.status === "draft" || v.status === "changes_requested") && (
-                        <Button
-                          size="sm"
-                          disabled={act.isPending}
-                          onClick={() => act.mutate({ kind: "submit", versionId: v.id })}
-                        >
-                          {t("partnerApps.submit")}
-                        </Button>
-                      )}
-                      {(v.status === "draft" || v.status === "changes_requested") && canAttachListing && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={act.isPending}
-                          onClick={() => act.mutate({ kind: "submit", versionId: v.id, withListing: true })}
-                        >
-                          {t("partnerApps.submitWithListing")}
-                        </Button>
-                      )}
-                      {v.status === "approved" && (
-                        <Button
-                          size="sm"
-                          disabled={act.isPending}
-                          onClick={() => act.mutate({ kind: "publish", versionId: v.id })}
-                        >
-                          {t("partnerApps.publish")}
-                        </Button>
-                      )}
-                    </div>
-                    {v.review_notes && (
-                      <div className="rounded-md border border-dashed p-2 text-sm">
-                        <div className="text-xs font-medium text-muted-foreground">
-                          {t("partnerApps.reviewNotes")}
-                        </div>
-                        <p className="whitespace-pre-line">
-                          {v.review_notes[language as "ar" | "en"] ?? v.review_notes.en}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+              >
+                {t(`partnerApps.tab_${key.replace("-", "_")}`)}
+              </button>
+            ))}
+          </nav>
 
-            <AppReviewTimeline appId={id} />
-
-            <AppListingEditor appId={id} catalogVisible={a.catalog_visible} />
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">{t("partnerApps.upload")}</CardTitle>
-                <CardDescription>{t("partnerApps.manifestHint")}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form
-                  className="space-y-3"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    try {
-                      upload.mutate(JSON.parse(manifest));
-                    } catch {
-                      setUploadError(t("partnerApps.badJson"));
-                    }
-                  }}
-                >
-                  <Label htmlFor="app-manifest">{t("partnerApps.manifest")}</Label>
-                  <Textarea
-                    id="app-manifest"
-                    dir="ltr"
-                    rows={10}
-                    className="font-mono text-xs"
-                    value={manifest}
-                    onChange={(e) => setManifest(e.target.value)}
-                  />
-                  <input
-                    type="file"
-                    accept="application/json,.json"
-                    aria-label={t("partnerApps.chooseFile")}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setManifest(await file.text());
-                    }}
-                  />
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="notes-ar">{t("partnerApps.notesAr")}</Label>
-                      <Textarea id="notes-ar" dir="rtl" rows={2} value={notesAr} onChange={(e) => setNotesAr(e.target.value)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="notes-en">{t("partnerApps.notesEn")}</Label>
-                      <Textarea id="notes-en" dir="ltr" rows={2} value={notesEn} onChange={(e) => setNotesEn(e.target.value)} />
-                    </div>
-                  </div>
-                  {uploadError && (
-                    <pre dir="ltr" className="max-h-60 overflow-auto rounded-md border border-destructive/50 p-2 text-xs text-destructive">
-                      {uploadError}
-                    </pre>
-                  )}
-                  <Button type="submit" disabled={!manifest.trim() || upload.isPending}>
-                    {upload.isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-                    {t("partnerApps.uploadBtn")}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">{t("partnerApps.devInstall")}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap items-center gap-3">
-                {(devStores.data ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{t("partnerApps.noDevStores")}</p>
-                ) : (
-                  <>
-                    <select
-                      className="h-9 rounded-md border bg-background px-2 text-sm"
-                      value={devStore}
-                      onChange={(e) => setDevStore(e.target.value)}
-                    >
-                      <option value="" />
-                      {devStores.data?.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                    <Button size="sm" disabled={!devStore || install.isPending} onClick={() => install.mutate()}>
-                      {t("partnerApps.devInstallBtn")}
-                    </Button>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-              </TabsContent>
-              <TabsContent value="logs">
-                <ApiLogs appId={id} />
-              </TabsContent>
-            </Tabs>
-          </>
-        )}
-      </div>
+          <div className="rounded-2xl bg-card p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+            {tab === "logs" ? (
+              <ApiLogs appId={id} />
+            ) : !state ? (
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            ) : tab === "general" ? (
+              <GeneralTab key={epoch} appId={id} clientId={a.client_id} state={state} />
+            ) : tab === "app-details" ? (
+              <AppDetailsTab key={epoch} appId={id} state={state} />
+            ) : tab === "webhooks" ? (
+              <WebhooksTab key={epoch} appId={id} state={state} />
+            ) : tab === "plans" ? (
+              <PlansTab key={epoch} appId={id} state={state} />
+            ) : (
+              <PublishTab appId={id} state={state} onChanged={changed} />
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

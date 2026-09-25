@@ -1522,3 +1522,13 @@
   from { background-position-x: 0%; }
   to   { background-position-x: 100%; }
 }
+
+/* Partner portal (partners.<domain>): one typeface for Arabic and Latin,
+   as Zid Partners uses. Code stays monospace. */
+.partner-portal,
+.partner-portal :where(h1, h2, h3, h4, p, span, a, button, input, textarea, label, td, th, li) {
+  font-family: "IBM Plex Sans Arabic", system-ui, -apple-system, sans-serif;
+}
+.partner-portal :where(code, pre, kbd) {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}

@@ -11,24 +11,25 @@ import {
   Circle,
   Menu,
   Copy,
-  BarChart3,
   CreditCard,
-  Download,
-  Gift,
   LayoutDashboard,
   Percent,
-  Languages,
-  LifeBuoy,
   Loader2,
   LogOut,
   Palette,
-  Star,
   Store,
   Ticket,
   Trash2,
-  UserCog,
   Users,
   Webhook,
+  Bell,
+  CalendarDays,
+  CircleHelp,
+  Handshake,
+  UserRound,
+  Wallet,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -42,7 +43,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ThemeSwitch } from "@/components/layout/ThemeSwitch";
+import { useTheme } from "next-themes";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,6 +72,10 @@ import PartnerApps from "@/pages/PartnerApps";
 import PartnerAppDetail from "@/pages/PartnerAppDetail";
 import { PartnerNotificationBell, PartnerNotificationsPage } from "@/components/partners/PartnerNotifications";
 import PartnerThemes, { PartnerThemeDetail } from "@/pages/PartnerThemes";
+import { PartnerDevStores, PartnerHelp, PartnerPayouts, PartnerSubscriptions } from "@/pages/PartnerPortalExtras";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Page, Panel } from "@/components/partners/PortalPage";
 import {
   createPartnerCoupon,
   getPartnerAnalytics,
@@ -119,7 +124,10 @@ export default function PartnerPortal() {
         <Route path="apps/:id" element={<PartnerAppDetail />} />
         <Route path="themes" element={<PartnerThemes />} />
         <Route path="themes/:id" element={<PartnerThemeDetail />} />
-        <Route path="dev-stores" element={<Partners />} />
+        <Route path="dev-stores" element={<PartnerDevStores />} />
+        <Route path="subscriptions" element={<PartnerSubscriptions />} />
+        <Route path="payouts" element={<PartnerPayouts />} />
+        <Route path="help" element={<PartnerHelp />} />
         <Route path="webhooks" element={<Webhooks />} />
         <Route path="coupons" element={<Coupons me={me} />} />
         <Route path="reviews" element={<Reviews />} />
@@ -135,76 +143,143 @@ export default function PartnerPortal() {
   );
 }
 
+type NavLeaf = { to: string; label: string };
+type NavEntry = { icon: typeof LayoutDashboard; label: string } & ({ to: string } | { children: NavLeaf[] });
+
+function usePortalNav(): NavEntry[] {
+  const { t } = useTranslation();
+  return [
+    { to: "/", icon: LayoutDashboard, label: t("partnerPortal.nav.dashboard") },
+    {
+      icon: AppWindow,
+      label: t("partnerPortal.nav.apps"),
+      children: [
+        { to: "/apps", label: t("partnerPortal.nav.allApps") },
+        { to: "/subscriptions", label: t("partnerPortal.nav.subscriptions") },
+        { to: "/reviews", label: t("appFeedback.partner.navReviews") },
+        { to: "/support", label: t("appFeedback.partner.navSupport") },
+        { to: "/analytics", label: t("partnerPortal.nav.analytics") },
+      ],
+    },
+    { icon: Palette, label: t("partnerPortal.nav.themes"), children: [{ to: "/themes", label: t("partnerPortal.nav.myThemes") }] },
+    { to: "/coupons", icon: Ticket, label: t("partnerPortal.nav.coupons") },
+    { to: "/dev-stores", icon: Store, label: t("partnerPortal.nav.devStores") },
+    { icon: Webhook, label: "Webhooks", children: [{ to: "/webhooks", label: t("partnerPortal.nav.webhookLogs") }] },
+    { icon: Handshake, label: t("partnerPortal.nav.partnership"), children: [{ to: "/referrals", label: t("partnerPortal.nav.referrals") }] },
+    { to: "/team", icon: Users, label: t("partnerPortal.nav.team") },
+    { icon: Wallet, label: t("partnerPortal.nav.payments"), children: [{ to: "/payouts", label: t("partnerPortal.nav.payouts") }] },
+    { to: "/profile", icon: UserRound, label: t("partnerPortal.nav.profile") },
+    { to: "/notifications", icon: Bell, label: t("partnerPortal.nav.notifications") },
+    { to: "/help", icon: CircleHelp, label: t("partnerPortal.nav.help") },
+  ];
+}
+
+const navRow = "flex h-12 w-full items-center gap-3 rounded-lg px-3 text-[15px] transition-colors";
+
 function PortalNav({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useTranslation();
-  const groups = [
-    {
-      label: t("partnerPortal.navGroup.overview"),
-      items: [
-        { to: "/", icon: LayoutDashboard, label: t("partnerPortal.nav.dashboard") },
-        { to: "/analytics", icon: BarChart3, label: t("partnerPortal.nav.analytics") },
-      ],
-    },
-    {
-      label: t("partnerPortal.navGroup.build"),
-      items: [
-        { to: "/apps", icon: AppWindow, label: t("partnerPortal.nav.apps") },
-        { to: "/themes", icon: Palette, label: t("partnerPortal.nav.themes") },
-        { to: "/dev-stores", icon: Store, label: t("partnerPortal.nav.devStores") },
-        { to: "/webhooks", icon: Webhook, label: t("partnerPortal.nav.webhooks") },
-      ],
-    },
-    {
-      label: t("partnerPortal.navGroup.grow"),
-      items: [
-        { to: "/coupons", icon: Ticket, label: t("partnerPortal.nav.coupons") },
-        { to: "/reviews", icon: Star, label: t("appFeedback.partner.navReviews") },
-        { to: "/support", icon: LifeBuoy, label: t("appFeedback.partner.navSupport") },
-        { to: "/referrals", icon: Gift, label: t("partnerPortal.nav.referrals") },
-      ],
-    },
-    {
-      label: t("partnerPortal.navGroup.account"),
-      items: [
-        { to: "/team", icon: Users, label: t("partnerPortal.nav.team") },
-        { to: "/profile", icon: UserCog, label: t("partnerPortal.nav.profile") },
-      ],
-    },
-  ];
+  const { pathname } = useLocation();
+  const entries = usePortalNav();
+  const inGroup = (e: NavEntry) =>
+    "children" in e && e.children.some((c) => pathname === c.to || pathname.startsWith(`${c.to}/`));
+  const [open, setOpen] = useState<string | null>(() => entries.find(inGroup)?.label ?? null);
+
+  useEffect(() => {
+    const active = entries.find(inGroup);
+    if (active) setOpen(active.label);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
   return (
-    <nav className="space-y-5" aria-label={t("partnerPortal.brand")}>
-      {groups.map((g) => (
-        <div key={g.label}>
-          <p className="mb-1.5 px-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">{g.label}</p>
-          <div className="space-y-0.5">
-            {g.items.map(({ to, icon: Icon, label }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={to === "/"}
-                onClick={onNavigate}
-                className={({ isActive }) =>
-                  cn(
-                    "flex h-10 items-center gap-2.5 rounded-lg px-3 text-[13px] font-medium transition-colors",
-                    isActive
-                      ? "bg-navy text-primary-foreground shadow-sm hover:bg-navy-700 [&>svg]:!text-saffron"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  )
-                }
-              >
-                <Icon className="h-[18px] w-[18px] shrink-0 text-navy dark:text-saffron" />
-                <span className="truncate">{label}</span>
-              </NavLink>
-            ))}
+    <nav className="space-y-1" aria-label={t("partnerPortal.brand")}>
+      {entries.map((e) => {
+        const Icon = e.icon;
+        if ("to" in e) {
+          return (
+            <NavLink
+              key={e.to}
+              to={e.to}
+              end={e.to === "/"}
+              onClick={onNavigate}
+              className={({ isActive }) =>
+                cn(navRow, isActive ? "bg-navy/[0.07] font-semibold text-navy dark:bg-saffron/10 dark:text-saffron" : "text-foreground/80 hover:bg-muted/60")
+              }
+            >
+              <Icon className="h-5 w-5 shrink-0" strokeWidth={1.6} />
+              <span className="truncate">{e.label}</span>
+            </NavLink>
+          );
+        }
+        const expanded = open === e.label;
+        return (
+          <div key={e.label}>
+            <button
+              type="button"
+              className={cn(navRow, "text-foreground/80 hover:bg-muted/60")}
+              aria-expanded={expanded}
+              onClick={() => setOpen(expanded ? null : e.label)}
+            >
+              <Icon className="h-5 w-5 shrink-0" strokeWidth={1.6} />
+              <span className="flex-1 truncate text-start">{e.label}</span>
+              <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", expanded && "rotate-180")} />
+            </button>
+            {expanded && (
+              <div className="mt-1 space-y-1">
+                {e.children.map((c) => (
+                  <NavLink
+                    key={c.to}
+                    to={c.to}
+                    onClick={onNavigate}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex h-10 items-center rounded-lg ps-11 pe-3 text-sm transition-colors",
+                        isActive ? "bg-navy/[0.07] font-semibold text-navy dark:bg-saffron/10 dark:text-saffron" : "text-foreground/75 hover:bg-muted/60",
+                      )
+                    }
+                  >
+                    {c.label}
+                  </NavLink>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </nav>
   );
 }
 
-const topbarBtn =
-  "h-10 w-10 rounded-lg text-white/90 hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-white/40";
+function PortalLogo() {
+  const { t } = useTranslation();
+  return (
+    <NavLink to="/" className="flex items-center gap-2.5" aria-label={t("partnerPortal.brand")}>
+      <img src="/numu-mark.webp" alt="" className="h-8 w-auto object-contain dark:brightness-0 dark:invert" />
+      <span className="text-[22px] font-bold lowercase tracking-tight text-navy dark:text-foreground">numu</span>
+      <span className="rounded-md bg-saffron/15 px-2 py-0.5 text-xs font-semibold text-navy dark:text-saffron">
+        {t("partnerPortal.badge")}
+      </span>
+    </NavLink>
+  );
+}
+
+const iconBtn =
+  "inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground/70 transition-colors hover:bg-muted hover:text-foreground";
+
+function ThemeButton() {
+  const { t } = useTranslation();
+  const { resolvedTheme, setTheme } = useTheme();
+  const dark = resolvedTheme === "dark";
+  return (
+    <button
+      type="button"
+      className={iconBtn}
+      onClick={() => setTheme(dark ? "light" : "dark")}
+      aria-label={t("partnerPortal.toggleTheme")}
+    >
+      {dark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+    </button>
+  );
+}
 
 function Shell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
@@ -213,119 +288,109 @@ function Shell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const isAr = language === "ar";
-  const initial = (user?.first_name || user?.email || "N").charAt(0).toUpperCase();
+  const initials =
+    [user?.first_name, user?.last_name].map((n) => n?.charAt(0) ?? "").join("").toUpperCase() ||
+    (user?.email ?? "N").charAt(0).toUpperCase();
+  const { data: dash } = useQuery({ queryKey: ["partners", "dashboard", {}], queryFn: () => getPartnerDashboard({}) });
+  const balance = formatMoney(dash?.balance_cents ?? 0, {
+    fromCents: true,
+    currency: "EGP",
+    locale: isAr ? "ar" : "en",
+    fixed: true,
+  });
 
   useEffect(() => setMenuOpen(false), [pathname]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="dash-header">
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(topbarBtn, "md:hidden")}
-          onClick={() => setMenuOpen(true)}
-          aria-label={t("header.toggleSidebar")}
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-        <NavLink to="/" className="flex shrink-0 items-center gap-2 ps-1 pe-2" aria-label={t("partnerPortal.brand")}>
-          <img src="/brand/numu-cream.png" alt="" className="h-8 w-auto" />
-          <span className="souq-wordmark hidden text-[20px] !text-white sm:inline">
-            {isAr ? "نُمُو" : <span className="lowercase">numu</span>}
-          </span>
-          <span className="rounded-md bg-saffron px-2 py-0.5 text-[11px] font-bold text-navy-900">
-            {t("partnerPortal.badge")}
-          </span>
-        </NavLink>
-
-        <div className="ms-auto flex min-w-0 items-center gap-1">
-          <PartnerNotificationBell className={topbarBtn} />
-          <ThemeSwitch className={cn(topbarBtn, "hidden sm:inline-flex")} />
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(topbarBtn, "w-auto px-2.5")}
-            disabled={isSwitching}
-            onClick={() => void setLanguage(isAr ? "en" : "ar")}
-            aria-label={isAr ? t("header.switchToEnglish") : t("header.switchToArabic")}
-          >
-            <Languages className="h-[17px] w-[17px]" />
-            <span className="ms-1 text-xs font-bold">{isAr ? "EN" : "ع"}</span>
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className={cn(topbarBtn, "w-auto gap-2 ps-1.5 pe-2")} aria-label={t("header.profile")}>
-                {user?.avatar_url ? (
-                  <img src={user.avatar_url} alt="" width={28} height={28} className="h-7 w-7 rounded-full object-cover ring-2 ring-white/30" />
-                ) : (
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-saffron text-[11px] font-bold text-navy-900">
-                    {initial}
-                  </span>
-                )}
-                <ChevronDown className="hidden h-3.5 w-3.5 text-white/70 sm:block" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 overflow-hidden rounded-xl p-0">
-              <div className="border-b bg-muted/30 p-3">
-                <p className="truncate text-xs font-semibold">
-                  {user?.first_name} {user?.last_name}
-                </p>
-                <p className="truncate text-[11px] text-muted-foreground">{user?.email}</p>
-              </div>
-              <div className="p-1.5">
-                <DropdownMenuItem asChild className="cursor-pointer gap-2.5 rounded-lg py-2 text-xs">
-                  <NavLink to="/profile">
-                    <UserCog className="h-4 w-4" />
-                    {t("partnerPortal.nav.profile")}
-                  </NavLink>
-                </DropdownMenuItem>
-                {merchantHubUrl && (
-                  <DropdownMenuItem asChild className="cursor-pointer gap-2.5 rounded-lg py-2 text-xs">
-                    <a href={merchantHubUrl}>
-                      <Store className="h-4 w-4" />
-                      <span className="flex-1">{t("partnerPortal.merchantHub")}</span>
-                      <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground rtl:-scale-x-100" />
-                    </a>
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator className="my-1" />
-                <DropdownMenuItem className="cursor-pointer gap-2.5 rounded-lg py-2 text-xs text-destructive" onClick={() => void logout()}>
-                  <LogOut className="h-4 w-4" />
-                  {t("header.logout")}
-                </DropdownMenuItem>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+    <div className="partner-portal flex min-h-screen bg-background text-foreground">
+      <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 flex-col border-e bg-card md:flex">
+        <div className="flex h-[66px] shrink-0 items-center px-6">
+          <PortalLogo />
         </div>
-      </header>
-
-      <div className="md:flex">
-        <aside className="hidden border-e bg-sidebar md:block md:w-64 md:shrink-0">
-          <div className="sticky top-[var(--topbar-h)] max-h-[calc(100vh-var(--topbar-h))] overflow-y-auto p-3 pt-5">
-            <PortalNav />
+        <div className="flex-1 overflow-y-auto px-3 pb-6 pt-2">
+          <PortalNav />
+        </div>
+      </aside>
+      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+        <SheetContent side={isAr ? "right" : "left"} className="w-[280px] overflow-y-auto bg-card p-3 pt-6">
+          <SheetTitle className="sr-only">{t("partnerPortal.brand")}</SheetTitle>
+          <div className="mb-4 px-3">
+            <PortalLogo />
           </div>
-        </aside>
-        <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-          <SheetContent side={isAr ? "right" : "left"} className="w-72 overflow-y-auto bg-sidebar p-3 pt-12">
-            <SheetTitle className="sr-only">{t("partnerPortal.brand")}</SheetTitle>
-            <PortalNav onNavigate={() => setMenuOpen(false)} />
-          </SheetContent>
-        </Sheet>
-        <main className="min-w-0 flex-1">{children}</main>
-      </div>
-    </div>
-  );
-}
+          <PortalNav onNavigate={() => setMenuOpen(false)} />
+        </SheetContent>
+      </Sheet>
 
-function Page({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
-  return (
-    <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 flex h-[66px] shrink-0 items-center gap-2 border-b bg-card px-4 sm:px-6">
+          <button type="button" className={cn(iconBtn, "md:hidden")} onClick={() => setMenuOpen(true)} aria-label={t("header.toggleSidebar")}>
+            <Menu className="h-5 w-5" />
+          </button>
+          <NavLink
+            to="/payouts"
+            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-navy/30 px-3 text-xs font-medium text-navy dark:border-saffron/40 dark:text-saffron"
+            title={t("partnerPortal.nav.payouts")}
+          >
+            <bdi dir="ltr">{balance}</bdi>
+            <Wallet className="h-3.5 w-3.5" />
+          </NavLink>
+          <div className="ms-auto flex items-center gap-1">
+            <PartnerNotificationBell className={iconBtn} />
+            <button
+              type="button"
+              className={cn(iconBtn, "w-auto px-2 text-sm font-medium")}
+              disabled={isSwitching}
+              onClick={() => void setLanguage(isAr ? "en" : "ar")}
+              aria-label={isAr ? t("header.switchToEnglish") : t("header.switchToArabic")}
+            >
+              {isAr ? "EN" : "ع"}
+            </button>
+            <ThemeButton />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="ms-1 inline-flex h-9 w-9 items-center justify-center rounded-full bg-navy text-xs font-bold text-white" aria-label={t("header.profile")}>
+                  {user?.avatar_url ? <img src={user.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" /> : initials}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64 overflow-hidden rounded-xl p-0">
+                <div className="border-b bg-muted/30 p-3">
+                  <p className="truncate text-xs font-semibold">
+                    {user?.first_name} {user?.last_name}
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">{user?.email}</p>
+                </div>
+                <div className="p-1.5">
+                  <DropdownMenuItem asChild className="cursor-pointer gap-2.5 rounded-lg py-2 text-xs">
+                    <NavLink to="/profile">
+                      <UserRound className="h-4 w-4" />
+                      {t("partnerPortal.nav.profile")}
+                    </NavLink>
+                  </DropdownMenuItem>
+                  {merchantHubUrl && (
+                    <DropdownMenuItem asChild className="cursor-pointer gap-2.5 rounded-lg py-2 text-xs">
+                      <a href={merchantHubUrl}>
+                        <Store className="h-4 w-4" />
+                        <span className="flex-1">{t("partnerPortal.merchantHub")}</span>
+                        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground rtl:-scale-x-100" />
+                      </a>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator className="my-1" />
+                  <DropdownMenuItem className="cursor-pointer gap-2.5 rounded-lg py-2 text-xs text-destructive" onClick={() => void logout()}>
+                    <LogOut className="h-4 w-4" />
+                    {t("header.logout")}
+                  </DropdownMenuItem>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+        <main className="min-w-0 flex-1">{children}</main>
+        <footer className="flex flex-wrap items-center justify-between gap-2 px-6 py-5 text-xs text-muted-foreground sm:px-10">
+          <span>{t("partnerPortal.footer", { year: new Date().getFullYear() })}</span>
+          <span>{t("partnerPortal.madeIn")}</span>
+        </footer>
       </div>
-      {children}
     </div>
   );
 }
@@ -392,11 +457,104 @@ function useRangeFilter() {
   return { params, bar };
 }
 
+const RANGES = [
+  { key: "7d", days: 7 },
+  { key: "30d", days: 30 },
+  { key: "90d", days: 90 },
+  { key: "12m", days: 365 },
+  { key: "all", days: null },
+] as const;
+
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+
+/** Zid's filter bar: an app picker and a date range with ready-made
+ *  presets ("القوائم الجاهزة") or a custom from/to. */
+function useDashboardFilter() {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const [appId, setAppId] = useState(ALL);
+  const [preset, setPreset] = useState<string>("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  const choose = (key: string) => {
+    const days = RANGES.find((r) => r.key === key)?.days ?? null;
+    setPreset(key);
+    setTo(days ? isoDay(new Date()) : "");
+    setFrom(days ? isoDay(new Date(Date.now() - days * 86400000)) : "");
+  };
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString(language === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const label = from || to ? `${from ? fmt(from) : "…"} - ${to ? fmt(to) : "…"}` : t("partnerPortal.range.all");
+
+  const bar = (
+    <div className="flex flex-wrap items-center gap-2">
+      <AppFilter value={appId} onChange={setAppId} />
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border bg-card px-3 text-sm"
+          >
+            <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              {t("partnerPortal.range.presets")}
+            </span>
+            <bdi>{label}</bdi>
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-72 space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {RANGES.map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                onClick={() => choose(r.key)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs",
+                  preset === r.key ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted",
+                )}
+              >
+                {t(`partnerPortal.range.${r.key}`)}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="pp-from" className="text-xs">{t("partnerPortal.from")}</Label>
+              <Input id="pp-from" type="date" value={from} onChange={(e) => { setPreset("custom"); setFrom(e.target.value); }} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="pp-to" className="text-xs">{t("partnerPortal.to")}</Label>
+              <Input id="pp-to" type="date" value={to} onChange={(e) => { setPreset("custom"); setTo(e.target.value); }} />
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+  return { params: { app_id: appId === ALL ? undefined : appId, from: from || undefined, to: to || undefined }, bar };
+}
+
+function Kpi({ label, value, loading, children }: { label: string; value: ReactNode; loading?: boolean; children?: ReactNode }) {
+  return (
+    <div className="rounded-2xl bg-card p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      {loading ? <Skeleton className="mt-2 h-7 w-24" /> : <div className="mt-1 text-2xl font-bold">{value}</div>}
+      {children}
+    </div>
+  );
+}
+
+const SUB_VIEWS = ["both", "trial", "paid"] as const;
+
 function Dashboard() {
   const { t } = useTranslation();
   const { language } = useLanguage();
+  const { user } = useAuth();
   const date = useDate();
-  const { params, bar } = useRangeFilter();
+  const { params, bar } = useDashboardFilter();
+  const [subView, setSubView] = useState<(typeof SUB_VIEWS)[number]>("both");
   const { data, isLoading } = useQuery({
     queryKey: ["partners", "dashboard", params],
     queryFn: () => getPartnerDashboard(params),
@@ -405,12 +563,12 @@ function Dashboard() {
     queryKey: ["partners", "subscriptions", params.app_id],
     queryFn: () => listPartnerSubscriptions({ app_id: params.app_id }),
   });
-  const egp = (cents: number) =>
-    formatMoney(cents, { fromCents: true, currency: "EGP", locale: language === "ar" ? "ar" : "en", fixed: true });
   const { data: reviews, isLoading: reviewsLoading } = useQuery({
     queryKey: ["partners", "reviews", { app_id: params.app_id }],
     queryFn: () => listPartnerReviews({ app_id: params.app_id }),
   });
+  const egp = (cents: number) =>
+    formatMoney(cents, { fromCents: true, currency: "EGP", locale: language === "ar" ? "ar" : "en", fixed: true });
   const statusLabel = (s: string) => t(`partnerPortal.install_${s}`);
   const slices = data
     ? [
@@ -421,119 +579,136 @@ function Dashboard() {
       ].filter((s) => s.value > 0)
     : [];
 
-  return (
-    <Page title={t("partnerPortal.dashboardTitle")}>
-      <GettingStarted />
-      {bar}
+  // Subscriptions started per month, split trial / paid, from the list the
+  // API already returns (no separate time series endpoint).
+  const byMonth = new Map<string, { month: string; trial: number; paid: number }>();
+  for (const s of subs?.items ?? []) {
+    const month = s.created_at.slice(0, 7);
+    if ((params.from && s.created_at < params.from) || (params.to && s.created_at.slice(0, 10) > params.to)) continue;
+    const row = byMonth.get(month) ?? { month, trial: 0, paid: 0 };
+    if (s.status === "trial") row.trial += 1;
+    else row.paid += 1;
+    byMonth.set(month, row);
+  }
+  const subSeries = [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month));
+  const name = user?.first_name ? `${user.first_name} ${user.last_name ?? ""}`.trim() : user?.email ?? "";
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <StatTile icon={Download} loading={isLoading} label={t("partnerPortal.installsTotal")} value={data?.installs_total ?? 0} />
-        <StatTile icon={Trash2} tone="terra" loading={isLoading} label={t("partnerPortal.install_uninstalled")} value={data?.uninstalled ?? 0} sub={t("partnerPortal.uninstalledHint")} />
-        <StatTile
-          icon={CreditCard}
-          tone="saffron"
-          loading={isLoading}
-          label={t("partnerPortal.revenue")}
-          value={egp(data?.net_sales_cents ?? 0)}
-          sub={t("partnerPortal.revenueHint", {
-            balance: egp(data?.balance_cents ?? 0),
-            payable: egp(data?.payable_cents ?? 0),
-          })}
-        />
-        <StatTile
-          icon={Users}
-          tone="sage"
+  return (
+    <Page title={t("partnerPortal.welcomeBack", { name })} action={bar}>
+      <GettingStarted />
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi label={t("partnerPortal.totalIncome")} loading={isLoading} value={<bdi dir="ltr">{egp(data?.net_sales_cents ?? 0)}</bdi>} />
+        <Kpi
+          label={t("partnerPortal.totalSubscriptions")}
           loading={subsLoading}
-          label={t("partnerPortal.subscriptions")}
           value={(subs?.counts.active ?? 0) + (subs?.counts.trial ?? 0)}
-          sub={t("partnerPortal.subscriptionsHint", {
-            trial: subs?.counts.trial ?? 0,
-            pastDue: subs?.counts.past_due ?? 0,
-            cancelled: subs?.counts.cancelled ?? 0,
-          })}
         />
-        <StatTile
-          icon={Star}
-          tone="saffron"
+        <Kpi
+          label={t("partnerPortal.totalRatings")}
           loading={reviewsLoading}
-          label={t("appFeedback.partner.averageRating")}
-          value={reviews?.summary.average != null ? <bdi dir="ltr">{reviews.summary.average.toFixed(1)}</bdi> : "—"}
-          sub={t("appFeedback.reviewsCount", { count: reviews?.summary.count ?? 0 })}
-        />
+          value={<Stars value={Math.round(reviews?.summary.average ?? 0)} className="h-5 w-5" />}
+        >
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("appFeedback.reviewsCount", { count: reviews?.summary.count ?? 0 })}
+          </p>
+        </Kpi>
+        <Kpi label={t("partnerPortal.nextPayout")} loading={isLoading} value={<bdi dir="ltr">{egp(data?.payable_cents ?? 0)}</bdi>} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t("partnerPortal.installsByStatus")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {slices.length ? (
-              <BreakdownPie data={slices} locale={language === "ar" ? "ar-EG" : "en-GB"} />
-            ) : (
-              <p className="py-10 text-center text-sm text-muted-foreground">{t("partnerPortal.noInstalls")}</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t("partnerPortal.installsOverTime")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data?.monthly.length ? (
-              <div className="h-60" dir="ltr">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.monthly}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={32} />
-                    <Tooltip
-                      contentStyle={TOOLTIP_STYLE}
-                      formatter={(v: number) => [v, t("partnerPortal.installs")]}
-                    />
-                    <Bar dataKey="installs" fill="hsl(var(--navy))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="py-10 text-center text-sm text-muted-foreground">{t("partnerPortal.noInstalls")}</p>
-            )}
-          </CardContent>
-        </Card>
+        <Panel
+          title={t("partnerPortal.subscriptionAnalytics")}
+          action={
+            <div className="inline-flex rounded-lg bg-muted p-1 text-xs">
+              {SUB_VIEWS.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setSubView(v)}
+                  className={cn("rounded-md px-3 py-1", subView === v && "bg-card font-semibold shadow-sm")}
+                >
+                  {t(`partnerPortal.subView.${v}`)}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          {subSeries.length ? (
+            <div className="h-72" dir="ltr">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={subSeries}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={32} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Legend />
+                  {subView !== "paid" && (
+                    <Bar dataKey="trial" name={t("partnerPortal.subView.trial")} stackId="s" fill="#29abfb" radius={[4, 4, 0, 0]} />
+                  )}
+                  {subView !== "trial" && (
+                    <Bar dataKey="paid" name={t("partnerPortal.subView.paid")} stackId="s" fill="hsl(var(--navy))" radius={[4, 4, 0, 0]} />
+                  )}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="py-16 text-center text-sm text-muted-foreground">{t("partnerPortal.noData")}</p>
+          )}
+        </Panel>
+        <Panel title={t("partnerPortal.installAnalytics")}>
+          {slices.length ? (
+            <BreakdownPie data={slices} locale={language === "ar" ? "ar-EG" : "en-GB"} />
+          ) : (
+            <p className="py-16 text-center text-sm text-muted-foreground">{t("partnerPortal.noInstalls")}</p>
+          )}
+        </Panel>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("partnerPortal.latestInstalls")}</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("partnerPortal.store")}</TableHead>
-                <TableHead>{t("partnerPortal.app")}</TableHead>
-                <TableHead>{t("partnerPortal.installedAt")}</TableHead>
-                <TableHead>{t("partnerPortal.status")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(data?.latest ?? []).map((row, i) => (
-                <TableRow key={i}>
-                  <TableCell>{row.store_name ?? "—"}</TableCell>
-                  <TableCell><bdi>{row.app_name}</bdi></TableCell>
-                  <TableCell><bdi dir="ltr">{date(row.installed_at)}</bdi></TableCell>
-                  <TableCell>
-                    <Badge variant={row.status === "active" ? "default" : "secondary"}>{statusLabel(row.status)}</Badge>
-                  </TableCell>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title={t("partnerPortal.latestInstalls")}>
+          <div className="overflow-x-auto rounded-lg border">
+            <Table>
+              <TableHeader className="bg-muted/40">
+                <TableRow>
+                  <TableHead>{t("partnerPortal.store")}</TableHead>
+                  <TableHead>{t("partnerPortal.app")}</TableHead>
+                  <TableHead>{t("partnerPortal.installedAt")}</TableHead>
                 </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(data?.latest ?? []).map((row, i) => (
+                  <TableRow key={i}>
+                    <TableCell>{row.store_name ?? "—"}</TableCell>
+                    <TableCell><bdi>{row.app_name}</bdi></TableCell>
+                    <TableCell><bdi dir="ltr">{date(row.installed_at)}</bdi></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {data && data.latest.length === 0 && (
+              <p className="py-8 text-center text-sm text-muted-foreground">{t("partnerPortal.noInstalls")}</p>
+            )}
+          </div>
+        </Panel>
+        <Panel title={t("partnerPortal.latestReviews")}>
+          {(reviews?.items ?? []).length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">{t("appFeedback.noReviews")}</p>
+          ) : (
+            <ul className="divide-y">
+              {reviews!.items.slice(0, 5).map((r) => (
+                <li key={r.id} className="space-y-1 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{r.store_name ?? "—"}</span>
+                    <Stars value={r.rating} className="h-3.5 w-3.5" />
+                  </div>
+                  {r.body && <p className="line-clamp-2 text-sm text-muted-foreground">{r.body}</p>}
+                </li>
               ))}
-            </TableBody>
-          </Table>
-          {data && data.latest.length === 0 && (
-            <p className="py-6 text-center text-sm text-muted-foreground">{t("partnerPortal.noInstalls")}</p>
+            </ul>
           )}
-        </CardContent>
-      </Card>
+        </Panel>
+      </div>
     </Page>
   );
 }

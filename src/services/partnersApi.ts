@@ -165,6 +165,7 @@ export interface PartnerApp {
   /** A custom app: the one store it installs on. */
   private_store_id: string | null;
   private_store_name: string | null;
+  created_at?: string | null;
 }
 
 export interface PartnerAppDetail extends PartnerApp {
@@ -183,12 +184,82 @@ export function createPartnerApp(body: {
   name_ar: string;
   name_en: string;
   private_store?: string;
+  category?: string;
+  tags?: string[];
 }): Promise<PartnerApp & { client_secret: string }> {
   return apiClient(APPS, { method: "POST", body: JSON.stringify(body) });
 }
 
 export function getPartnerApp(id: string): Promise<PartnerAppDetail> {
   return apiClient<PartnerAppDetail>(`${APPS}/${id}`);
+}
+
+/** Only a draft app that no store has installed. */
+export function deletePartnerApp(id: string): Promise<void> {
+  return apiClient<void>(`${APPS}/${id}`, { method: "DELETE" });
+}
+
+export const APP_CATEGORIES = [
+  "shipping",
+  "marketing",
+  "sales",
+  "customer_support",
+  "inventory",
+  "analytics",
+  "payments",
+  "store_design",
+  "productivity",
+  "other",
+] as const;
+
+export type AppPricing = {
+  model: "free" | "external" | "recurring" | "usage";
+  label?: { ar: string; en: string };
+  price_cents?: number;
+  cycle?: "monthly" | "annual";
+  currency?: "EGP";
+  trial_days?: number;
+  usage?: { unit: { ar: string; en: string }; price_cents?: number; cap_cents: number };
+};
+
+/** The form editor's sections of an app (see the API's DRAFT_KEYS). */
+export interface AppDraft {
+  icon?: string;
+  developer?: { support_email?: string; support_url?: string; privacy_policy_url?: string; terms_url?: string };
+  app_url?: string;
+  embedded?: boolean;
+  embedded_path?: string;
+  oauth?: { redirect_urls: string[]; scopes: string[]; optional_scopes?: string[] };
+  webhooks?: { event: string; url: string }[];
+  pricing?: AppPricing;
+}
+
+export interface AppDraftState {
+  draft: AppDraft;
+  /** What still blocks "Submit for review"; empty = ready. */
+  problems: string[];
+  next_version: string;
+  meta: {
+    scopes: string[];
+    events: string[];
+    event_scopes: Record<string, string>;
+    categories: string[];
+    billing_enabled: boolean;
+    authorize_url: string;
+    token_url: string;
+  };
+}
+
+export function getAppDraft(id: string): Promise<AppDraftState> {
+  return apiClient<AppDraftState>(`${APPS}/${id}/draft`);
+}
+
+export function saveAppDraft(id: string, changes: Partial<Record<keyof AppDraft, unknown>>): Promise<AppDraftState> {
+  return apiClient<AppDraftState>(`${APPS}/${id}/draft`, { method: "PUT", body: JSON.stringify({ changes }) });
+}
+
+export function submitAppDraft(id: string): Promise<PartnerAppVersion> {
+  return apiClient<PartnerAppVersion>(`${APPS}/${id}/draft/submit`, { method: "POST" });
 }
 
 export function uploadAppVersion(
