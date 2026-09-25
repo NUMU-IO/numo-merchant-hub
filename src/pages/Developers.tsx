@@ -4,6 +4,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { SettingsBreadcrumb } from "@/components/layout/SettingsBreadcrumb";
 import { ApiKeysPanel } from "@/components/developers/ApiKeysPanel";
 import { WebhooksPanel } from "@/components/developers/WebhooksPanel";
+import { ApiUsagePanel } from "@/components/developers/ApiUsagePanel";
 import { ApiAccessState, fetchApiAccess } from "@/services/developerApi";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -106,6 +107,8 @@ export default function DevelopersPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      {allowed && <ApiUsagePanel storeId={storeId} />}
 
       <ApiKeysPanel storeId={storeId} disabled={!allowed} />
 
