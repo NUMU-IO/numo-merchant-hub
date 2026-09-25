@@ -221,6 +221,7 @@ export default {
     failed: "That didn't work",
   },
   partnerApps: {
+    devInstallNeedsVersion: "Submit a version for review once (Publish tab) to install with the approval screen.",
     detailsBody: "Marketing texts, icon, images, category and video: everything merchants see on your app's page.",
     listingInReview: "The listing is in review, so its texts and images can't change until NUMU decides. Links and contacts still save.",
     basicInfo: "Basic information",

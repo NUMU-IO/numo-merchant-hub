@@ -77,7 +77,7 @@ import {
   type AppPricing,
   type ListingContent,
 } from "@/services/partnersApi";
-import { partnerPath } from "@/lib/partner-host";
+import { merchantHubUrl, partnerPath } from "@/lib/partner-host";
 import { SecretOnce, appStatusChip } from "@/pages/PartnerApps";
 import { AppReviewTimeline } from "@/components/partners/AppReviewTimeline";
 import { listingEditable, useAppListing } from "@/components/partners/AppListingEditor";
@@ -135,6 +135,9 @@ function useDraft(id: string) {
     mutationFn: (changes: Partial<Record<keyof AppDraft, unknown>>) => saveAppDraft(id, changes),
     onSuccess: (state) => {
       qc.setQueryData(["partners", "apps", id, "draft"], state);
+      // The header and the apps list show what a save can change (the icon).
+      void qc.invalidateQueries({ queryKey: ["partners", "apps", id], exact: true });
+      void qc.invalidateQueries({ queryKey: ["partners", "apps"], exact: true });
       toast.success(t("partnerApps.saved"));
     },
     onError: (err) => showError(err, language),
@@ -573,15 +576,36 @@ function AppDetailsTab({ appId, state }: { appId: string; state: AppDraftState }
         {t("partnerApps.saveDetails")}
       </Button>
 
-      <DevStoreSection appId={appId} />
+      <DevStoreSection appId={appId} state={state} />
     </div>
   );
 }
 
-function DevStoreSection({ appId }: { appId: string }) {
+/**
+ * Install on a development store. An app with a server (a callback URL)
+ * goes through the real approval screen, so it gets a token and its
+ * webhooks exactly as a merchant install would. The approval screen checks
+ * the SUBMITTED version, so until one exists the button says so. An app
+ * without a callback URL is only added to the store, as before.
+ */
+function DevStoreSection({ appId, state }: { appId: string; state: AppDraftState }) {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const stores = useQuery({ queryKey: ["partners", "dev-stores"], queryFn: listDevStores });
+  const app = useQuery({ queryKey: ["partners", "apps", appId], queryFn: () => getPartnerApp(appId) });
+  const redirectUrl = state.draft.oauth?.redirect_urls?.[0];
+  const hasVersion = (app.data?.versions.length ?? 0) > 0;
+  const consentFor = (storeId: string) => {
+    const oauth = state.draft.oauth;
+    const params = new URLSearchParams({
+      client_id: app.data?.client_id ?? "",
+      store_id: storeId,
+      redirect_uri: redirectUrl ?? "",
+      scope: [...(oauth?.scopes ?? []), ...(oauth?.optional_scopes ?? [])].join(" "),
+      state: crypto.randomUUID().replace(/-/g, ""),
+    });
+    return `${merchantHubUrl ?? window.location.origin}/oauth/authorize?${params}`;
+  };
   const [installed, setInstalled] = useState<Set<string>>(new Set());
   const install = useMutation({
     mutationFn: (storeId: string) => devInstallApp(appId, storeId),
@@ -610,6 +634,17 @@ function DevStoreSection({ appId }: { appId: string }) {
                   <CheckCircle2 className="h-4 w-4" />
                   {t("partnerApps.installed")}
                 </span>
+              ) : redirectUrl && app.data?.client_id ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full"
+                  disabled={!hasVersion}
+                  title={hasVersion ? undefined : t("partnerApps.devInstallNeedsVersion")}
+                  onClick={() => window.open(consentFor(s.id), "_blank", "noopener")}
+                >
+                  {t("partnerApps.devInstallBtn")}
+                </Button>
               ) : (
                 <Button size="sm" variant="outline" className="rounded-full" disabled={install.isPending} onClick={() => install.mutate(s.id)}>
                   {t("partnerApps.devInstallBtn")}
@@ -618,6 +653,9 @@ function DevStoreSection({ appId }: { appId: string }) {
             </li>
           ))}
         </ul>
+      )}
+      {redirectUrl && !hasVersion && app.data && (
+        <p className="text-xs text-muted-foreground">{t("partnerApps.devInstallNeedsVersion")}</p>
       )}
     </Section>
   );
