@@ -7,6 +7,7 @@ import {
   createAccessToken,
   listAccessTokens,
   revokeAccessToken,
+  rotateAccessToken,
 } from "@/services/mcpApi";
 import { showError } from "@/lib/show-error";
 import { toast } from "sonner";
@@ -50,7 +51,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CopyBox } from "@/components/developers/CopyBox";
-import { KeyRound, Loader2, Plus, Trash2 } from "lucide-react";
+import { KeyRound, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 export const DOMAIN_LABELS: Record<string, { en: string; ar: string }> = {
   catalog: { en: "Products & catalog", ar: "المنتجات والكتالوج" },
@@ -103,6 +104,7 @@ export function ApiKeysPanel({
 
   const [created, setCreated] = useState<CreatedAccessToken | null>(null);
   const [revoking, setRevoking] = useState<AccessToken | null>(null);
+  const [rotating, setRotating] = useState<AccessToken | null>(null);
 
   const refresh = useCallback(async () => {
     if (!storeId) return;
@@ -168,6 +170,17 @@ export function ApiKeysPanel({
     }
   };
 
+  const doRotate = async () => {
+    if (!storeId || !rotating) return;
+    try {
+      setCreated(await rotateAccessToken(storeId, rotating.id));
+      setRotating(null);
+      refresh();
+    } catch (err) {
+      showError(err, t("Failed to rotate the key", "فشل تجديد المفتاح"));
+    }
+  };
+
   const scopeBadges = (token: AccessToken) => {
     if (!token.scopes || token.scopes.includes("*")) {
       return <Badge variant="destructive">{t("Full access", "صلاحية كاملة")}</Badge>;
@@ -190,6 +203,16 @@ export function ApiKeysPanel({
 
   const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString(isRTL ? "ar-EG" : "en-GB") : "—";
+
+  /** "2 minutes ago" — last use matters in minutes, not days. */
+  const fmtAgo = (iso: string | null) => {
+    if (!iso) return t("never", "لم يُستخدم");
+    const rtf = new Intl.RelativeTimeFormat(isRTL ? "ar-EG" : "en", { numeric: "auto" });
+    const minutes = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
+    if (Math.abs(minutes) < 60) return rtf.format(minutes, "minute");
+    if (Math.abs(minutes) < 1440) return rtf.format(Math.round(minutes / 60), "hour");
+    return rtf.format(Math.round(minutes / 1440), "day");
+  };
 
   return (
     <>
@@ -245,19 +268,31 @@ export function ApiKeysPanel({
                     {scopeBadges(token)}
                     <div className="text-xs text-muted-foreground">
                       {t("Created", "أُنشئ")}: {fmtDate(token.created_at)} ·{" "}
-                      {t("Last used", "آخر استخدام")}: {fmtDate(token.last_used_at)} ·{" "}
+                      {t("Last used", "آخر استخدام")}: {fmtAgo(token.last_used_at)} ·{" "}
                       {t("Expires", "ينتهي")}: {fmtDate(token.expires_at)}
                     </div>
                   </div>
                   {!token.revoked_at && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setRevoking(token)}
-                      title={t("Revoke", "إلغاء")}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setRotating(token)}
+                        title={t("Rotate", "تجديد")}
+                        aria-label={t("Rotate", "تجديد")}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setRevoking(token)}
+                        title={t("Revoke", "إلغاء")}
+                        aria-label={t("Revoke", "إلغاء")}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </>
                   )}
                 </div>
               ))}
@@ -384,6 +419,25 @@ export function ApiKeysPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ---- Rotate ---- */}
+      <AlertDialog open={!!rotating} onOpenChange={(open) => !open && setRotating(null)}>
+        <AlertDialogContent dir={isRTL ? "rtl" : "ltr"}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("Rotate this key?", "تجديد هذا المفتاح؟")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                `"${rotating?.name}" gets a new secret with the same permissions. The current secret stops working immediately, so update your integration right after.`,
+                `"${rotating?.name}" هياخد مفتاح سري جديد بنفس الصلاحيات. المفتاح الحالي هيتوقف فورًا، فحدّث الربط بتاعك على طول.`,
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("Cancel", "إلغاء")}</AlertDialogCancel>
+            <AlertDialogAction onClick={doRotate}>{t("Rotate", "تجديد")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ---- Revoke ---- */}
       <AlertDialog open={!!revoking} onOpenChange={(open) => !open && setRevoking(null)}>

@@ -19,6 +19,40 @@ export function fetchApiAccess(storeId: string): Promise<ApiAccessState> {
   return apiClient<ApiAccessState>(`/stores/${storeId}/access-tokens/access`);
 }
 
+/** null = unlimited. */
+export interface ApiLimits {
+  per_minute: number | null;
+  per_second: number | null;
+  monthly_quota: number | null;
+  key_limit: number | null;
+}
+
+export type ApiUsageWarning =
+  | { code: "quota_80"; percent: number }
+  | { code: "quota_reached"; percent: number }
+  | { code: "polling"; route: string; per_minute: number }
+  | { code: "throttled"; count: number };
+
+export interface ApiUsage {
+  limits: ApiLimits;
+  month: { used: number; quota: number | null };
+  today: {
+    requests: number;
+    throttled: number;
+    errors_4xx: number;
+    errors_5xx: number;
+    error_rate: number;
+  };
+  daily: { day: string; requests: number; throttled: number; errors: number }[];
+  top_endpoints: { method: string; route: string; requests: number }[];
+  keys_today: Record<string, number>;
+  warnings: ApiUsageWarning[];
+}
+
+export function fetchApiUsage(storeId: string): Promise<ApiUsage> {
+  return apiClient<ApiUsage>(`/stores/${storeId}/access-tokens/usage`);
+}
+
 /** Every event a subscription may carry. Mirrors WebhookEventType. */
 export const WEBHOOK_EVENTS = [
   "order.created",
