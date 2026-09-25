@@ -68,17 +68,19 @@ import {
   publishAppVersion,
   rotateAppSecret,
   saveAppDraft,
+  saveAppListing,
   submitAppDraft,
   uploadAppVersion,
   uploadListingScreenshot,
   type AppDraft,
   type AppDraftState,
   type AppPricing,
+  type ListingContent,
 } from "@/services/partnersApi";
 import { partnerPath } from "@/lib/partner-host";
 import { SecretOnce, appStatusChip } from "@/pages/PartnerApps";
 import { AppReviewTimeline } from "@/components/partners/AppReviewTimeline";
-import { AppListingEditor } from "@/components/partners/AppListingEditor";
+import { listingEditable, useAppListing } from "@/components/partners/AppListingEditor";
 
 const TABS = ["general", "app-details", "webhooks", "plans", "publish", "logs"] as const;
 type Tab = (typeof TABS)[number];
@@ -290,11 +292,61 @@ function GeneralTab({ appId, clientId, state }: { appId: string; clientId: strin
 
 // ─── App details ─────────────────────────────────────────────────────
 
-function LinksSection({ appId, state }: { appId: string; state: AppDraftState }) {
+const EMPTY_BI = { ar: "", en: "" };
+const MAX_SHOTS = 8;
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      {children}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function Counted({
+  value,
+  max,
+  onChange,
+  dir,
+  rows,
+  placeholder,
+}: {
+  value: string;
+  max: number;
+  onChange: (v: string) => void;
+  dir: "rtl" | "ltr";
+  rows?: number;
+  placeholder?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      {rows ? (
+        <Textarea dir={dir} rows={rows} maxLength={max} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      ) : (
+        <Input dir={dir} maxLength={max} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      )}
+      <p className="text-end text-xs text-muted-foreground" dir="ltr">
+        {value.length} / {max}
+      </p>
+    </div>
+  );
+}
+
+/** Everything merchants see on the app's page, and how NUMU reaches the
+ *  app and its developer, in one form. The texts, images, category and tags
+ *  are the listing (reviewed); links, contacts and the icon are the draft. */
+function AppDetailsTab({ appId, state }: { appId: string; state: AppDraftState }) {
   const { t } = useTranslation();
   const { language } = useLanguage();
-  const { save } = useDraft(appId);
+  const qc = useQueryClient();
+  const listing = useAppListing(appId);
+  const { save: saveDraft } = useDraft(appId);
   const d = state.draft;
+
+  const [form, setForm] = useState<ListingContent | null>(null);
+  const [tag, setTag] = useState("");
   const [appUrl, setAppUrl] = useState(d.app_url ?? "");
   const [redirects, setRedirects] = useState((d.oauth?.redirect_urls ?? []).join("\n"));
   const [dev, setDev] = useState({
@@ -304,91 +356,225 @@ function LinksSection({ appId, state }: { appId: string; state: AppDraftState })
     terms_url: d.developer?.terms_url ?? "",
   });
   const [icon, setIcon] = useState(d.icon ?? "");
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<"icon" | "shot" | null>(null);
 
-  const field = (key: keyof typeof dev, label: string, hint?: string) => (
-    <div className="space-y-1.5">
-      <Label htmlFor={`dev-${key}`}>{label}</Label>
-      <Input id={`dev-${key}`} dir="ltr" value={dev[key]} onChange={(e) => setDev({ ...dev, [key]: e.target.value })} />
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  );
+  useEffect(() => {
+    if (!listing.data || form) return;
+    const c = listing.data.draft?.content ?? listing.data.live;
+    setForm({ ...c, name: c.name ?? EMPTY_BI, tagline: c.tagline ?? EMPTY_BI, description: c.description ?? EMPTY_BI });
+  }, [listing.data, form]);
+
+  const locked = listing.data?.draft && !listingEditable(listing.data.draft.status);
+  const tags = form ? [...new Set([...form.keywords.ar, ...form.keywords.en])] : [];
+  const setTags = (next: string[]) => form && setForm({ ...form, keywords: { ar: next, en: next } });
+  const bi = (key: "name" | "tagline" | "description", lang: "ar" | "en", v: string) =>
+    form && setForm({ ...form, [key]: { ...form[key], [lang]: v } });
+
+  const upload = async (file: File, kind: "icon" | "shot") => {
+    setUploading(kind);
+    try {
+      const { url } = await uploadListingScreenshot(appId, file);
+      if (kind === "icon") setIcon(url);
+      else if (form) setForm({ ...form, screenshots: [...form.screenshots, { src: url }].slice(0, MAX_SHOTS) });
+    } catch (err) {
+      showError(err, language);
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (form && !locked) {
+        await saveAppListing(appId, { ...form, video_url: form.video_url?.trim() || null });
+      }
+      await saveDraft.mutateAsync({
+        app_url: appUrl.trim() || null,
+        icon: icon || null,
+        oauth: {
+          ...(d.oauth ?? { scopes: [] }),
+          redirect_urls: redirects.split(/\s+/).map((u) => u.trim()).filter(Boolean),
+        },
+        developer: Object.fromEntries(Object.entries(dev).filter(([, v]) => v.trim()).map(([k, v]) => [k, v.trim()])),
+      });
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["partners", "apps", appId] }),
+    onError: (err) => showError(err, language),
+  });
+
+  if (!form) return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />;
 
   return (
-    <>
+    <div>
+      <Section title={t("partnerApps.tab_app_details")} description={t("partnerApps.detailsBody")}>
+        {locked && (
+          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            {t("partnerApps.listingInReview")}
+          </p>
+        )}
+      </Section>
+
+      <Section title={t("partnerApps.basicInfo")}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("partnerApps.nameAr")}>
+            <Input dir="rtl" value={form.name.ar} onChange={(e) => bi("name", "ar", e.target.value)} />
+          </Field>
+          <Field label={t("partnerApps.nameEn")}>
+            <Input dir="ltr" value={form.name.en} onChange={(e) => bi("name", "en", e.target.value)} />
+          </Field>
+          <Field label={t("partnerApps.appUrl")} hint={t("partnerApps.httpsOnly")}>
+            <Input dir="ltr" placeholder="https://" value={appUrl} onChange={(e) => setAppUrl(e.target.value)} />
+          </Field>
+          <Field label={t("partnerApps.videoUrl")} hint={t("partnerApps.videoHint")}>
+            <Input
+              dir="ltr"
+              placeholder="https://www.youtube.com/watch?v=..."
+              value={form.video_url ?? ""}
+              onChange={(e) => setForm({ ...form, video_url: e.target.value })}
+            />
+          </Field>
+          <Field label={t("partnerApps.category")}>
+            <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+              <SelectTrigger>
+                <SelectValue placeholder={t("partnerApps.categoryPlaceholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                {state.meta.categories.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {t(`partnerListing.cat.${c}`, { defaultValue: c })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t("partnerApps.tags")}>
+            <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border px-2 py-1.5">
+              {tags.map((x) => (
+                <span key={x} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+                  {x}
+                  <button type="button" aria-label={t("partnerApps.remove")} onClick={() => setTags(tags.filter((y) => y !== x))}>
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+              <input
+                value={tag}
+                placeholder={tags.length ? "" : t("partnerApps.tagsPlaceholder")}
+                aria-label={t("partnerApps.tags")}
+                className="min-w-24 flex-1 bg-transparent text-sm outline-none"
+                onChange={(e) => setTag(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.key === "Enter" || e.key === ",") && tag.trim()) {
+                    e.preventDefault();
+                    if (!tags.includes(tag.trim()) && tags.length < 10) setTags([...tags, tag.trim()]);
+                    setTag("");
+                  }
+                }}
+              />
+            </div>
+          </Field>
+        </div>
+      </Section>
+
       <Section title={t("partnerApps.linksTitle")} description={t("partnerApps.linksBody")}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="app-url">{t("partnerApps.appUrl")}</Label>
-            <Input id="app-url" dir="ltr" placeholder="https://" value={appUrl} onChange={(e) => setAppUrl(e.target.value)} />
-            <p className="text-xs text-muted-foreground">{t("partnerApps.httpsOnly")}</p>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="redirects">{t("partnerApps.redirectUrls")}</Label>
-            <Textarea id="redirects" dir="ltr" rows={3} placeholder="https://example.com/oauth/callback" value={redirects} onChange={(e) => setRedirects(e.target.value)} />
-            <p className="text-xs text-muted-foreground">{t("partnerApps.redirectHint")}</p>
-          </div>
+          <Field label={t("partnerApps.redirectUrls")} hint={t("partnerApps.redirectHint")}>
+            <Textarea dir="ltr" rows={3} placeholder="https://example.com/oauth/callback" value={redirects} onChange={(e) => setRedirects(e.target.value)} />
+          </Field>
+          <Field label={t("partnerApps.supportEmail")} hint={t("partnerApps.supportEmailHint")}>
+            <Input dir="ltr" type="email" value={dev.support_email} onChange={(e) => setDev({ ...dev, support_email: e.target.value })} />
+          </Field>
         </div>
       </Section>
+
       <Section title={t("partnerApps.supportTitle")} description={t("partnerApps.supportBody")}>
         <div className="grid gap-4 sm:grid-cols-2">
-          {field("support_email", t("partnerApps.supportEmail"), t("partnerApps.supportEmailHint"))}
-          {field("support_url", t("partnerApps.supportUrl"))}
-          {field("privacy_policy_url", t("partnerApps.privacyUrl"), t("partnerApps.privacyHint"))}
-          {field("terms_url", t("partnerApps.termsUrl"))}
+          <Field label={t("partnerApps.supportUrl")} hint={t("partnerApps.supportUrlHint")}>
+            <Input dir="ltr" placeholder="https://wa.me/20xxxxxxxxxx" value={dev.support_url} onChange={(e) => setDev({ ...dev, support_url: e.target.value })} />
+          </Field>
+          <Field label={t("partnerApps.privacyUrl")} hint={t("partnerApps.privacyHint")}>
+            <Input dir="ltr" placeholder="https://your-app.example.com/privacy" value={dev.privacy_policy_url} onChange={(e) => setDev({ ...dev, privacy_policy_url: e.target.value })} />
+          </Field>
+          <Field label={t("partnerApps.termsUrl")}>
+            <Input dir="ltr" placeholder="https://your-app.example.com/terms" value={dev.terms_url} onChange={(e) => setDev({ ...dev, terms_url: e.target.value })} />
+          </Field>
         </div>
       </Section>
+
+      <Section title={t("partnerApps.descriptions")}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("partnerApps.shortAr")}>
+            <Counted dir="rtl" max={80} value={form.tagline.ar} onChange={(v) => bi("tagline", "ar", v)} />
+          </Field>
+          <Field label={t("partnerApps.shortEn")}>
+            <Counted dir="ltr" max={80} value={form.tagline.en} onChange={(v) => bi("tagline", "en", v)} />
+          </Field>
+          <Field label={t("partnerApps.longAr")}>
+            <Counted dir="rtl" rows={5} max={4000} value={form.description.ar} onChange={(v) => bi("description", "ar", v)} />
+          </Field>
+          <Field label={t("partnerApps.longEn")}>
+            <Counted dir="ltr" rows={5} max={4000} value={form.description.en} onChange={(v) => bi("description", "en", v)} />
+          </Field>
+        </div>
+      </Section>
+
       <Section title={t("partnerApps.iconTitle")} description={t("partnerApps.iconBody")}>
         <div className="flex items-center gap-4">
-          {icon ? (
-            <img src={icon} alt="" className="h-16 w-16 rounded-xl border object-cover" />
-          ) : (
-            <div className="h-16 w-16 rounded-xl border border-dashed" />
-          )}
+          {icon ? <img src={icon} alt="" className="h-16 w-16 rounded-xl border object-cover" /> : <div className="h-16 w-16 rounded-xl border border-dashed" />}
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm hover:bg-muted">
-            {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {uploading === "icon" && <Loader2 className="h-4 w-4 animate-spin" />}
             {icon ? t("partnerApps.replace") : t("partnerApps.uploadIcon")}
-            <input
-              type="file"
-              accept="image/png,image/jpeg"
-              className="sr-only"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setUploading(true);
-                try {
-                  setIcon((await uploadListingScreenshot(appId, file)).url);
-                } catch (err) {
-                  showError(err, language);
-                } finally {
-                  setUploading(false);
-                }
-              }}
-            />
+            <input type="file" accept="image/png,image/jpeg" className="sr-only" onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0], "icon")} />
           </label>
         </div>
       </Section>
-      <Button
-        className="mt-2 rounded-full"
-        disabled={save.isPending}
-        onClick={() =>
-          save.mutate({
-            app_url: appUrl.trim() || null,
-            icon: icon || null,
-            oauth: {
-              ...(d.oauth ?? { scopes: [] }),
-              redirect_urls: redirects
-                .split(/\s+/)
-                .map((u) => u.trim())
-                .filter(Boolean),
-            },
-            developer: Object.fromEntries(Object.entries(dev).filter(([, v]) => v.trim()).map(([k, v]) => [k, v.trim()])),
-          })
-        }
-      >
+
+      <Section title={t("partnerApps.screenshots")} description={t("partnerApps.screenshotsBody", { max: MAX_SHOTS })}>
+        <p className="text-sm text-muted-foreground">
+          {t("partnerApps.screenshotCount", { n: form.screenshots.length, max: MAX_SHOTS })}
+        </p>
+        {form.screenshots.length > 0 && (
+          <div className="flex flex-wrap gap-3">
+            {form.screenshots.map((s, i) => (
+              <div key={s.src} className="relative">
+                <img src={s.src} alt="" className="h-24 w-40 rounded-lg border object-cover" />
+                <button
+                  type="button"
+                  aria-label={t("partnerApps.remove")}
+                  className="absolute end-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-card/90 shadow"
+                  onClick={() => setForm({ ...form, screenshots: form.screenshots.filter((_, j) => j !== i) })}
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {form.screenshots.length < MAX_SHOTS && (
+          <label
+            className="flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed py-8 text-center text-sm hover:bg-muted/40"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const file = e.dataTransfer.files?.[0];
+              if (file) void upload(file, "shot");
+            }}
+          >
+            {uploading === "shot" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5 text-muted-foreground" />}
+            <span className="font-medium">{t("partnerApps.dropImage")}</span>
+            <span className="text-xs text-muted-foreground">{t("partnerApps.imageTypes")}</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0], "shot")} />
+          </label>
+        )}
+      </Section>
+
+      <Button className="my-6 rounded-full" disabled={save.isPending} onClick={() => save.mutate()}>
+        {save.isPending && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
         {t("partnerApps.saveDetails")}
       </Button>
-    </>
+
+      <DevStoreSection appId={appId} />
+    </div>
   );
 }
 
@@ -833,11 +1019,7 @@ export default function PartnerAppDetail() {
             ) : tab === "general" ? (
               <GeneralTab key={epoch} appId={id} clientId={a.client_id} state={state} />
             ) : tab === "app-details" ? (
-              <div key={epoch}>
-                <AppListingEditor appId={id} catalogVisible={a.catalog_visible} />
-                <LinksSection appId={id} state={state} />
-                <DevStoreSection appId={id} />
-              </div>
+              <AppDetailsTab key={epoch} appId={id} state={state} />
             ) : tab === "webhooks" ? (
               <WebhooksTab key={epoch} appId={id} state={state} />
             ) : tab === "plans" ? (

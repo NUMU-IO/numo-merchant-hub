@@ -28,6 +28,8 @@ import {
   Handshake,
   UserRound,
   Wallet,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -41,7 +43,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ThemeSwitch } from "@/components/layout/ThemeSwitch";
+import { useTheme } from "next-themes";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,7 +72,7 @@ import PartnerApps from "@/pages/PartnerApps";
 import PartnerAppDetail from "@/pages/PartnerAppDetail";
 import { PartnerNotificationBell, PartnerNotificationsPage } from "@/components/partners/PartnerNotifications";
 import PartnerThemes, { PartnerThemeDetail } from "@/pages/PartnerThemes";
-import { PartnerHelp, PartnerPayouts, PartnerSubscriptions } from "@/pages/PartnerPortalExtras";
+import { PartnerDevStores, PartnerHelp, PartnerPayouts, PartnerSubscriptions } from "@/pages/PartnerPortalExtras";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Page, Panel } from "@/components/partners/PortalPage";
@@ -122,7 +124,7 @@ export default function PartnerPortal() {
         <Route path="apps/:id" element={<PartnerAppDetail />} />
         <Route path="themes" element={<PartnerThemes />} />
         <Route path="themes/:id" element={<PartnerThemeDetail />} />
-        <Route path="dev-stores" element={<Partners />} />
+        <Route path="dev-stores" element={<PartnerDevStores />} />
         <Route path="subscriptions" element={<PartnerSubscriptions />} />
         <Route path="payouts" element={<PartnerPayouts />} />
         <Route path="help" element={<PartnerHelp />} />
@@ -200,7 +202,7 @@ function PortalNav({ onNavigate }: { onNavigate?: () => void }) {
               end={e.to === "/"}
               onClick={onNavigate}
               className={({ isActive }) =>
-                cn(navRow, isActive ? "bg-muted font-semibold text-foreground" : "text-foreground/80 hover:bg-muted/60")
+                cn(navRow, isActive ? "bg-navy/[0.07] font-semibold text-navy dark:bg-saffron/10 dark:text-saffron" : "text-foreground/80 hover:bg-muted/60")
               }
             >
               <Icon className="h-5 w-5 shrink-0" strokeWidth={1.6} />
@@ -231,7 +233,7 @@ function PortalNav({ onNavigate }: { onNavigate?: () => void }) {
                     className={({ isActive }) =>
                       cn(
                         "flex h-10 items-center rounded-lg ps-11 pe-3 text-sm transition-colors",
-                        isActive ? "bg-muted font-semibold text-foreground" : "text-foreground/75 hover:bg-muted/60",
+                        isActive ? "bg-navy/[0.07] font-semibold text-navy dark:bg-saffron/10 dark:text-saffron" : "text-foreground/75 hover:bg-muted/60",
                       )
                     }
                   >
@@ -251,14 +253,33 @@ function PortalLogo() {
   const { t } = useTranslation();
   return (
     <NavLink to="/" className="flex items-center gap-2.5" aria-label={t("partnerPortal.brand")}>
-      <img src="/numu-symbol-navy-transparent.webp" alt="" className="h-8 w-8 object-contain dark:invert" />
-      <span className="text-[22px] font-black tracking-tight">{t("partnerPortal.badge")}</span>
+      <img src="/numu-mark.webp" alt="" className="h-8 w-auto object-contain dark:brightness-0 dark:invert" />
+      <span className="text-[22px] font-bold lowercase tracking-tight text-navy dark:text-foreground">numu</span>
+      <span className="rounded-md bg-saffron/15 px-2 py-0.5 text-xs font-semibold text-navy dark:text-saffron">
+        {t("partnerPortal.badge")}
+      </span>
     </NavLink>
   );
 }
 
 const iconBtn =
   "inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground/70 transition-colors hover:bg-muted hover:text-foreground";
+
+function ThemeButton() {
+  const { t } = useTranslation();
+  const { resolvedTheme, setTheme } = useTheme();
+  const dark = resolvedTheme === "dark";
+  return (
+    <button
+      type="button"
+      className={iconBtn}
+      onClick={() => setTheme(dark ? "light" : "dark")}
+      aria-label={t("partnerPortal.toggleTheme")}
+    >
+      {dark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+    </button>
+  );
+}
 
 function Shell({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
@@ -281,7 +302,7 @@ function Shell({ children }: { children: ReactNode }) {
   useEffect(() => setMenuOpen(false), [pathname]);
 
   return (
-    <div className="flex min-h-screen bg-[#f8f8f8] text-foreground dark:bg-background">
+    <div className="partner-portal flex min-h-screen bg-background text-foreground">
       <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 flex-col border-e bg-card md:flex">
         <div className="flex h-[66px] shrink-0 items-center px-6">
           <PortalLogo />
@@ -307,7 +328,7 @@ function Shell({ children }: { children: ReactNode }) {
           </button>
           <NavLink
             to="/payouts"
-            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-primary/40 px-3 text-xs font-medium text-primary"
+            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-navy/30 px-3 text-xs font-medium text-navy dark:border-saffron/40 dark:text-saffron"
             title={t("partnerPortal.nav.payouts")}
           >
             <bdi dir="ltr">{balance}</bdi>
@@ -324,10 +345,10 @@ function Shell({ children }: { children: ReactNode }) {
             >
               {isAr ? "EN" : "ع"}
             </button>
-            <ThemeSwitch className={iconBtn} />
+            <ThemeButton />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button type="button" className="ms-1 inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/80 text-xs font-bold text-primary-foreground" aria-label={t("header.profile")}>
+                <button type="button" className="ms-1 inline-flex h-9 w-9 items-center justify-center rounded-full bg-navy text-xs font-bold text-white" aria-label={t("header.profile")}>
                   {user?.avatar_url ? <img src={user.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" /> : initials}
                 </button>
               </DropdownMenuTrigger>
