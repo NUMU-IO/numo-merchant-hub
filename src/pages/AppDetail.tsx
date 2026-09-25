@@ -94,7 +94,9 @@ export default function AppDetail() {
     : { listing: undefined, displayName: undefined, pricingLabel: undefined };
   const installed = Boolean(install);
   // A Partner App: installs through consent, has scopes and an "Open app".
-  const isPartner = listing?.developer ? !listing.developer.is_first_party : false;
+  // NUMU builds some Partner Apps itself ("Built by NUMU"), so consent
+  // (`connect`) decides, not the listing's developer.
+  const isPartner = !!entry?.connect || (listing?.developer ? !listing.developer.is_first_party : false);
   const Back = language === "ar" ? ArrowRight : ArrowLeft;
 
   const act = async (fn: () => Promise<unknown>, done: string) => {
