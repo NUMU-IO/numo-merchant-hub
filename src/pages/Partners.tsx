@@ -435,7 +435,7 @@ function Approved({ me }: { me: PartnerMe }) {
  * Partner Apps is behind a platform switch until legal sign-off, so an empty
  * ledger says exactly that instead of showing zeros.
  */
-function Earnings() {
+export function Earnings() {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const lang = language === "ar" ? "ar" : "en";
