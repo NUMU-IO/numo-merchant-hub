@@ -55,3 +55,9 @@ export function revokeAccessToken(storeId: string, tokenId: string): Promise<voi
     method: "DELETE",
   });
 }
+
+export function rotateAccessToken(storeId: string, tokenId: string): Promise<CreatedAccessToken> {
+  return apiClient<CreatedAccessToken>(`/stores/${storeId}/access-tokens/${tokenId}/rotate`, {
+    method: "POST",
+  });
+}

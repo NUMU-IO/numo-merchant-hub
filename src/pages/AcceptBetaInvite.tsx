@@ -44,7 +44,7 @@ import { z } from "zod";
 const passwordPathSchema = z.object({
   firstName: z.string().min(2, "الاسم الأول يجب أن يكون حرفين على الأقل").max(50),
   lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل").max(50),
-  password: z.string().min(12, "كلمة المرور يجب أن تكون 12 حرفًا على الأقل"),
+  password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
 });
 
 const storeFieldsSchema = z.object({
