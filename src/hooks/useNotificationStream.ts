@@ -48,6 +48,8 @@ export function useNotificationStream(storeId: string | undefined) {
       void invalidateNotificationQueries(qc, storeId);
       if (storeId && ev.category === "orders") {
         void qc.invalidateQueries({ queryKey: recentOrdersQuery(storeId).queryKey });
+        // The "waiting on you" count comes from stats, not the order list.
+        void qc.invalidateQueries({ queryKey: ["dashboard", "stats", storeId] });
       }
       if (ev.important) {
         toast(t("notifications.importantToast"), {
