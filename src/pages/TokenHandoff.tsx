@@ -8,10 +8,14 @@
  * links minted before the landing deploy keep working. This page calls
  * POST /auth/token-handoff to set proper httpOnly cookies on this origin,
  * then redirects within the hub.
+ *
+ * A `prefill` value (the landing onboarding chat's answers) is stored for the
+ * setup wizard before the redirect; see lib/onboardingPrefill.ts.
  */
 
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
+import { savePrefill } from "@/lib/onboardingPrefill";
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 function readHandoff() {
@@ -21,6 +25,7 @@ function readHandoff() {
     accessToken: params.get("access_token"),
     refreshToken: params.get("refresh_token"),
     redirect: safeRedirect(params.get("redirect")),
+    prefill: params.get("prefill"),
   };
 }
 
@@ -38,7 +43,10 @@ const TokenHandoff = () => {
   useEffect(() => {
     window.history.replaceState(null, "", window.location.pathname);
 
-    const { accessToken, refreshToken, redirect } = handoff;
+    const { accessToken, refreshToken, redirect, prefill } = handoff;
+    // Stored even if the exchange fails: after logging in, the wizard can
+    // still use the answers.
+    savePrefill(prefill);
     if (!accessToken || !refreshToken) {
       setStatus("error");
       return;
