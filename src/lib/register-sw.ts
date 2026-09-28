@@ -103,6 +103,10 @@ export function registerServiceWorker(): void {
         /* offline or the check failed — the next foreground will retry */
       });
     });
+  }).catch(() => {
+    // Some extensions and in-app browsers patch serviceWorker.register() to
+    // resolve undefined, and Workbox then throws reading `.waiting` on it.
+    // The hub works without a worker; only push and the offline shell go.
   });
 }
 
