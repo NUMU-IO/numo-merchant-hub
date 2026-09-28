@@ -13,6 +13,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   login as loginApi,
   register as registerApi,
@@ -276,6 +277,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setUser(res.user);
   }, []);
 
+  const queryClient = useQueryClient();
+
   const logout = useCallback(async () => {
     try {
       await logoutApi();
@@ -311,9 +314,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       // The offline-boot hint must not outlive the session either.
       clearCachedSessionUser();
 
+      // And the in-memory cache: without a reload, the next person to sign in
+      // on this tab would be served the previous merchant's cached pages.
+      queryClient.clear();
+
       setUser(null);
     }
-  }, []);
+  }, [queryClient]);
 
   const refreshUser = useCallback(async () => {
     try {

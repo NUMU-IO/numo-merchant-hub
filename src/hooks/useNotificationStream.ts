@@ -54,7 +54,8 @@ export function useNotificationStream(storeId: string | undefined) {
           description: t(`notifications.kindShort.${(ev.kind ?? "").replace(".", "_")}`, {
             defaultValue: "",
           }),
-          action: ev.link
+          // Server-sent: only an in-app path or https, never javascript:.
+          action: ev.link && /^(\/(?!\/)|https:\/\/)/.test(ev.link)
             ? { label: t("notifications.open"), onClick: () => window.location.assign(ev.link!) }
             : undefined,
         });

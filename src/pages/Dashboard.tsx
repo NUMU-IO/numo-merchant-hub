@@ -12,7 +12,7 @@ import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import React, { useMemo, useState } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   AreaChart,
   Area,
@@ -223,7 +223,7 @@ const Dashboard = () => {
       await navigator.clipboard.writeText(url);
       toast.success(isAr ? "تم نسخ رابط المتجر" : "Store link copied");
     } catch {
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener");
     }
   };
 
@@ -241,18 +241,23 @@ const Dashboard = () => {
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalInput, setGoalInput] = useState(String(goalTarget));
 
+  // Keep the previous range's figures while a new range loads, but never
+  // another store's: after a switch they would sit under this store's name.
+  const sameStorePlaceholder = <T,>(prev: T | undefined, prevQuery?: { queryKey: readonly unknown[] }) =>
+    prevQuery?.queryKey[2] === storeId ? prev : undefined;
+
   const statsQuery = useQuery({
     queryKey: ["dashboard", "stats", storeId, ...rangeKey],
     queryFn: () => getDashboardStats(storeId!, range),
     enabled: !!storeId,
-    placeholderData: keepPreviousData,
+    placeholderData: sameStorePlaceholder,
   });
 
   const chartQuery = useQuery({
     queryKey: ["dashboard", "chart", storeId, ...rangeKey],
     queryFn: () => getRevenueChart(storeId!, range),
     enabled: !!storeId,
-    placeholderData: keepPreviousData,
+    placeholderData: sameStorePlaceholder,
   });
 
   // Distinct-visitor truth for the Visitors/Conversion tiles. The old tiles
@@ -263,7 +268,7 @@ const Dashboard = () => {
     queryKey: ["dashboard", "conversion", storeId, ...rangeKey],
     queryFn: () => getConversionStats(storeId!, range),
     enabled: !!storeId,
-    placeholderData: keepPreviousData,
+    placeholderData: sameStorePlaceholder,
   });
 
   const topProductsQuery = useQuery({
@@ -682,7 +687,7 @@ const Dashboard = () => {
             className="gap-2"
             onClick={() => {
               const url = getPublicStoreUrl(currentStore);
-              if (url) window.open(url, "_blank");
+              if (url) window.open(url, "_blank", "noopener");
             }}
           >
             <ExternalLink className="h-4 w-4" />
