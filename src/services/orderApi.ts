@@ -227,6 +227,8 @@ export async function listOrders(
 export const recentOrdersQuery = (storeId: string) => ({
   queryKey: ["dashboard", "recentOrders", storeId] as const,
   queryFn: () => listOrders(storeId, { page: 1, limit: 10 }),
+  // Overrides the day-long ["dashboard"] default: these rows carry customer names.
+  gcTime: 5 * 60 * 1000,
 });
 
 /**
