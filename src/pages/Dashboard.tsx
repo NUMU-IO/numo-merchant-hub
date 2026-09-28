@@ -11,17 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import React, { useMemo, useState } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { lazyWithRetry } from "@/lib/lazy-with-retry";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   getDashboardStats,
   getRevenueChart,
@@ -93,86 +85,9 @@ function CountUp({
   return <>{format(n)}</>;
 }
 
-/* Memoized so unrelated Dashboard renders (goal edits, polls) skip Recharts. */
-const RevenueAreaChart = React.memo(function RevenueAreaChart({
-  data,
-  isAr,
-}: {
-  data: { day: string; revenue: number }[];
-  isAr: boolean;
-}) {
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data}>
-        <defs>
-          <linearGradient
-            id="colorRevenue"
-            x1="0"
-            y1="0"
-            x2="0"
-            y2="1"
-          >
-            <stop
-              offset="5%"
-              stopColor="hsl(var(--navy))"
-              stopOpacity={0.18}
-            />
-            <stop
-              offset="95%"
-              stopColor="hsl(var(--navy))"
-              stopOpacity={0}
-            />
-          </linearGradient>
-        </defs>
-        <CartesianGrid
-          strokeDasharray="3 5"
-          className="stroke-border/40"
-          vertical={false}
-        />
-        <XAxis
-          dataKey="day"
-          tick={{
-            fill: "hsl(var(--muted-foreground))",
-            fontSize: 10,
-          }}
-          axisLine={false}
-          tickLine={false}
-        />
-        <YAxis
-          tick={{
-            fill: "hsl(var(--muted-foreground))",
-            fontSize: 10,
-          }}
-          axisLine={false}
-          tickLine={false}
-          width={45}
-        />
-        <Tooltip
-          contentStyle={{
-            background: "hsl(var(--card))",
-            border: "1px solid hsl(var(--border))",
-            borderRadius: "12px",
-            boxShadow: "var(--shadow-pop)",
-            fontSize: "12px",
-            padding: "8px 12px",
-          }}
-          formatter={(value: number) => [
-            formatMoney(value * 100, { fromCents: true, locale: isAr ? "ar" : "en" }),
-            isAr ? "الإيراد" : "Revenue",
-          ]}
-        />
-        <Area
-          type="monotone"
-          dataKey="revenue"
-          stroke="hsl(var(--navy))"
-          fill="url(#colorRevenue)"
-          strokeWidth={2.5}
-          dot={false}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
-});
+// Recharts is the heaviest dependency on this page and the chart sits below the
+// fold (hidden entirely for new merchants), so it loads in its own chunk.
+const RevenueAreaChart = lazyWithRetry(() => import("@/components/dashboard/RevenueAreaChart"));
 
 /* ─── Zone head — § eyebrow + question + hairline rule ──────────────── */
 function ZoneHead({
@@ -223,36 +138,50 @@ const Dashboard = () => {
       await navigator.clipboard.writeText(url);
       toast.success(isAr ? "تم نسخ رابط المتجر" : "Store link copied");
     } catch {
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener");
     }
   };
 
   // Goals — orders/month or orders/year, persisted per-store in localStorage.
   // Lives in §GROW since "what should I do next?" is the natural home for
   // forward-looking targets. Editable inline.
-  const [goalTarget, setGoalTarget] = useState(() => {
+  const readGoal = () => {
     try {
       return Number(localStorage.getItem(`numu_goal_${storeId}`) || "50");
     } catch {
       return 50;
     }
-  });
+  };
+  const [goalTarget, setGoalTarget] = useState(readGoal);
   const [goalPeriodMode, setGoalPeriodMode] = useState<"monthly" | "yearly">("monthly");
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalInput, setGoalInput] = useState(String(goalTarget));
+  // Each store has its own goal: re-read it when the merchant switches store.
+  useEffect(() => {
+    const goal = readGoal();
+    setGoalTarget(goal);
+    setGoalInput(String(goal));
+    setEditingGoal(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
+
+  // Keep the previous range's figures while a new range loads, but never
+  // another store's: after a switch they would sit under this store's name.
+  const sameStorePlaceholder = <T,>(prev: T | undefined, prevQuery?: { queryKey: readonly unknown[] }) =>
+    prevQuery?.queryKey[2] === storeId ? prev : undefined;
 
   const statsQuery = useQuery({
     queryKey: ["dashboard", "stats", storeId, ...rangeKey],
     queryFn: () => getDashboardStats(storeId!, range),
     enabled: !!storeId,
-    placeholderData: keepPreviousData,
+    placeholderData: sameStorePlaceholder,
   });
 
   const chartQuery = useQuery({
     queryKey: ["dashboard", "chart", storeId, ...rangeKey],
     queryFn: () => getRevenueChart(storeId!, range),
     enabled: !!storeId,
-    placeholderData: keepPreviousData,
+    placeholderData: sameStorePlaceholder,
   });
 
   // Distinct-visitor truth for the Visitors/Conversion tiles. The old tiles
@@ -263,7 +192,7 @@ const Dashboard = () => {
     queryKey: ["dashboard", "conversion", storeId, ...rangeKey],
     queryFn: () => getConversionStats(storeId!, range),
     enabled: !!storeId,
-    placeholderData: keepPreviousData,
+    placeholderData: sameStorePlaceholder,
   });
 
   const topProductsQuery = useQuery({
@@ -292,6 +221,11 @@ const Dashboard = () => {
   const chartData = chartQuery.data ?? [];
   const topProducts = topProductsQuery.data ?? [];
   const recentOrders = recentOrdersQuery.data?.items ?? [];
+  // The list is newest first, so the last pending one is the oldest waiting.
+  // ponytail: only sees the 10 newest orders; a dedicated oldest-pending query
+  // is the upgrade if a backlog outgrows that.
+  const pendingRecent = recentOrders.filter((o) => o.status.toLowerCase() === "pending");
+  const oldestPending = pendingRecent[pendingRecent.length - 1];
 
   const formatCurrency = (cents: number) =>
     formatMoney(cents, { fromCents: true, locale: isAr ? "ar" : "en" });
@@ -682,7 +616,7 @@ const Dashboard = () => {
             className="gap-2"
             onClick={() => {
               const url = getPublicStoreUrl(currentStore);
-              if (url) window.open(url, "_blank");
+              if (url) window.open(url, "_blank", "noopener");
             }}
           >
             <ExternalLink className="h-4 w-4" />
@@ -925,10 +859,10 @@ const Dashboard = () => {
                       {isAr ? "جهّز دلوقتي" : "Fulfill now"}
                     </Button>
                   </div>
-                  {recentOrders.length > 0 && (
+                  {oldestPending && (
                     <button
                       type="button"
-                      onClick={() => navigate(orderPath(recentOrders[0]))}
+                      onClick={() => navigate(orderPath(oldestPending))}
                       className="mt-auto pt-3 border-t border-border souq-hoverrow rounded-lg p-2 -m-2 text-start"
                     >
                       <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-bold mb-1.5">
@@ -936,15 +870,15 @@ const Dashboard = () => {
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-mono text-[13px] font-extrabold tabular-nums truncate">
-                          {recentOrders[0].order_number}
+                          {oldestPending.order_number}
                         </span>
                         <span className="text-[14px] font-extrabold tabular-nums text-foreground">
-                          {formatCurrency(recentOrders[0].total)}
+                          {formatCurrency(oldestPending.total)}
                         </span>
                       </div>
-                      {recentOrders[0].customer_name && (
+                      {oldestPending.customer_name && (
                         <div className="text-[11.5px] text-muted-foreground truncate mt-0.5">
-                          {recentOrders[0].customer_name}
+                          {oldestPending.customer_name}
                         </div>
                       )}
                     </button>
@@ -1246,7 +1180,9 @@ const Dashboard = () => {
                   {chartQuery.isLoading && revenueChartData.length === 0 ? (
                     <Skeleton className="h-full w-full rounded-lg" />
                   ) : revenueChartData.length > 0 ? (
-                    <RevenueAreaChart data={revenueChartData} isAr={isAr} />
+                    <Suspense fallback={<Skeleton className="h-full w-full rounded-lg" />}>
+                      <RevenueAreaChart data={revenueChartData} isAr={isAr} />
+                    </Suspense>
                   ) : (
                     <EmptyState
                       icon={TrendingUp}

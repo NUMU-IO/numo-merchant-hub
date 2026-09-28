@@ -110,8 +110,19 @@ export class ErrorBoundary extends Component<Props, State> {
         setTimeout(() => this.setState({ recovering: false }), 10_000);
         return;
       }
-      // Already tried within the cooldown — the chunk is genuinely gone.
-      // Fall through and render the error UI.
+      // Already tried within the cooldown. The recovery replaced the shell,
+      // so a second failure is almost always the network (Safari says
+      // "Importing a module script failed." for both). The merchant gets the
+      // offline message; Sentry gets one grouped warning instead of a new
+      // high-priority issue per route, and nothing at all when the browser
+      // already knows it is offline.
+      if (navigator.onLine === false) return;
+      Sentry.captureException(error, {
+        level: "warning",
+        fingerprint: ["stale-chunk-after-recovery"],
+        extra: { componentStack: errorInfo.componentStack },
+      });
+      return;
     }
     Sentry.captureException(error, {
       extra: { componentStack: errorInfo.componentStack },
@@ -137,9 +148,13 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="flex items-center justify-center min-h-screen p-8 bg-background">
           <div className="flex flex-col items-center w-full max-w-md text-center">
             <AlertTriangle size={48} className="text-destructive mb-4" />
-            <h1 className="text-xl font-semibold mb-2">Something went wrong</h1>
+            <h1 className="text-xl font-semibold mb-2">
+              {isStaleChunkError(this.state.error) ? i18n.t("shell.offlineTitle") : "Something went wrong"}
+            </h1>
             <p className="text-muted-foreground mb-6">
-              {this.state.error?.message || "An unexpected error occurred."}
+              {isStaleChunkError(this.state.error)
+                ? i18n.t("shell.offlineBody")
+                : this.state.error?.message || "An unexpected error occurred."}
             </p>
             <button
               type="button"

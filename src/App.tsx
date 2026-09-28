@@ -264,7 +264,7 @@ function SwitchVersionOnNavigate() {
 
 function RouteResolver({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading: authLoading, user, bootError } = useAuth();
-  const { hasStores, isLoading: storeLoading } = useDashboardStore();
+  const { hasStores, isLoading: storeLoading, loadError: storeError } = useDashboardStore();
 
   // Single loading state for all checks
   if (authLoading || (isAuthenticated && storeLoading)) {
@@ -274,6 +274,8 @@ function RouteResolver({ children }: { children: React.ReactNode }) {
   if (bootError && !isAuthenticated) return <BrandLoadingScreen error />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user && !user.is_verified) return <Navigate to="/verify-email" replace />;
+  // A failed store fetch is not "no store": offline screen + Retry.
+  if (!hasStores && storeError) return <BrandLoadingScreen error />;
   if (!hasStores) return <NoStoreRedirect />;
 
   return <>{children}</>;
@@ -283,12 +285,13 @@ function RouteResolver({ children }: { children: React.ReactNode }) {
  *  store. getPartnerMe is null while the Partner program is closed, so
  *  merchant sign-up is unchanged until it opens. */
 function NoStoreRedirect() {
-  const { data: me, isLoading } = useQuery({
+  const { data: me, isLoading, isError } = useQuery({
     queryKey: ["partners", "me"],
     queryFn: getPartnerMe,
     retry: false,
   });
   if (isLoading) return <BrandLoadingScreen />;
+  if (isError) return <BrandLoadingScreen error />;
   return <Navigate to={me?.account ? "/partners" : "/create-store"} replace />;
 }
 

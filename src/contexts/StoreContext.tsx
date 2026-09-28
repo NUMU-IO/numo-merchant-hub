@@ -27,6 +27,9 @@ interface StoreContextType {
   currentStore: StoreData | null;
   isLoading: boolean;
   hasStores: boolean;
+  /** The store list could not be loaded (network, 5xx). Distinct from
+   *  "no stores", which sends the merchant to /create-store. */
+  loadError: boolean;
   switchStore: (storeId: string) => void;
   /** Refetch the store list. Pass `preferId` to select a specific store
    *  (e.g. one just created) instead of the saved/first store. */
@@ -38,6 +41,7 @@ const StoreContext = createContext<StoreContextType>({
   currentStore: null,
   isLoading: true,
   hasStores: false,
+  loadError: false,
   switchStore: () => {},
   refetchStores: async () => {},
 });
@@ -49,6 +53,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
   const [stores, setStores] = useState<StoreData[]>([]);
   const [currentStore, setCurrentStore] = useState<StoreData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // Track which auth state we last fetched for, so we know when to re-fetch
   const fetchedForAuthRef = useRef<boolean | null>(null);
@@ -70,6 +75,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
       const result = await listStores();
       const items = result?.items || [];
       setStores(items);
+      setLoadError(false);
 
       if (items.length > 0) {
         // Selection priority: explicit preferId (e.g. a just-created store)
@@ -90,9 +96,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
       }
       fetchedForAuthRef.current = true;
     } catch (err) {
+      // Keep whatever was loaded before: an empty list here reads as "this
+      // merchant has no store" and bounces them to /create-store.
       console.error("[StoreContext] Failed to fetch stores:", err);
-      setStores([]);
-      setCurrentStore(null);
+      setLoadError(true);
       fetchedForAuthRef.current = true;
     } finally {
       if (isInitial) setIsLoading(false);
@@ -194,10 +201,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({
       currentStore,
       isLoading: effectiveLoading,
       hasStores: stores.length > 0,
+      loadError,
       switchStore,
       refetchStores: fetchStores,
     }),
-    [stores, currentStore, effectiveLoading, switchStore, fetchStores],
+    [stores, currentStore, effectiveLoading, loadError, switchStore, fetchStores],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

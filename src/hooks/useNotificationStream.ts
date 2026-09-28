@@ -48,13 +48,16 @@ export function useNotificationStream(storeId: string | undefined) {
       void invalidateNotificationQueries(qc, storeId);
       if (storeId && ev.category === "orders") {
         void qc.invalidateQueries({ queryKey: recentOrdersQuery(storeId).queryKey });
+        // The "waiting on you" count comes from stats, not the order list.
+        void qc.invalidateQueries({ queryKey: ["dashboard", "stats", storeId] });
       }
       if (ev.important) {
         toast(t("notifications.importantToast"), {
           description: t(`notifications.kindShort.${(ev.kind ?? "").replace(".", "_")}`, {
             defaultValue: "",
           }),
-          action: ev.link
+          // Server-sent: only an in-app path or https, never javascript:.
+          action: ev.link && /^(\/(?!\/)|https:\/\/)/.test(ev.link)
             ? { label: t("notifications.open"), onClick: () => window.location.assign(ev.link!) }
             : undefined,
         });
