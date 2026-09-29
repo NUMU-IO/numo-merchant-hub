@@ -68,13 +68,13 @@ export default function Invoices() {
       year: "numeric", month: "short", day: "numeric",
     });
 
-  const statusConfig: Record<string, { bg: string; dot: string }> = {
-    draft: { bg: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-200/60", dot: "bg-zinc-400" },
-    pending: { bg: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200/60", dot: "bg-amber-500" },
-    submitted: { bg: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200/60", dot: "bg-blue-500" },
-    accepted: { bg: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200/60", dot: "bg-emerald-500" },
-    rejected: { bg: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200/60", dot: "bg-red-500" },
-    cancelled: { bg: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-200/60", dot: "bg-zinc-300" },
+  const statusConfig: Record<string, { bg: string; dot: string; label: [string, string] }> = {
+    draft: { bg: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-200/60", dot: "bg-zinc-400", label: ["مسودة", "Draft"] },
+    pending: { bg: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200/60", dot: "bg-amber-500", label: ["مستنية", "Pending"] },
+    submitted: { bg: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200/60", dot: "bg-blue-500", label: ["مرسلة", "Submitted"] },
+    accepted: { bg: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200/60", dot: "bg-emerald-500", label: ["مقبولة", "Accepted"] },
+    rejected: { bg: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-200/60", dot: "bg-red-500", label: ["مرفوضة", "Rejected"] },
+    cancelled: { bg: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-200/60", dot: "bg-zinc-300", label: ["ملغية", "Cancelled"] },
   };
 
   const typeLabels: Record<string, string> = {
@@ -159,7 +159,7 @@ export default function Invoices() {
           </div>
           <Badge variant="outline" className={`text-[10px] font-medium gap-1.5 rounded-md py-0.5 ${cfg.bg}`}>
             <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
-            {inv.status}
+            {isAr ? cfg.label[0] : cfg.label[1]}
           </Badge>
         </div>
 
@@ -361,7 +361,7 @@ export default function Invoices() {
                                 className={`gap-1.5 rounded-md py-0.5 text-[10px] font-medium ${cfg.bg}`}
                               >
                                 <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
-                                {inv.status}
+                                {isAr ? cfg.label[0] : cfg.label[1]}
                               </Badge>
                               <Badge variant="secondary" className="text-[10px] font-normal">
                                 {typeLabels[inv.invoice_type]}
@@ -419,7 +419,7 @@ export default function Invoices() {
                         <TableCell>
                           <Badge variant="outline" className={`text-[10px] font-medium gap-1.5 rounded-md py-0.5 ${cfg.bg}`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
-                            {inv.status}
+                            {isAr ? cfg.label[0] : cfg.label[1]}
                           </Badge>
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
