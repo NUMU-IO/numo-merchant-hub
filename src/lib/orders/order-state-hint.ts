@@ -12,10 +12,18 @@ export interface OrderStateInput {
   status: string | null | undefined;
   payment_status: string | null | undefined;
   payment_method?: string | null;
+  /** null = COD cash still with the courier; undefined = API predates it. */
+  cash_received_at?: string | null;
+  deposit_paid_at?: string | null;
 }
 
 export type OrderStateHint = {
-  key: "orders.hint.refundDue" | "orders.hint.codCollect" | "orders.hint.awaitingCod";
+  key:
+    | "orders.hint.refundDue"
+    | "orders.hint.codCollect"
+    | "orders.hint.awaitingCod"
+    | "orders.hint.cashWithCourier"
+    | "orders.hint.depositPaid";
   tone: "warning" | "info";
 };
 
@@ -31,12 +39,19 @@ export function orderStateHint(o: OrderStateInput): OrderStateHint | null {
     return { key: "orders.hint.refundDue", tone: "warning" };
   }
 
+  // Paid at the door, but the courier still holds the cash.
+  if (isCod && pay === "paid" && o.cash_received_at === null) {
+    return { key: "orders.hint.cashWithCourier", tone: "warning" };
+  }
+
   if (isCod && pay !== "paid") {
-    // Shipped COD: cash is with the courier until delivery + remittance.
+    // Shipped COD: the customer pays the courier on delivery.
     if (status === "shipped") return { key: "orders.hint.awaitingCod", tone: "info" };
     // Confirmed / in preparation COD: nothing is wrong, it's paid on delivery.
     if (status === "confirmed" || status === "processing" || status === "pending") {
-      return { key: "orders.hint.codCollect", tone: "info" };
+      return o.deposit_paid_at
+        ? { key: "orders.hint.depositPaid", tone: "info" }
+        : { key: "orders.hint.codCollect", tone: "info" };
     }
   }
 

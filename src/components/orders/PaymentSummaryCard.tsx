@@ -123,7 +123,9 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
     onSuccess: invalidatePayments,
     onError: (err) => showError(err, language),
   });
-  const cashPending = order.is_paid && order.payment_method === "cod";
+  // `=== undefined` means the API predates cash tracking: show nothing.
+  const cashPending =
+    order.is_paid && order.payment_method === "cod" && order.cash_received_at !== undefined;
 
   const voidPayment = useMutation({
     mutationFn: (args: { proofId: string; reason: string }) =>
@@ -250,6 +252,18 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
             <p className="text-sm text-muted-foreground">
               {language === "ar" ? "طريقة الدفع: " : "Method: "}
               {paymentMethodLabel(order.payment_method, language === "ar")}
+            </p>
+          )}
+          {!!order.deposit_amount_cents && (
+            <p className="text-sm text-muted-foreground">
+              {language === "ar" ? "العربون: " : "Deposit: "}
+              <span className={order.deposit_paid_at ? "text-sky-700 dark:text-sky-400" : ""}>
+                {fmt(order.deposit_amount_cents)}
+                {" · "}
+                {order.deposit_paid_at
+                  ? language === "ar" ? "اتدفع" : "paid"
+                  : language === "ar" ? "لسه ما اتدفعش" : "not paid yet"}
+              </span>
             </p>
           )}
           {cashPending && currentStore?.id && (
