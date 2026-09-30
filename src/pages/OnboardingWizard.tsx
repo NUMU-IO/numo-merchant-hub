@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { NicheIcon } from "@/components/onboarding/NicheIcon";
 import { cn } from "@/lib/utils";
+import { clearPrefill, readPrefill } from "@/lib/onboardingPrefill";
 
 /* ──────────────────────────── Types ──────────────────────────── */
 
@@ -157,6 +158,16 @@ const PAYMENT_OPTIONS_SA: PaymentOption[] = [
   { id: "moyasar", label: "مدى / بطاقة / Apple Pay (ميسر)", desc: "مدى، فيزا، ماستركارد، Apple Pay" },
 ];
 
+// What the landing page's onboarding chat may pre-select (Egyptian options;
+// a Saudi store keeps only the niche and qualification answers).
+const PREFILL_OPTIONS = {
+  niche: NICHES.map((n) => n.id),
+  sellsWhere: SELLS_WHERE.map((o) => o.id),
+  ordersBand: ORDER_BANDS.map((o) => o.id),
+  payments: PAYMENT_OPTIONS.map((o) => o.id),
+  shipping: SHIPPING_OPTIONS.map((o) => o.id),
+};
+
 // Steps: 0 = welcome, 1-4 = config, 5 = first product, 6 = preview
 const TOTAL_STEPS = 6;
 
@@ -182,16 +193,21 @@ export default function OnboardingWizard() {
 
   // Wizard state. Country seeds from the store's market (chosen at store
   // creation) so a Saudi store lands on the SA options without re-picking.
+  // Answers from the landing page's onboarding chat, if the merchant came
+  // that way. Read once; cleared when the configuration is saved.
+  const storeCountry = (currentStore?.country || "EG").toUpperCase();
+  const [prefill] = useState(() => readPrefill(PREFILL_OPTIONS));
+  const egPrefill = storeCountry === "EG" ? prefill : null;
   const [step, setStep] = useState(0); // 0 = welcome
-  const [businessType, setBusinessType] = useState<string>("");
-  const [country, setCountry] = useState<string>(
-    (currentStore?.country || "EG").toUpperCase(),
-  );
-  const [sellsWhereToday, setSellsWhereToday] = useState<string>("");
-  const [monthlyOrdersBand, setMonthlyOrdersBand] = useState<string>("");
+  const [businessType, setBusinessType] = useState<string>(prefill?.niche ?? "");
+  const [country, setCountry] = useState<string>(storeCountry);
+  const [sellsWhereToday, setSellsWhereToday] = useState<string>(prefill?.sellsWhere ?? "");
+  const [monthlyOrdersBand, setMonthlyOrdersBand] = useState<string>(prefill?.ordersBand ?? "");
   const [city, setCity] = useState<string>("");
-  const [shippingPref, setShippingPref] = useState<string>("");
-  const [paymentMethods, setPaymentMethods] = useState<string[]>(["cod"]);
+  const [shippingPref, setShippingPref] = useState<string>(egPrefill?.shipping ?? "");
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(
+    egPrefill?.payments ? Array.from(new Set(["cod", ...egPrefill.payments])) : ["cod"],
+  );
 
   // Market-aware option lists: a Saudi store sees Moyasar + manual shipping;
   // an Egyptian store sees Paymob/Fawry/Kashier + Bosta.
@@ -311,6 +327,7 @@ export default function OnboardingWizard() {
 
     try {
       await configureFromWizard(currentStore.id, config);
+      clearPrefill();
       // The qualification answers ride along as properties so a funnel can
       // be split by merchant type without joining anything.
       track("onboarding_completed", {
@@ -427,6 +444,12 @@ export default function OnboardingWizard() {
         <p className="text-muted-foreground text-sm">
           {isAr ? "اختار التصنيف الأقرب — هنضبط المتجر على أساسه" : "Pick the closest category — we'll optimize your store for it"}
         </p>
+        {prefill && (
+          <p className="inline-flex items-center gap-1.5 rounded-full border border-[var(--b-saffron)]/40 bg-[var(--b-saffron)]/10 px-3 py-1 text-xs font-medium text-[var(--b-ink)]">
+            <Sparkles className="h-3.5 w-3.5 text-[var(--b-saffron)]" />
+            {isAr ? "اخترنالك دول من إجاباتك في شات نُمُو — غيّر اللي تحبه." : "Picked from your answers in the numu chat — change anything you like."}
+          </p>
+        )}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {NICHES.map((niche) => (

@@ -79,7 +79,7 @@ export function CustomerPanel({ storeId, order }: Props) {
                   className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
                 >
                   <Phone className="h-3.5 w-3.5 shrink-0" />
-                  <span>{customer.phone}</span>
+                  <span className="ltr-nums">{customer.phone}</span>
                 </a>
               )}
             </div>

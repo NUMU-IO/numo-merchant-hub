@@ -39,8 +39,11 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
     if (!focused) setText(centsToText(cents));
   }, [cents, focused]);
 
+  // The wrapper is LTR too: the input is, so its `pe-14` pads the right, and
+  // the currency chip's `end-3` must resolve to the same side or it sits on
+  // top of the amount in Arabic.
   return (
-    <div className="relative">
+    <div className="relative" dir="ltr">
       <Input
         ref={ref}
         type="text"

@@ -15,11 +15,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Loader2, Plus, Printer, Undo2 } from "lucide-react";
+import { CheckCircle2, Loader2, Plus, Printer, Truck, Undo2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { printOrderInvoice } from "@/services/invoiceApi";
 import { showError } from "@/lib/show-error";
-import type { Order } from "@/services/orderApi";
+import { markCashReceived, type Order } from "@/services/orderApi";
 import type { RefundListItem } from "@/services/refundApi";
 import InstapayProofReview, {
   paymentProofsQueryKey,
@@ -114,6 +114,16 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
     },
     onError: (err) => showError(err, language),
   });
+
+  // COD: the customer paid the courier, but the cash reaches the merchant
+  // only when the courier remits it. Tracked separately from "paid".
+  const cashReceived = useMutation({
+    mutationFn: (received: boolean) =>
+      markCashReceived(currentStore!.id, [order.id], received),
+    onSuccess: invalidatePayments,
+    onError: (err) => showError(err, language),
+  });
+  const cashPending = order.is_paid && order.payment_method === "cod";
 
   const voidPayment = useMutation({
     mutationFn: (args: { proofId: string; reason: string }) =>
@@ -241,6 +251,53 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
               {language === "ar" ? "طريقة الدفع: " : "Method: "}
               {paymentMethodLabel(order.payment_method, language === "ar")}
             </p>
+          )}
+          {cashPending && currentStore?.id && (
+            order.cash_received_at ? (
+              <div className="flex items-center justify-between gap-2 rounded-md bg-emerald-500/10 px-2.5 py-1.5 text-sm text-emerald-700 dark:text-emerald-400">
+                <span className="flex items-center gap-1.5">
+                  <Wallet className="h-3.5 w-3.5" />
+                  {language === "ar" ? "الفلوس وصلتك" : "Cash collected"}
+                  {" · "}
+                  {new Date(order.cash_received_at).toLocaleDateString(
+                    language === "ar" ? "ar-EG" : "en-GB",
+                    { day: "numeric", month: "short" },
+                  )}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs text-muted-foreground"
+                  disabled={cashReceived.isPending}
+                  onClick={() => cashReceived.mutate(false)}
+                >
+                  {language === "ar" ? "تراجع" : "Undo"}
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2.5 py-1.5 text-sm text-amber-700 dark:text-amber-400">
+                  <Truck className="h-3.5 w-3.5" />
+                  {language === "ar"
+                    ? "اتدفع للمندوب، والفلوس لسه مع شركة الشحن"
+                    : "Paid to the courier, cash not collected yet"}
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full gap-1.5"
+                  disabled={cashReceived.isPending}
+                  onClick={() => cashReceived.mutate(true)}
+                >
+                  {cashReceived.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Wallet className="h-3.5 w-3.5" />
+                  )}
+                  {language === "ar" ? "استلمت الفلوس" : "Mark cash collected"}
+                </Button>
+              </>
+            )
           )}
           {canRecordPayment && (
             <Button
