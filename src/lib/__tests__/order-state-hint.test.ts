@@ -19,7 +19,19 @@ describe("orderStateHint", () => {
     expect(orderStateHint({ status: "processing", payment_status: "cod" })?.key).toBe("orders.hint.codCollect");
   });
 
-  it("COD shipped but unpaid → awaiting courier remittance", () => {
+  it("paid COD with cash still at the courier → cash with courier", () => {
+    expect(orderStateHint({ status: "delivered", payment_status: "paid", payment_method: "cod", cash_received_at: null })?.key)
+      .toBe("orders.hint.cashWithCourier");
+    expect(orderStateHint({ status: "delivered", payment_status: "paid", payment_method: "cod", cash_received_at: "2026-10-05" }))
+      .toBeNull();
+  });
+
+  it("COD with a paid deposit → deposit paid, rest on delivery", () => {
+    expect(orderStateHint({ status: "confirmed", payment_status: "pending", payment_method: "cod", deposit_paid_at: "2026-09-29" })?.key)
+      .toBe("orders.hint.depositPaid");
+  });
+
+  it("COD shipped but unpaid → customer pays on delivery", () => {
     expect(orderStateHint({ status: "shipped", payment_status: "pending", payment_method: "cod" })?.key)
       .toBe("orders.hint.awaitingCod");
   });

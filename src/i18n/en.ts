@@ -1509,7 +1509,9 @@ export default {
     hint: {
       refundDue: "Paid but cancelled — a refund is due",
       codCollect: "COD — cash is collected on delivery",
-      awaitingCod: "Shipped COD — awaiting courier cash remittance",
+      awaitingCod: "Shipped COD — the customer pays the courier on delivery",
+      cashWithCourier: "Paid to the courier — mark cash collected once they pay you",
+      depositPaid: "Deposit paid — the rest is collected on delivery",
     },
     noShipment: "No shipment yet",
     tracking: "Tracking",

@@ -93,6 +93,9 @@ export interface Order {
   paid_at: string | null;
   /** COD: when the courier's cash reached the merchant; null = still with the courier. */
   cash_received_at?: string | null;
+  /** COD deposit asked for / collected up front; null = no deposit. */
+  deposit_amount_cents?: number | null;
+  deposit_paid_at?: string | null;
   fulfilled_at: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
@@ -155,6 +158,9 @@ export interface OrderListItem {
   tracking_number?: string | null;
   /** COD: when the courier's cash reached the merchant; null = still with the courier. */
   cash_received_at?: string | null;
+  /** COD deposit asked for / collected up front; null = no deposit. */
+  deposit_amount_cents?: number | null;
+  deposit_paid_at?: string | null;
 }
 
 /** GET /stores/{id}/orders/counts — per-status counts for the tab badges. */

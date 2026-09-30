@@ -57,6 +57,7 @@ import { OrderRowExpansion } from "@/components/orders/OrderRowExpansion";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { PaymentStatusBadge } from "@/components/orders/PaymentStatusBadge";
 import { orderStateHint } from "@/lib/orders/order-state-hint";
+import { CodCashIntroDialog } from "@/components/orders/CodCashIntroDialog";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -1027,6 +1028,18 @@ const Orders = () => {
 
   return (
     <div className="md:p-6 max-w-[1200px] mx-auto space-y-4">
+      <CodCashIntroDialog
+        count={cashCount}
+        isAr={isAr}
+        onShowOrders={() => {
+          setCashView(true);
+          setStatusFilter("all");
+          setPendingInstapay(false);
+          setAutopilotView(false);
+          setPage(1);
+          setSelected(new Set());
+        }}
+      />
       <PageHeader
         title={isAr ? "قائمة الطلبات" : "Orders"}
         subtitle={isAr ? "تابع طلباتك وجهّزها" : "Track and fulfill your orders"}
@@ -1333,9 +1346,17 @@ const Orders = () => {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <OrderStatusBadge status={o.status} />
                       <PaymentStatusBadge status={o.payment_status} />
-                      {o.payment_status === "paid" && o.payment_method === "cod" && !o.cash_received_at && (
+                      {o.payment_status === "paid" && o.payment_method === "cod" && o.cash_received_at === null && (
                         <Badge variant="outline" className="text-[10px] font-medium rounded-md py-0.5 border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400">
                           {isAr ? "الفلوس مع الشحن" : "Cash with courier"}
+                        </Badge>
+                      )}
+                      {!!o.deposit_amount_cents && (
+                        <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 ${o.deposit_paid_at ? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400" : "border-muted-foreground/20 text-muted-foreground"}`}>
+                          {o.deposit_paid_at
+                            ? (isAr ? "عربون مدفوع " : "Deposit paid ")
+                            : (isAr ? "عربون مطلوب " : "Deposit due ")}
+                          {formatCurrency(o.deposit_amount_cents, o.currency)}
                         </Badge>
                       )}
                       {/* backend-031 — WhatsApp customer-confirmation
@@ -1433,9 +1454,17 @@ const Orders = () => {
                     <TableCell className="text-xs text-muted-foreground">{o.payment_method || "—"}</TableCell>
                     <TableCell>
                       <PaymentStatusBadge status={o.payment_status} />
-                      {o.payment_status === "paid" && o.payment_method === "cod" && !o.cash_received_at && (
+                      {o.payment_status === "paid" && o.payment_method === "cod" && o.cash_received_at === null && (
                         <Badge variant="outline" className="text-[10px] font-medium rounded-md py-0.5 border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400">
                           {isAr ? "الفلوس مع الشحن" : "Cash with courier"}
+                        </Badge>
+                      )}
+                      {!!o.deposit_amount_cents && (
+                        <Badge variant="outline" className={`text-[10px] font-medium rounded-md py-0.5 ${o.deposit_paid_at ? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400" : "border-muted-foreground/20 text-muted-foreground"}`}>
+                          {o.deposit_paid_at
+                            ? (isAr ? "عربون مدفوع " : "Deposit paid ")
+                            : (isAr ? "عربون مطلوب " : "Deposit due ")}
+                          {formatCurrency(o.deposit_amount_cents, o.currency)}
                         </Badge>
                       )}
                     </TableCell>
