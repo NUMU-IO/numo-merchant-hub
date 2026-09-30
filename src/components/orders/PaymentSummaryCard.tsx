@@ -264,6 +264,15 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
                   ? language === "ar" ? "اتدفع" : "paid"
                   : language === "ar" ? "لسه ما اتدفعش" : "not paid yet"}
               </span>
+              {!!order.deposit_paid_at &&
+                !!order.deposit_required_cents &&
+                order.deposit_required_cents !== order.deposit_amount_cents && (
+                  <span className="text-amber-700 dark:text-amber-400">
+                    {language === "ar"
+                      ? ` (المطلوب ${fmt(order.deposit_required_cents)})`
+                      : ` (of ${fmt(order.deposit_required_cents)} asked)`}
+                  </span>
+                )}
             </p>
           )}
           {cashPending && currentStore?.id && (

@@ -95,6 +95,8 @@ export interface Order {
   cash_received_at?: string | null;
   /** COD deposit asked for / collected up front; null = no deposit. */
   deposit_amount_cents?: number | null;
+  /** What the store's deposit policy asked for. */
+  deposit_required_cents?: number | null;
   deposit_paid_at?: string | null;
   fulfilled_at: string | null;
   shipped_at: string | null;
@@ -160,6 +162,8 @@ export interface OrderListItem {
   cash_received_at?: string | null;
   /** COD deposit asked for / collected up front; null = no deposit. */
   deposit_amount_cents?: number | null;
+  /** What the store's deposit policy asked for. */
+  deposit_required_cents?: number | null;
   deposit_paid_at?: string | null;
 }
 
