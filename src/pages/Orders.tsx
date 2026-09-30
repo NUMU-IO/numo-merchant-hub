@@ -7,7 +7,7 @@ import { formatMoney } from "@/lib/format-money";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   listOrders, getOrder, getOrderCounts, updateOrderStatus as apiUpdateStatus,
-  bulkUpdateStatus, getOrderTimeline, markOrderPaid, updateOrder,
+  bulkUpdateStatus, getOrderTimeline, markCashReceived, markOrderPaid, updateOrder,
   type OrderListItem, type Order as ApiOrder, type TimelineEvent,
 } from "@/services/orderApi";
 import {
@@ -33,7 +33,7 @@ import {
 import {
   ArrowLeft, CheckCircle2, Circle, Clock, Package, Truck, XCircle,
   MoreHorizontal, Printer, FileDown, FileUp, ChevronRight, ChevronDown, ArrowRightCircle, Loader2,
-  RotateCcw, AlertCircle, Search, X,
+  RotateCcw, AlertCircle, Search, X, Wallet,
   RefreshCw,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
@@ -115,6 +115,8 @@ const Orders = () => {
   // Autopilot couldn't close (refused / no response). Mutually exclusive
   // with both statusFilter and pendingInstapay.
   const [autopilotView, setAutopilotView] = useState(false);
+  // COD orders paid at the door whose cash the courier hasn't handed over.
+  const [cashView, setCashView] = useState(false);
 
   // Shopify-style date range. URL-synced, shared with any other page
   // mounted on the same route segment.
@@ -143,14 +145,20 @@ const Orders = () => {
 
   // React Query hook for orders list
   const ordersQuery = useQuery({
-    queryKey: ["orders", storeId, page, statusFilter, dateFrom, dateTo, search],
+    queryKey: ["orders", storeId, page, statusFilter, dateFrom, dateTo, search, cashView],
     queryFn: () => {
       const params: Record<string, string | number | boolean> = {
         page,
         limit: 20,
-        date_from: dateFrom,
-        date_to: dateTo,
       };
+      // Cash still with the courier is owed regardless of when the order
+      // was placed, so that view ignores the date range.
+      if (cashView) {
+        params.cash_received = false;
+      } else {
+        params.date_from = dateFrom;
+        params.date_to = dateTo;
+      }
       if (statusFilter !== "all") params.status = statusFilter;
       if (search) params.search = search;
       return listOrders(storeId!, params);
@@ -192,6 +200,14 @@ const Orders = () => {
     refetchInterval: 60_000,
   });
   const autopilotCount = autopilotBadgeQuery.data?.total ?? 0;
+
+  // Under ["orders", storeId] so invalidateOrders() refreshes it.
+  const cashBadgeQuery = useQuery({
+    queryKey: ["orders", storeId, "cash-with-courier-count"],
+    queryFn: () => listOrders(storeId!, { page: 1, limit: 1, cash_received: false }),
+    enabled: !!storeId,
+  });
+  const cashCount = cashBadgeQuery.data?.total ?? 0;
 
   // Actual page fetch when the chip is active.
   const pendingInstapayQuery = useQuery({
@@ -437,6 +453,22 @@ const Orders = () => {
             : `Failed to update ${result.failed} orders`
         );
       }
+      setSelected(new Set());
+      invalidateOrders();
+    } catch (err: unknown) {
+      showError(err, language);
+    }
+  };
+
+  const handleBulkCashReceived = async () => {
+    if (!storeId || selected.size === 0) return;
+    try {
+      const { updated } = await markCashReceived(storeId, Array.from(selected));
+      toast.success(
+        isAr
+          ? `اتسجّل استلام فلوس ${updated} طلب`
+          : `Cash collected for ${updated} orders`,
+      );
       setSelected(new Set());
       invalidateOrders();
     } catch (err: unknown) {
@@ -1046,14 +1078,14 @@ const Orders = () => {
               { v: "delivered", l: isAr ? "مُكتمل" : "Delivered" },
               { v: "cancelled", l: isAr ? "مُلغى" : "Cancelled" },
             ] as { v: "all" | FulfillmentStatus; l: string }[]).map(f => {
-              const active = statusFilter === f.v && !pendingInstapay && !autopilotView;
+              const active = statusFilter === f.v && !pendingInstapay && !autopilotView && !cashView;
               const count = f.v === "all" ? statusCounts?.total : statusCounts?.by_status?.[f.v];
               return (
                 <button
                   key={f.v}
                   type="button"
                   data-active={active}
-                  onClick={() => { setStatusFilter(f.v); setPendingInstapay(false); setAutopilotView(false); setPage(1); setSelected(new Set()); }}
+                  onClick={() => { setStatusFilter(f.v); setPendingInstapay(false); setAutopilotView(false); setCashView(false); setPage(1); setSelected(new Set()); }}
                   className="souq-chip h-9"
                 >
                   {f.l}
@@ -1072,6 +1104,7 @@ const Orders = () => {
               onClick={() => {
                 setPendingInstapay(true);
                 setAutopilotView(false);
+                setCashView(false);
                 setPage(1);
                 setSelected(new Set());
               }}
@@ -1100,6 +1133,7 @@ const Orders = () => {
               onClick={() => {
                 setAutopilotView(true);
                 setPendingInstapay(false);
+                setCashView(false);
                 setPage(1);
                 setSelected(new Set());
               }}
@@ -1117,6 +1151,35 @@ const Orders = () => {
                   }`}
                 >
                   {autopilotCount > 99 ? "99+" : autopilotCount}
+                </span>
+              )}
+            </button>
+
+            {/* COD paid at the door, cash not yet handed over by the courier. */}
+            <button
+              type="button"
+              onClick={() => {
+                setCashView(true);
+                setStatusFilter("all");
+                setPendingInstapay(false);
+                setAutopilotView(false);
+                setPage(1);
+                setSelected(new Set());
+              }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border whitespace-nowrap cursor-pointer ${
+                cashView
+                  ? "border-sky-500/30 bg-sky-600 text-white shadow-sm"
+                  : "border-transparent bg-sky-50 text-sky-800 hover:bg-sky-100"
+              }`}
+            >
+              {isAr ? "فلوس مع الشحن" : "Cash with courier"}
+              {cashCount > 0 && (
+                <span
+                  className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold tabular-nums ms-1.5 ${
+                    cashView ? "bg-white/25 text-white" : "bg-sky-600 text-white"
+                  }`}
+                >
+                  {cashCount > 99 ? "99+" : cashCount}
                 </span>
               )}
             </button>
@@ -1175,6 +1238,14 @@ const Orders = () => {
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 {isAr ? "تحديد كمرتجع" : "Mark Returned"}
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 text-xs gap-1.5 bg-white/10 border-white/20 text-white hover:bg-white/15 shadow-none"
+                onClick={handleBulkCashReceived}
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                {isAr ? "استلمت الفلوس" : "Cash collected"}
               </Button>
               <Button
                 variant="accent"
@@ -1262,6 +1333,11 @@ const Orders = () => {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <OrderStatusBadge status={o.status} />
                       <PaymentStatusBadge status={o.payment_status} />
+                      {o.payment_status === "paid" && o.payment_method === "cod" && !o.cash_received_at && (
+                        <Badge variant="outline" className="text-[10px] font-medium rounded-md py-0.5 border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                          {isAr ? "الفلوس مع الشحن" : "Cash with courier"}
+                        </Badge>
+                      )}
                       {/* backend-031 — WhatsApp customer-confirmation
                           state. Only renders when the store opted into
                           require_order_confirmation (status is non-null).
@@ -1357,6 +1433,11 @@ const Orders = () => {
                     <TableCell className="text-xs text-muted-foreground">{o.payment_method || "—"}</TableCell>
                     <TableCell>
                       <PaymentStatusBadge status={o.payment_status} />
+                      {o.payment_status === "paid" && o.payment_method === "cod" && !o.cash_received_at && (
+                        <Badge variant="outline" className="text-[10px] font-medium rounded-md py-0.5 border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                          {isAr ? "الفلوس مع الشحن" : "Cash with courier"}
+                        </Badge>
+                      )}
                     </TableCell>
                     {/* Shipping — was a hardcoded "—" for every row. */}
                     <TableCell className="text-xs">

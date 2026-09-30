@@ -91,6 +91,8 @@ export interface Order {
   can_be_cancelled: boolean;
   cancelled_at: string | null;
   paid_at: string | null;
+  /** COD: when the courier's cash reached the merchant; null = still with the courier. */
+  cash_received_at?: string | null;
   fulfilled_at: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
@@ -151,6 +153,8 @@ export interface OrderListItem {
   /** Hub "Shipping" column. Both null until a shipment/courier exists. */
   shipping_method?: string | null;
   tracking_number?: string | null;
+  /** COD: when the courier's cash reached the merchant; null = still with the courier. */
+  cash_received_at?: string | null;
 }
 
 /** GET /stores/{id}/orders/counts — per-status counts for the tab badges. */
@@ -195,6 +199,8 @@ export interface ListOrdersParams {
   date_to?: string;
   search?: string;
   customer_id?: string;
+  /** false = paid COD whose cash is still with the courier; true = received. */
+  cash_received?: boolean;
 }
 
 // ── API calls ──
@@ -217,6 +223,7 @@ export async function listOrders(
   // filter and silently got "all orders for the store" back (showed up on
   // the customer-history card as unrelated orders).
   if (params?.customer_id) qs.set("customer_id", params.customer_id);
+  if (params?.cash_received != null) qs.set("cash_received", String(params.cash_received));
   const query = qs.toString();
   return apiClient<PaginatedOrders>(
     `/stores/${storeId}/orders/${query ? `?${query}` : ""}`,
@@ -329,6 +336,21 @@ export async function markOrderPaid(
 ): Promise<Order> {
   return apiClient<Order>(`/stores/${storeId}/orders/${orderId}/mark-paid`, {
     method: "POST",
+  });
+}
+
+/**
+ * COD: the courier handed over the cash for these paid orders (or undo with
+ * `received: false`). Idempotent; unpaid orders are skipped server-side.
+ */
+export async function markCashReceived(
+  storeId: string,
+  orderIds: string[],
+  received = true,
+): Promise<{ updated: number }> {
+  return apiClient<{ updated: number }>(`/stores/${storeId}/orders/cash-received`, {
+    method: "POST",
+    body: JSON.stringify({ order_ids: orderIds, received }),
   });
 }
 
