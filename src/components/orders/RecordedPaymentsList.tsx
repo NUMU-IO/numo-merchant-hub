@@ -21,8 +21,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { ApiImage } from "@/components/payments/ApiImage";
 import {
-  apiAssetUrl,
   type PaymentProof,
   type RecordedPaymentMethod,
 } from "@/services/storeApi";
@@ -54,7 +54,7 @@ export function RecordedPaymentsList({
   voidingId,
   onVoid,
 }: Props) {
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxPath, setLightboxPath] = useState<string | null>(null);
   const [voidTarget, setVoidTarget] = useState<PaymentProof | null>(null);
   const [reason, setReason] = useState("");
 
@@ -71,23 +71,23 @@ export function RecordedPaymentsList({
           {recorded.map((p) => {
             const voided = p.status === "rejected";
             const method = p.recorded_method as RecordedPaymentMethod;
-            const imageUrl = apiAssetUrl(p.signed_image_url);
+            const imagePath = p.signed_image_url;
             return (
               <li
                 key={p.id}
                 className="flex items-center gap-2 rounded-md border bg-background p-2 text-xs"
               >
-                {imageUrl ? (
+                {imagePath ? (
                   <button
                     type="button"
-                    onClick={() => setLightboxUrl(imageUrl)}
+                    onClick={() => setLightboxPath(imagePath)}
                     className="shrink-0 cursor-zoom-in"
                     aria-label={
                       isAr ? "افتح صورة الإيصال" : "Open the receipt image"
                     }
                   >
-                    <img
-                      src={imageUrl}
+                    <ApiImage
+                      path={imagePath}
                       alt=""
                       className="h-10 w-10 rounded border bg-muted/20 object-cover"
                     />
@@ -166,16 +166,16 @@ export function RecordedPaymentsList({
       </div>
 
       <Dialog
-        open={lightboxUrl !== null}
-        onOpenChange={(open) => !open && setLightboxUrl(null)}
+        open={lightboxPath !== null}
+        onOpenChange={(open) => !open && setLightboxPath(null)}
       >
         <DialogContent className="max-w-3xl p-2">
           <DialogHeader className="sr-only">
             <DialogTitle>{isAr ? "صورة الإيصال" : "Receipt"}</DialogTitle>
           </DialogHeader>
-          {lightboxUrl && (
-            <img
-              src={lightboxUrl}
+          {lightboxPath && (
+            <ApiImage
+              path={lightboxPath}
               alt={isAr ? "صورة الإيصال" : "Receipt"}
               className="h-auto w-full bg-black/5 object-contain"
             />

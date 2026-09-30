@@ -34,8 +34,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { ApiImage } from "./ApiImage";
 import {
-  apiAssetUrl,
   approvePaymentProof,
   fetchPaymentProofs,
   fetchSimilarPaymentProofs,
@@ -252,7 +252,7 @@ export default function InstapayProofReview({
   const [activeProofId, setActiveProofId] = useState<string | null>(null);
   // Lightbox state — the proof image is small on the card but the
   // merchant often needs to zoom to read tiny bank-app receipt text.
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxPath, setLightboxPath] = useState<string | null>(null);
   // Tracks proof IDs whose signed URL failed to load. Signed URLs are
   // 1-hour TTL; a merchant who leaves the drawer open longer (or whose
   // browser blocks the storage origin) sees a broken-image icon. We
@@ -302,9 +302,7 @@ export default function InstapayProofReview({
   }
 
   const latest = proofs[proofs.length - 1];
-  // `signed_image_url` is an API path, not an absolute URL; resolve it
-  // against the API origin so it loads when the hub is served elsewhere.
-  const latestImageUrl = apiAssetUrl(latest.signed_image_url);
+  const latestImagePath = latest.signed_image_url;
   const canReview = latest.status === "awaiting_review";
   const approvingThis =
     approveMutation.isPending && approveMutation.variables === latest.id;
@@ -325,15 +323,15 @@ export default function InstapayProofReview({
           </span>
         </div>
 
-        {latestImageUrl && !imageFailed[latest.id] ? (
+        {latestImagePath && !imageFailed[latest.id] ? (
           <button
             type="button"
-            onClick={() => setLightboxUrl(latestImageUrl)}
+            onClick={() => setLightboxPath(latestImagePath)}
             className="block w-full cursor-zoom-in"
             aria-label={isAr ? "فتح الصورة بالحجم الكامل" : "Open image full size"}
           >
-            <img
-              src={latestImageUrl}
+            <ApiImage
+              path={latestImagePath}
               alt="Payment proof"
               className="w-full max-h-48 object-contain rounded border bg-muted/10"
               onError={() =>
@@ -551,7 +549,7 @@ export default function InstapayProofReview({
                 >
                   <button
                     type="button"
-                    onClick={() => setLightboxUrl(apiAssetUrl(sim.signed_image_url) ?? null)}
+                    onClick={() => setLightboxPath(sim.signed_image_url ?? null)}
                     className="shrink-0 cursor-zoom-in"
                     aria-label={
                       isAr
@@ -559,8 +557,8 @@ export default function InstapayProofReview({
                         : `Open image for order ${sim.order_number}`
                     }
                   >
-                    <img
-                      src={apiAssetUrl(sim.signed_image_url)}
+                    <ApiImage
+                      path={sim.signed_image_url}
                       alt=""
                       className="w-10 h-10 object-cover rounded border bg-muted/20"
                     />
@@ -636,8 +634,8 @@ export default function InstapayProofReview({
           full-width shadcn Dialog so merchants can zoom in without
           losing context. Click anywhere on the overlay to close. */}
       <Dialog
-        open={lightboxUrl !== null}
-        onOpenChange={(open) => !open && setLightboxUrl(null)}
+        open={lightboxPath !== null}
+        onOpenChange={(open) => !open && setLightboxPath(null)}
       >
         <DialogContent className="max-w-3xl p-2">
           <DialogHeader className="sr-only">
@@ -645,9 +643,9 @@ export default function InstapayProofReview({
               {isAr ? "إثبات الدفع" : "Payment proof"}
             </DialogTitle>
           </DialogHeader>
-          {lightboxUrl ? (
-            <img
-              src={lightboxUrl}
+          {lightboxPath ? (
+            <ApiImage
+              path={lightboxPath}
               alt="Payment proof (full size)"
               className="w-full h-auto object-contain bg-black/5"
             />
