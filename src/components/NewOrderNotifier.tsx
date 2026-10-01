@@ -55,7 +55,7 @@ function writeMark(storeId: string, isoTimestamp: string) {
 }
 
 function formatMoney(cents: number, currency: string, isAr: boolean) {
-  const value = (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", {
+  const value = (cents / 100).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
     maximumFractionDigits: 0,
   });
   return isAr ? `${value} ${currency}` : `${currency} ${value}`;

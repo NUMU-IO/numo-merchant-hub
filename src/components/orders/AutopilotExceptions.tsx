@@ -110,7 +110,7 @@ export default function AutopilotExceptions({
   const formatCurrency = (cents: number, currency: string) => {
     const val = cents / 100;
     return isAr
-      ? `${val.toLocaleString("ar-EG")} ${currency}`
+      ? `${val.toLocaleString("ar-EG-u-nu-latn")} ${currency}`
       : `${currency} ${val.toLocaleString()}`;
   };
 

@@ -18,6 +18,7 @@
 import { getCSRFToken, initCSRF } from "./csrf";
 import { refreshSession, type RefreshOutcome } from "./authApi";
 import { ApiError, apiErrorFromResponse, apiErrorFromNetwork } from "@/lib/api-error";
+import { loginPath } from "@/lib/login-redirect";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -196,7 +197,8 @@ async function handle401(
 
 function redirectToLogin(): never {
   if (window.location.pathname !== "/login") {
-    window.location.href = "/login";
+    const target = loginPath(window.location.pathname, window.location.search);
+    window.location.href = `${target}${target.includes("?") ? "&" : "?"}expired=1`;
   }
   throw new ApiError(401, null);
 }

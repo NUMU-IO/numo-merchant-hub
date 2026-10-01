@@ -202,12 +202,12 @@ export function ApiKeysPanel({
   };
 
   const fmtDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleDateString(isRTL ? "ar-EG" : "en-GB") : "—";
+    iso ? new Date(iso).toLocaleDateString(isRTL ? "ar-EG-u-nu-latn" : "en-GB") : "—";
 
   /** "2 minutes ago" — last use matters in minutes, not days. */
   const fmtAgo = (iso: string | null) => {
     if (!iso) return t("never", "لم يُستخدم");
-    const rtf = new Intl.RelativeTimeFormat(isRTL ? "ar-EG" : "en", { numeric: "auto" });
+    const rtf = new Intl.RelativeTimeFormat(isRTL ? "ar-EG-u-nu-latn" : "en", { numeric: "auto" });
     const minutes = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
     if (Math.abs(minutes) < 60) return rtf.format(minutes, "minute");
     if (Math.abs(minutes) < 1440) return rtf.format(Math.round(minutes / 60), "hour");

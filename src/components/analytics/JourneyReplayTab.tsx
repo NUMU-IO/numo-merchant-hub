@@ -88,7 +88,7 @@ export function JourneyReplayTab({ range, formatCurrency }: JourneyReplayTabProp
           className="gap-1.5 text-[12px]"
           onClick={() => setSelectedSession(null)}
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
+          <ArrowLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />
           {isAr ? "رجوع للجلسات" : "Back to sessions"}
         </Button>
 
@@ -150,7 +150,7 @@ export function JourneyReplayTab({ range, formatCurrency }: JourneyReplayTabProp
                 </div>
               </div>
               <p className="text-2xl font-bold tabular-nums">
-                {data.overview.total_sessions.toLocaleString(isAr ? "ar-EG" : undefined)}
+                {data.overview.total_sessions.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
               </p>
             </CardContent>
           </Card>
@@ -291,7 +291,7 @@ export function JourneyReplayTab({ range, formatCurrency }: JourneyReplayTabProp
                     </div>
                     <div className="text-end shrink-0">
                       <p className="text-[10px] text-muted-foreground tabular-nums">
-                        {new Date(session.started_at).toLocaleString(isAr ? "ar-EG" : "en-US", {
+                        {new Date(session.started_at).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
                           month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
                         })}
                       </p>

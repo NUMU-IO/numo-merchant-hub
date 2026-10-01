@@ -55,7 +55,7 @@ export function StoreHealthCard({ className }: { className?: string }) {
           >
             <div className="hole" />
             <div className="score">
-              <b>{isAr ? score.toLocaleString("ar-EG") : score}</b>
+              <b>{isAr ? score.toLocaleString("ar-EG-u-nu-latn") : score}</b>
               <span>/{isAr ? "١٠٠" : "100"}</span>
             </div>
           </div>

@@ -85,7 +85,7 @@ const MarketingLanding = () => {
     0,
   );
 
-  const fmtN = (n: number) => (isRTL ? n.toLocaleString("ar-EG") : n.toLocaleString());
+  const fmtN = (n: number) => (isRTL ? n.toLocaleString("ar-EG-u-nu-latn") : n.toLocaleString());
 
   const segItems: { key: Tab; label: string; labelAr: string }[] = [
     { key: "overview", label: "Overview", labelAr: "نظرة عامة" },
@@ -326,7 +326,7 @@ const MarketingLanding = () => {
               />
               <p className="text-sm font-bold">{isRTL ? "مفيش حملات لسه" : "No campaigns yet"}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {isRTL ? "اعمل حملة تتبع الإسناد لكل قناة" : "Launch a campaign to track attribution per channel"}
+                {isRTL ? "اعمل حملة تتبع مصدر المبيعات لكل قناة" : "Launch a campaign to track attribution per channel"}
               </p>
               <Button
                 variant="accent"

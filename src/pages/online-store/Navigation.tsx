@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 const MAX_DEPTH = 3;
 
@@ -143,6 +144,7 @@ export default function OnlineStoreNavigation() {
   const [title, setTitle] = useState<{ en: string; ar: string }>({ en: "", ar: "" });
   const [items, setItems] = useState<MenuItem[]>([]);
   const [isDirty, setIsDirty] = useState(false);
+  useUnsavedChangesGuard(isDirty);
   const [editing, setEditing] = useState<EditState | null>(null);
   const [creating, setCreating] = useState(false);
   const [newHandle, setNewHandle] = useState("");

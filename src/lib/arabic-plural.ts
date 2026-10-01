@@ -51,10 +51,10 @@ export function pluralAr(count: number, forms: ArabicPluralForms): string {
  * `count` + its agreeing noun, e.g. `٣ عملاء`.
  *
  * The number is rendered with Arabic-Indic digits to match the rest of the
- * Arabic UI, which formats through `toLocaleString("ar-EG")`.
+ * Arabic UI, which formats through `toLocaleString("ar-EG-u-nu-latn")`.
  */
 export function countAr(count: number, forms: ArabicPluralForms): string {
-  return `${count.toLocaleString("ar-EG")} ${pluralAr(count, forms)}`;
+  return `${count.toLocaleString("ar-EG-u-nu-latn")} ${pluralAr(count, forms)}`;
 }
 
 /**

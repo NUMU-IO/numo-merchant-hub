@@ -195,7 +195,7 @@ export default function MarketingCampaigns() {
   };
 
   const formatDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-EG") : "—";
+    iso ? new Date(iso).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-EG") : "—";
 
   return (
     <div className="space-y-6 md:p-6">
@@ -206,7 +206,7 @@ export default function MarketingCampaigns() {
           </h1>
           <p className="text-sm text-muted-foreground">
             {isAr
-              ? "البريد الإلكتروني + الرسائل النصية. واتساب في صفحة مستقلة."
+              ? "الإيميل + الرسائل النصية. واتساب في صفحة مستقلة."
               : "Email + SMS broadcasts. WhatsApp lives on its own page."}
           </p>
         </div>
@@ -267,7 +267,7 @@ export default function MarketingCampaigns() {
                 </p>
                 <p className="text-sm text-muted-foreground max-w-sm">
                   {isAr
-                    ? "أنشئ حملة بريد إلكتروني أو رسائل نصية، ثم استخدم منشئ روابط التتبع لقياس الأداء حتى الإيرادات."
+                    ? "أنشئ حملة إيميل أو رسائل نصية، ثم استخدم منشئ روابط التتبع لقياس الأداء حتى الإيرادات."
                     : "Create an email or SMS broadcast, then use the trackable-link builder to measure sessions, orders, and revenue per campaign."}
                 </p>
               </div>

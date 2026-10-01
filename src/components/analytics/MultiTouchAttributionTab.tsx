@@ -140,7 +140,7 @@ export function MultiTouchAttributionTab({
     return query.error instanceof Error
       ? query.error.message
       : isAr
-        ? "تعذر حساب الإسناد"
+        ? "تعذر حساب مصدر المبيعات"
         : "Could not compute attribution";
   })();
 
@@ -187,7 +187,7 @@ export function MultiTouchAttributionTab({
             </div>
             <p className="text-2xl font-bold tabular-nums">
               {data
-                ? data.total_orders.toLocaleString(isAr ? "ar-EG" : undefined)
+                ? data.total_orders.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)
                 : "—"}
             </p>
           </CardContent>

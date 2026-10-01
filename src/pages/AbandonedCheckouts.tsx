@@ -63,10 +63,11 @@ type ContactFilter = "recoverable" | "any";
 const PAGE_SIZE = 20;
 const BANNER_KEY = "numu:abandoned-wa-banner-dismissed";
 
-/** "All time" for the analytics strip — the picker has no such preset. */
-function allTimeRange() {
+/** "All time" for the analytics strip — the picker has no such preset. Starts
+ *  when the store was created; nothing can be abandoned before that. */
+function allTimeRange(since?: string) {
   const now = new Date();
-  return customRange(new Date(2024, 0, 1), now, now);
+  return customRange(since ? new Date(since) : new Date(2024, 0, 1), now, now);
 }
 
 /** Which checkout step the shopper reached, from what the row carries. */
@@ -97,7 +98,7 @@ const AbandonedCheckouts = () => {
   const [contact, setContact] = useState<ContactFilter>("recoverable");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const { range, setRange } = useDateRange(allTimeRange());
+  const { range, setRange } = useDateRange(allTimeRange(currentStore?.created_at));
   const [bannerDismissed, setBannerDismissed] = useState(() => {
     try {
       return localStorage.getItem(BANNER_KEY) === "1";
@@ -237,10 +238,10 @@ const AbandonedCheckouts = () => {
     return (
       <span className="tabular-nums">
         <span className="block">
-          {d.toLocaleDateString(isAr ? "ar-EG" : "en-GB", { year: "numeric", month: "2-digit", day: "2-digit" })}
+          {d.toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-GB", { year: "numeric", month: "2-digit", day: "2-digit" })}
         </span>
         <span className="block text-[10.5px] text-muted-foreground/80">
-          {d.toLocaleTimeString(isAr ? "ar-EG" : "en-GB", { hour: "2-digit", minute: "2-digit" })}
+          {d.toLocaleTimeString(isAr ? "ar-EG-u-nu-latn" : "en-GB", { hour: "2-digit", minute: "2-digit" })}
         </span>
       </span>
     );

@@ -83,7 +83,7 @@ export function AddCustomerDialog({ storeId, open, onOpenChange }: AddCustomerDi
           <DialogTitle>{isAr ? "إضافة عميل" : "Add customer"}</DialogTitle>
           <DialogDescription>
             {isAr
-              ? "أضف عميل يدوياً — بدون كلمة مرور، يقدر يسجّل بنفس الإيميل لاحقاً."
+              ? "أضف عميل يدوياً — بدون باسورد، يقدر يسجّل بنفس الإيميل لاحقاً."
               : "Manually add a customer — no password; they can register with the same email later."}
           </DialogDescription>
         </DialogHeader>

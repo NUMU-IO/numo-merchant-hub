@@ -111,7 +111,7 @@ const SubscribeInstapayDialog = ({
     : (PLAN_EN[plan] ?? plan.charAt(0).toUpperCase() + plan.slice(1));
   const cycleLabel = (CYCLE_LABEL[billingCycle] ?? CYCLE_LABEL.monthly)[isAr ? 1 : 0];
   const egp = (cents: number) =>
-    `${(cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US")} ${isAr ? "ج.م" : "EGP"}`;
+    `${(cents / 100).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US")} ${isAr ? "ج.م" : "EGP"}`;
 
   const startPayment = async () => {
     setCreating(true);

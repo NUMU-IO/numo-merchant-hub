@@ -195,7 +195,7 @@ export default function WhatsAppCampaigns() {
                     <div>
                       <p className="font-medium text-sm">{c.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(c.created_at).toLocaleDateString(isAr ? "ar-EG" : "en-US")}
+                        {new Date(c.created_at).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US")}
                       </p>
                     </div>
                   </div>

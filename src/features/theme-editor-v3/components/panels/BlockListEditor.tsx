@@ -288,7 +288,7 @@ function SortableBlockRow({
             {nestedCount}
           </span>
         )}
-        <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+        <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground rtl:-scale-x-100" />
       </button>
 
       <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">

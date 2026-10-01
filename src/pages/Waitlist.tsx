@@ -23,7 +23,7 @@ import {
 import { z } from "zod";
 
 const waitlistSchema = z.object({
-  email: z.string().email("أدخل بريد إلكتروني صحيح"),
+  email: z.string().email("أدخل إيميل صحيح"),
   name: z.string().min(2, "الاسم مطلوب").optional().or(z.literal("")),
 });
 
@@ -202,7 +202,7 @@ export default function Waitlist() {
 
           <form noValidate onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label className="text-[13px] font-medium">{isAr ? "البريد الإلكتروني" : "Email"}</Label>
+              <Label className="text-[13px] font-medium">{isAr ? "الإيميل" : "Email"}</Label>
               <Input
                 type="email"
                 value={email}

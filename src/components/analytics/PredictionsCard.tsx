@@ -25,7 +25,7 @@ function ConfidenceChip({ level, isAr }: { level: string; isAr: boolean }) {
 }
 
 function fmtDate(iso: string, isAr: boolean) {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
     month: "short",
     day: "numeric",
   });
@@ -81,7 +81,7 @@ export function PredictionsCard({ formatCurrency }: PredictionsCardProps) {
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   {isAr
-                    ? `محقق حتى الآن ${formatCurrency(month.mtd_cents)} · باقي ${month.remaining_days.toLocaleString("ar-EG")} يوم`
+                    ? `محقق حتى الآن ${formatCurrency(month.mtd_cents)} · باقي ${month.remaining_days.toLocaleString("ar-EG-u-nu-latn")} يوم`
                     : `${formatCurrency(month.mtd_cents)} so far · ${month.remaining_days} days left`}
                 </p>
               </div>
@@ -92,7 +92,7 @@ export function PredictionsCard({ formatCurrency }: PredictionsCardProps) {
                   {isAr ? "طلبات اليوم المتوقعة" : "Orders expected today"}
                 </span>
                 <p className="text-lg font-bold tabular-nums">
-                  {today.lower.toLocaleString(isAr ? "ar-EG" : undefined)} – {today.upper.toLocaleString(isAr ? "ar-EG" : undefined)}
+                  {today.lower.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)} – {today.upper.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                 </p>
               </div>
             )}
@@ -103,7 +103,7 @@ export function PredictionsCard({ formatCurrency }: PredictionsCardProps) {
                   {isAr ? "احتمال شراء متكرر خلال ٣٠ يوم" : "Repeat purchase within 30d"}
                 </span>
                 <span className="text-[13px] font-bold tabular-nums flex items-center gap-2">
-                  {repeat.p_next_30d_pct.toLocaleString(isAr ? "ar-EG" : undefined)}%
+                  {repeat.p_next_30d_pct.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}%
                   <ConfidenceChip level={repeat.confidence} isAr={isAr} />
                 </span>
               </div>
@@ -139,7 +139,7 @@ export function PredictionsCard({ formatCurrency }: PredictionsCardProps) {
                     : `~${fmtDate(s.run_out_date, false)} (${fmtDate(s.early_date, false)}–${s.late_date ? fmtDate(s.late_date, false) : "?"})`}
                 </span>
                 <span className="text-[11px] font-semibold tabular-nums shrink-0 hidden sm:inline">
-                  {isAr ? `اطلب ${s.suggested_reorder_qty.toLocaleString("ar-EG")}` : `reorder ${s.suggested_reorder_qty}`}
+                  {isAr ? `اطلب ${s.suggested_reorder_qty.toLocaleString("ar-EG-u-nu-latn")}` : `reorder ${s.suggested_reorder_qty}`}
                 </span>
               </div>
             ))}
@@ -163,17 +163,17 @@ export function PredictionsCard({ formatCurrency }: PredictionsCardProps) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
               <div className="rounded-lg bg-muted/40 p-3 text-center">
                 <p className="text-lg font-bold tabular-nums">
-                  {cod.store_rate_pct.toLocaleString(isAr ? "ar-EG" : undefined)}%
+                  {cod.store_rate_pct.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}%
                 </p>
                 <p className="text-[10px] text-muted-foreground">
                   {isAr
-                    ? `معدل الرفض (${cod.wilson_low_pct.toLocaleString("ar-EG")}–${cod.wilson_high_pct.toLocaleString("ar-EG")}٪)`
+                    ? `معدل الرفض (${cod.wilson_low_pct.toLocaleString("ar-EG-u-nu-latn")}–${cod.wilson_high_pct.toLocaleString("ar-EG-u-nu-latn")}٪)`
                     : `rejection rate (${cod.wilson_low_pct}–${cod.wilson_high_pct}%)`}
                 </p>
               </div>
               <div className="rounded-lg bg-muted/40 p-3 text-center">
                 <p className="text-lg font-bold tabular-nums">
-                  {cod.pending_orders.toLocaleString(isAr ? "ar-EG" : undefined)}
+                  {cod.pending_orders.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
                   {isAr ? "طلبات COD جارية" : "COD orders in flight"}
@@ -209,7 +209,7 @@ export function PredictionsCard({ formatCurrency }: PredictionsCardProps) {
                     }
                   >
                     <span className="font-medium capitalize">{g.governorate}</span>{" "}
-                    <span className="font-bold">{g.shrunk_rate_pct.toLocaleString(isAr ? "ar-EG" : undefined)}%</span>
+                    <span className="font-bold">{g.shrunk_rate_pct.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}%</span>
                   </span>
                 ))}
               </div>

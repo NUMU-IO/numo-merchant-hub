@@ -34,6 +34,7 @@ import {
   getCheckoutFields,
   updateCheckoutFields,
 } from "@/services/checkoutFieldsApi";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 // Keep in sync with backend LOCKED_ENABLED in src/core/checkout_fields.py.
 // These fields can never be disabled — merchants can only toggle `required`.
@@ -126,6 +127,7 @@ export default function CheckoutFields() {
     if (!data || !config) return false;
     return JSON.stringify(data) !== JSON.stringify(config);
   }, [data, config]);
+  useUnsavedChangesGuard(dirty);
 
   // ── Standard field editors ───────────────────────────────────────
   const setStandard = (
@@ -254,7 +256,7 @@ export default function CheckoutFields() {
             to="/settings"
             className="mb-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />
             {isAr ? "الإعدادات" : "Settings"}
           </Link>
           <h1 className="text-2xl font-extrabold tracking-tight leading-tight">

@@ -69,7 +69,7 @@ const ShippingLabels = () => {
 
   const fmtDate = (iso: string | null | undefined) => {
     if (!iso) return "—";
-    return new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US");
+    return new Date(iso).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US");
   };
 
   const carrierLabel = (slug: string) => {

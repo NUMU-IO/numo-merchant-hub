@@ -398,7 +398,7 @@ const PaymentSetup = () => {
             className="h-8 w-8 rounded-lg"
             onClick={() => setView("hub")}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
           </Button>
           <h1 className="text-xl font-extrabold tracking-tight">
             {isAr ? railName?.ar : railName?.en}
@@ -431,7 +431,7 @@ const PaymentSetup = () => {
   return (
     <div className="p-6 max-w-[1100px] mx-auto space-y-8">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => navigate("/payments")}><ArrowLeft className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => navigate("/payments")}><ArrowLeft className="h-4 w-4 rtl:-scale-x-100" /></Button>
         <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "المدفوعات" : "Payments"}</h1>
       </div>
 
@@ -776,7 +776,7 @@ const GatewayDetailView = ({ gatewayKey, storeId, isAr, language, paymobCreds, k
       {/* Header with brand */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={onBack}><ArrowLeft className="h-4 w-4 rtl:-scale-x-100" /></Button>
           {isPaymob ? <PaymobIcon size={36} /> : isFawry ? <FawryIcon size={36} /> : isFawaterak ? <FawaterakIcon size={36} /> : <KashierIcon size={36} />}
           <div>
             <div className="flex items-center gap-2">
@@ -1008,7 +1008,7 @@ const MoyasarDetailView = ({ storeId, isAr, language, creds, setCreds, enabledGa
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={onBack}><ArrowLeft className="h-4 w-4 rtl:-scale-x-100" /></Button>
           <MoyasarIcon size={36} />
           <div>
             <div className="flex items-center gap-2">

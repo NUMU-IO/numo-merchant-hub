@@ -39,9 +39,9 @@ describe("pluralAr", () => {
 describe("countAr", () => {
   it("renders Arabic-Indic digits with an agreeing noun", () => {
     // The regression this whole module exists for: the hub shipped "٣ عميل".
-    expect(countAr(3, AR_CUSTOMERS)).toBe("٣ عملاء");
-    expect(countAr(4, AR_TIMES_USED)).toBe("٤ مرات");
-    expect(countAr(1, AR_TIMES_USED)).toBe("١ مرة");
+    expect(countAr(3, AR_CUSTOMERS)).toBe("3 عملاء");
+    expect(countAr(4, AR_TIMES_USED)).toBe("4 مرات");
+    expect(countAr(1, AR_TIMES_USED)).toBe("1 مرة");
   });
 });
 
@@ -52,7 +52,7 @@ describe("agoAr", () => {
   });
 
   it("keeps the numeral from three up", () => {
-    expect(agoAr(5, AR_MINUTES)).toBe("منذ ٥ دقائق");
-    expect(agoAr(15, AR_MINUTES)).toBe("منذ ١٥ دقيقة");
+    expect(agoAr(5, AR_MINUTES)).toBe("منذ 5 دقائق");
+    expect(agoAr(15, AR_MINUTES)).toBe("منذ 15 دقيقة");
   });
 });

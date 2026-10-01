@@ -41,7 +41,7 @@ export function SectionEditor({ section, schema, onChange, onBack }: SectionEdit
             className="h-8 w-8 shrink-0"
             onClick={onBack}
           >
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight className="h-4 w-4 rtl:-scale-x-100" />
           </Button>
         )}
         <div className="flex-1 min-w-0">

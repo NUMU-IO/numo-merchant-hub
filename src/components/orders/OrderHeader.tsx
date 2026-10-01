@@ -41,7 +41,7 @@ export function OrderHeader({
           className="gap-2"
           onClick={() => navigate("/orders")}
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
           {t("orders.back")}
         </Button>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">

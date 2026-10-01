@@ -25,6 +25,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { toLatinDigits } from "@/lib/arabic-normalize";
 
 // Unicode regional-indicator flag emoji from the ISO 3166-1 alpha-2 code.
 // Lets us avoid shipping any image assets for ~250 flags.
@@ -222,7 +223,9 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
       emit(next, local);
     };
 
-    const handleLocalChange = (raw: string) => {
+    const handleLocalChange = (typed: string) => {
+      // `\D` only knows ASCII digits: an Arabic keyboard's ٠-٩ would vanish.
+      const raw = toLatinDigits(typed);
       // Use AsYouType to keep the local field readable while typing.
       // We strip the dial prefix to keep the visible value as local digits.
       const formatter = new AsYouType(country);

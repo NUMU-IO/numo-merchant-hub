@@ -18,6 +18,8 @@ import {
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
 import { ImageCropDialog, fileFromCropBlob } from "@/components/ImageCropDialog";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+
 interface PrefsState {
   favicon_url: string;
   password_enabled: boolean;
@@ -59,6 +61,7 @@ export default function OnlineStorePreferences() {
   });
   const [showPw, setShowPw] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  useUnsavedChangesGuard(isDirty);
 
   const { data: storeData, isLoading } = useQuery({
     queryKey: ["store", storeId],
@@ -166,7 +169,7 @@ export default function OnlineStorePreferences() {
         <ul className="list-disc list-inside space-y-1">
           <li>{isRTL ? "عنوان الصفحة ووصف الميتا وصورة المشاركة اتنقلوا لصفحة SEO في إعدادات المتجر." : "Homepage title, meta description and social sharing image now live on the SEO page in Store settings."}</li>
           <li>{isRTL ? "أضف Google Analytics و Meta Pixel لتتبع زيارات وتحويلات متجرك." : "Add Google Analytics and Meta Pixel to track your store visits and conversions."}</li>
-          <li>{isRTL ? "حماية المتجر بكلمة مرور تمنع الوصول حتى يُدخل الزائر كلمة المرور — مفيدة قبل الإطلاق الرسمي." : "Password protection blocks access until visitors enter the password — useful before your official launch."}</li>
+          <li>{isRTL ? "حماية المتجر بباسورد تمنع الوصول حتى يُدخل الزائر الباسورد — مفيدة قبل الإطلاق الرسمي." : "Password protection blocks access until visitors enter the password — useful before your official launch."}</li>
           <li>{isRTL ? "اضغط «حفظ» بعد أي تغيير لحفظه نهائيًا." : "Click Save after any change to persist it."}</li>
         </ul>
       </HelpTip>
@@ -264,7 +267,7 @@ export default function OnlineStorePreferences() {
         icon={form.password_enabled
           ? <ShieldCheck className="h-4 w-4 text-amber-500" />
           : <ShieldOff className="h-4 w-4" />}
-        title={isRTL ? "حماية المتجر بكلمة مرور" : "Password protection"}
+        title={isRTL ? "حماية المتجر بباسورد" : "Password protection"}
         badge={form.password_enabled
           ? <Badge className="text-[10px] px-1.5 bg-amber-500/12 text-amber-700 dark:text-amber-400 border-amber-300/60 hover:bg-amber-500/12">
               {isRTL ? "مفعّل" : "Enabled"}
@@ -275,10 +278,10 @@ export default function OnlineStorePreferences() {
           {/* Toggle row */}
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium">{isRTL ? "تفعيل كلمة المرور" : "Enable password"}</p>
+              <p className="text-sm font-medium">{isRTL ? "تفعيل الباسورد" : "Enable password"}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {isRTL
-                  ? "يحجب المتجر عن الزوار حتى يدخلوا كلمة المرور الصحيحة"
+                  ? "يحجب المتجر عن الزوار حتى يدخلوا الباسورد الصح"
                   : "Hides your store from visitors until they enter the correct password"}
               </p>
             </div>
@@ -302,13 +305,13 @@ export default function OnlineStorePreferences() {
 
               {/* Password input */}
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">{isRTL ? "كلمة المرور" : "Store password"}</Label>
+                <Label className="text-xs font-medium">{isRTL ? "الباسورد" : "Store password"}</Label>
                 <div className="relative">
                   <Input
                     type={showPw ? "text" : "password"}
                     value={form.password}
                     onChange={(e) => set("password", e.target.value)}
-                    placeholder={isRTL ? "أدخل كلمة مرور قوية..." : "Enter a strong password..."}
+                    placeholder={isRTL ? "أدخل باسورد قوي..." : "Enter a strong password..."}
                     className="pe-10"
                     dir="ltr"
                     autoComplete="new-password"
@@ -354,7 +357,7 @@ export default function OnlineStorePreferences() {
                 <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
                   {isRTL
-                    ? "تأكد من إلغاء تفعيل كلمة المرور قبل الإطلاق الرسمي لمتجرك للعموم."
+                    ? "تأكد من إلغاء تفعيل الباسورد قبل الإطلاق الرسمي لمتجرك للعموم."
                     : "Remember to disable password protection before your public store launch."}
                 </p>
               </div>

@@ -235,7 +235,7 @@ export function VersionDiffDialog({
             label={locale === "ar" ? "من" : "From"}
             locale={locale}
           />
-          <ArrowRight className="h-4 w-4 text-muted-foreground" />
+          <ArrowRight className="h-4 w-4 text-muted-foreground rtl:-scale-x-100" />
           <VersionSelect
             value={afterId}
             onChange={setAfterId}
@@ -324,7 +324,7 @@ function VersionSelect({
         {versions.map((v) => {
           const stamp = v.created_at
             ? new Date(v.created_at).toLocaleString(
-                locale === "ar" ? "ar-EG" : "en-US",
+                locale === "ar" ? "ar-EG-u-nu-latn" : "en-US",
                 { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" },
               )
             : v.id.slice(0, 8);
@@ -373,7 +373,7 @@ function DiffList({ diff, locale }: { diff: DiffEntry[]; locale: EditorLocale })
               <span className="truncate text-red-700 line-through">
                 {formatLeaf(entry.before)}
               </span>
-              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+              <ArrowRight className="h-3 w-3 text-muted-foreground rtl:-scale-x-100" />
               <span className="truncate text-green-700">
                 {formatLeaf(entry.after)}
               </span>

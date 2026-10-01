@@ -75,11 +75,20 @@ export class ApiError extends Error {
 
     // If the server gave a meaningful detail, use it (unless it's a generic code)
     if (this.serverDetail && !this.serverDetail.startsWith("API error:")) {
-      return translateServerDetail(this.serverDetail, isAr);
+      const translated = translateServerDetail(this.serverDetail, isAr);
+      if (translated) return translated;
     }
 
     return statusToMessage(this.status, lang);
   }
+}
+
+/** Merchant-facing copy for anything a request can throw. Never the raw
+ *  `err.message`: that is fetch's "Failed to fetch" or a server sentence in
+ *  English, both of which read as broken on an Arabic page. */
+export function errorMessage(err: unknown, lang: string): string {
+  if (err instanceof ApiError) return err.toUserMessage(lang);
+  return statusToMessage(err instanceof TypeError ? 0 : -1, lang);
 }
 
 // ─── Status → human message ──────────────────────────────────────────────────
@@ -90,7 +99,7 @@ function statusToMessage(status: number, lang: string): string {
     0:   ["No internet connection. Check your network and try again.",
           "لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مرة أخرى."],
     400: ["Invalid request. Please check your input and try again.",
-          "طلب غير صالح. تحقق من البيانات وحاول مرة أخرى."],
+          "في بيانات مش مظبوطة. راجعها وجرّب تاني."],
     401: ["Your session has expired. Please log in again.",
           "انتهت جلستك. يرجى تسجيل الدخول مرة أخرى."],
     403: ["You don't have permission to perform this action.",
@@ -128,14 +137,18 @@ function statusToMessage(status: number, lang: string): string {
 
 const SERVER_DETAIL_MAP: Array<[RegExp, string, string]> = [
   // Auth
-  [/invalid credentials/i, "Invalid email or password.", "البريد الإلكتروني أو كلمة المرور غير صحيحة."],
-  [/email already registered/i, "This email is already registered.", "هذا البريد الإلكتروني مسجل بالفعل."],
-  [/email.*already.*exists/i, "This email is already registered.", "هذا البريد الإلكتروني مسجل بالفعل."],
+  [/invalid email or password/i, "Invalid email or password.", "الإيميل أو الباسورد غلط."],
+  [/password has appeared in a known data breach/i, "This password has shown up in a data breach. Pick a different one.", "الباسورد ده ظهر قبل كده في تسريبات بيانات. اختار واحد تاني."],
+  [/password must be at least/i, "Password must be at least 8 characters.", "الباسورد لازم يكون 8 حروف على الأقل."],
+  [/request validation failed/i, "Some fields are invalid. Please review and correct them.", "بعض الحقول غير صالحة. راجعها وصححها."],
+  [/invalid credentials/i, "Invalid email or password.", "الإيميل أو الباسورد غلط."],
+  [/email already registered/i, "This email is already registered.", "هذا الإيميل مسجل بالفعل."],
+  [/email.*already.*exists/i, "This email is already registered.", "هذا الإيميل مسجل بالفعل."],
   [/account.*locked/i, "Account temporarily locked. Try again later.", "تم قفل الحساب مؤقتاً. حاول لاحقاً."],
   [/account.*disabled/i, "This account has been disabled.", "تم تعطيل هذا الحساب."],
-  [/account.*not.*verified/i, "Please verify your email first.", "يرجى تأكيد بريدك الإلكتروني أولاً."],
-  [/incorrect.*password/i, "Current password is incorrect.", "كلمة المرور الحالية غير صحيحة."],
-  [/password.*too.*short/i, "Password must be at least 8 characters.", "كلمة المرور يجب أن تكون 8 أحرف على الأقل."],
+  [/account.*not.*verified/i, "Please verify your email first.", "يرجى تأكيد إيميلك أولاً."],
+  [/incorrect.*password/i, "Current password is incorrect.", "الباسورد الحالي غلط."],
+  [/password.*too.*short/i, "Password must be at least 8 characters.", "الباسورد لازم يكون 8 أحرف على الأقل."],
   [/token.*expired/i, "Your session has expired. Please log in again.", "انتهت جلستك. يرجى تسجيل الدخول مرة أخرى."],
   [/invalid.*token/i, "Your session is no longer valid. Please log in again.", "لم تعد جلستك صالحة. يرجى تسجيل الدخول مرة أخرى."],
   [/invalid.*code/i, "Invalid verification code.", "رمز التحقق غير صحيح."],
@@ -146,8 +159,9 @@ const SERVER_DETAIL_MAP: Array<[RegExp, string, string]> = [
   [/invalid.*beta.*code/i, "Invalid beta invite code.", "كود الدعوة غير صحيح."],
   [/beta.*code.*expired/i, "This beta code has expired.", "انتهت صلاحية كود الدعوة."],
   [/beta.*code.*used/i, "This beta code has already been used.", "كود الدعوة مُستخدم بالفعل."],
-  [/subdomain.*taken/i, "This subdomain is already taken.", "هذا النطاق الفرعي مأخوذ بالفعل."],
-  [/subdomain.*invalid/i, "Invalid subdomain format.", "صيغة النطاق الفرعي غير صالحة."],
+  [/subdomain.*taken/i, "This subdomain is already taken.", "رابط المتجر ده مستخدم بالفعل."],
+  [/reserved subdomain/i, "This store link is reserved. Pick another one.", "الرابط ده محجوز، اختار رابط تاني."],
+  [/subdomain.*invalid/i, "Invalid subdomain format.", "رابط المتجر لازم يكون حروف إنجليزي صغيرة وأرقام وشرطات بس."],
   [/store.*not.*found/i, "Store not found.", "المتجر غير موجود."],
 
   // Products
@@ -192,18 +206,15 @@ const SERVER_DETAIL_MAP: Array<[RegExp, string, string]> = [
   [/forbidden/i, "You don't have permission for this action.", "ليس لديك صلاحية لهذا الإجراء."],
 ];
 
-function translateServerDetail(detail: string, isAr: boolean): string {
+function translateServerDetail(detail: string, isAr: boolean): string | null {
   for (const [pattern, en, ar] of SERVER_DETAIL_MAP) {
     if (pattern.test(detail)) {
       return isAr ? ar : en;
     }
   }
-  // If no pattern matches, return the raw detail (likely already English)
-  // For Arabic, wrap with a generic prefix
-  if (isAr) {
-    return `خطأ: ${detail}`;
-  }
-  return detail;
+  // Unmatched server text is English: fine on an English page, but on an
+  // Arabic one the per-status sentence beats a foreign one.
+  return isAr ? null : detail;
 }
 
 // ─── Parse 422 validation detail ─────────────────────────────────────────────
@@ -220,6 +231,20 @@ export function parse422Detail(
   if (!body || typeof body !== "object") return null;
 
   const detail = (body as Record<string, unknown>).detail;
+
+  // NUMU envelope: { error: { code: "VALIDATION_ERROR", details: [{ field: "body.email", message }] } }
+  const envelopeDetails = (body as { error?: { details?: unknown } }).error?.details;
+  if (Array.isArray(envelopeDetails)) {
+    const fields: Record<string, string> = {};
+    for (const err of envelopeDetails) {
+      const field = (err as { field?: unknown })?.field;
+      const message = (err as { message?: unknown })?.message;
+      if (typeof field === "string" && typeof message === "string") {
+        fields[field.replace(/^body\./, "")] = message;
+      }
+    }
+    return { message: (body as { error?: { message?: string } }).error?.message ?? "", fields };
+  }
 
   // Array of validation errors (FastAPI format)
   if (Array.isArray(detail)) {

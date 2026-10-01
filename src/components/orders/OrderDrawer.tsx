@@ -324,7 +324,7 @@ const OrderDrawer = ({ orderId, onClose }: OrderDrawerProps) => {
                           </div>
                         )}
                         <div className="text-[11.5px] text-muted-foreground tabular-nums">
-                          {isRTL ? item.quantity.toLocaleString("ar-EG") : item.quantity}
+                          {isRTL ? item.quantity.toLocaleString("ar-EG-u-nu-latn") : item.quantity}
                           {" × "}
                           {fmt(item.unit_price)}
                         </div>

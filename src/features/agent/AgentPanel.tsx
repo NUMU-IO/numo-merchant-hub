@@ -170,7 +170,7 @@ export function AgentPanel() {
                         {c.updated_at && (
                           <span className="block text-xs text-muted-foreground">
                             {new Date(c.updated_at).toLocaleString(
-                              locale === "ar" ? "ar-EG" : undefined,
+                              locale === "ar" ? "ar-EG-u-nu-latn" : undefined,
                               { dateStyle: "medium", timeStyle: "short" },
                             )}
                           </span>

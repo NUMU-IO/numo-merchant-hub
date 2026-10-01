@@ -499,3 +499,14 @@ describe("ar.ts encoding", () => {
     expect(ARABIC_SCRIPT.test(arText)).toBe(true);
   });
 });
+
+describe("en.ts is English", () => {
+  it("has no Arabic letters, except example text for Arabic-language fields", () => {
+    // Keys like `nameArPlaceholder` / `phTitleAr` show what to type in an
+    // Arabic field, so Arabic is the point there.
+    const leaks = Object.entries(EN).filter(
+      ([key, value]) => ARABIC_SCRIPT.test(value) && !/Ar($|[A-Z])/.test(key.split(".").pop() ?? ""),
+    );
+    expect(leaks).toEqual([]);
+  });
+});

@@ -190,13 +190,13 @@ export default function WhatsAppOptIns() {
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {new Date(row.opted_in_at).toLocaleString(
-                      isAr ? "ar-EG" : "en-US"
+                      isAr ? "ar-EG-u-nu-latn" : "en-US"
                     )}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {row.opted_out_at
                       ? new Date(row.opted_out_at).toLocaleString(
-                          isAr ? "ar-EG" : "en-US"
+                          isAr ? "ar-EG-u-nu-latn" : "en-US"
                         )
                       : "—"}
                   </TableCell>

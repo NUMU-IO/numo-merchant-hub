@@ -99,7 +99,7 @@ interface ReportData {
 }
 
 const num = (v: number, _fmt: (c: number) => string, isAr: boolean) =>
-  v.toLocaleString(isAr ? "ar-EG" : undefined);
+  v.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined);
 const cur = (v: number, fmt: (c: number) => string) => fmt(v);
 const pct = (v: number, _fmt: (c: number) => string, isAr: boolean) =>
   `${v.toFixed(1).toString().replace(".", isAr ? "٫" : ".")}%`;
@@ -1062,7 +1062,7 @@ export function ReportsTab({ range, formatCurrency }: ReportsTabProps) {
             {dataAsOf && (
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 {isAr ? "آخر تحديث: " : "Last updated: "}
-                {dataAsOf.toLocaleString(isAr ? "ar-EG" : "en-US", {
+                {dataAsOf.toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
                   year: "numeric", month: "short", day: "numeric",
                   hour: "2-digit", minute: "2-digit",
                 })}

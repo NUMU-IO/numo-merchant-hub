@@ -511,7 +511,7 @@ export function CustomizationWalkthrough({
                     {isAr ? (
                       <ChevronRight className="h-3.5 w-3.5" />
                     ) : (
-                      <ChevronLeft className="h-3.5 w-3.5" />
+                      <ChevronLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />
                     )}
                     {isAr ? "السابق" : "Back"}
                   </Button>
@@ -528,7 +528,7 @@ export function CustomizationWalkthrough({
                     (isAr ? (
                       <ChevronLeft className="h-3.5 w-3.5" />
                     ) : (
-                      <ChevronRight className="h-3.5 w-3.5" />
+                      <ChevronRight className="h-3.5 w-3.5 rtl:-scale-x-100" />
                     ))}
                 </Button>
               </div>

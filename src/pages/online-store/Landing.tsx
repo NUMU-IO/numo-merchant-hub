@@ -264,8 +264,8 @@ const OnlineStoreLanding = () => {
       queryClient.setQueryData(["storefront-password", storeId], data);
       toast.success(
         data.enabled
-          ? (isRTL ? "تم تفعيل حماية المتجر بكلمة مرور" : "Store is password-protected")
-          : (isRTL ? "تم إيقاف حماية كلمة المرور" : "Password protection turned off"),
+          ? (isRTL ? "تم تفعيل حماية المتجر بباسورد" : "Store is password-protected")
+          : (isRTL ? "تم إيقاف حماية الباسورد" : "Password protection turned off"),
       );
       setPwDialogOpen(false);
     },
@@ -488,7 +488,7 @@ const OnlineStoreLanding = () => {
             {lastPublished && (
               <span className="hidden sm:inline">
                 · {isRTL ? "آخر نشر" : "published"}{" "}
-                {new Date(lastPublished).toLocaleDateString(isRTL ? "ar-EG" : "en-US", { month: "short", day: "numeric" })}
+                {new Date(lastPublished).toLocaleDateString(isRTL ? "ar-EG-u-nu-latn" : "en-US", { month: "short", day: "numeric" })}
               </span>
             )}
           </div>
@@ -555,7 +555,7 @@ const OnlineStoreLanding = () => {
                 {lastPublished && (
                   <span>
                     {isRTL ? "آخر تحديث" : "Last updated"}{" "}
-                    {new Date(lastPublished).toLocaleString(isRTL ? "ar-EG" : "en-US", {
+                    {new Date(lastPublished).toLocaleString(isRTL ? "ar-EG-u-nu-latn" : "en-US", {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
@@ -868,11 +868,11 @@ const OnlineStoreLanding = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Lock className="h-4 w-4" />
-              {isRTL ? "حماية المتجر بكلمة مرور" : "Password protect your store"}
+              {isRTL ? "حماية المتجر بباسورد" : "Password protect your store"}
             </DialogTitle>
             <DialogDescription>
               {isRTL
-                ? "اطلب كلمة مرور من الزوار لعرض متجرك — مفيد قبل الإطلاق. لا يؤثر على لوحة التحكم."
+                ? "اطلب باسورد من الزوار لعرض متجرك — مفيد قبل الإطلاق. لا يؤثر على لوحة التحكم."
                 : "Require visitors to enter a password to view your storefront — useful before launch. Doesn't affect your dashboard."}
             </DialogDescription>
           </DialogHeader>
@@ -884,7 +884,7 @@ const OnlineStoreLanding = () => {
                   {isRTL ? "تفعيل الحماية" : "Restrict access"}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  {isRTL ? "إظهار صفحة كلمة المرور للزوار" : "Show a password page to visitors"}
+                  {isRTL ? "إظهار صفحة الباسورد للزوار" : "Show a password page to visitors"}
                 </p>
               </div>
               <Switch checked={pwEnabled} onCheckedChange={setPwEnabled} />
@@ -893,7 +893,7 @@ const OnlineStoreLanding = () => {
             {pwEnabled && (
               <div className="space-y-1.5">
                 <Label htmlFor="store-password" className="text-xs">
-                  {isRTL ? "كلمة المرور" : "Password"}
+                  {isRTL ? "الباسورد" : "Password"}
                 </Label>
                 <Input
                   id="store-password"
@@ -903,14 +903,14 @@ const OnlineStoreLanding = () => {
                   placeholder={
                     passwordStatus?.has_password
                       ? (isRTL ? "•••••••• (بدون تغيير)" : "•••••••• (unchanged)")
-                      : (isRTL ? "اكتب كلمة مرور" : "Enter a password")
+                      : (isRTL ? "اكتب باسورد" : "Enter a password")
                   }
                   dir="ltr"
                   autoComplete="off"
                 />
                 <p className="text-[11px] text-muted-foreground">
                   {passwordStatus?.has_password
-                    ? (isRTL ? "اتركها فارغة للإبقاء على كلمة المرور الحالية." : "Leave blank to keep the current password.")
+                    ? (isRTL ? "اتركها فارغة للإبقاء على الباسورد الحالي." : "Leave blank to keep the current password.")
                     : (isRTL ? "سيحتاجها الزوار للدخول إلى متجرك." : "Shoppers will need this to enter your store.")}
                 </p>
               </div>

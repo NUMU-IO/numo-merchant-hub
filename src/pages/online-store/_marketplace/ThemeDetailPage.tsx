@@ -62,6 +62,7 @@ import {
   type CatalogTheme,
 } from "@/services/marketplaceApi";
 import { useDashboardStore } from "@/contexts/StoreContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { InstallModal } from "./InstallModal";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -85,6 +86,7 @@ function languageLabel(code: string, t: (k: string) => string): string {
 
 export default function ThemeDetailPage() {
   const { t } = useTranslation();
+  const { isRTL } = useLanguage();
   const { slug = "" } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -141,7 +143,7 @@ export default function ThemeDetailPage() {
           onClick={() => navigate("/online-store/themes?tab=marketplace")}
           className="mb-6 -ms-2"
         >
-          <ArrowLeft className="h-4 w-4 me-1.5" />
+          <ArrowLeft className="h-4 w-4 me-1.5 rtl:-scale-x-100" />
           {t("marketplace.detail.back")}
         </Button>
         <Card>
@@ -180,7 +182,7 @@ export default function ThemeDetailPage() {
         onClick={() => navigate("/online-store/themes?tab=marketplace")}
         className="-ms-2"
       >
-        <ArrowLeft className="h-4 w-4 me-1.5" />
+        <ArrowLeft className="h-4 w-4 me-1.5 rtl:-scale-x-100" />
         {t("marketplace.detail.back")}
       </Button>
 
@@ -299,9 +301,9 @@ export default function ThemeDetailPage() {
         </div>
 
         {/* ─── Description ─────────────────────────────────────────────── */}
-        {theme.description && (
+        {(theme.description || theme.description_ar) && (
           <p className="text-base text-muted-foreground leading-relaxed whitespace-pre-line">
-            {theme.description}
+            {(isRTL && theme.description_ar) || theme.description}
           </p>
         )}
       </section>
@@ -445,7 +447,7 @@ function ThemeDetailSkeleton({ onBack }: { onBack: () => void }) {
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 space-y-10">
       <Button variant="ghost" size="sm" onClick={onBack} className="-ms-2">
-        <ArrowLeft className="h-4 w-4 me-1.5" />
+        <ArrowLeft className="h-4 w-4 me-1.5 rtl:-scale-x-100" />
         {t("marketplace.detail.back")}
       </Button>
       <div className="space-y-3">

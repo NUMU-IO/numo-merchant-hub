@@ -119,7 +119,7 @@ const CODReconciliation = () => {
 
   const fmt = (cents: number) => formatMoney(cents, { fromCents: true, locale: isAr ? "ar" : "en" });
   const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" });
+    new Date(iso).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", { month: "short", day: "numeric", year: "numeric" });
 
   const filtered = runs.filter(r => statusFilter === "all" || r.status === statusFilter);
 
@@ -141,7 +141,7 @@ const CODReconciliation = () => {
   const completedRuns = runs.filter(r => r.status === "completed");
   const totalVariance = completedRuns.reduce((s, r) => s + Math.abs(r.expected_amount_cents - r.actual_amount_cents), 0);
   const reconciledTotal = completedRuns.reduce((s, r) => s + r.actual_amount_cents, 0);
-  const monthLabel = new Date().toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", year: "numeric" });
+  const monthLabel = new Date().toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", { month: "short", year: "numeric" });
 
   // variance_cents = expected − actual. Positive → the courier remitted
   // LESS than the paid orders say (short); negative → more (over).

@@ -72,7 +72,7 @@ const SocialImport = () => {
   const [connecting, setConnecting] = useState<string | null>(null);
 
   const formatCurrency = (val: number) =>
-    language === "ar" ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
+    language === "ar" ? `${val.toLocaleString("ar-EG-u-nu-latn")} ج.م` : `EGP ${val.toLocaleString()}`;
 
   // ---------------------------------------------------------------------------
   // Load connections on mount

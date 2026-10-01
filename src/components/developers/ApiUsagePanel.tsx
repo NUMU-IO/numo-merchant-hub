@@ -25,7 +25,7 @@ export function ApiUsagePanel({ storeId }: { storeId: string | undefined }) {
   // An API without the usage endpoint yet: the page works without this card.
   if (failed) return null;
 
-  const num = (n: number) => n.toLocaleString(isRTL ? "ar-EG" : "en-US");
+  const num = (n: number) => n.toLocaleString(isRTL ? "ar-EG-u-nu-latn" : "en-US");
   const unlimited = t("Unlimited", "غير محدود");
 
   const warningText = (w: ApiUsageWarning) => {

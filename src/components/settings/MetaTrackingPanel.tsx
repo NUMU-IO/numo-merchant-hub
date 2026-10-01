@@ -674,7 +674,7 @@ export function MetaTrackingPanel() {
                         <span className="souq-pill bg-saffron-100 text-saffron-600 dark:text-saffron">
                           <span className="dot animate-pulse" />
                           {isAr
-                            ? `فاضل ${debugMinutesLeft.toLocaleString("ar-EG")} دقيقة`
+                            ? `فاضل ${debugMinutesLeft.toLocaleString("ar-EG-u-nu-latn")} دقيقة`
                             : `${debugMinutesLeft} min left`}
                         </span>
                       )}

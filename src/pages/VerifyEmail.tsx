@@ -6,21 +6,24 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   verifyEmailByCode, verifyEmailByToken, resendVerificationEmail,
 } from "@/services/authApi";
+import { ApiError, errorMessage } from "@/lib/api-error";
+import { toLatinDigits } from "@/lib/arabic-normalize";
+
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, Mail, RefreshCw, ArrowLeft } from "lucide-react";
+import { Loader2, CheckCircle2, Mail, RefreshCw, ArrowLeft, Globe } from "lucide-react";
 
 export default function VerifyEmail() {
   const { t } = useTranslation();
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const isAr = language === "ar";
-  const { user, refreshUser, logout } = useAuth();
+  const { user, refreshUser, logout, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -56,7 +59,7 @@ export default function VerifyEmail() {
       await refreshUser();
       setTimeout(() => navigate("/", { replace: true }), 1500);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Verification link is invalid or expired");
+      setError(errorMessage(err, language));
     } finally {
       setLoading(false);
     }
@@ -73,11 +76,32 @@ export default function VerifyEmail() {
       await refreshUser();
       setTimeout(() => navigate("/", { replace: true }), 1500);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Invalid or expired code");
+      setError(codeErrorMessage(err));
       setCode(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } finally {
       setLoading(false);
+    }
+  }
+
+  function codeErrorMessage(err: unknown): string {
+    if (!(err instanceof ApiError)) return errorMessage(err, language);
+    const left = (err.body as { error?: { attempts_left?: number } } | null)?.error?.attempts_left;
+    switch (err.code) {
+      case "INVALID_VERIFICATION_CODE":
+        return isAr
+          ? `الكود غلط. فاضلك ${left} ${left === 1 ? "محاولة" : "محاولات"}.`
+          : `Wrong code. ${left} ${left === 1 ? "attempt" : "attempts"} left.`;
+      case "VERIFICATION_CODE_LOCKED":
+        return isAr
+          ? "خلصت المحاولات، فلغينا الكود ده. اطلب كود جديد من تحت."
+          : "Out of attempts, so this code is cancelled. Request a new one below.";
+      case "VERIFICATION_CODE_EXPIRED":
+        return isAr
+          ? "الكود ده انتهى. اطلب كود جديد من تحت."
+          : "This code has expired. Request a new one below.";
+      default:
+        return errorMessage(err, language);
     }
   }
 
@@ -88,7 +112,7 @@ export default function VerifyEmail() {
       await resendVerificationEmail();
       setCooldown(60);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to resend verification email");
+      setError(errorMessage(err, language));
     } finally {
       setResending(false);
     }
@@ -100,6 +124,7 @@ export default function VerifyEmail() {
   }
 
   function handleCodeChange(index: number, value: string) {
+    value = toLatinDigits(value);
     if (value && !/^\d$/.test(value)) return;
     const newCode = [...code];
     newCode[index] = value;
@@ -117,7 +142,7 @@ export default function VerifyEmail() {
 
   function handlePaste(e: React.ClipboardEvent) {
     e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    const pasted = toLatinDigits(e.clipboardData.getData("text")).replace(/\D/g, "").slice(0, 6);
     if (!pasted.length) return;
     const newCode = [...code];
     for (let i = 0; i < 6; i++) newCode[i] = pasted[i] || "";
@@ -144,6 +169,12 @@ export default function VerifyEmail() {
       )}
     </Link>
   );
+
+  // The emailed link carries its own proof (the token), so it verifies on any
+  // device or in the Gmail app without a session. Only the code form needs one.
+  if (!searchParams.get("token") && !isLoading && !isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
   if (success) {
     return (
@@ -173,6 +204,14 @@ export default function VerifyEmail() {
       dir={isAr ? "rtl" : "ltr"}
       className="min-h-screen auth-page auth-dot-grid brand-surface paper-grain flex flex-col items-center justify-center p-4 sm:p-6"
     >
+      <button
+        type="button"
+        onClick={() => setLanguage(isAr ? "en" : "ar")}
+        className="fixed top-4 end-4 z-20 inline-flex items-center gap-1.5 rounded-[4px] border border-[var(--b-line)] bg-[var(--b-paper)] px-3 py-1.5 text-xs font-medium text-[var(--b-ink-soft)] hover:text-[var(--b-ink)] hover:border-[var(--b-navy)] transition-colors shadow-xs"
+      >
+        <Globe className="h-3.5 w-3.5" />
+        {isAr ? "English" : "العربية"}
+      </button>
       <div className="w-full max-w-[420px] relative z-10">
         <Brand />
         <div className="auth-card auth-enter p-7 sm:p-9">
@@ -204,8 +243,8 @@ export default function VerifyEmail() {
                 className="brand-input w-11 h-12 text-center text-xl font-semibold outline-none transition-colors"
                 disabled={loading}
                 autoFocus={i === 0}
+                autoComplete={i === 0 ? "one-time-code" : "off"}
                 aria-label={isAr ? `الرقم ${i + 1} من رمز التحقق` : `Verification code digit ${i + 1}`}
-                placeholder="0"
               />
             ))}
           </div>
@@ -221,6 +260,11 @@ export default function VerifyEmail() {
           {/* Resend */}
           <div className="text-center mt-6 space-y-2">
             <p className="text-sm text-[var(--b-ink-soft)]">{t("auth.didntReceive")}</p>
+            <p className="text-xs text-[var(--b-ink-soft)]/80">
+              {isAr
+                ? "بص في فولدر الـ Spam أو الترويجات (Promotions) الأول."
+                : "Check your Spam or Promotions folder first."}
+            </p>
             <Button
               variant="ghost"
               size="sm"

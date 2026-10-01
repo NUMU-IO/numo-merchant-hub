@@ -79,7 +79,7 @@ export function WhatsAppCard({ storeId, orderId }: Props) {
             </div>
             <p className="text-xs text-muted-foreground">
               {new Date(send.sent_at).toLocaleString(
-                i18n.language === "ar" ? "ar-EG" : "en-GB",
+                i18n.language === "ar" ? "ar-EG-u-nu-latn" : "en-GB",
               )}
             </p>
             {send.status === "failed" && send.error_code && (

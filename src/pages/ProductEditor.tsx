@@ -21,7 +21,7 @@ import { prepareImageForUpload } from "@/lib/image-validation";
 import { SortableImageGrid } from "@/components/products/SortableImageGrid";
 import { ProductSection } from "@/components/products/ProductSection";
 import { RelatedProductsPicker } from "@/components/products/RelatedProductsPicker";
-import { getStoreUrl } from "@/lib/storefront";
+import { getPublicStoreUrl, getStoreUrl } from "@/lib/storefront";
 
 /** ISO instant -> the "YYYY-MM-DDTHH:mm" a `datetime-local` input wants.
  *  Rendered in the merchant's own timezone, which is the one they think
@@ -129,6 +129,8 @@ import {
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import { z } from "zod";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+import { toNumericInput } from "@/lib/arabic-normalize";
 
 // ── Product label presets (v1: fixed bilingual text, no colors/icons) ──
 const PRESET_LABELS: ProductLabel[] = [
@@ -304,13 +306,17 @@ async function dominantColor(url: string): Promise<string | null> {
   });
 }
 
+// Prices are stored as 32-bit cents; the API rejects anything above this.
+const MAX_PRICE = 21_474_836.47;
+
 const productSchema = z.object({
   name: z.string()
     .min(3, "اسم المنتج يجب أن يكون 3 أحرف على الأقل")
     .max(120, "اسم المنتج يجب ألا يتجاوز 120 حرفًا"),
   price: z.string()
     .min(1, "السعر مطلوب")
-    .refine((v) => !isNaN(Number(v)) && Number(v) > 0, "السعر يجب أن يكون رقمًا موجبًا")
+    .refine((v) => !isNaN(Number(v)) && Number(v) >= 0, "السعر لازم يكون رقم، صفر أو أكتر")
+    .refine((v) => Number(v) <= MAX_PRICE, "أقصى سعر للمنتج 21,474,836.47")
     .refine((v) => /^\d+(\.\d{1,2})?$/.test(v), "السعر يجب ألا يتجاوز خانتين عشريتين"),
   comparePrice: z.string()
     .refine((v) => v === "" || (!isNaN(Number(v)) && Number(v) >= 0), "سعر المقارنة يجب أن يكون رقمًا صحيحًا"),
@@ -364,8 +370,8 @@ const ProductEditor = () => {
   const [formPrice, setFormPrice] = useState("");
   const [formComparePrice, setFormComparePrice] = useState("");
   const [formCostPrice, setFormCostPrice] = useState("");
-  const [formStock, setFormStock] = useState("");
-  const [formStatus, setFormStatus] = useState<ProductStatus>("draft");
+  const [formStock, setFormStock] = useState("1");
+  const [formStatus, setFormStatus] = useState<ProductStatus>("published");
   const [formCategory, setFormCategory] = useState("");
   const [formBrand, setFormBrand] = useState("");
   const [imageAlts, setImageAlts] = useState<Record<string, string>>({});
@@ -465,6 +471,27 @@ const ProductEditor = () => {
       pendingFilesRef.current.forEach(p => URL.revokeObjectURL(p.url));
     };
   }, []);
+
+  // Unsaved-changes guard: compare the main fields with how they looked once
+  // the product loaded (edit) or on mount (create).
+  const formSnapshot = JSON.stringify([
+    formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice,
+    formCostPrice, formStock, formStatus, formSku, formSalePrice, formWeight,
+    formSeoTitle, formSeoDesc, formSlug, formImages, pendingFiles.length,
+  ]);
+  const [cleanSnapshot, setCleanSnapshot] = useState<string | null>(null);
+  const loadStartedRef = useRef(false);
+  useEffect(() => {
+    if (isLoadingProduct) {
+      loadStartedRef.current = true;
+      return;
+    }
+    if (cleanSnapshot === null && (!isEditMode || loadStartedRef.current)) {
+      setCleanSnapshot(formSnapshot);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingProduct]);
+  useUnsavedChangesGuard(cleanSnapshot !== null && cleanSnapshot !== formSnapshot && !isSaving);
 
   useEffect(() => {
     if (!storeId) return;
@@ -674,6 +701,7 @@ const ProductEditor = () => {
         if (!errs[key]) errs[key] = issue.message;
       }
       setFieldErrors(errs);
+      toast.error(Object.values(errs)[0]);
       return;
     }
 
@@ -871,7 +899,20 @@ const ProductEditor = () => {
             await uploadProductImage(storeId, created.id, pending.file);
           } catch { /* image upload failure is non-blocking */ }
         }
-        toast.success(language === "ar" ? "المنتج اتضاف!" : "Product added successfully!");
+        // Say where the product is: merchants share their link believing a
+        // saved product is online.
+        const storeUrl = getPublicStoreUrl(currentStore);
+        const productUrl = storeUrl && created.slug ? `${storeUrl}/products/${created.slug}` : null;
+        const view = productUrl
+          ? { action: { label: language === "ar" ? "شوفه" : "View", onClick: () => window.open(productUrl, "_blank") } }
+          : undefined;
+        if (formStatus === "published") {
+          toast.success(language === "ar" ? "المنتج بقى على متجرك" : "Your product is live on your store", view);
+        } else if (formStatus === "unlisted") {
+          toast.success(language === "ar" ? "المنتج اتحفظ — بيظهر بالرابط بس" : "Product saved — visible by link only", view);
+        } else {
+          toast.success(language === "ar" ? "المنتج اتحفظ، بس مخفي عن العملاء" : "Product saved, but hidden from customers");
+        }
       }
       navigate("/products");
     } catch (err) {
@@ -879,7 +920,7 @@ const ProductEditor = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formBrand, formSeoTitle, formSeoDesc, formNoindex, formCanonical, formSitemapExclude, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched, formWeight, formRequiresShipping, formTaxExempt, formSaleEnabled, formSalePrice, formSaleScheduled, formSaleStart, formSaleEnd, formRelatedIds]);
+  }, [storeId, isSaving, formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice, formCostPrice, formStock, formStatus, formCategory, formVariants, formImages, pendingFiles, isEditMode, productId, apiCategories, language, navigate, t, formBrand, formSeoTitle, formSeoDesc, formNoindex, formCanonical, formSitemapExclude, formMetaCatalogId, formSlug, formTemplateSuffix, variantCombinations, sizeChart, continueSellingOutOfStock, formLabel, formSku, hasOptions, variantsTouched, formWeight, formRequiresShipping, formTaxExempt, formSaleEnabled, formSalePrice, formSaleScheduled, formSaleStart, formSaleEnd, formRelatedIds, currentStore]);
 
   const allLabels = useMemo(
     () => [...PRESET_LABELS, ...customLabels],
@@ -979,12 +1020,12 @@ const ProductEditor = () => {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/products")} className="h-8 w-8 rounded-lg">
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
           </Button>
           <h1 className="text-xl font-bold">
             {isEditMode
               ? (language === "ar" ? "تعديل المنتج" : "Edit Product")
-              : (language === "ar" ? "منتج فردي" : "New Product")}
+              : (language === "ar" ? "منتج جديد" : "New Product")}
           </h1>
         </div>
         <Button onClick={handleSave} disabled={isSaving} size="sm" className="h-8 text-xs rounded-lg gap-1.5">
@@ -1005,23 +1046,23 @@ const ProductEditor = () => {
         <CardContent className="space-y-5">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">{t("products.productName")} (EN) *</Label>
-              <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Product name" className={`h-10 rounded-lg ${fieldErrors.name ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.productName")} *</Label>
+              <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder={language === "ar" ? "مثال: طبق خزف مرسوم يدويًا" : "e.g. Hand-painted ceramic plate"} className={`h-10 rounded-lg ${fieldErrors.name ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
               {fieldErrors.name && <p className="text-[11px] text-destructive flex items-center gap-1"><span className="h-1 w-1 rounded-full bg-destructive" />{fieldErrors.name}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">{t("products.productName")} (AR)</Label>
+              <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "ترجمة الاسم بالعربي (اختياري)" : "Arabic translation (optional)"}</Label>
               <Input value={formNameAr} onChange={e => setFormNameAr(e.target.value)} placeholder={formName.trim() || "اسم المنتج"} dir="rtl" className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">{t("products.description")} (EN)</Label>
-              <Textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Describe your product..." rows={4} className={`rounded-lg resize-none ${fieldErrors.description ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.description")}</Label>
+              <Textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder={language === "ar" ? "اوصف منتجك..." : "Describe your product..."} rows={4} className={`rounded-lg resize-none ${fieldErrors.description ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
               {fieldErrors.description && <p className="text-[11px] text-destructive">{fieldErrors.description}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">{t("products.description")} (AR)</Label>
+              <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "ترجمة الوصف بالعربي (اختياري)" : "Arabic description (optional)"}</Label>
               <Textarea value={formDescAr} onChange={e => setFormDescAr(e.target.value)} placeholder={formDesc.trim() || "وصف المنتج..."} rows={4} dir="rtl" className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
             </div>
           </div>
@@ -1125,26 +1166,26 @@ const ProductEditor = () => {
         <CardContent>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">{t("products.price")} (EGP) *</Label>
+              <Label className="text-xs font-medium text-muted-foreground">{t("products.price")} ({currentStore?.default_currency || "EGP"}) *</Label>
               <div className="relative">
-                <Input type="number" value={formPrice} onChange={e => setFormPrice(e.target.value)} placeholder="0.00" className={`h-10 rounded-lg ps-8 ${fieldErrors.price ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
-                <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">$</span>
+                <Input type="text" inputMode="decimal" value={formPrice} onChange={e => setFormPrice(toNumericInput(e.target.value))} placeholder="0.00" className={`h-10 rounded-lg ps-12 ${fieldErrors.price ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">{currentStore?.default_currency || "EGP"}</span>
               </div>
               {fieldErrors.price && <p className="text-[11px] text-destructive">{fieldErrors.price}</p>}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.compareAtPrice")}</Label>
               <div className="relative">
-                <Input type="number" value={formComparePrice} onChange={e => setFormComparePrice(e.target.value)} placeholder="0.00" className={`h-10 rounded-lg ps-8 ${fieldErrors.comparePrice ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
-                <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">$</span>
+                <Input type="text" inputMode="decimal" value={formComparePrice} onChange={e => setFormComparePrice(toNumericInput(e.target.value))} placeholder="0.00" className={`h-10 rounded-lg ps-12 ${fieldErrors.comparePrice ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">{currentStore?.default_currency || "EGP"}</span>
               </div>
               {fieldErrors.comparePrice && <p className="text-[11px] text-destructive">{fieldErrors.comparePrice}</p>}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.costPrice")}</Label>
               <div className="relative">
-                <Input ref={costInputRef} type="number" value={formCostPrice} onChange={e => setFormCostPrice(e.target.value)} placeholder="0.00" className={`h-10 rounded-lg ps-8 ${fieldErrors.costPrice ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
-                <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">$</span>
+                <Input ref={costInputRef} type="text" inputMode="decimal" value={formCostPrice} onChange={e => setFormCostPrice(toNumericInput(e.target.value))} placeholder="0.00" className={`h-10 rounded-lg ps-12 ${fieldErrors.costPrice ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">{currentStore?.default_currency || "EGP"}</span>
               </div>
               {fieldErrors.costPrice ? (
                 <p className="text-[11px] text-destructive">{fieldErrors.costPrice}</p>
@@ -1157,7 +1198,7 @@ const ProductEditor = () => {
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.stock")}</Label>
               <div className="relative">
-                <Input ref={stockInputRef} type="number" value={formStock} onChange={e => setFormStock(e.target.value)} placeholder="0" className={`h-10 rounded-lg ps-8 ${fieldErrors.stock ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <Input ref={stockInputRef} type="text" inputMode="numeric" value={formStock} onChange={e => setFormStock(toNumericInput(e.target.value, false))} placeholder="0" className={`h-10 rounded-lg ps-8 ${fieldErrors.stock ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
                 <Hash className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40" />
               </div>
               {fieldErrors.stock && <p className="text-[11px] text-destructive">{fieldErrors.stock}</p>}
@@ -1196,8 +1237,8 @@ const ProductEditor = () => {
             <div className="flex-1">
               <div className="text-[13px] font-medium">
                 {language === "ar"
-                  ? "استمر في البيع حتى لو نفد المخزون"
-                  : "Continue selling when out of stock"}
+                  ? "بشتغل بالطلب (كمّل البيع لو الكمية خلصت)"
+                  : "Made to order (keep selling at zero stock)"}
               </div>
               <p className="text-[11px] text-muted-foreground/70 mt-0.5">
                 {language === "ar"
@@ -1515,7 +1556,7 @@ const ProductEditor = () => {
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-base font-bold">{language === "ar" ? "المتغيرات" : "Variants"}</CardTitle>
+              <CardTitle className="text-base font-bold">{language === "ar" ? "الاختيارات (مقاس/لون)" : "Variants"}</CardTitle>
               <CardDescription className="text-xs">
                 {language === "ar"
                   ? "هذا المنتج له خيارات، مثل المقاس أو اللون"
@@ -1556,7 +1597,7 @@ const ProductEditor = () => {
                 <Layers className="h-5 w-5 text-muted-foreground/50" />
               </div>
               <p className="text-[13px] text-muted-foreground/70 text-center">
-                {language === "ar" ? "مفيش متغيرات لسه" : "No variants yet"}
+                {language === "ar" ? "مفيش اختيارات لسه" : "No variants yet"}
               </p>
               <p className="text-[11px] text-muted-foreground/50 text-center">
                 {language === "ar" ? "اضغط \"إضافة متغير\" لإضافة مقاس أو لون" : "Add variants like Size or Color"}
@@ -1904,7 +1945,7 @@ const ProductEditor = () => {
           <CardContent>
             <p className="text-[11px] text-amber-600">
               {language === "ar"
-                ? "تم إيقاف الخيارات — سيتم حذف كل المتغيرات عند الحفظ ويعود المنتج منتجًا بسيطًا."
+                ? "قفلت الاختيارات — لما تحفظ هتتمسح كل الاختيارات ويرجع منتج من غير اختيارات."
                 : "Options turned off — saving will remove all variants and return this to a simple product."}
             </p>
           </CardContent>
@@ -2005,18 +2046,6 @@ const ProductEditor = () => {
               {/* Name */}
               <h3 className="text-[16px] font-bold leading-snug tracking-tight">{previewName}</h3>
 
-              {/* Rating mock */}
-              <div className="flex items-center gap-1.5">
-                <div className="flex">
-                  {[1, 2, 3, 4, 5].map(s => (
-                    <svg key={s} className={`h-3 w-3 ${s <= 4 ? "text-amber-400 fill-amber-400" : "text-muted/60 fill-muted/60"}`} viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-                <span className="text-[10px] text-muted-foreground">(0 {language === "ar" ? "تقييم" : "reviews"})</span>
-              </div>
-
               {/* Price */}
               <div className="flex items-baseline gap-2.5 pt-1">
                 {previewPrice > 0 ? (
@@ -2096,7 +2125,7 @@ const ProductEditor = () => {
                 {formStock && Number(formStock) === 0 && (
                   <div className="flex items-center gap-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                    <span className="text-[11px] text-red-600">{language === "ar" ? "نفذت الكمية" : "Out of stock"}</span>
+                    <span className="text-[11px] text-red-600">{language === "ar" ? "خلص من المخزون" : "Out of stock"}</span>
                   </div>
                 )}
               </div>
@@ -2261,11 +2290,10 @@ const ProductEditor = () => {
                       {language === "ar" ? "سعر الخصم" : "Discount price"}
                     </Label>
                     <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={formSalePrice}
-                      onChange={(e) => setFormSalePrice(e.target.value)}
+                      onChange={(e) => setFormSalePrice(toNumericInput(e.target.value))}
                       placeholder={formPrice || "0"}
                       className="h-9"
                     />

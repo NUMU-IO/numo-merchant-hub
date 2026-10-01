@@ -10,7 +10,8 @@
  * rather than the layout: by the last week the merchant has built a catalogue,
  * and "don't lose it" lands where "unlock features" does not.
  *
- * - more than 7 days: navy, saffron ticks, "all features open"
+ * - more than 7 days: one slim line, dismissible for the session — the full
+ *                     strip cost ~110px of every phone screen for a month
  * - 3 to 7 days:      navy, amber ticks, the lock date named
  * - 2 days or fewer:  terracotta, "your storefront closes to shoppers"
  *
@@ -19,18 +20,15 @@
  * with the lifecycle set and the expiry already cleared.
  */
 
-import { Clock } from "lucide-react";
+import { useState } from "react";
+import { Clock, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-/** Arabic-Indic digits, matching how every other number reads in the Arabic hub. */
-function digits(value: number, isAr: boolean): string {
-  const latin = String(value);
-  return isAr ? latin.replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)]) : latin;
-}
+const DISMISS_KEY = "numu:trial-line-dismissed";
 
 function dayWord(days: number, isAr: boolean): string {
   if (!isAr) return days === 1 ? "day" : "days";
@@ -47,6 +45,13 @@ export function TrialBanner() {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const isAr = language === "ar";
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(DISMISS_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
 
   if (!tenant?.is_on_trial || tenant.days_remaining === null) return null;
 
@@ -68,7 +73,8 @@ export function TrialBanner() {
       : daysLeft,
   );
 
-  const count = `${digits(daysLeft, isAr)} ${dayWord(daysLeft, isAr)}`;
+  // Latin digits, like money and phone numbers across the Arabic hub.
+  const count = `${daysLeft} ${dayWord(daysLeft, isAr)}`;
 
   const copy = {
     low: {
@@ -98,6 +104,38 @@ export function TrialBanner() {
   }[urgency];
 
   const hot = urgency === "high";
+
+  if (urgency === "low") {
+    if (dismissed) return null;
+    return (
+      <div className="mb-4 flex items-center gap-2 rounded-lg border border-navy/10 bg-navy/5 px-3 py-1.5 text-xs">
+        <Clock className="h-3.5 w-3.5 shrink-0 text-navy/70" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate font-semibold">{copy.title}</span>
+        <button
+          type="button"
+          onClick={() => navigate("/billing")}
+          className="shrink-0 font-semibold text-navy underline-offset-2 hover:underline"
+        >
+          {isAr ? "شوف الباقات" : "See plans"}
+        </button>
+        <button
+          type="button"
+          aria-label={isAr ? "إخفاء" : "Dismiss"}
+          onClick={() => {
+            setDismissed(true);
+            try {
+              sessionStorage.setItem(DISMISS_KEY, "1");
+            } catch {
+              /* private mode: hidden until reload */
+            }
+          }}
+          className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-navy/10"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -140,13 +178,7 @@ export function TrialBanner() {
           onClick={() => navigate("/billing")}
           className="shrink-0 bg-saffron font-semibold text-[#3a2405] hover:bg-saffron/90"
         >
-          {isAr
-            ? urgency === "low"
-              ? "شوف الباقات"
-              : "اشترك دلوقتي"
-            : urgency === "low"
-              ? "See plans"
-              : "Subscribe now"}
+          {isAr ? "اشترك دلوقتي" : "Subscribe now"}
         </Button>
       </div>
     </div>

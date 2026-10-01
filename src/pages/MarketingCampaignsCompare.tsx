@@ -233,7 +233,7 @@ export default function MarketingCampaignsCompare() {
       <div className="space-y-4">
         <Button variant="outline" size="sm" asChild className="w-fit">
           <Link to="/campaigns" className="gap-1.5">
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
             {isAr ? "العودة إلى الحملات" : "Back to campaigns"}
           </Link>
         </Button>

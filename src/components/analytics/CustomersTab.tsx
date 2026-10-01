@@ -227,7 +227,7 @@ export function CustomersTab({ range, formatCurrency }: CustomersTabProps) {
                     { label: isAr ? "متوسط CLV" : "Average CLV", value: formatCurrency(data.clv.avg_clv), color: "text-blue-600 dark:text-blue-400" },
                     { label: isAr ? "وسيط CLV" : "Median CLV", value: formatCurrency(data.clv.median_clv), color: "text-emerald-600 dark:text-emerald-400" },
                     { label: isAr ? "أعلى ١٠٪" : "Top 10% CLV", value: formatCurrency(data.clv.top_10_pct_clv), color: "text-amber-600 dark:text-amber-400" },
-                    { label: isAr ? "إجمالي العملاء" : "Total Customers", value: data.clv.total_customers.toLocaleString(isAr ? "ar-EG" : undefined), color: "text-violet-600 dark:text-violet-400" },
+                    { label: isAr ? "إجمالي العملاء" : "Total Customers", value: data.clv.total_customers.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined), color: "text-violet-600 dark:text-violet-400" },
                   ].map((stat) => (
                     <div key={stat.label} className="text-center rounded-lg bg-muted/40 p-3">
                       <p className={`text-lg font-bold tabular-nums ${stat.color}`}>{stat.value}</p>

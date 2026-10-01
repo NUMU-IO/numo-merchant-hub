@@ -58,7 +58,10 @@ const REGION_BY_CURRENCY: Record<string, string> = {
 
 function localeFor(currency: string, isAr: boolean): string {
   const region = REGION_BY_CURRENCY[currency] || (isAr ? "EG" : "US");
-  return `${isAr ? "ar" : "en"}-${region}`;
+  // Latin digits in Arabic too: ar-EG's default Arabic-Indic digits put
+  // «١٩٬٩٠٠ ج.م» next to «المخزون: 0» on the same screen. Money and phone
+  // numbers read in Latin digits across the hub.
+  return isAr ? `ar-${region}-u-nu-latn` : `en-${region}`;
 }
 
 // New Saudi Riyal sign (Unicode 17.0, U+20C1), rendered via the

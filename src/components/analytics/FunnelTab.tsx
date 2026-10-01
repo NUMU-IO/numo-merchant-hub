@@ -236,7 +236,7 @@ export function FunnelTab({ range, formatCurrency }: FunnelTabProps) {
                         ) : null}
                         <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold tabular-nums">
                           {step.count > 0
-                            ? step.count.toLocaleString(isAr ? "ar-EG" : undefined)
+                            ? step.count.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)
                             : <span className="text-muted-foreground/40">0</span>}
                         </span>
                       </div>
@@ -370,7 +370,7 @@ export function FunnelTab({ range, formatCurrency }: FunnelTabProps) {
                     {isAr ? "إجمالي عمليات البحث" : "Total Searches"}
                   </p>
                   <p className="text-xl font-bold tabular-nums">
-                    {searchData.total_searches.toLocaleString(isAr ? "ar-EG" : undefined)}
+                    {searchData.total_searches.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                   </p>
                 </div>
                 <div>
@@ -378,7 +378,7 @@ export function FunnelTab({ range, formatCurrency }: FunnelTabProps) {
                     {isAr ? "جلسات بحثت" : "Search Sessions"}
                   </p>
                   <p className="text-xl font-bold tabular-nums">
-                    {searchData.unique_search_sessions.toLocaleString(isAr ? "ar-EG" : undefined)}
+                    {searchData.unique_search_sessions.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                   </p>
                 </div>
                 <div>
@@ -386,7 +386,7 @@ export function FunnelTab({ range, formatCurrency }: FunnelTabProps) {
                     {isAr ? "بحث ← شراء" : "Search → Purchase"}
                   </p>
                   <p className="text-xl font-bold tabular-nums">
-                    {searchData.search_conversion_rate.toLocaleString(isAr ? "ar-EG" : undefined)}%
+                    {searchData.search_conversion_rate.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}%
                   </p>
                 </div>
               </div>
@@ -404,10 +404,10 @@ export function FunnelTab({ range, formatCurrency }: FunnelTabProps) {
                         />
                       </div>
                       <span className="text-[12.5px] font-semibold tabular-nums w-14 text-end shrink-0">
-                        {t.searches.toLocaleString(isAr ? "ar-EG" : undefined)}
+                        {t.searches.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                       </span>
                       <span className="text-[10.5px] text-muted-foreground w-20 text-end shrink-0">
-                        {t.sessions.toLocaleString(isAr ? "ar-EG" : undefined)} {isAr ? "جلسة" : "sessions"}
+                        {t.sessions.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)} {isAr ? "جلسة" : "sessions"}
                       </span>
                     </div>
                   );
