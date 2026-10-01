@@ -54,7 +54,7 @@ function Inner({
           {isAr ? "القيمة مدى الحياة" : "LTV by channel"}
         </TabsTrigger>
         <TabsTrigger value="multi-touch">
-          {isAr ? "الإسناد متعدد النقاط" : "Multi-touch attribution"}
+          {isAr ? "مصدر المبيعات متعدد النقاط" : "Multi-touch attribution"}
         </TabsTrigger>
       </TabsList>
 
@@ -93,10 +93,10 @@ export default function MarketingAttribution() {
 
   return (
     <AnalyticsLayout
-      title={{ en: "Attribution", ar: "الإسناد" }}
+      title={{ en: "Attribution", ar: "مصدر المبيعات" }}
       subtitle={{
         en: "Channel lifetime value + multi-touch revenue credit, side by side",
-        ar: "قيمة العميل مدى الحياة + الإسناد متعدد النقاط في صفحة واحدة",
+        ar: "قيمة العميل مدى الحياة + مصدر المبيعات متعدد النقاط في صفحة واحدة",
       }}
     >
       <Inner activeTab={activeTab} onTabChange={handleTabChange} />

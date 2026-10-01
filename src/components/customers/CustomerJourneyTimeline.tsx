@@ -48,7 +48,7 @@ function describeReferrer(referrer: string | null): string | null {
 
 function formatTs(ts: string, isAr: boolean): string {
   const d = new Date(ts);
-  return d.toLocaleString(isAr ? "ar-EG" : "en-EG", {
+  return d.toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-EG", {
     year: "numeric",
     month: "short",
     day: "numeric",

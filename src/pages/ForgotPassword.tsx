@@ -5,7 +5,7 @@
  * real logo image, Reem Kufi headlines, brand-input form fields.
  */
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 import { forgotPassword } from "@/services/authApi";
+import { errorMessage } from "@/lib/api-error";
 
 export default function ForgotPassword() {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const isAr = language === "ar";
-  const [email, setEmail] = useState("");
+  const [searchParams] = useSearchParams();
+  const [email, setEmail] = useState(() => searchParams.get("email") || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -32,7 +34,7 @@ export default function ForgotPassword() {
       await forgotPassword(email);
       setSent(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : t("common.error"));
+      setError(errorMessage(err, language));
     } finally {
       setLoading(false);
     }

@@ -73,7 +73,7 @@ export function CustomerHealthCard({ formatCurrency }: CustomerHealthCardProps) 
           {data && data.median_gap_days > 0 && total > 0 && (
             <span className="text-[11px] font-medium text-muted-foreground">
               {isAr
-                ? `إيقاع الشراء: كل ~${data.median_gap_days.toLocaleString("ar-EG")} يوم`
+                ? `إيقاع الشراء: كل ~${data.median_gap_days.toLocaleString("ar-EG-u-nu-latn")} يوم`
                 : `Repurchase rhythm: ~every ${data.median_gap_days} days`}
             </span>
           )}
@@ -127,7 +127,7 @@ export function CustomerHealthCard({ formatCurrency }: CustomerHealthCardProps) 
                 onClick={() => setStateFilter(undefined)}
                 className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${!stateFilter ? "bg-foreground text-background" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}
               >
-                {isAr ? "الكل" : "All"} ({total.toLocaleString(isAr ? "ar-EG" : undefined)})
+                {isAr ? "الكل" : "All"} ({total.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)})
               </button>
               {STATE_ORDER.filter((s) => byState.get(s)).map((s) => (
                 <button
@@ -136,7 +136,7 @@ export function CustomerHealthCard({ formatCurrency }: CustomerHealthCardProps) 
                   className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${stateFilter === s ? "ring-2 ring-foreground/30" : ""} ${STATE_META[s].chip}`}
                 >
                   {isAr ? STATE_META[s].ar : STATE_META[s].en}{" "}
-                  ({(byState.get(s) ?? 0).toLocaleString(isAr ? "ar-EG" : undefined)})
+                  ({(byState.get(s) ?? 0).toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)})
                 </button>
               ))}
             </div>
@@ -163,7 +163,7 @@ export function CustomerHealthCard({ formatCurrency }: CustomerHealthCardProps) 
                     </span>
                   </span>
                   <span className="text-[11px] text-muted-foreground tabular-nums w-20 text-end shrink-0 whitespace-nowrap hidden sm:inline">
-                    {c.orders.toLocaleString(isAr ? "ar-EG" : undefined)} {isAr ? "طلب" : "orders"}
+                    {c.orders.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)} {isAr ? "طلب" : "orders"}
                   </span>
                   {/* w-20 clipped the currency suffix off larger amounts. */}
                   <span className="text-[12px] font-semibold tabular-nums w-24 text-end shrink-0 whitespace-nowrap">
@@ -177,7 +177,7 @@ export function CustomerHealthCard({ formatCurrency }: CustomerHealthCardProps) 
             {data.customers.length > 10 && (
               <p className="text-[11px] text-muted-foreground text-center pt-2">
                 {isAr
-                  ? `أعلى ١٠ من ${data.customers.length.toLocaleString("ar-EG")}`
+                  ? `أعلى ١٠ من ${data.customers.length.toLocaleString("ar-EG-u-nu-latn")}`
                   : `Showing top 10 of ${data.customers.length}`}
               </p>
             )}

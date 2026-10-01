@@ -76,10 +76,10 @@ const GrowthGuide = () => {
   const currentMonthOrders = stats?.total_orders ?? 0;
   const remaining = Math.max(0, goalTarget - currentMonthOrders);
   const progressPct = Math.min(100, Math.round((currentMonthOrders / Math.max(1, goalTarget)) * 100));
-  const fmtN = (n: number) => (isRTL ? n.toLocaleString("ar-EG") : n.toLocaleString());
+  const fmtN = (n: number) => (isRTL ? n.toLocaleString("ar-EG-u-nu-latn") : n.toLocaleString());
   const fmtCurrency = (cents: number) => {
     const v = cents / 100;
-    return isRTL ? `${v.toLocaleString("ar-EG")} ج.م` : `EGP ${v.toLocaleString()}`;
+    return isRTL ? `${v.toLocaleString("ar-EG-u-nu-latn")} ج.م` : `EGP ${v.toLocaleString()}`;
   };
 
   // ─── Diagnosis: figure out what's actually limiting growth ─────

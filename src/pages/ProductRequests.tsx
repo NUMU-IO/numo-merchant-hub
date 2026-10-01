@@ -254,7 +254,7 @@ function RequestCard({
               </Badge>
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {when.toLocaleString(isAr ? "ar-EG" : undefined)}
+              {when.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
               {request.source_url && (
                 <>
                   {" · "}

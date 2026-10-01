@@ -63,7 +63,7 @@ export function GroupEditorPanel() {
           className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent"
           onClick={clearSelection}
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
         </button>
         <h2 className="text-sm font-semibold">{groupLabel}</h2>
       </div>
@@ -92,7 +92,7 @@ export function GroupEditorPanel() {
                 }}
               >
                 <span className="truncate text-sm font-medium">{label}</span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
               </button>
               <button
                 className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-all"

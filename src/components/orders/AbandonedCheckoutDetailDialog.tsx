@@ -109,14 +109,14 @@ export function AbandonedCheckoutDetailDialog({
 
   const fmtMoney = (cents: number) => {
     const val = cents / 100;
-    return isAr ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
+    return isAr ? `${val.toLocaleString("ar-EG-u-nu-latn")} ج.م` : `EGP ${val.toLocaleString()}`;
   };
 
   const fmtExact = (iso: string | null) => {
     if (!iso) return null;
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return null;
-    return d.toLocaleString(isAr ? "ar-EG" : "en-GB", {
+    return d.toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-GB", {
       dateStyle: "medium",
       timeStyle: "short",
     });

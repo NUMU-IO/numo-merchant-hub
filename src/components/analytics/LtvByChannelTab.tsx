@@ -109,7 +109,7 @@ export function LtvByChannelTab({ range, formatCurrency }: LtvByChannelTabProps)
             </div>
             <p className="text-2xl font-bold tabular-nums">
               {data
-                ? data.totals.customer_count.toLocaleString(isAr ? "ar-EG" : undefined)
+                ? data.totals.customer_count.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)
                 : "—"}
             </p>
           </CardContent>
@@ -263,10 +263,10 @@ export function LtvByChannelTab({ range, formatCurrency }: LtvByChannelTabProps)
                         </div>
                       </td>
                       <td className="text-end p-2 tabular-nums">
-                        {r.customer_count.toLocaleString(isAr ? "ar-EG" : undefined)}
+                        {r.customer_count.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                       </td>
                       <td className="text-end p-2 tabular-nums">
-                        {r.total_orders.toLocaleString(isAr ? "ar-EG" : undefined)}
+                        {r.total_orders.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                       </td>
                       <td className="text-end p-2 tabular-nums">
                         {r.orders_per_customer.toFixed(2)}

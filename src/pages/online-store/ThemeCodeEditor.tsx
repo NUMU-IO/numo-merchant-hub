@@ -573,7 +573,7 @@ const ThemeCodeEditor = () => {
               <div className="h-7 shrink-0 flex items-center gap-1 px-3 text-[12px] text-[#cccccc]/60 bg-[#1e1e1e] border-b border-black/30" dir="ltr">
                 {crumbs.map((seg, i) => (
                   <span key={i} className="flex items-center gap-1">
-                    {i > 0 && <ChevronRight className="h-3 w-3 opacity-50" />}
+                    {i > 0 && <ChevronRight className="h-3 w-3 opacity-50 rtl:-scale-x-100" />}
                     {i === crumbs.length - 1 && <FileGlyph path={seg} className="h-3.5 w-3.5" />}
                     <span className={i === crumbs.length - 1 ? "text-[#cccccc]" : ""}>{seg}</span>
                   </span>

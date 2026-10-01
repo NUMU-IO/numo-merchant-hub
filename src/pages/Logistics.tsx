@@ -299,7 +299,7 @@ const Logistics = () => {
   const tileReturns
     = (hubStats?.by_status?.returned ?? 0)
     + (hubStats?.by_status?.failed ?? 0);
-  const fmtN = (n: number) => (isAr ? n.toLocaleString("ar-EG") : n.toLocaleString());
+  const fmtN = (n: number) => (isAr ? n.toLocaleString("ar-EG-u-nu-latn") : n.toLocaleString());
 
   /* ── Landing data: zones, coverage, governorate count ── */
   const zonesQ = useShippingZones(view === "hub" ? storeId : undefined);
@@ -883,9 +883,9 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
   const [newZone, setNewZone] = useState({ zone: "", governorates: "", rate: 0, estimated_days: "" });
 
   const fmt = (cents: number) => formatMoney(cents, { fromCents: true, locale: isAr ? "ar" : "en" });
-  const fmtDate = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-GB", { day: "numeric", month: "short", year: "numeric" });
-  const fmtShort = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-GB", { day: "numeric", month: "short" });
-  const fmtFull = (d: string) => new Date(d).toLocaleString(isAr ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const fmtShort = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-GB", { day: "numeric", month: "short" });
+  const fmtFull = (d: string) => new Date(d).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const truncId = (id: string) => id.length > 8 ? `${id.slice(0, 8)}…` : id;
 
   const statsQ = useQuery({ queryKey: ["shipment-stats", storeId], queryFn: () => getShipmentStats(storeId!), enabled: !!storeId });
@@ -975,7 +975,7 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
     return (
       <div className="p-6 max-w-[1100px] mx-auto space-y-5 animate-in fade-in slide-in-from-right-4 duration-200">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={() => { setSelectedShipment(null); setTracking(null); }}><ArrowLeft className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={() => { setSelectedShipment(null); setTracking(null); }}><ArrowLeft className="h-4 w-4 rtl:-scale-x-100" /></Button>
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold tracking-tight">{s.tracking_number || truncId(s.id)}</h1>
             <p className="text-[13px] text-muted-foreground mt-0.5">{s.carrier} · {fmtDate(s.created_at)}</p>
@@ -1022,7 +1022,7 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
           </Button>
           <div className="flex items-center gap-3">
             <BostaIcon size={32} />

@@ -249,7 +249,7 @@ export function PrePublishDiffDialog({
                     <Minus className="h-3.5 w-3.5 text-red-600 shrink-0" />
                   )}
                   {s.kind === "changed" && (
-                    <ArrowRight className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    <ArrowRight className="h-3.5 w-3.5 text-amber-600 shrink-0 rtl:-scale-x-100" />
                   )}
                   <span className="font-mono text-xs truncate">{s.label}</span>
                 </div>
@@ -257,7 +257,7 @@ export function PrePublishDiffDialog({
                   <Badge variant="secondary" className="text-[10px]">
                     {s.count}
                   </Badge>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground rtl:-scale-x-100" />
                 </div>
               </button>
             ))}
@@ -304,7 +304,7 @@ export function PrePublishDiffDialog({
                         <span className="text-muted-foreground line-through">
                           {formatLeaf(e.before)}
                         </span>
-                        <ArrowRight className="h-3 w-3 shrink-0" />
+                        <ArrowRight className="h-3 w-3 shrink-0 rtl:-scale-x-100" />
                         <span className="text-foreground">
                           {formatLeaf(e.after)}
                         </span>

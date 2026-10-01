@@ -19,6 +19,7 @@ import { dateRangeKey } from "@/services/dateRangeParams";
 import type { DateRange } from "@/components/filters/DateRangePicker";
 import { useAnalyticsContext } from "@/components/analytics/AnalyticsLayout";
 import { useState } from "react";
+import { chartDayLabel } from "@/lib/format-date";
 
 type Granularity = "day" | "week" | "month";
 
@@ -179,7 +180,7 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
                   <ShoppingCart className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
-              <p className="text-2xl font-bold tabular-nums">{totalOrders.toLocaleString(isAr ? "ar-EG" : undefined)}</p>
+              <p className="text-2xl font-bold tabular-nums">{totalOrders.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}</p>
             </CardContent>
           </Card>
           <Card className="border-border/60">
@@ -246,9 +247,10 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="date" tickFormatter={(v: string) => chartDayLabel(v, isAr ? "ar" : "en")} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 100).toLocaleString()}`} />
                   <Tooltip
+                    labelFormatter={(v: string) => chartDayLabel(String(v), isAr ? "ar" : "en")}
                     contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", fontSize: "12px" }}
                     formatter={(value: number, name: string) => [
                       formatCurrency(value),
@@ -333,9 +335,10 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                    <XAxis dataKey="date" tickFormatter={(v: string) => chartDayLabel(v, isAr ? "ar" : "en")} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 100).toLocaleString()}`} />
                     <Tooltip
+                      labelFormatter={(v: string) => chartDayLabel(String(v), isAr ? "ar" : "en")}
                       contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", fontSize: "12px" }}
                       formatter={(value: number) => [formatCurrency(value), isAr ? "متوسط الطلب" : "AOV"]}
                     />
@@ -380,6 +383,7 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
                       tickFormatter={(v) => v === "cod" ? "COD" : v.charAt(0).toUpperCase() + v.slice(1)}
                     />
                     <Tooltip
+                      labelFormatter={(v: string) => chartDayLabel(String(v), isAr ? "ar" : "en")}
                       contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", fontSize: "12px" }}
                       formatter={(value: number) => [formatCurrency(value), isAr ? "الإيرادات" : "Revenue"]}
                     />
@@ -510,9 +514,9 @@ export function SalesTab({ range, formatCurrency }: SalesTabProps) {
                 {revenue.tax_by_rate!.map((t) => (
                   <div key={t.rate_pct} className="flex items-center justify-between rounded-lg p-2 -mx-2 hover:bg-muted/50 transition-colors">
                     <span className="text-[12.5px] font-medium tabular-nums">
-                      {t.rate_pct.toLocaleString(isAr ? "ar-EG" : undefined)}% VAT
+                      {t.rate_pct.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}% VAT
                       <span className="text-[10.5px] text-muted-foreground ms-1.5">
-                        · {t.orders.toLocaleString(isAr ? "ar-EG" : undefined)} {isAr ? "طلب" : "orders"}
+                        · {t.orders.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)} {isAr ? "طلب" : "orders"}
                       </span>
                     </span>
                     <span className="text-[12.5px] font-semibold tabular-nums">

@@ -9,7 +9,7 @@
 export function formatOrderCurrency(cents: number, language: string): string {
   const val = cents / 100;
   return language === "ar"
-    ? `${val.toLocaleString("ar-EG")} ج.م`
+    ? `${val.toLocaleString("ar-EG-u-nu-latn")} ج.م`
     : `EGP ${val.toLocaleString()}`;
 }
 

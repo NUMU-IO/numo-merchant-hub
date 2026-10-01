@@ -522,7 +522,7 @@ export function Earnings() {
                   </p>
                   <p className="text-xs text-muted-foreground">
                     <bdi dir="ltr">
-                      {new Date(e.created_at).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB", {
+                      {new Date(e.created_at).toLocaleDateString(lang === "ar" ? "ar-EG-u-nu-latn" : "en-GB", {
                         day: "numeric",
                         month: "short",
                         year: "numeric",

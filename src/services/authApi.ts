@@ -60,6 +60,8 @@ export interface User {
   created_at: string;
   updated_at: string;
   tenant: TenantInfo | null;
+  /** The merchant's chosen language; absent on API versions without it. */
+  language?: "ar" | "en" | null;
 }
 
 export interface AuthResponse {
@@ -330,6 +332,7 @@ export async function updateProfile(data: {
   last_name?: string;
   phone?: string | null;
   avatar_url?: string | null;
+  language?: "ar" | "en";
 }): Promise<User> {
   return apiClient<User>("/auth/me", {
     method: "PATCH",

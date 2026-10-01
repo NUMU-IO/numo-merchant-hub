@@ -333,7 +333,7 @@ export function CampaignPerformanceTab({
                     </div>
                     <div className="text-xl font-semibold tabular-nums mt-1">
                       {totals.coupon_redemptions.toLocaleString(
-                        isAr ? "ar-EG" : undefined,
+                        isAr ? "ar-EG-u-nu-latn" : undefined,
                       )}
                     </div>
                   </div>

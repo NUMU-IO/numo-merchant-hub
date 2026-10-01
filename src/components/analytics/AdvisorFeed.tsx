@@ -69,7 +69,7 @@ export function AdvisorFeed() {
             {isAr ? "المستشار" : "Advisor"}
             {signals.length > 0 && (
               <span className="text-[11px] font-bold text-muted-foreground">
-                ({signals.length.toLocaleString(isAr ? "ar-EG" : undefined)})
+                ({signals.length.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)})
               </span>
             )}
           </span>

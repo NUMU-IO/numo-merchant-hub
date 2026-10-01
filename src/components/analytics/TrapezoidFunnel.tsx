@@ -10,7 +10,7 @@ export interface FunnelStage {
 
 interface Props {
   stages: FunnelStage[];
-  /** Locale for the numbers (e.g. "ar-EG"). */
+  /** Locale for the numbers (e.g. "ar-EG-u-nu-latn"). */
   locale?: string;
   /** Put the labels on the left (RTL). */
   rtl?: boolean;

@@ -179,7 +179,7 @@ export function CampaignActivitiesPanel({
                 <StatusBadge status={a.status} />
               </div>
               <div className="text-[10px] text-muted-foreground">
-                {new Date(a.run_at).toLocaleString(isAr ? "ar-EG" : "en-EG")}
+                {new Date(a.run_at).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-EG")}
               </div>
               {a.status === "completed" && a.affected_count !== null && (
                 <div className="text-[11px]">

@@ -75,7 +75,7 @@ export function ReportBuilder({ range, formatCurrency }: ReportBuilderProps) {
   const totals = query.data?.totals ?? null;
   const metricMeta = METRICS.find((m) => m.key === metric)!;
 
-  const fmt = (v: number) => (metricMeta.money ? formatCurrency(v) : v.toLocaleString(isAr ? "ar-EG" : undefined));
+  const fmt = (v: number) => (metricMeta.money ? formatCurrency(v) : v.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined));
 
   const chartData = rows.slice(0, 20).map((r) => ({
     label: r.label,

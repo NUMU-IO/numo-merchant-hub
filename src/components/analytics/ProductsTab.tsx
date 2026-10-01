@@ -435,8 +435,8 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
                     <td className="p-3 text-end tabular-nums text-muted-foreground">{formatCurrency(p.discounts ?? 0)}</td>
                     <td className="p-3 text-end tabular-nums text-muted-foreground">{formatCurrency(p.tax ?? 0)}</td>
                     <td className="p-3 text-end tabular-nums font-semibold">{formatCurrency(p.net_sales ?? p.revenue)}</td>
-                    <td className="p-3 text-end tabular-nums">{p.quantity_sold.toLocaleString(isAr ? "ar-EG" : undefined)}</td>
-                    <td className="p-3 text-end tabular-nums">{(p.orders_count ?? 0).toLocaleString(isAr ? "ar-EG" : undefined)}</td>
+                    <td className="p-3 text-end tabular-nums">{p.quantity_sold.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}</td>
+                    <td className="p-3 text-end tabular-nums">{(p.orders_count ?? 0).toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -807,10 +807,10 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
                       ({cls})
                     </p>
                     <p className="text-xl font-bold tabular-nums">
-                      {inv.abc[cls].count.toLocaleString(isAr ? "ar-EG" : undefined)}
+                      {inv.abc[cls].count.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                     </p>
                     <p className="text-[10.5px] text-muted-foreground tabular-nums">
-                      {inv.abc[cls].revenue_share_pct.toLocaleString(isAr ? "ar-EG" : undefined)}%{" "}
+                      {inv.abc[cls].revenue_share_pct.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}%{" "}
                       {isAr ? "من الإيرادات" : "of revenue"}
                     </p>
                   </div>
@@ -821,11 +821,11 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
                   {isAr ? "معدل تصريف المخزون" : "Sell-through rate"}
                 </span>
                 <span className="text-[14px] font-bold tabular-nums">
-                  {inv.sell_through_pct.toLocaleString(isAr ? "ar-EG" : undefined)}%
+                  {inv.sell_through_pct.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}%
                   <span className="text-[10.5px] font-medium text-muted-foreground ms-1.5">
-                    {inv.units_sold.toLocaleString(isAr ? "ar-EG" : undefined)}{" "}
+                    {inv.units_sold.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}{" "}
                     {isAr ? "مباع من" : "sold of"}{" "}
-                    {(inv.units_sold + inv.units_in_stock).toLocaleString(isAr ? "ar-EG" : undefined)}
+                    {(inv.units_sold + inv.units_in_stock).toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                   </span>
                 </span>
               </div>
@@ -856,7 +856,7 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
                           {b.label} {isAr ? "يوم" : "days"}
                         </p>
                         <p className="text-[13px] font-bold tabular-nums">
-                          {b.products.toLocaleString(isAr ? "ar-EG" : undefined)}
+                          {b.products.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                         </p>
                       </div>
                     ))}
@@ -868,7 +868,7 @@ export function ProductsTab({ range, formatCurrency }: ProductsTabProps) {
                           {p.name || (isAr ? "(بدون اسم)" : "(unnamed)")}
                         </span>
                         <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                          {p.quantity.toLocaleString(isAr ? "ar-EG" : undefined)}{" "}
+                          {p.quantity.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}{" "}
                           {isAr ? "قطعة" : "units"}
                         </span>
                         <span className="text-[12.5px] font-semibold tabular-nums shrink-0">

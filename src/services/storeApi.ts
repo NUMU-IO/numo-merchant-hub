@@ -1167,6 +1167,9 @@ export interface RecordPaymentInput {
   /** Client-generated, so a retry after a dropped connection returns the
    *  original payment instead of recording the money twice. */
   idempotencyKey?: string;
+  /** Record even though it looks like a receipt already counted on this
+   *  order (the API answered 409 POSSIBLE_DUPLICATE_RECEIPT). */
+  confirmDuplicate?: boolean;
 }
 
 export async function recordOrderPayment(
@@ -1180,6 +1183,7 @@ export async function recordOrderPayment(
   form.append("method", input.method);
   if (input.reference) form.append("reference", input.reference);
   if (input.idempotencyKey) form.append("idempotency_key", input.idempotencyKey);
+  if (input.confirmDuplicate) form.append("confirm_duplicate", "true");
   return apiClientFormData<RecordedPaymentResult>(
     `/stores/${storeId}/orders/${orderId}/payments`,
     form,

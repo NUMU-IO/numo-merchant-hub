@@ -284,7 +284,7 @@ export default function WhatsAppDeadLetters() {
                   key={row.id}
                   onClick={() => onOpenDetail(row)}
                   title={<span className="font-mono" dir="ltr">{row.phone}</span>}
-                  subtitle={new Date(row.created_at).toLocaleString(isAr ? "ar-EG" : "en-US")}
+                  subtitle={new Date(row.created_at).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US")}
                   badges={
                     <>
                       <Badge variant="outline" className="text-xs">
@@ -350,7 +350,7 @@ export default function WhatsAppDeadLetters() {
               >
                 <TableCell className="text-xs text-muted-foreground">
                   {new Date(row.created_at).toLocaleString(
-                    isAr ? "ar-EG" : "en-US"
+                    isAr ? "ar-EG-u-nu-latn" : "en-US"
                   )}
                 </TableCell>
                 <TableCell className="font-mono text-sm">{row.phone}</TableCell>
@@ -472,7 +472,7 @@ export default function WhatsAppDeadLetters() {
                           <span>#{entry.attempt_n}</span>
                           <span>
                             {new Date(entry.at).toLocaleString(
-                              isAr ? "ar-EG" : "en-US"
+                              isAr ? "ar-EG-u-nu-latn" : "en-US"
                             )}
                           </span>
                         </div>

@@ -293,12 +293,18 @@ export async function getShippingCoverage(storeId: string): Promise<Coverage> {
   return apiClient<Coverage>(`/stores/${storeId}/shipping/coverage`);
 }
 
+/** `ratesCents` overrides the four default zone prices, in zone order:
+ *  Greater Cairo, Alexandria & Delta, Canal/Sinai/Upper Egypt, Remote. */
 export async function applyEgypt4ZonePreset(
   storeId: string,
+  ratesCents?: number[],
 ): Promise<PresetResult> {
   return apiClient<PresetResult>(
     `/stores/${storeId}/shipping/preset/egypt-4-zone`,
-    { method: "POST" },
+    {
+      method: "POST",
+      ...(ratesCents ? { body: JSON.stringify({ rates_cents: ratesCents }) } : {}),
+    },
   );
 }
 

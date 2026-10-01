@@ -335,7 +335,7 @@ export function TopBar({
                 onClick={handleBack}
                 aria-label={locale === "ar" ? "رجوع" : "Back"}
               >
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>{locale === "ar" ? "رجوع" : "Back"}</TooltipContent>

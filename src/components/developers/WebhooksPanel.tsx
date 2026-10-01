@@ -226,7 +226,7 @@ export function WebhooksPanel({ storeId }: { storeId: string | undefined }) {
   };
 
   const fmtTime = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleString(isRTL ? "ar-EG" : "en-GB") : "—";
+    iso ? new Date(iso).toLocaleString(isRTL ? "ar-EG-u-nu-latn" : "en-GB") : "—";
 
   const statusTone: Record<string, string> = {
     success: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",

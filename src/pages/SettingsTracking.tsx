@@ -213,7 +213,7 @@ function PlatformTile({
   eventCount,
   isAr,
 }: PlatformTileProps) {
-  const nf = new Intl.NumberFormat(isAr ? "ar-EG" : "en-US");
+  const nf = new Intl.NumberFormat(isAr ? "ar-EG-u-nu-latn" : "en-US");
   const last = relTime(lastEventAt, isAr);
   const delivered =
     eventCount !== null && eventCount > 0 && failureRate !== null

@@ -145,7 +145,7 @@ export default function WhatsAppInbox() {
 
   const formatTime = (iso: string) => {
     const d = new Date(iso);
-    return d.toLocaleTimeString(isAr ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString(isAr ? "ar-EG-u-nu-latn" : "en-US", { hour: "2-digit", minute: "2-digit" });
   };
 
   const formatDate = (iso: string | null) => {
@@ -155,7 +155,7 @@ export default function WhatsAppInbox() {
     const diff = now.getTime() - d.getTime();
     if (diff < 86400000) return formatTime(iso);
     if (diff < 172800000) return isAr ? "أمس" : "Yesterday";
-    return d.toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric" });
+    return d.toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", { month: "short", day: "numeric" });
   };
 
   if (loading) {

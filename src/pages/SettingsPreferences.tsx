@@ -305,7 +305,7 @@ export default function SettingsPreferences() {
 
   const handleDisable2FA = useCallback(async () => {
     if (!disablePassword) {
-      toast.error(isAr ? "أدخل كلمة المرور" : "Enter your password");
+      toast.error(isAr ? "أدخل الباسورد" : "Enter your password");
       return;
     }
     setDisabling2FA(true);
@@ -510,7 +510,7 @@ export default function SettingsPreferences() {
                       {isAr ? "إلغاء المصادقة الثنائية" : "Disable 2FA"}
                     </DialogTitle>
                     <DialogDescription className="text-xs">
-                      {isAr ? "أدخل كلمة المرور للتأكيد" : "Enter your password to confirm"}
+                      {isAr ? "أدخل الباسورد للتأكيد" : "Enter your password to confirm"}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="py-2">
@@ -518,7 +518,7 @@ export default function SettingsPreferences() {
                       type="password"
                       value={disablePassword}
                       onChange={(e) => setDisablePassword(e.target.value)}
-                      placeholder={isAr ? "كلمة المرور" : "Password"}
+                      placeholder={isAr ? "الباسورد" : "Password"}
                       className="h-9 text-sm"
                       dir="ltr"
                     />

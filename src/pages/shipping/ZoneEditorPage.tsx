@@ -521,7 +521,7 @@ function ZoneCheckoutPreview({
   codEnabled: boolean; codFee: number; rates: RateDraft[]; isActive: boolean;
 }) {
   const money = (c: number) => formatMoney(c, { fromCents: true, locale: ar ? "ar" : "en", currency });
-  const n = (v: number) => (ar ? v.toLocaleString("ar-EG") : String(v));
+  const n = (v: number) => (ar ? v.toLocaleString("ar-EG-u-nu-latn") : String(v));
   const active = rates.filter((r) => r.is_active);
   return (
     <div className="rounded-2xl border border-border bg-card">

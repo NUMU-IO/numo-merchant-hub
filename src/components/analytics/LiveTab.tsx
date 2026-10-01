@@ -183,7 +183,7 @@ export function LiveTab({ formatCurrency }: LiveTabProps) {
               </div>
             </div>
             <p className="text-2xl font-bold tabular-nums">
-              {(data?.views_today ?? 0).toLocaleString(isAr ? "ar-EG" : undefined)}
+              {(data?.views_today ?? 0).toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">
               ~{viewsPerMinute} {isAr ? "/دقيقة" : "/min"}
@@ -202,7 +202,7 @@ export function LiveTab({ formatCurrency }: LiveTabProps) {
               </div>
             </div>
             <p className="text-2xl font-bold tabular-nums">
-              {(data?.visitors_today ?? 0).toLocaleString(isAr ? "ar-EG" : undefined)}
+              {(data?.visitors_today ?? 0).toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">
               {isAr ? "زائر فريد" : "unique visitors"}
@@ -221,7 +221,7 @@ export function LiveTab({ formatCurrency }: LiveTabProps) {
               </div>
             </div>
             <p className="text-2xl font-bold tabular-nums">
-              {(data?.orders_today ?? 0).toLocaleString(isAr ? "ar-EG" : undefined)}
+              {(data?.orders_today ?? 0).toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
             </p>
           </CardContent>
         </Card>
@@ -398,7 +398,7 @@ export function LiveTab({ formatCurrency }: LiveTabProps) {
                         </div>
                       </div>
                       <span className="text-[11px] font-semibold tabular-nums shrink-0">
-                        {page.views.toLocaleString(isAr ? "ar-EG" : undefined)}
+                        {page.views.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                       </span>
                     </div>
                   );
@@ -480,7 +480,7 @@ export function LiveTab({ formatCurrency }: LiveTabProps) {
                     />
                   </div>
                   <span className="text-[12px] font-semibold tabular-nums w-10 text-end shrink-0">
-                    {loc.orders.toLocaleString(isAr ? "ar-EG" : undefined)}
+                    {loc.orders.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                   </span>
                   <span className="text-[11px] text-muted-foreground tabular-nums w-20 text-end shrink-0 hidden sm:inline">
                     {formatCurrency(loc.revenue)}

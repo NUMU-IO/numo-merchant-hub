@@ -172,7 +172,7 @@ function timeAgo(iso: string | null, isAr: boolean): string {
   if (mins < 60) return isAr ? `${mins} د` : `${mins}m`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return isAr ? `${hrs} س` : `${hrs}h`;
-  return new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+  return new Date(iso).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
     day: "numeric",
     month: "short",
   });
@@ -385,6 +385,10 @@ export default function WhatsApp() {
   // The platform gate that sits ABOVE `connected`: a store can only connect
   // a number / switch on notifications once an admin has approved access.
   const approved = access?.status === "approved";
+  // Header, badge and counters read the same gate as WhatsAppAccessGate, so
+  // the page never says "live" above a "needs activation" card.
+  const gated = !!access && !approved;
+  const live = connected && !gated;
   const enabledNotifications = status
     ? Object.values(status.notifications ?? {}).filter(Boolean).length
     : 0;
@@ -392,7 +396,7 @@ export default function WhatsApp() {
     (template) => template.status.toUpperCase() === "APPROVED"
   ).length;
 
-  const fmtNum = (n: number) => new Intl.NumberFormat(isAr ? "ar-EG" : "en-US").format(n);
+  const fmtNum = (n: number) => new Intl.NumberFormat(isAr ? "ar-EG-u-nu-latn" : "en-US").format(n);
 
   const chartData = useMemo(
     () =>
@@ -446,8 +450,8 @@ export default function WhatsApp() {
                     {isAr ? "واتساب للأعمال" : "WhatsApp Business"}
                   </h1>
                   <Badge className="gap-1 border-white/15 bg-white/15 text-white hover:bg-white/15">
-                    {connected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
-                    {connected
+                    {live ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                    {live
                       ? isByo
                         ? isAr ? "متصل برقمك" : "Your number"
                         : isAr ? "مفعّل عبر NUMU" : "Live via NUMU"
@@ -498,11 +502,13 @@ export default function WhatsApp() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 divide-x divide-white/15 overflow-hidden rounded-2xl border border-white/15 bg-black/10 backdrop-blur rtl:divide-x-reverse">
-              <HeroMetric value={fmtNum(enabledNotifications)} label={isAr ? "إشعار مفعّل" : "Automations"} />
-              <HeroMetric value={fmtNum(approvedTemplates)} label={isAr ? "قالب معتمد" : "Templates"} />
-              <HeroMetric value={fmtNum(analytics?.active_conversations ?? 0)} label={isAr ? "محادثة نشطة" : "Active chats"} />
-            </div>
+            {!gated && (
+              <div className="grid grid-cols-3 divide-x divide-white/15 overflow-hidden rounded-2xl border border-white/15 bg-black/10 backdrop-blur rtl:divide-x-reverse">
+                <HeroMetric value={fmtNum(enabledNotifications)} label={isAr ? "إشعار مفعّل" : "Automations"} />
+                <HeroMetric value={fmtNum(approvedTemplates)} label={isAr ? "قالب معتمد" : "Templates"} />
+                <HeroMetric value={fmtNum(analytics?.active_conversations ?? 0)} label={isAr ? "محادثة نشطة" : "Active chats"} />
+              </div>
+            )}
           </div>
         </div>
 
@@ -794,7 +800,7 @@ export default function WhatsApp() {
                 <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                   {isAr ? "حُفظ " : "Saved "}
-                  {lastSavedAt.toLocaleTimeString(isAr ? "ar-EG" : "en-US", {
+                  {lastSavedAt.toLocaleTimeString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}
@@ -1248,7 +1254,7 @@ function WhatsAppAccessGate({
 
   const fmtDate = (iso: string | null) =>
     iso
-      ? new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+      ? new Date(iso).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
           day: "numeric",
           month: "long",
           year: "numeric",
@@ -1362,8 +1368,8 @@ function WhatsAppAccessGate({
         ? "لم تتم الموافقة على طلب تفعيل واتساب هذه المرة. راجع السبب أدناه، ويمكنك إرسال الطلب من جديد."
         : "Your WhatsApp access request wasn't approved this time. Review the reason below — you're welcome to request again."
       : isAr
-      ? "يجب أن يفعّل فريق NUMU واتساب للأعمال لمتجرك قبل أن تتمكن من ربط رقم أو تشغيل الإشعارات التلقائية. أخبرنا كيف تنوي استخدامه وسنراجع طلبك."
-      : "The NUMU team needs to enable WhatsApp Business for your store before you can connect a number or switch on automatic notifications. Tell us how you plan to use it and we'll review your request.";
+      ? "واتساب لسه مش شغّال لمتجرك. اطلب التفعيل وهنرد عليك خلال يوم عمل."
+      : "WhatsApp isn't on for your store yet. Request activation and we'll get back to you within one working day.";
 
   const optionalLabel = isAr ? " (اختياري)" : " (optional)";
 
@@ -1544,7 +1550,7 @@ function WhatsAppAccessGate({
 }
 
 function fmtWhatsAppPrice(access: WhatsAppAccessState, isAr: boolean) {
-  const nf = new Intl.NumberFormat(isAr ? "ar-EG" : "en-US");
+  const nf = new Intl.NumberFormat(isAr ? "ar-EG-u-nu-latn" : "en-US");
   const cycle: Record<string, [string, string]> = {
     monthly: ["month", "شهرياً"],
     quarterly: ["quarter", "كل ٣ شهور"],
@@ -1663,7 +1669,7 @@ function WhatsAppPlanCard({
   storeId: string;
   onChange: (a: WhatsAppAccessState) => void;
 }) {
-  const nf = new Intl.NumberFormat(isAr ? "ar-EG" : "en-US");
+  const nf = new Intl.NumberFormat(isAr ? "ar-EG-u-nu-latn" : "en-US");
   const used = access.messages_used ?? 0;
   const allowance = access.message_allowance ?? null;
   const pct = allowance ? Math.min(100, Math.round((used / allowance) * 100)) : 0;
@@ -1672,7 +1678,7 @@ function WhatsAppPlanCard({
   const bar = blocked || pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500";
 
   const until = access.active_until
-    ? new Date(access.active_until).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+    ? new Date(access.active_until).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
         day: "numeric",
         month: "long",
         year: "numeric",

@@ -66,10 +66,12 @@ import { useNavigate } from "react-router-dom";
 import { orderPath } from "@/lib/order-path";
 import { useCountUp } from "@/hooks/useCountUp";
 import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
-import { ActiveThemeCard } from "@/components/dashboard/ActiveThemeCard";
+import { StoreLinkCard } from "@/components/dashboard/StoreLinkCard";
+import StoreLinkShare from "@/components/StoreLinkShare";
 import { PromoSwiper } from "@/components/dashboard/PromoSwiper";
 import { StoreHealthCard } from "@/components/dashboard/StoreHealthCard";
 import { RecentlyViewed } from "@/components/dashboard/RecentlyViewed";
+import { chartDayLabel } from "@/lib/format-date";
 
 /* Only the number re-renders per animation frame, not the whole Dashboard. */
 function CountUp({
@@ -291,10 +293,10 @@ const Dashboard = () => {
   const revenueChartData = useMemo(
     () =>
       chartData.map((d) => ({
-        day: d.date.slice(5),
+        day: chartDayLabel(d.date, language),
         revenue: d.revenue / 100,
       })),
-    [chartData],
+    [chartData, language],
   );
 
   // Same leading children as the full page below, so the theme card and the
@@ -306,7 +308,7 @@ const Dashboard = () => {
           updatedAt={statsQuery.dataUpdatedAt}
           onRetry={() => void statsQuery.refetch()}
         />
-        <ActiveThemeCard />
+        <StoreLinkCard />
         <RecentlyViewed />
         {statsQuery.isError ? (
           <Card>
@@ -358,7 +360,7 @@ const Dashboard = () => {
         : "First order today — let's start a streak!";
     }
     if (!isAr) return `${streakDays}-day order streak — you're on fire!`;
-    const n = streakDays.toLocaleString("ar-EG");
+    const n = streakDays.toLocaleString("ar-EG-u-nu-latn");
     const dayPhrase =
       streakDays === 2 ? "يومين" : streakDays <= 10 ? `${n} أيام` : `${n} يوم`;
     return `${dayPhrase} ورا بعض وفيهم طلبات — مولّعها ما شاء الله!`;
@@ -514,8 +516,8 @@ const Dashboard = () => {
       onClick: () => navigate("/products"),
     });
   }
-  // COD reconcile row — always show as a navigational entry
-  triageRows.push({
+  // COD reconcile / abandoned checkouts are noise before the first order.
+  if (hasOrders) triageRows.push({
     tone: "ichip-navy",
     Icon: Banknote,
     lead: isAr ? "تسوية الدفع عند الاستلام" : "COD reconciliation",
@@ -523,10 +525,10 @@ const Dashboard = () => {
     cta: isAr ? "سوّي" : "Reconcile",
     onClick: () => navigate("/cod"),
   });
-  triageRows.push({
+  if (hasOrders) triageRows.push({
     tone: "ichip-sage",
     Icon: ShoppingBag,
-    lead: isAr ? "السلات المهجورة" : "Abandoned checkouts",
+    lead: isAr ? "السلات المتروكة" : "Abandoned checkouts",
     desc: isAr ? "ذكّر العملاء يكملوا الشراء" : "Remind shoppers to complete",
     cta: isAr ? "ذكّر" : "Remind",
     onClick: () => navigate("/orders/abandoned"),
@@ -541,8 +543,8 @@ const Dashboard = () => {
         updatedAt={statsQuery.dataUpdatedAt}
         onRetry={() => void statsQuery.refetch()}
       />
-      {/* Active theme card — surfaces the store's current V3 theme */}
-      <ActiveThemeCard />
+      {/* The store link, ready to share — the one day-one job */}
+      <StoreLinkCard />
       {/* Zid-style pinned + recently opened pages */}
       <RecentlyViewed />
       {/* ─── Greeting strip — sits above the zones ────────────────────── */}
@@ -582,7 +584,7 @@ const Dashboard = () => {
                   isDayOneNudge
                     ? undefined
                     : isAr
-                      ? `أطول سلسلة ليك: ${(streak?.longest_streak ?? streakDays).toLocaleString("ar-EG")} يوم`
+                      ? `أطول سلسلة ليك: ${(streak?.longest_streak ?? streakDays).toLocaleString("ar-EG-u-nu-latn")} يوم`
                       : `Your longest streak: ${streak?.longest_streak ?? streakDays} days`
                 }
               >
@@ -634,125 +636,232 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* ─── Compact onboarding strip (first-time merchants) ──────────── */}
+      {/* ─── Setup checklist (first-time merchants) ──────────────────── */}
       {showSetup &&
         onboardingData &&
         (() => {
-          const steps = onboardingData.steps.filter(
-            (s) => s.key !== "create_store",
-          );
-          const done = steps.filter(
-            (s) => s.status === "completed" || s.status === "skipped",
-          ).length;
-          const total = steps.length;
-          const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-          const next = steps.find(
-            (s) => s.status !== "completed" && s.status !== "skipped",
-          );
-          const NEXT_CTA: Record<
+          const STEP_UI: Record<
             string,
-            { en: string; ar: string; href: string }
+            {
+              label: string;
+              labelAr: string;
+              desc: string;
+              descAr: string;
+              action: () => void;
+              cta: string;
+              ctaAr: string;
+              Icon: typeof Package;
+              time: string;
+              timeAr: string;
+            }
           > = {
             add_product: {
-              en: "Add product",
-              ar: "ضيف منتج",
-              href: "/products/new",
+              label: "Add a Product",
+              labelAr: "أضف منتج",
+              desc: "Add your first product to start selling online",
+              descAr: "أضف أول منتج لبدء البيع أونلاين",
+              action: () => navigate("/products/new"),
+              cta: "Add Product",
+              ctaAr: "أضف منتج",
+              Icon: Package,
+              time: "2 min",
+              timeAr: "دقيقتان",
             },
             set_identity: {
-              en: "Set store identity",
-              ar: "اضبط هويتك",
-              href: "/store",
+              label: "Add Store Identity",
+              labelAr: "أضف هوية متجرك",
+              desc: "Upload logo and add store description",
+              descAr: "اعكس هويتك البصرية على متجرك",
+              action: () => navigate("/store"),
+              cta: "Add Details",
+              ctaAr: "أضف تفاصيلك",
+              Icon: Palette,
+              time: "3 min",
+              timeAr: "3 دقائق",
             },
             confirm_support: {
-              en: "Confirm number",
-              ar: "أكد الرقم",
-              href: "/store",
+              label: "Add Support Number",
+              labelAr: "أكد رقم الدعم",
+              desc: "Add a phone number so customers can reach you",
+              descAr: "أضف رقم للدعم لعملاؤك",
+              action: () => navigate("/store"),
+              cta: "Confirm Number",
+              ctaAr: "أكد الرقم",
+              Icon: CheckCircle2,
+              time: "30 sec",
+              timeAr: "30 ثانية",
             },
             add_shipping: {
-              en: "Set up shipping",
-              ar: "اضبط الشحن",
-              href: "/logistics",
+              label: "Set Up Shipping",
+              labelAr: "حدد الشحن",
+              desc: "Customers can't get a shipping price until you add a zone with a price",
+              descAr: "العميل مش هيعرف سعر الشحن لحد ما تضيف منطقة بسعر",
+              action: () => navigate("/shipping/zones"),
+              cta: "Add shipping prices",
+              ctaAr: "حط أسعار الشحن",
+              Icon: Truck,
+              time: "3 min",
+              timeAr: "3 دقائق",
             },
             configure_payment: {
-              en: "Activate payments",
-              ar: "فعّل الدفع",
-              href: "/payment-setup",
+              label: "Online payments",
+              labelAr: "الدفع أونلاين",
+              desc: "Cash on delivery is on ✓ — card and wallet payments aren't connected yet",
+              descAr: "الدفع عند الاستلام شغال ✓ — الكارت والمحفظة لسه مش متوصّلين",
+              action: () => navigate("/payment-setup"),
+              cta: "Connect",
+              ctaAr: "وصّل",
+              Icon: CreditCard,
+              time: "5 min",
+              timeAr: "5 دقائق",
             },
             first_order: {
-              en: "Share store link",
-              ar: "شارك المتجر",
-              href: "/store",
+              label: "Get Your First Order",
+              labelAr: "أول طلب",
+              desc: "Share your store link — this ticks itself when your first order lands",
+              descAr: "شارك رابط متجرك — بتكمّل لوحدها أول ما يجيلك أول طلب",
+              action: shareStoreLink,
+              cta: "Share store link",
+              ctaAr: "شارك الرابط",
+              Icon: Zap,
+              time: "1 min",
+              timeAr: "دقيقة",
             },
           };
-          const cta = next ? NEXT_CTA[next.key] : null;
-          const runCta = (e: React.MouseEvent) => {
-            e.stopPropagation();
-            // The "first order" step is a share action, not a settings page —
-            // route everything else, but share the store link here.
-            if (next?.key === "first_order") shareStoreLink();
-            else if (cta) navigate(cta.href);
-          };
-          const scrollToWizard = () => {
-            document
-              .getElementById("onboarding-wizard")
-              ?.scrollIntoView({ behavior: "smooth", block: "start" });
-          };
+          const steps = onboardingData.steps
+            .filter((s) => s.key !== "create_store" && STEP_UI[s.key])
+            .map((s, i) => ({
+              ...STEP_UI[s.key],
+              key: s.key,
+              num: i + 1,
+              done: s.status === "completed" || s.status === "skipped",
+            }));
+          const doneCount = steps.filter((s) => s.done).length;
+          const totalSteps = steps.length;
+          const displayDone = doneCount;
+          const progressPercent =
+            totalSteps > 0 ? Math.round((displayDone / totalSteps) * 100) : 0;
+          // Everything the merchant controls is done; only the first order is left.
+          const readyForOrders = steps.length > 1 && steps.every((s) => s.done || s.key === "first_order");
+          const storeUrl = getPublicStoreUrl(currentStore);
+
           return (
-            <button
-              type="button"
-              onClick={scrollToWizard}
-              className="souq-onboard w-full text-start hover-lift cursor-pointer block"
-            >
-              <div className="flex items-center gap-4 flex-wrap">
-                <div className="ichip ichip-saffron shrink-0">
-                  <Gift className="h-5 w-5" />
+            <section>
+              <div className="souq-onboard">
+                <div className="flex items-center justify-between gap-4 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="ichip ichip-saffron">
+                      <Gift className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-extrabold leading-tight">
+                        {isAr ? "كمّل تجهيز متجرك" : "Finish setting up your store"}
+                      </h2>
+                      <p className="text-[12px] text-white/60 mt-0.5">
+                        <span className="tabular-nums font-bold text-saffron">
+                          {displayDone}
+                        </span>
+                        <span className="text-white/30">/</span>
+                        <span className="tabular-nums">{totalSteps}</span>{" "}
+                        {isAr ? "مكتمل" : "completed"}
+                      </p>
+                    </div>
+                  </div>
+                  {canDismissOnboarding && (
+                    <button
+                      type="button"
+                      onClick={handleDismissOnboarding}
+                      className="text-[11px] text-white/40 hover:text-white/70 transition-colors shrink-0"
+                    >
+                      {isAr ? "إخفاء" : "Hide"}
+                    </button>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[15px] font-extrabold leading-tight">
-                    {isAr ? "كمّل تجهيز متجرك" : "Finish setting up your store"}
-                  </p>
-                  <p className="text-[12px] text-white/60 mt-0.5">
-                    {isAr
-                      ? `كمّل الـ${total} خطوات واكسب شهر Premium مجاناً`
-                      : `Complete all ${total} steps & get 1 month Premium — free`}
-                  </p>
+                <div className="progress">
+                  <i style={{ width: `${progressPercent}%` }} />
                 </div>
-                <div className="flex items-center gap-2 text-saffron font-extrabold">
-                  <span className="tabular-nums text-lg">
-                    {isAr ? done.toLocaleString("ar-EG") : done}
-                  </span>
-                  <span className="text-white/30">/</span>
-                  <span className="tabular-nums text-lg text-white/50">
-                    {isAr ? total.toLocaleString("ar-EG") : total}
-                  </span>
-                </div>
-                {cta && (
-                  <Button
-                    variant="accent"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={runCta}
-                  >
-                    {isAr ? cta.ar : cta.en}
-                    <ChevronRight className="h-4 w-4 rtl:rotate-180" />
-                  </Button>
-                )}
               </div>
-              <div className="progress">
-                <i style={{ width: `${pct}%` }} />
+
+              {readyForOrders && (
+                <Card className="mt-4 border-emerald-500/40 animate-in fade-in zoom-in-95 duration-500">
+                  <CardContent className="p-5 space-y-3">
+                    <div>
+                      <p className="text-base font-extrabold">
+                        {isAr ? "جاهز تستقبل أوردرات 🎉" : "You're ready for orders 🎉"}
+                      </p>
+                      <p className="text-[13px] text-muted-foreground mt-1">
+                        {isAr ? "ابعت الرابط لأول 10 عملاء تعرفهم." : "Send the link to the first 10 customers you know."}
+                      </p>
+                    </div>
+                    {storeUrl && <StoreLinkShare url={storeUrl} storeName={currentStore?.name} />}
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                {steps.map((step) => {
+                  const Icon = step.Icon;
+                  return (
+                    <Card
+                      key={step.key}
+                      className={`overflow-hidden transition-all ${step.done ? "opacity-60" : "hover-lift cursor-pointer"}`}
+                      onClick={() => !step.done && step.action()}
+                    >
+                      <CardContent className="p-5 flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <div
+                            className={`ichip ${step.done ? "ichip-sage" : "ichip-saffron"}`}
+                          >
+                            {step.done ? (
+                              <Check className="h-5 w-5" />
+                            ) : (
+                              <Icon className="h-5 w-5" />
+                            )}
+                          </div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            {isAr ? step.timeAr : step.time}
+                          </span>
+                        </div>
+                        <div>
+                          <h3
+                            className={`text-sm font-extrabold ${step.done ? "line-through text-muted-foreground" : ""}`}
+                          >
+                            {isAr ? step.labelAr : step.label}
+                          </h3>
+                          <p className="text-[12px] text-muted-foreground mt-1 leading-snug">
+                            {isAr ? step.descAr : step.desc}
+                          </p>
+                        </div>
+                        {!step.done && (
+                          <Button
+                            size="sm"
+                            variant="accent"
+                            className="self-start mt-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              step.action();
+                            }}
+                          >
+                            {isAr ? step.ctaAr : step.cta}
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
-            </button>
+            </section>
           );
         })()}
 
       {/* ─────────────────────────────── §TODAY ─────────────────────── */}
       <section>
         <ZoneHead
-          eyebrow={isAr ? "النهارده" : "TODAY"}
+          eyebrow={isAr ? "الأداء" : "PERFORMANCE"}
           question={
             isAr
-              ? "كسبت النهارده؟ وفيه حد مستنيني؟"
-              : "Did I make money — and is anyone waiting on me?"
+              ? "كسبت كام؟ وفيه حد مستنيني؟"
+              : "Am I making money — and is anyone waiting on me?"
           }
         />
 
@@ -843,7 +952,7 @@ const Dashboard = () => {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="text-[32px] font-extrabold tabular-nums leading-none">
-                        {isAr ? pendingCount.toLocaleString("ar-EG") : pendingCount}
+                        {isAr ? pendingCount.toLocaleString("ar-EG-u-nu-latn") : pendingCount}
                       </div>
                       <div className="text-xs text-muted-foreground font-semibold mt-1">
                         {isAr ? "مستنيين تجهيزك" : "Waiting on you"}
@@ -906,18 +1015,7 @@ const Dashboard = () => {
                       variant="accent"
                       size="sm"
                       className="gap-1.5 flex-1"
-                      onClick={async () => {
-                        const url = getPublicStoreUrl(currentStore);
-                        if (currentStore && url) {
-                          if (navigator.share) {
-                            try { await navigator.share({ title: currentStore.name, url }); } catch { /* cancelled */ }
-                          } else {
-                            try {
-                              await navigator.clipboard.writeText(url);
-                            } catch { /* ignore */ }
-                          }
-                        }
-                      }}
+                      onClick={shareStoreLink}
                     >
                       <ExternalLink className="h-4 w-4" strokeWidth={2.2} />
                       {isAr ? "شارك المتجر" : "Share store"}
@@ -957,7 +1055,7 @@ const Dashboard = () => {
                       </div>
                       <div className="text-[20px] font-extrabold tabular-nums leading-none mt-1">
                         {isAr
-                          ? (stats?.shipped_orders ?? 0).toLocaleString("ar-EG")
+                          ? (stats?.shipped_orders ?? 0).toLocaleString("ar-EG-u-nu-latn")
                           : (stats?.shipped_orders ?? 0)}
                       </div>
                     </div>
@@ -1092,6 +1190,7 @@ const Dashboard = () => {
       </section>
 
       {/* ─────────────────────────── §NEEDS YOU ────────────────────── */}
+      {(hasOrders || triageRows.length > 0) && (
       <section>
         <ZoneHead
           eyebrow={isAr ? "محتاج منك" : "NEEDS YOU"}
@@ -1150,6 +1249,7 @@ const Dashboard = () => {
           <PromoSwiper className="self-stretch" fallback={<StoreHealthCard className="h-full" />} />
         </div>
       </section>
+      )}
 
       {/* ─────────────────────────────── §GROW ─────────────────────── */}
       {!isNewMerchant && (
@@ -1226,7 +1326,7 @@ const Dashboard = () => {
                         title={isAr ? "اعرض تحليلات المنتج" : "View product analytics"}
                       >
                         <span className="text-[14px] font-extrabold text-muted-foreground/50 w-5 text-center tabular-nums">
-                          {isAr ? (i + 1).toLocaleString("ar-EG") : i + 1}
+                          {isAr ? (i + 1).toLocaleString("ar-EG-u-nu-latn") : i + 1}
                         </span>
                         <div className="souq-thumb h-9 w-9 overflow-hidden">
                           {p.image_url ? (
@@ -1246,7 +1346,7 @@ const Dashboard = () => {
                           </p>
                           <p className="text-[11px] text-muted-foreground tabular-nums">
                             {isAr
-                              ? p.quantity_sold.toLocaleString("ar-EG")
+                              ? p.quantity_sold.toLocaleString("ar-EG-u-nu-latn")
                               : p.quantity_sold}{" "}
                             {isAr ? "مبيعة" : "sold"}
                           </p>
@@ -1307,7 +1407,7 @@ const Dashboard = () => {
             const effectiveGoal = goalTarget * goalMultiplier;
             const progressPct = Math.min(100, Math.round((currentOrders / Math.max(1, effectiveGoal)) * 100));
             const remaining = Math.max(0, effectiveGoal - currentOrders);
-            const fmtN = (n: number) => isAr ? n.toLocaleString("ar-EG") : n.toLocaleString();
+            const fmtN = (n: number) => isAr ? n.toLocaleString("ar-EG-u-nu-latn") : n.toLocaleString();
             return (
               <Card className="mt-4">
                 <CardContent className="p-5">
@@ -1502,207 +1602,6 @@ const Dashboard = () => {
         </section>
       )}
 
-      {/* ─── Full onboarding wizard (anchor target for compact strip) ── */}
-      <div id="onboarding-wizard" />
-      {showSetup &&
-        onboardingData &&
-        (() => {
-          const STEP_UI: Record<
-            string,
-            {
-              label: string;
-              labelAr: string;
-              desc: string;
-              descAr: string;
-              action: () => void;
-              cta: string;
-              ctaAr: string;
-              Icon: typeof Package;
-              time: string;
-              timeAr: string;
-            }
-          > = {
-            add_product: {
-              label: "Add a Product",
-              labelAr: "أضف منتج",
-              desc: "Add your first product to start selling online",
-              descAr: "أضف أول منتج لبدء البيع أونلاين",
-              action: () => navigate("/products/new"),
-              cta: "Add Product",
-              ctaAr: "أضف منتج",
-              Icon: Package,
-              time: "2 min",
-              timeAr: "دقيقتان",
-            },
-            set_identity: {
-              label: "Add Store Identity",
-              labelAr: "أضف هوية متجرك",
-              desc: "Upload logo and add store description",
-              descAr: "اعكس هويتك البصرية على متجرك",
-              action: () => navigate("/store"),
-              cta: "Add Details",
-              ctaAr: "أضف تفاصيلك",
-              Icon: Palette,
-              time: "3 min",
-              timeAr: "3 دقائق",
-            },
-            confirm_support: {
-              label: "Add Support Number",
-              labelAr: "أكد رقم الدعم",
-              desc: "Add a phone number so customers can reach you",
-              descAr: "أضف رقم للدعم لعملاؤك",
-              action: () => navigate("/store"),
-              cta: "Confirm Number",
-              ctaAr: "أكد الرقم",
-              Icon: CheckCircle2,
-              time: "30 sec",
-              timeAr: "30 ثانية",
-            },
-            add_shipping: {
-              label: "Set Up Shipping",
-              labelAr: "حدد الشحن",
-              desc: "Configure shipping zones or connect a carrier",
-              descAr: "اضبط مناطق الشحن",
-              action: () => navigate("/logistics"),
-              cta: "Set Up",
-              ctaAr: "إعداد",
-              Icon: Truck,
-              time: "3 min",
-              timeAr: "3 دقائق",
-            },
-            configure_payment: {
-              label: "Activate Payments",
-              labelAr: "فعّل المدفوعات",
-              desc: "Connect a payment gateway",
-              descAr: "أكمل التحقق وفعّل الدفع",
-              action: () => navigate("/payment-setup"),
-              cta: "Activate",
-              ctaAr: "ابدأ التحقق",
-              Icon: CreditCard,
-              time: "5 min",
-              timeAr: "5 دقائق",
-            },
-            first_order: {
-              label: "Get Your First Order",
-              labelAr: "أول طلب",
-              desc: "Share your store link — this ticks itself when your first order lands",
-              descAr: "شارك رابط متجرك — بتكمّل لوحدها أول ما يجيلك أول طلب",
-              action: shareStoreLink,
-              cta: "Share store link",
-              ctaAr: "شارك الرابط",
-              Icon: Zap,
-              time: "1 min",
-              timeAr: "دقيقة",
-            },
-          };
-          const steps = onboardingData.steps
-            .filter((s) => s.key !== "create_store" && STEP_UI[s.key])
-            .map((s, i) => ({
-              ...STEP_UI[s.key],
-              key: s.key,
-              num: i + 1,
-              done: s.status === "completed" || s.status === "skipped",
-            }));
-          const doneCount = steps.filter((s) => s.done).length;
-          const totalSteps = steps.length;
-          const displayDone = doneCount;
-          const progressPercent =
-            totalSteps > 0 ? Math.round((displayDone / totalSteps) * 100) : 0;
-
-          return (
-            <section>
-              <div className="souq-onboard">
-                <div className="flex items-center justify-between gap-4 mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="ichip ichip-saffron">
-                      <Gift className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-base font-extrabold leading-tight">
-                        {isAr
-                          ? "جهّز متجرك واحصل على شهر Premium مجاناً"
-                          : "Set up your store & get 1 month Premium free"}
-                      </h2>
-                      <p className="text-[12px] text-white/60 mt-0.5">
-                        <span className="tabular-nums font-bold text-saffron">
-                          {displayDone}
-                        </span>
-                        <span className="text-white/30">/</span>
-                        <span className="tabular-nums">{totalSteps}</span>{" "}
-                        {isAr ? "مكتمل" : "completed"}
-                      </p>
-                    </div>
-                  </div>
-                  {canDismissOnboarding && (
-                    <button
-                      type="button"
-                      onClick={handleDismissOnboarding}
-                      className="text-[11px] text-white/40 hover:text-white/70 transition-colors shrink-0"
-                    >
-                      {isAr ? "إخفاء" : "Hide"}
-                    </button>
-                  )}
-                </div>
-                <div className="progress">
-                  <i style={{ width: `${progressPercent}%` }} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
-                {steps.map((step) => {
-                  const Icon = step.Icon;
-                  return (
-                    <Card
-                      key={step.key}
-                      className={`overflow-hidden transition-all ${step.done ? "opacity-60" : "hover-lift cursor-pointer"}`}
-                      onClick={() => !step.done && step.action()}
-                    >
-                      <CardContent className="p-5 flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <div
-                            className={`ichip ${step.done ? "ichip-sage" : "ichip-saffron"}`}
-                          >
-                            {step.done ? (
-                              <Check className="h-5 w-5" />
-                            ) : (
-                              <Icon className="h-5 w-5" />
-                            )}
-                          </div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                            {isAr ? step.timeAr : step.time}
-                          </span>
-                        </div>
-                        <div>
-                          <h3
-                            className={`text-sm font-extrabold ${step.done ? "line-through text-muted-foreground" : ""}`}
-                          >
-                            {isAr ? step.labelAr : step.label}
-                          </h3>
-                          <p className="text-[12px] text-muted-foreground mt-1 leading-snug">
-                            {isAr ? step.descAr : step.desc}
-                          </p>
-                        </div>
-                        {!step.done && (
-                          <Button
-                            size="sm"
-                            variant="accent"
-                            className="self-start mt-1"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              step.action();
-                            }}
-                          >
-                            {isAr ? step.ctaAr : step.cta}
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })()}
     </div>
   );
 };

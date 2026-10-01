@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, ArrowLeft, Eye, EyeOff, CheckCircle2, AlertTriangle } from "lucide-react";
 import { resetPassword } from "@/services/authApi";
+import { errorMessage } from "@/lib/api-error";
 
 export default function ResetPassword() {
   const { t } = useTranslation();
@@ -37,7 +38,7 @@ export default function ResetPassword() {
       await resetPassword(token, password);
       setSuccess(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : t("common.error"));
+      setError(errorMessage(err, language));
     } finally {
       setLoading(false);
     }

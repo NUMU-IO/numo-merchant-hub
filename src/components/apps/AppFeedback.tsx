@@ -33,7 +33,7 @@ const MAX_FILES = 3;
 function useDateTime() {
   const { language } = useLanguage();
   return (iso: string) =>
-    new Date(iso).toLocaleString(language === "ar" ? "ar-EG" : "en-GB", {
+    new Date(iso).toLocaleString(language === "ar" ? "ar-EG-u-nu-latn" : "en-GB", {
       day: "numeric",
       month: "short",
       year: "numeric",

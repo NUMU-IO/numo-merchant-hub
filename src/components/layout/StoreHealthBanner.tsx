@@ -59,7 +59,7 @@ export function StoreHealthBanner() {
         >
           <span className="absolute inset-[5px] rounded-full bg-navy group-data-[collapsible=icon]:inset-[3px]" />
           <span className={cn("relative text-[15px] font-extrabold tabular-nums leading-none group-data-[collapsible=icon]:text-[11px]", score === null && "text-white/45")}>
-            {isLoading ? "…" : score === null ? "—" : isAr ? score.toLocaleString("ar-EG") : score}
+            {isLoading ? "…" : score === null ? "—" : isAr ? score.toLocaleString("ar-EG-u-nu-latn") : score}
           </span>
         </span>
         <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
@@ -76,7 +76,7 @@ export function StoreHealthBanner() {
                 {isAr ? grade!.ar : grade!.en}
               </span>
               <span className="block text-[11.5px] text-white/60 tabular-nums">
-                {isAr ? score.toLocaleString("ar-EG") : score}/{isAr ? "١٠٠" : "100"}
+                {isAr ? score.toLocaleString("ar-EG-u-nu-latn") : score}/{isAr ? "١٠٠" : "100"}
               </span>
             </>
           )}

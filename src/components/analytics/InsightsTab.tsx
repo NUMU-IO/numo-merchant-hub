@@ -138,7 +138,7 @@ export function InsightsTab({ formatCurrency }: InsightsTabProps) {
                 </p>
                 {data.narrative.top_actions.map((action, i) => (
                   <div key={i} className="flex items-start gap-2 text-[12px]">
-                    <ArrowRight className="h-3 w-3 text-violet-500 mt-0.5 shrink-0" />
+                    <ArrowRight className="h-3 w-3 text-violet-500 mt-0.5 shrink-0 rtl:-scale-x-100" />
                     <span>{action}</span>
                   </div>
                 ))}
@@ -270,7 +270,7 @@ export function InsightsTab({ formatCurrency }: InsightsTabProps) {
       {data?.generated_at && (
         <p className="text-[10px] text-muted-foreground text-center">
           {isAr ? "تم التحديث: " : "Updated: "}
-          {new Date(data.generated_at).toLocaleString(isAr ? "ar-EG" : "en-US", {
+          {new Date(data.generated_at).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
             dateStyle: "medium",
             timeStyle: "short",
           })}

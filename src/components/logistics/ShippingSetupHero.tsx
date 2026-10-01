@@ -40,7 +40,7 @@ export function ShippingSetupHero({ steps, isAr }: { steps: SetupStep[]; isAr: b
         </div>
         <div className="text-end">
           <div className="text-[26px] font-extrabold tabular-nums leading-none text-white">
-            {isAr ? `${done.toLocaleString("ar-EG")}/${steps.length.toLocaleString("ar-EG")}` : `${done}/${steps.length}`}
+            {isAr ? `${done.toLocaleString("ar-EG-u-nu-latn")}/${steps.length.toLocaleString("ar-EG-u-nu-latn")}` : `${done}/${steps.length}`}
           </div>
           <div className="text-[11.5px] text-white/55">{isAr ? "خطوات مكتملة" : "steps done"}</div>
         </div>

@@ -51,7 +51,7 @@ describe("pickupMessage", () => {
   it("says how many parcels and from where", () => {
     const msg = pickupMessage(base);
     // Arabic-Indic digits, per DESIGN.md and the rest of the Arabic UI.
-    expect(msg).toContain("٣ شحنات");
+    expect(msg).toContain("3 شحنات");
     expect(msg).toContain("Vionne");
     expect(msg).toContain("كاثيدس");
   });

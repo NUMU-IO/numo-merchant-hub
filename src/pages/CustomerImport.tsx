@@ -50,7 +50,7 @@ const FIELD_LABELS: Record<CustomerTargetField, { en: string; ar: string }> = {
   last_name: { en: "Last name", ar: "اسم العائلة" },
   phone: { en: "Phone *", ar: "رقم الموبايل *" },
   location: { en: "Location / city", ar: "الموقع / المدينة" },
-  email: { en: "Email", ar: "البريد الإلكتروني" },
+  email: { en: "Email", ar: "الإيميل" },
   accepts_marketing: { en: "Accepts marketing", ar: "يقبل التسويق" },
   notes: { en: "Notes", ar: "ملاحظات" },
   tags: { en: "Tags (comma-separated)", ar: "وسوم (مفصولة بفواصل)" },
@@ -170,7 +170,7 @@ export default function CustomerImport() {
           to="/customers"
           className="mb-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
+          <ArrowLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />
           {isAr ? "العملاء" : "Customers"}
         </Link>
         <h1 className="text-2xl font-extrabold tracking-tight leading-tight">

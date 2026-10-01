@@ -19,6 +19,17 @@ import { CheckCircle2, Loader2, Plus, Printer, Truck, Undo2, Wallet } from "luci
 import { toast } from "sonner";
 import { printOrderInvoice } from "@/services/invoiceApi";
 import { showError } from "@/lib/show-error";
+import { ApiError } from "@/lib/api-error";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { markCashReceived, type Order } from "@/services/orderApi";
 import type { RefundListItem } from "@/services/refundApi";
 import InstapayProofReview, {
@@ -52,6 +63,9 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
   const fmt = (cents: number) => formatOrderCurrency(cents, language);
 
   const [recordOpen, setRecordOpen] = useState(false);
+  // Set when the API says the receipt looks like one already counted on this
+  // order; holds the submission so "record anyway" can resend it.
+  const [lookAlike, setLookAlike] = useState<RecordPaymentInput | null>(null);
 
   // Same query key InstapayProofReview uses, so React Query serves this from
   // cache rather than issuing a second request. The proofs table is where
@@ -112,7 +126,13 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
       setRecordOpen(false);
       invalidatePayments();
     },
-    onError: (err) => showError(err, language),
+    onError: (err, input) => {
+      if (err instanceof ApiError && err.code === "POSSIBLE_DUPLICATE_RECEIPT") {
+        setLookAlike(input);
+        return;
+      }
+      showError(err, language);
+    },
   });
 
   // COD: the customer paid the courier, but the cash reaches the merchant
@@ -283,7 +303,7 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
                   {language === "ar" ? "الفلوس وصلتك" : "Cash collected"}
                   {" · "}
                   {new Date(order.cash_received_at).toLocaleDateString(
-                    language === "ar" ? "ar-EG" : "en-GB",
+                    language === "ar" ? "ar-EG-u-nu-latn" : "en-GB",
                     { day: "numeric", month: "short" },
                   )}
                 </span>
@@ -414,6 +434,36 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
               />
             </div>
           )}
+
+        <AlertDialog open={lookAlike !== null} onOpenChange={(o) => !o && setLookAlike(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {language === "ar"
+                  ? "الإيصال ده شكله متسجّل قبل كده"
+                  : "This receipt looks already recorded"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {language === "ar"
+                  ? "فيه إيصال شبهه بالظبط متحسب على الطلب ده. غالباً ده نفس التحويل اللي العميل رفعه. سجّله بس لو دي تحويلة تانية فعلاً."
+                  : "A receipt that looks the same is already counted on this order, most likely the transfer the customer uploaded. Record it only if this is really a second transfer."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>
+                {language === "ar" ? "ما تسجلش" : "Don't record"}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (lookAlike) recordPayment.mutate({ ...lookAlike, confirmDuplicate: true });
+                  setLookAlike(null);
+                }}
+              >
+                {language === "ar" ? "دي تحويلة تانية، سجّلها" : "It's a different transfer, record it"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {currentStore?.id && (
           <RecordPaymentDialog

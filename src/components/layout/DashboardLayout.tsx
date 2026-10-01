@@ -6,7 +6,8 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { AlertTriangle, Clock, Timer, Zap } from "lucide-react";
+import { AlertTriangle, CloudOff, Clock, Timer, Zap } from "lucide-react";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -58,6 +59,7 @@ const DashboardLayout = () => {
   // the full scroll area, and none of the page furniture below.
   const onAssistant = pathname === "/assistant";
   const isAr = language === "ar";
+  const online = useOnlineStatus();
 
   // SSE stream — invalidates the notification queries the moment the API
   // commits a feed row; while it is live the 45 s polls slow to 5 minutes.
@@ -109,6 +111,18 @@ const DashboardLayout = () => {
               <DemoBanner />
               {/* Trial countdown. Demo and trial are mutually exclusive
                   lifecycle states, so only one of these two can render. */}
+              {!online && (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-[13px] font-semibold text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-200"
+                >
+                  <CloudOff className="h-4 w-4 shrink-0" aria-hidden />
+                  {isAr
+                    ? "إنت أوفلاين — اللي هتحفظه دلوقتي مش هيتسجّل لحد ما النت يرجع."
+                    : "You're offline — changes won't save until you're back online."}
+                </div>
+              )}
               <TrialBanner />
               {/* Go-live gate: new merchants must pick a plan (or Pay as
                   you Grow) before the storefront accepts orders. */}

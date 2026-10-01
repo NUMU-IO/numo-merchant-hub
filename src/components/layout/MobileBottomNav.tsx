@@ -17,6 +17,7 @@ import { useUnreadNotificationCount } from "@/hooks/useUnreadNotifications";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useHubNav, type HubTab, type NavGroup, type NavLeaf } from "@/lib/nav/useHubNav";
 import { cn } from "@/lib/utils";
+import { confirmLeave } from "@/hooks/useUnsavedChangesGuard";
 
 type IconType = typeof Home;
 
@@ -75,8 +76,9 @@ const MobileBottomNav = () => {
   ];
 
   const showInstall = installAffordance !== null;
-  const goAdd = (href: string) => { setAddOpen(false); navigate(href); };
-  const go = (href: string) => { setMenuOpen(false); navigate(href); };
+  // Buttons, not links: ask before leaving a form with unsaved changes.
+  const goAdd = (href: string) => { setAddOpen(false); if (confirmLeave()) navigate(href); };
+  const go = (href: string) => { setMenuOpen(false); if (confirmLeave()) navigate(href); };
 
   // ── Bottom tabs ─────────────────────────────────────────────────────
   type Tab = { key: string; label: string; Icon: IconType; path?: string; fab?: boolean; onClick?: () => void; count?: number };
@@ -271,7 +273,7 @@ const MobileBottomNav = () => {
         <div className="flex items-stretch justify-around h-[60px] px-2 pt-1.5 pb-0.5">
           {tabs.map((tabItem) => {
             const active = tabItem.path ? isActive(tabItem.path) : false;
-            const onTap = tabItem.onClick ?? (() => tabItem.path && navigate(tabItem.path));
+            const onTap = tabItem.onClick ?? (() => tabItem.path && confirmLeave() && navigate(tabItem.path));
             return (
               <button
                 key={tabItem.key}

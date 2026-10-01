@@ -60,8 +60,10 @@ export interface CatalogTheme {
   id: string;
   slug: string;
   name: string;
+  name_ar?: string | null;
   short_description: string | null;
   description: string | null;
+  description_ar?: string | null;
   price_cents: number;
   currency: string;
   status: string;
@@ -140,7 +142,9 @@ export interface InstalledTheme {
     id: string;
     slug: string;
     name: string;
+    name_ar?: string | null;
     description: string | null;
+    description_ar?: string | null;
     short_description: string | null;
     price_cents: number;
     currency: string;

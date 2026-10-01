@@ -152,7 +152,7 @@ export function relTime(iso: string | null | undefined, isAr: boolean): string |
   if (Number.isNaN(then)) return null;
   const mins = Math.round((Date.now() - then) / 60_000);
   if (mins < 1) return isAr ? "الآن" : "just now";
-  const rtf = new Intl.RelativeTimeFormat(isAr ? "ar-EG" : "en", {
+  const rtf = new Intl.RelativeTimeFormat(isAr ? "ar-EG-u-nu-latn" : "en", {
     numeric: "always",
     style: "narrow",
   });
@@ -277,7 +277,7 @@ interface StatTrioProps {
 }
 
 export function StatTrio({ lastEventAt, failureRate, eventCount, isAr }: StatTrioProps) {
-  const nf = new Intl.NumberFormat(isAr ? "ar-EG" : "en-US");
+  const nf = new Intl.NumberFormat(isAr ? "ar-EG-u-nu-latn" : "en-US");
   const last = relTime(lastEventAt, isAr);
   const hasVolume = eventCount !== null && eventCount > 0;
   const delivered =
@@ -544,7 +544,7 @@ export function EventsLog({
                         )}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                        {new Date(row.createdAt).toLocaleString(isAr ? "ar-EG" : undefined, {
+                        {new Date(row.createdAt).toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined, {
                           month: "short",
                           day: "numeric",
                           hour: "2-digit",
@@ -588,7 +588,7 @@ function ExpandedEventDetail({ row, isAr }: { row: UnifiedEventRow; isAr: boolea
         <DetailKv label={isAr ? "المحاولات" : "Attempts"} value={String(row.attempts)} />
         <DetailKv
           label={isAr ? "أُرسل في" : "Sent at"}
-          value={row.sentAt ? new Date(row.sentAt).toLocaleString(isAr ? "ar-EG" : undefined) : "—"}
+          value={row.sentAt ? new Date(row.sentAt).toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined) : "—"}
         />
         <DetailKv label="event_id" value={row.eventId} mono />
         {row.lastError && (

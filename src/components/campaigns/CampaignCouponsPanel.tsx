@@ -338,7 +338,7 @@ export function CampaignCouponsPanel({
                       <td className="p-2 text-xs text-muted-foreground">
                         {c.valid_until
                           ? new Date(c.valid_until).toLocaleDateString(
-                              isAr ? "ar-EG" : undefined,
+                              isAr ? "ar-EG-u-nu-latn" : undefined,
                             )
                           : "—"}
                       </td>

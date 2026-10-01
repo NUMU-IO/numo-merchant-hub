@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { arabicIncludes, normalizeArabic } from "@/lib/arabic-normalize";
+import { arabicIncludes, normalizeArabic, toLatinDigits, toNumericInput } from "@/lib/arabic-normalize";
 
 describe("normalizeArabic", () => {
   it("folds hamza-alef variants onto bare alef", () => {
@@ -48,5 +48,21 @@ describe("arabicIncludes", () => {
 
   it("does not over-match", () => {
     expect(arabicIncludes("الفواتير", "الشحن")).toBe(false);
+  });
+});
+
+describe("toLatinDigits / toNumericInput", () => {
+  it("turns Arabic and Persian digits and marks into Latin", () => {
+    expect(toLatinDigits("٣٦٢٣٤٥")).toBe("362345");
+    expect(toLatinDigits("۱۵۰۰")).toBe("1500");
+    expect(toLatinDigits("١٢٠٫٥")).toBe("120.5");
+    expect(toLatinDigits("١٬٥٠٠")).toBe("1500");
+  });
+
+  it("keeps a number field to digits (and a decimal point for money)", () => {
+    expect(toNumericInput("١٥٠٠")).toBe("1500");
+    expect(toNumericInput("1,500")).toBe("1500");
+    expect(toNumericInput("12.50 EGP")).toBe("12.50");
+    expect(toNumericInput("٥٫٥", false)).toBe("55");
   });
 });

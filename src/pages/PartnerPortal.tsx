@@ -398,7 +398,7 @@ function Shell({ children }: { children: ReactNode }) {
 function useDate() {
   const { language } = useLanguage();
   return (iso: string) =>
-    new Date(iso).toLocaleString(language === "ar" ? "ar-EG" : "en-GB", {
+    new Date(iso).toLocaleString(language === "ar" ? "ar-EG-u-nu-latn" : "en-GB", {
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -484,7 +484,7 @@ function useDashboardFilter() {
     setFrom(days ? isoDay(new Date(Date.now() - days * 86400000)) : "");
   };
   const fmt = (iso: string) =>
-    new Date(iso).toLocaleDateString(language === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short", year: "numeric" });
+    new Date(iso).toLocaleDateString(language === "ar" ? "ar-EG-u-nu-latn" : "en-GB", { day: "numeric", month: "short", year: "numeric" });
   const label = from || to ? `${from ? fmt(from) : "…"} - ${to ? fmt(to) : "…"}` : t("partnerPortal.range.all");
 
   const bar = (
@@ -658,7 +658,7 @@ function Dashboard() {
         </Panel>
         <Panel title={t("partnerPortal.installAnalytics")}>
           {slices.length ? (
-            <BreakdownPie data={slices} locale={language === "ar" ? "ar-EG" : "en-GB"} />
+            <BreakdownPie data={slices} locale={language === "ar" ? "ar-EG-u-nu-latn" : "en-GB"} />
           ) : (
             <p className="py-16 text-center text-sm text-muted-foreground">{t("partnerPortal.noInstalls")}</p>
           )}
@@ -794,7 +794,7 @@ function ChartCard({ title, hint, empty, children }: { title: string; hint?: str
 function Analytics() {
   const { t } = useTranslation();
   const { language } = useLanguage();
-  const locale = language === "ar" ? "ar-EG" : "en-GB";
+  const locale = language === "ar" ? "ar-EG-u-nu-latn" : "en-GB";
   const date = useDate();
   const { params, bar } = useRangeFilter();
   const { data, isLoading } = useQuery({

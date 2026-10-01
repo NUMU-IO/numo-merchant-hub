@@ -54,7 +54,7 @@ const WalletHeaderChip = () => {
   }
   const negative = w.balance_cents < 0;
   const balance = (w.balance_cents / 100).toLocaleString(
-    isAr ? "ar-EG" : "en-EG",
+    isAr ? "ar-EG-u-nu-latn" : "en-EG",
     { minimumFractionDigits: 0, maximumFractionDigits: 2 },
   );
   const currencyLabel = w.currency === "EGP" ? (isAr ? "ج.م" : "EGP") : w.currency;
@@ -67,7 +67,7 @@ const WalletHeaderChip = () => {
       title={
         w.pending_balance_cents > 0
           ? isAr
-            ? `رصيد معلّق قيد التحقق: ${(w.pending_balance_cents / 100).toLocaleString("ar-EG")} ج.م`
+            ? `رصيد معلّق قيد التحقق: ${(w.pending_balance_cents / 100).toLocaleString("ar-EG-u-nu-latn")} ج.م`
             : `On hold pending verification: ${(w.pending_balance_cents / 100).toLocaleString()} EGP`
           : undefined
       }

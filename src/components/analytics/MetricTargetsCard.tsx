@@ -45,8 +45,8 @@ function formatValue(
 ): string {
   const kind = METRIC_META[metric].kind;
   if (kind === "money") return formatCurrency(value);
-  if (kind === "bps") return `${(value / 100).toLocaleString(isAr ? "ar-EG" : undefined)}%`;
-  return value.toLocaleString(isAr ? "ar-EG" : undefined);
+  if (kind === "bps") return `${(value / 100).toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}%`;
+  return value.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined);
 }
 
 /** Convert a stored integer to the dialog's human input value. */
@@ -244,13 +244,13 @@ export function MetricTargetsCard({ storeId, formatCurrency }: MetricTargetsCard
                       </span>
                     </span>
                     <span className="text-muted-foreground tabular-nums">
-                      {t.progress_pct.toLocaleString(isAr ? "ar-EG" : undefined)}%
+                      {t.progress_pct.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}%
                     </span>
                   </div>
                   {t.days_remaining > 0 && (
                     <p className="text-[10.5px] text-muted-foreground">
                       {isAr
-                        ? `متبقي ${t.days_remaining.toLocaleString("ar-EG")} يوم`
+                        ? `متبقي ${t.days_remaining.toLocaleString("ar-EG-u-nu-latn")} يوم`
                         : `${t.days_remaining} days left`}
                       {(t.metric === "revenue" || t.metric === "orders") && (
                         <>

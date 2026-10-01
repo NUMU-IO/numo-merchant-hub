@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { apiClient, apiClientBlob } from "@/services/api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +81,8 @@ const KIND_LABELS: Record<string, { en: string; ar: string }> = {
 const Wallet = () => {
   const { language } = useLanguage();
   const isAr = language === "ar";
+  const { tenant } = useAuth();
+  const isPayg = (tenant?.plan ?? "").toLowerCase() === "payg";
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -105,7 +108,7 @@ const Wallet = () => {
   };
 
   const fmt = (cents: number) =>
-    (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", { minimumFractionDigits: 2 });
+    (cents / 100).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US", { minimumFractionDigits: 2 });
 
   const refresh = useCallback(async () => {
     try {
@@ -171,14 +174,14 @@ const Wallet = () => {
   }, [searchParams.get("topup_id")]);
 
   const negative = (wallet?.balance_cents ?? 0) < 0;
-  const commissionPct = wallet ? (wallet.effective_commission_bps / 100).toLocaleString(isAr ? "ar-EG" : "en-US") : null;
+  const commissionPct = wallet ? (wallet.effective_commission_bps / 100).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US") : null;
 
   return (
     <div className="max-w-[900px] mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate("/payments")}>
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
         </Button>
         <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "المحفظة" : "Wallet"}</h1>
         {wallet && wallet.effective_commission_bps > 0 && (
@@ -243,16 +246,18 @@ const Wallet = () => {
                   : "Your balance is negative — commissions are deducted from your prepaid balance."}
               </p>
             )}
-            <div className="flex gap-3 mt-6">
-              <Button
-                size="sm"
-                className="h-9 text-sm rounded-lg bg-white text-gray-900 hover:bg-white/90 gap-1.5"
-                onClick={() => setTopupOpen(true)}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {isAr ? "إضافة رصيد" : "Add Balance"}
-              </Button>
-            </div>
+            {(isPayg || (wallet?.balance_cents ?? 0) < 0) && (
+              <div className="flex gap-3 mt-6">
+                <Button
+                  size="sm"
+                  className="h-9 text-sm rounded-lg bg-white text-gray-900 hover:bg-white/90 gap-1.5"
+                  onClick={() => setTopupOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {isAr ? "إضافة رصيد" : "Add Balance"}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -304,7 +309,7 @@ const Wallet = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-end text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(t.created_at).toLocaleDateString(isAr ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      {new Date(t.created_at).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                     </TableCell>
                   </TableRow>
                 );
@@ -324,8 +329,12 @@ const Wallet = () => {
             <div className="w-16 h-16 rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
               <WalletIcon className="h-8 w-8 text-muted-foreground/20" />
             </div>
-            <p className="text-sm font-medium text-muted-foreground">{isAr ? "لا توجد معاملات بعد" : "No wallet transactions yet"}</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">{isAr ? "ستظهر معاملات المحفظة هنا عند إضافة رصيد" : "Wallet transactions will appear here when you add balance"}</p>
+            <p className="text-sm font-medium text-muted-foreground">{isAr ? "مفيش حركات في المحفظة لسه" : "No wallet transactions yet"}</p>
+            <p className="text-xs text-muted-foreground/60 mt-1 max-w-sm text-center">
+              {isPayg
+                ? (isAr ? "لما تشحن رصيد هيظهر هنا، والعمولة بتتخصم منه مع كل أوردر اتدفع." : "Top-ups show up here, and the commission comes off them with every paid order.")
+                : (isAr ? "إنت على باقة شهرية، فمفيش عمولة بتتخصم من هنا." : "You're on a monthly plan, so no commission is taken from here.")}
+            </p>
           </div>
         ) : (
           <Table>
@@ -367,7 +376,7 @@ const Wallet = () => {
                     </TableCell>
                     <TableCell className="text-end tabular-nums text-muted-foreground">{fmt(t.balance_after_cents)}</TableCell>
                     <TableCell className="text-end text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(t.created_at).toLocaleDateString(isAr ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      {new Date(t.created_at).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                     </TableCell>
                   </TableRow>
                 );

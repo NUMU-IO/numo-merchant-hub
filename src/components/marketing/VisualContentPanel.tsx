@@ -1369,7 +1369,7 @@ function PopupFormCopyFields({ lang, state, update }: PopupFormCopyFieldsProps) 
           id={`popup-email-label-${lang}`}
           value={state[keys.emailLabel]}
           onChange={(e) => update(keys.emailLabel, e.target.value)}
-          placeholder={isAr ? "البريد الإلكتروني" : "Email address"}
+          placeholder={isAr ? "الإيميل" : "Email address"}
           dir={isAr ? "rtl" : "ltr"}
         />
       </div>

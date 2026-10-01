@@ -205,12 +205,12 @@ const Payments = () => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const fmtBig = (cents: number) =>
-    (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", { minimumFractionDigits: 2 });
+    (cents / 100).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US", { minimumFractionDigits: 2 });
   const fmt = (cents: number) => formatMoney(cents, { fromCents: true, locale: isAr ? "ar" : "en" });
   const fmtDate = (d: string) =>
-    new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" });
+    new Date(d).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", { month: "short", day: "numeric", year: "numeric" });
   const fmtTime = (d: string) =>
-    new Date(d).toLocaleTimeString(isAr ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" });
+    new Date(d).toLocaleTimeString(isAr ? "ar-EG-u-nu-latn" : "en-US", { hour: "2-digit", minute: "2-digit" });
 
   useEffect(() => {
     if (!storeId) return;
@@ -368,7 +368,7 @@ const Payments = () => {
             <div className="flex-1 min-w-0">
               <div className="text-sm font-extrabold">
                 <span className="tabular-nums">
-                  {isAr ? codCount.toLocaleString("ar-EG") : codCount}
+                  {isAr ? codCount.toLocaleString("ar-EG-u-nu-latn") : codCount}
                 </span>{" "}
                 {isAr ? "شحنات استلام محتاجة تسوية" : "COD shipments to reconcile"}
                 {" · "}
@@ -596,7 +596,9 @@ const Payments = () => {
                     {isAr ? "مفيش حركات لسه" : "No transactions yet"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {isAr ? "المدفوعات من الطلبات هتظهر هنا" : "Payments from orders will appear here"}
+                    {isAr
+                    ? "فلوس الأوردرات بتظهر هنا: الكارت والمحفظة أول ما العميل يدفع، والدفع عند الاستلام لما الأوردر يتسلّم."
+                    : "Order money shows up here: card and wallet as soon as the customer pays, cash on delivery once the order is delivered."}
                   </p>
                 </div>
               ) : (
@@ -666,7 +668,9 @@ const Payments = () => {
                           {isAr ? "مفيش حركات لسه" : "No transactions yet"}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {isAr ? "المدفوعات من الطلبات هتظهر هنا" : "Payments from orders will appear here"}
+                          {isAr
+                    ? "فلوس الأوردرات بتظهر هنا: الكارت والمحفظة أول ما العميل يدفع، والدفع عند الاستلام لما الأوردر يتسلّم."
+                    : "Order money shows up here: card and wallet as soon as the customer pays, cash on delivery once the order is delivered."}
                         </p>
                       </div>
                     </TableCell>

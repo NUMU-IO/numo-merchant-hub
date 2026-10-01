@@ -1559,7 +1559,7 @@ describe("E. multibuy in Arabic", () => {
       .replace("{{groups}}", "1");
     expect(preview.textContent).toContain(expected);
     expect(preview.textContent).toContain("باقة"); // written in Arabic, not transliterated
-    expect(preview.textContent).toContain("٦٥٠ ج.م"); // AR digits + AR currency mark
+    expect(preview.textContent).toContain("650 ج.م"); // Latin digits + AR currency mark
     expect(preview.textContent).not.toContain("65000");
 
     // The English fallback must NOT be what rendered…

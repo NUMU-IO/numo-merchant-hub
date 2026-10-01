@@ -78,6 +78,7 @@ import type {
 } from "@/services/emailTemplatesApi";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 const SUBJECT_LIMIT = 200;
 const BODY_BYTE_LIMIT = 100 * 1024; // 100 KB
@@ -346,16 +347,7 @@ export default function EmailTemplateEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subject, htmlBody, eventType, language]);
 
-  // ── Beforeunload guard ──
-  useEffect(() => {
-    if (!dirty) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [dirty]);
+  useUnsavedChangesGuard(dirty);
 
   // ── Variable insertion ──
   const insertVariable = (varName: string) => {
@@ -698,7 +690,7 @@ export default function EmailTemplateEditor() {
               {isRTL ? (
                 <ChevronRight className="h-3.5 w-3.5" />
               ) : (
-                <ChevronLeft className="h-3.5 w-3.5" />
+                <ChevronLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />
               )}
               {t("emailTemplates.actions.cancel")}
             </Button>
@@ -992,7 +984,7 @@ export default function EmailTemplateEditor() {
           {isRTL ? (
             <ChevronRight className="h-4 w-4" />
           ) : (
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4 rtl:-scale-x-100" />
           )}
           {t("emailTemplates.title")}
         </Button>

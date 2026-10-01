@@ -138,7 +138,7 @@ function SortableSectionItem({
             </p>
           )}
         </div>
-        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
       </button>
 
       {/* Actions — visible on hover */}
@@ -293,7 +293,7 @@ function SectionGroupDisplay({ groupId, label, locale, schemas }: SectionGroupDi
               }`}
         </p>
       </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
     </button>
   );
 }

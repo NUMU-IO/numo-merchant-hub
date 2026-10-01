@@ -94,13 +94,13 @@ export default function PromotionDetail() {
   const formatDate = (s: string | null) => {
     if (!s) return t("promotions.detail.no_date") as string;
     return new Date(s).toLocaleString(
-      language === "ar" ? "ar-EG" : "en-US",
+      language === "ar" ? "ar-EG-u-nu-latn" : "en-US",
       { dateStyle: "medium", timeStyle: "short" },
     );
   };
 
   const formatNumber = (n: number) =>
-    new Intl.NumberFormat(language === "ar" ? "ar-EG" : "en-US").format(n);
+    new Intl.NumberFormat(language === "ar" ? "ar-EG-u-nu-latn" : "en-US").format(n);
 
   // Money in the STORE's currency, never a hardcoded EGP — this page used to
   // print "ج.م" on a Saudi store's offer.
@@ -200,7 +200,7 @@ export default function PromotionDetail() {
       insights.push(
         t("promotions.detail.insight.return_on_discount", {
           value: (revenueCents / discountCents).toLocaleString(
-            language === "ar" ? "ar-EG" : "en-US",
+            language === "ar" ? "ar-EG-u-nu-latn" : "en-US",
             { maximumFractionDigits: 1 },
           ),
         }) as string,
@@ -264,7 +264,7 @@ export default function PromotionDetail() {
             onClick={() => navigate("/marketing/promotions")}
             className="mb-2"
           >
-            <ArrowLeft className="me-2 h-4 w-4" />
+            <ArrowLeft className="me-2 h-4 w-4 rtl:-scale-x-100" />
             {t("promotions.detail.back")}
           </Button>
           <h1 className="text-2xl font-semibold tracking-tight">

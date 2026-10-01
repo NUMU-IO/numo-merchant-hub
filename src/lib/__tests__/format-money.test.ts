@@ -323,14 +323,14 @@ describe("currencyLabel", () => {
 describe("formatMoney — the rendering the pane and list depend on", () => {
   // Pinned literally in ONE place, so every other suite can build its
   // expectations from `formatMoney` without the format itself going unchecked.
-  it("EN puts the currency FIRST, AR puts it last with Arabic-Indic digits", () => {
+  it("EN puts the currency FIRST, AR puts it last, both in Latin digits", () => {
     expect(formatMoney(650, { locale: "en" })).toBe("EGP 650");
-    expect(formatMoney(650, { locale: "ar" })).toBe("٦٥٠ ج.م");
+    expect(formatMoney(650, { locale: "ar" })).toBe("650 ج.م");
   });
 
   it("groups thousands per market", () => {
     expect(formatMoney(1084, { locale: "en" })).toBe("EGP 1,084");
-    expect(formatMoney(1084, { locale: "ar" })).toBe("١٬٠٨٤ ج.م");
+    expect(formatMoney(1084, { locale: "ar" })).toBe("1,084 ج.م");
   });
 
   it("fromCents divides by exactly 100", () => {
@@ -348,7 +348,7 @@ describe("formatMoney — the rendering the pane and list depend on", () => {
       `${SAR_GLYPH} 650`,
     );
     expect(formatMoney(650, { locale: "ar", currency: "SAR" })).toBe(
-      `٦٥٠ ${SAR_GLYPH}`,
+      `650 ${SAR_GLYPH}`,
     );
     for (const locale of ["en", "ar"] as const) {
       const out = formatMoney(650, { locale, currency: "SAR" });
@@ -359,11 +359,9 @@ describe("formatMoney — the rendering the pane and list depend on", () => {
 
   it("an unmapped currency uses its ISO code", () => {
     expect(formatMoney(650, { locale: "en", currency: "AED" })).toBe("AED 650");
-    // AR digits follow the market's CLDR data, not the language: ar-EG uses
-    // Arabic-Indic numerals, ar-AE uses Latin ones. Pinned as observed rather
-    // than assumed — the digits differ per currency, which is correct.
+    // Latin digits in every market, so one screen never mixes digit systems.
     expect(formatMoney(650, { locale: "ar", currency: "AED" })).toBe("650 AED");
-    expect(formatMoney(650, { locale: "ar", currency: "EGP" })).toBe("٦٥٠ ج.م");
+    expect(formatMoney(650, { locale: "ar", currency: "EGP" })).toBe("650 ج.م");
   });
 
   it("inherits the active store currency when none is passed", () => {
@@ -383,9 +381,9 @@ describe("formatMoney — the rendering the pane and list depend on", () => {
     expect(formatMoney(7920, { ...opts, locale: "en" })).toBe("EGP +79.20");
     expect(formatMoney(-50000, { ...opts, locale: "en" })).toBe("EGP -500.00");
     expect(formatMoney(0, { ...opts, locale: "en" })).toBe("EGP 0.00");
-    // Intl's Arabic sign carries U+061C (Arabic letter mark), which keeps it
-    // on the number when the amount sits in a dir="ltr" run.
-    expect(formatMoney(7920, { ...opts, locale: "ar" })).toBe("\u061C+٧٩٫٢٠ ج.م");
+    // Intl's sign carries a directional mark (U+200E with Latin digits),
+    // which keeps it on the number inside an RTL line.
+    expect(formatMoney(7920, { ...opts, locale: "ar" })).toBe("\u200E+79.20 ج.م");
     expect(formatMoney(9900, { fromCents: true, currency: "EGP", fixed: true, locale: "en" })).toBe(
       "EGP 99.00",
     );
