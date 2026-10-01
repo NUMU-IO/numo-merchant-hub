@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import StoreLinkShare from "@/components/StoreLinkShare";
+import DemoOrderWalkthrough from "@/components/orders/DemoOrderWalkthrough";
 import { getPublicStoreUrl } from "@/lib/storefront";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -78,6 +79,7 @@ const Orders = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  const [demoOpen, setDemoOpen] = useState(false);
   const [page, setPage] = useState(1);
   // The status filter LIVES in the URL (`?status=`), so dashboard links
   // ("/orders?status=pending"), the back button and a reload all land on
@@ -657,7 +659,7 @@ const Orders = () => {
               <CardTitle className="text-base">{t("orders.lineItems")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
+              <Table cards>
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t("products.name")}</TableHead>
@@ -1313,9 +1315,15 @@ const Orders = () => {
                   {getPublicStoreUrl(currentStore) && (
                     <StoreLinkShare url={getPublicStoreUrl(currentStore)!} storeName={currentStore?.name} />
                   )}
-                  <Button size="sm" variant="ghost" className="h-9 text-xs rounded-lg gap-1.5 px-4" onClick={() => navigate("/orders/create")}>
-                    <Package className="h-3.5 w-3.5" />{t("orders.createFirst")}
-                  </Button>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button size="sm" variant="ghost" className="h-11 text-xs rounded-lg gap-1.5 px-4" onClick={() => navigate("/orders/create")}>
+                      <Package className="h-3.5 w-3.5" />{t("orders.createFirst")}
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-11 text-xs rounded-lg px-4" onClick={() => setDemoOpen(true)}>
+                      {isAr ? "جرّب أوردر تجريبي" : "Try a demo order"}
+                    </Button>
+                  </div>
+                  <DemoOrderWalkthrough open={demoOpen} onOpenChange={setDemoOpen} />
                 </div>
               }
             />
