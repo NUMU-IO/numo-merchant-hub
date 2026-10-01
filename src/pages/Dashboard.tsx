@@ -71,6 +71,7 @@ import { StoreLinkCard } from "@/components/dashboard/StoreLinkCard";
 import { IdentitySheet } from "@/components/dashboard/IdentitySheet";
 import { ReadinessMeter } from "@/components/onboarding/ReadinessMeter";
 import { useStoreReadiness } from "@/hooks/useStoreReadiness";
+import FirstOrderCelebration from "@/components/dashboard/FirstOrderCelebration";
 import StoreLinkShare from "@/components/StoreLinkShare";
 import { PromoSwiper } from "@/components/dashboard/PromoSwiper";
 import { StoreHealthCard } from "@/components/dashboard/StoreHealthCard";
@@ -551,6 +552,9 @@ const Dashboard = () => {
       />
       {/* The store link, ready to share — the one day-one job */}
       <StoreLinkCard />
+      {lifetimeOrderCount === 1 && recentOrders[0] && storeId && (
+        <FirstOrderCelebration storeId={storeId} order={recentOrders[0]} />
+      )}
       {/* Zid-style pinned + recently opened pages */}
       <RecentlyViewed />
       {/* ─── Greeting strip — sits above the zones ────────────────────── */}
