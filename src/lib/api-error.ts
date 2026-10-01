@@ -75,11 +75,20 @@ export class ApiError extends Error {
 
     // If the server gave a meaningful detail, use it (unless it's a generic code)
     if (this.serverDetail && !this.serverDetail.startsWith("API error:")) {
-      return translateServerDetail(this.serverDetail, isAr);
+      const translated = translateServerDetail(this.serverDetail, isAr);
+      if (translated) return translated;
     }
 
     return statusToMessage(this.status, lang);
   }
+}
+
+/** Merchant-facing copy for anything a request can throw. Never the raw
+ *  `err.message`: that is fetch's "Failed to fetch" or a server sentence in
+ *  English, both of which read as broken on an Arabic page. */
+export function errorMessage(err: unknown, lang: string): string {
+  if (err instanceof ApiError) return err.toUserMessage(lang);
+  return statusToMessage(err instanceof TypeError ? 0 : -1, lang);
 }
 
 // ─── Status → human message ──────────────────────────────────────────────────
@@ -128,6 +137,10 @@ function statusToMessage(status: number, lang: string): string {
 
 const SERVER_DETAIL_MAP: Array<[RegExp, string, string]> = [
   // Auth
+  [/invalid email or password/i, "Invalid email or password.", "الإيميل أو الباسورد غلط."],
+  [/password has appeared in a known data breach/i, "This password has shown up in a data breach. Pick a different one.", "الباسورد ده ظهر قبل كده في تسريبات بيانات. اختار واحد تاني."],
+  [/password must be at least/i, "Password must be at least 8 characters.", "الباسورد لازم يكون 8 حروف على الأقل."],
+  [/request validation failed/i, "Some fields are invalid. Please review and correct them.", "بعض الحقول غير صالحة. راجعها وصححها."],
   [/invalid credentials/i, "Invalid email or password.", "البريد الإلكتروني أو كلمة المرور غير صحيحة."],
   [/email already registered/i, "This email is already registered.", "هذا البريد الإلكتروني مسجل بالفعل."],
   [/email.*already.*exists/i, "This email is already registered.", "هذا البريد الإلكتروني مسجل بالفعل."],
@@ -147,6 +160,7 @@ const SERVER_DETAIL_MAP: Array<[RegExp, string, string]> = [
   [/beta.*code.*expired/i, "This beta code has expired.", "انتهت صلاحية كود الدعوة."],
   [/beta.*code.*used/i, "This beta code has already been used.", "كود الدعوة مُستخدم بالفعل."],
   [/subdomain.*taken/i, "This subdomain is already taken.", "هذا النطاق الفرعي مأخوذ بالفعل."],
+  [/reserved subdomain/i, "This store link is reserved. Pick another one.", "الرابط ده محجوز، اختار رابط تاني."],
   [/subdomain.*invalid/i, "Invalid subdomain format.", "صيغة النطاق الفرعي غير صالحة."],
   [/store.*not.*found/i, "Store not found.", "المتجر غير موجود."],
 
@@ -192,18 +206,15 @@ const SERVER_DETAIL_MAP: Array<[RegExp, string, string]> = [
   [/forbidden/i, "You don't have permission for this action.", "ليس لديك صلاحية لهذا الإجراء."],
 ];
 
-function translateServerDetail(detail: string, isAr: boolean): string {
+function translateServerDetail(detail: string, isAr: boolean): string | null {
   for (const [pattern, en, ar] of SERVER_DETAIL_MAP) {
     if (pattern.test(detail)) {
       return isAr ? ar : en;
     }
   }
-  // If no pattern matches, return the raw detail (likely already English)
-  // For Arabic, wrap with a generic prefix
-  if (isAr) {
-    return `خطأ: ${detail}`;
-  }
-  return detail;
+  // Unmatched server text is English: fine on an English page, but on an
+  // Arabic one the per-status sentence beats a foreign one.
+  return isAr ? null : detail;
 }
 
 // ─── Parse 422 validation detail ─────────────────────────────────────────────
@@ -220,6 +231,20 @@ export function parse422Detail(
   if (!body || typeof body !== "object") return null;
 
   const detail = (body as Record<string, unknown>).detail;
+
+  // NUMU envelope: { error: { code: "VALIDATION_ERROR", details: [{ field: "body.email", message }] } }
+  const envelopeDetails = (body as { error?: { details?: unknown } }).error?.details;
+  if (Array.isArray(envelopeDetails)) {
+    const fields: Record<string, string> = {};
+    for (const err of envelopeDetails) {
+      const field = (err as { field?: unknown })?.field;
+      const message = (err as { message?: unknown })?.message;
+      if (typeof field === "string" && typeof message === "string") {
+        fields[field.replace(/^body\./, "")] = message;
+      }
+    }
+    return { message: (body as { error?: { message?: string } }).error?.message ?? "", fields };
+  }
 
   // Array of validation errors (FastAPI format)
   if (Array.isArray(detail)) {

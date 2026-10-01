@@ -19,7 +19,7 @@ import { Loader2, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
 import { getStoreDomainSuffix } from "@/lib/storefront";
 import { getStoreSubdomainSuffix, withEnvSuffix } from "@/lib/env";
 import { toStoreSlug } from "@/lib/store-slug";
-import { ApiError } from "@/lib/api-error";
+import { ApiError, errorMessage } from "@/lib/api-error";
 import { z } from "zod";
 
 const createStoreSchema = z.object({
@@ -109,7 +109,14 @@ export default function CreateStore() {
       // env), so it matches the host the storefront SSR app extracts from
       // <store>-test.numueg.app. On prod the suffix is empty, so user
       // input is saved as-is.
-      const created = await createStore({ name, subdomain: withEnvSuffix(subdomain), country });
+      // The signup phone doubles as the store's support number, so the
+      // checklist's "confirm support number" step opens pre-filled.
+      const created = await createStore({
+        name,
+        subdomain: withEnvSuffix(subdomain),
+        country,
+        contact_phone: user?.phone || phone || undefined,
+      });
       // Phase 5.11 — fire-and-forget seed. We don't block navigation
       // on it because the catalog inserts can take a couple of
       // seconds and the merchant gets to the dashboard sooner.
@@ -136,7 +143,7 @@ export default function CreateStore() {
         setError(err.toUserMessage(language));
         if (err.fieldErrors) setFieldErrors(err.fieldErrors);
       } else {
-        setError(err instanceof Error ? err.message : t("common.error"));
+        setError(errorMessage(err, language));
       }
     } finally {
       setLoading(false);

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/services/api";
 
-import { ApiError } from "../api-error";
+import { ApiError, errorMessage, parse422Detail } from "../api-error";
 
 const envelope = {
   success: false,
@@ -50,5 +50,24 @@ describe("apiClient on a non-CSRF 403", () => {
     expect((err as ApiError).code).toBe("FEATURE_NOT_AVAILABLE");
     expect((err as ApiError).details).toEqual(envelope.error.details);
     expect((err as ApiError).serverDetail).toBe(envelope.error.message);
+  });
+});
+
+describe("merchant-facing error copy", () => {
+  it("never shows fetch's raw message or untranslated English on an Arabic page", () => {
+    expect(errorMessage(new TypeError("Failed to fetch"), "ar")).toContain("اتصال");
+    expect(errorMessage(new ApiError(500, "Internal Server Error"), "ar")).not.toMatch(/[A-Za-z]/);
+    expect(errorMessage(new ApiError(400, "'shop' is a reserved subdomain"), "ar")).toBe("الرابط ده محجوز، اختار رابط تاني.");
+  });
+
+  it("reads field errors from the API envelope", () => {
+    const body = {
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Request validation failed",
+        details: [{ field: "body.email", message: "value is not a valid email address" }],
+      },
+    };
+    expect(parse422Detail(body)?.fields).toEqual({ email: "value is not a valid email address" });
   });
 });

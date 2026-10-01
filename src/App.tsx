@@ -327,14 +327,7 @@ const App = () => (
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/token-handoff" element={<TokenHandoff />} />
-                  <Route
-                    path="/verify-email"
-                    element={
-                      <RequireAuth>
-                        <VerifyEmail />
-                      </RequireAuth>
-                    }
-                  />
+                  <Route path="/verify-email" element={<VerifyEmail />} />
                   <Route
                     path="*"
                     element={
@@ -358,14 +351,7 @@ const App = () => (
                   <Route path="/staff/invite/accept" element={<AcceptInvitation />} />
 
                   {/* Auth required, verification pending */}
-                  <Route
-                    path="/verify-email"
-                    element={
-                      <RequireAuth>
-                        <VerifyEmail />
-                      </RequireAuth>
-                    }
-                  />
+                  <Route path="/verify-email" element={<VerifyEmail />} />
 
                   {/* Auth required, no store needed */}
                   <Route

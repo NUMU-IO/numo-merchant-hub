@@ -22,21 +22,24 @@ import { Label } from "@/components/ui/label";
 import { Loader2, ArrowRight, ArrowLeft, Eye, EyeOff, ShieldCheck, Globe } from "lucide-react";
 import { GoogleLogin } from "@react-oauth/google";
 import { TwoFactorRequiredError } from "@/services/authApi";
-import { ApiError } from "@/lib/api-error";
+import { ApiError, errorMessage } from "@/lib/api-error";
 import { PhoneInput, isValidE164 } from "@/components/forms/PhoneInput";
+import { isPartnerHost } from "@/lib/partner-host";
 import { z } from "zod";
 import AnimatedCharacters from "@/components/AnimatedCharacters";
 
-const loginSchema = z.object({
-  email: z.string().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة"),
-  password: z.string().min(1, "كلمة المرور مطلوبة"),
+const tr = (isAr: boolean, ar: string, en: string) => (isAr ? ar : en);
+
+const loginSchema = (isAr: boolean) => z.object({
+  email: z.string().min(1, tr(isAr, "البريد الإلكتروني مطلوب", "Email is required")).email(tr(isAr, "صيغة البريد الإلكتروني غير صحيحة", "Enter a valid email address")),
+  password: z.string().min(1, tr(isAr, "كلمة المرور مطلوبة", "Password is required")),
 });
 
-const registerSchema = z.object({
-  firstName: z.string().min(2, "الاسم الأول يجب أن يكون حرفين على الأقل").max(50, "الاسم الأول طويل جدًا"),
-  lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل").max(50, "اسم العائلة طويل جدًا"),
-  email: z.string().min(1, "البريد الإلكتروني مطلوب").email("صيغة البريد الإلكتروني غير صحيحة"),
-  password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
+const registerSchema = (isAr: boolean) => z.object({
+  firstName: z.string().min(2, tr(isAr, "الاسم الأول يجب أن يكون حرفين على الأقل", "First name must be at least 2 characters")).max(50, tr(isAr, "الاسم الأول طويل جدًا", "First name is too long")),
+  lastName: z.string().min(2, tr(isAr, "اسم العائلة يجب أن يكون حرفين على الأقل", "Last name must be at least 2 characters")).max(50, tr(isAr, "اسم العائلة طويل جدًا", "Last name is too long")),
+  email: z.string().min(1, tr(isAr, "البريد الإلكتروني مطلوب", "Email is required")).email(tr(isAr, "صيغة البريد الإلكتروني غير صحيحة", "Enter a valid email address")),
+  password: z.string().min(8, tr(isAr, "كلمة المرور يجب أن تكون 8 أحرف على الأقل", "Password must be at least 8 characters")),
   // Phone is required on signup, but stays optional *here* on purpose:
   // this schema runs on every keystroke, and a required rule would show
   // "phone is required" before the user has reached the field. Presence
@@ -129,8 +132,8 @@ export default function Login() {
     setFieldErrors({});
 
     const result = isRegister
-      ? registerSchema.safeParse({ firstName, lastName, email, password, phone })
-      : loginSchema.safeParse({ email, password });
+      ? registerSchema(isAr).safeParse({ firstName, lastName, email, password, phone })
+      : loginSchema(isAr).safeParse({ email, password });
 
     if (!result.success) {
       const errs: FieldErrors = {};
@@ -183,10 +186,15 @@ export default function Login() {
     } catch (err: unknown) {
       if (err instanceof TwoFactorRequiredError) {
         setChallengeToken(err.challengeToken);
-      } else if (err instanceof ApiError) {
-        setError(err.toUserMessage(language));
+      } else if (err instanceof ApiError && err.code === "EMAIL_ALREADY_REGISTERED") {
+        // Not a dead end: same email, login view, with the reset link one tap away.
+        setIsRegister(false);
+        setPassword("");
+        setError(isAr
+          ? "الإيميل ده عليه حساب بالفعل. سجّل دخول، أو استرجع الباسورد لو نسيته."
+          : "This email already has an account. Log in, or reset your password if you forgot it.");
       } else {
-        setError(err instanceof Error ? err.message : t("common.error"));
+        setError(errorMessage(err, language));
       }
     } finally {
       setLoading(false);
@@ -202,11 +210,7 @@ export default function Login() {
       await complete2FALogin(challengeToken, twoFACode);
       navigate("/", { replace: true });
     } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setError(err.toUserMessage(language));
-      } else {
-        setError(err instanceof Error ? err.message : t("common.error"));
-      }
+      setError(errorMessage(err, language));
     } finally {
       setLoading(false);
     }
@@ -531,6 +535,19 @@ export default function Login() {
                   <Button type="submit" className="brand-btn-primary w-full h-11 text-sm font-semibold gap-2 rounded-[4px] mt-1" disabled={loading}>
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{isRegister ? t("auth.register") : t("auth.login")}<ArrowRight className="brand-btn-arrow h-4 w-4 rtl:rotate-180" /></>}
                   </Button>
+                  {isRegister && (
+                    <p className="text-[11px] text-center text-[var(--b-ink-soft)]">
+                      {isAr ? "بإنشاء الحساب إنت موافق على " : "By creating an account you agree to the "}
+                      <a href={`https://numueg.app/${isAr ? "ar/" : ""}terms`} target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--b-navy)]">
+                        {isAr ? "الشروط" : "Terms"}
+                      </a>
+                      {isAr ? " و" : " and "}
+                      <a href={`https://numueg.app/${isAr ? "ar/" : ""}privacy`} target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--b-navy)]">
+                        {isAr ? "سياسة الخصوصية" : "Privacy Policy"}
+                      </a>
+                      {isAr ? "." : "."}
+                    </p>
+                  )}
                 </form>
 
                 {/* Google Sign-In — only render when a Google OAuth client ID
@@ -561,11 +578,7 @@ export default function Login() {
                             await googleLogin(credentialResponse.credential);
                             navigate("/", { replace: true });
                           } catch (err: unknown) {
-                            if (err instanceof ApiError) {
-                              setError(err.toUserMessage(language));
-                            } else {
-                              setError(err instanceof Error ? err.message : "Google login failed");
-                            }
+                            setError(errorMessage(err, language));
                           } finally {
                             setLoading(false);
                           }
@@ -583,9 +596,15 @@ export default function Login() {
 
                 <p className="mt-7 text-sm text-center text-[var(--b-ink-soft)]">
                   {isRegister ? t("auth.hasAccount") : t("auth.noAccount")}{" "}
-                  <button type="button" onClick={() => { setIsRegister(!isRegister); setError(null); setFieldErrors({}); }} className="text-[var(--b-navy)] font-semibold hover:underline underline-offset-2">
-                    {isRegister ? t("auth.login") : t("auth.register")}
-                  </button>
+                  {isPartnerHost ? (
+                    <button type="button" onClick={() => { setIsRegister(!isRegister); setError(null); setFieldErrors({}); }} className="text-[var(--b-navy)] font-semibold hover:underline underline-offset-2">
+                      {isRegister ? t("auth.login") : t("auth.register")}
+                    </button>
+                  ) : (
+                    <a href={`https://numueg.app/${isAr ? "ar" : "en"}?signup=1`} className="text-[var(--b-navy)] font-semibold hover:underline underline-offset-2">
+                      {t("auth.register")}
+                    </a>
+                  )}
                 </p>
               </div>
             )}

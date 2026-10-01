@@ -12,6 +12,7 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { configureFromWizard, type WizardConfig } from "@/services/storeApi";
 import { track } from "@/lib/analytics";
 import { createProduct, uploadProductImage } from "@/services/productApi";
+import { errorMessage } from "@/lib/api-error";
 import { getPublicStoreUrl, getStoreFrameUrl } from "@/lib/storefront";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -343,7 +344,7 @@ export default function OnboardingWizard() {
         navigate("/", { replace: true });
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : isAr ? "حدث خطأ أثناء إعداد المتجر" : "Error configuring store");
+      setError(errorMessage(err, language));
       setLoading(false);
     } finally {
       if (Object.keys(defaults).length === 0) {
@@ -377,7 +378,7 @@ export default function OnboardingWizard() {
         }
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : isAr ? "حدث خطأ أثناء إضافة المنتج" : "Error adding product");
+      setError(errorMessage(err, language));
       setLoading(false);
       return;
     }
