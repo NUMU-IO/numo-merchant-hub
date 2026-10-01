@@ -21,12 +21,10 @@
  * Merchants are identified by account id and grouped by tenant, so a
  * funnel can be read per merchant rather than per browser.
  *
- * Their name, email and phone go with it. That is a different question
- * from the customer data above and gets a different answer: a merchant is
- * *our* user, and knowing which merchant abandoned onboarding is the
- * entire point of asking. A wall of UUIDs is not analytics. Their
- * customers' details are someone else's data that we merely hold, and
- * those never leave the database.
+ * Their name, email and phone do not go with it: the account id is enough
+ * to look a merchant up in our own admin, and contact details have no
+ * business in a third-party analytics tool. Their customers' details never
+ * leave the database either.
  *
  * Disabled entirely when `VITE_POSTHOG_KEY` is unset — local development
  * and CI send nothing.
@@ -93,15 +91,8 @@ export function initAnalytics(): void {
 }
 
 /**
- * Tie this session to a merchant account, with enough to recognise them.
- *
- * `$email` and `$name` are PostHog's conventional property names, so it
- * shows those in place of the distinct id — the difference between a
- * person list you can act on and a wall of UUIDs.
- *
- * This is our own user's contact detail, not their customers'. The
- * customer data on these screens is the thing that never leaves the
- * database, and none of it is here.
+ * Tie this session to a merchant account by id, with coarse non-personal
+ * properties only (role, verified, signup date, staff flag).
  */
 export function identifyMerchant(user: {
   id: string;
@@ -115,15 +106,9 @@ export function identifyMerchant(user: {
 }): void {
   if (!client) return;
 
-  const name = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
-
+  // No email, name or phone: those stay in our own database, not a
+  // third-party analytics tool. The account id joins the two when needed.
   client.identify(user.id, {
-    // `$email` and `$name` are PostHog's conventional keys — it renders
-    // these in place of the distinct id, which is why a person list shows
-    // a merchant instead of a UUID.
-    $email: user.email ?? null,
-    $name: name || null,
-    phone: user.phone ?? null,
     role: user.role ?? null,
     is_verified: user.is_verified ?? null,
     signed_up_at: user.created_at ?? null,

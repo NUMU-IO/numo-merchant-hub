@@ -587,7 +587,8 @@ export default function Login() {
                             await googleLogin(credentialResponse.credential);
                             navigate(safeNext(searchParams.get("next")), { replace: true });
                           } catch (err: unknown) {
-                            setError(errorMessage(err, language));
+                            if (err instanceof TwoFactorRequiredError) setChallengeToken(err.challengeToken);
+                            else setError(errorMessage(err, language));
                           } finally {
                             setLoading(false);
                           }
