@@ -29,7 +29,7 @@ const CHANNEL_LABELS_AR: Record<string, string> = {
   Direct: "مباشر",
   Social: "تواصل اجتماعي",
   Paid: "مدفوع",
-  Email: "بريد إلكتروني",
+  Email: "إيميل",
   Referral: "إحالة",
   Organic: "عضوي",
 };

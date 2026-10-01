@@ -67,6 +67,7 @@ import { orderPath } from "@/lib/order-path";
 import { useCountUp } from "@/hooks/useCountUp";
 import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
 import { StoreLinkCard } from "@/components/dashboard/StoreLinkCard";
+import StoreLinkShare from "@/components/StoreLinkShare";
 import { PromoSwiper } from "@/components/dashboard/PromoSwiper";
 import { StoreHealthCard } from "@/components/dashboard/StoreHealthCard";
 import { RecentlyViewed } from "@/components/dashboard/RecentlyViewed";
@@ -527,7 +528,7 @@ const Dashboard = () => {
   if (hasOrders) triageRows.push({
     tone: "ichip-sage",
     Icon: ShoppingBag,
-    lead: isAr ? "السلات المهجورة" : "Abandoned checkouts",
+    lead: isAr ? "السلات المتروكة" : "Abandoned checkouts",
     desc: isAr ? "ذكّر العملاء يكملوا الشراء" : "Remind shoppers to complete",
     cta: isAr ? "ذكّر" : "Remind",
     onClick: () => navigate("/orders/abandoned"),
@@ -740,6 +741,9 @@ const Dashboard = () => {
           const displayDone = doneCount;
           const progressPercent =
             totalSteps > 0 ? Math.round((displayDone / totalSteps) * 100) : 0;
+          // Everything the merchant controls is done; only the first order is left.
+          const readyForOrders = steps.length > 1 && steps.every((s) => s.done || s.key === "first_order");
+          const storeUrl = getPublicStoreUrl(currentStore);
 
           return (
             <section>
@@ -777,6 +781,22 @@ const Dashboard = () => {
                   <i style={{ width: `${progressPercent}%` }} />
                 </div>
               </div>
+
+              {readyForOrders && (
+                <Card className="mt-4 border-emerald-500/40 animate-in fade-in zoom-in-95 duration-500">
+                  <CardContent className="p-5 space-y-3">
+                    <div>
+                      <p className="text-base font-extrabold">
+                        {isAr ? "جاهز تستقبل أوردرات 🎉" : "You're ready for orders 🎉"}
+                      </p>
+                      <p className="text-[13px] text-muted-foreground mt-1">
+                        {isAr ? "ابعت الرابط لأول 10 عملاء تعرفهم." : "Send the link to the first 10 customers you know."}
+                      </p>
+                    </div>
+                    {storeUrl && <StoreLinkShare url={storeUrl} storeName={currentStore?.name} />}
+                  </CardContent>
+                </Card>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
                 {steps.map((step) => {

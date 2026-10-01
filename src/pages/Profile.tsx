@@ -89,9 +89,9 @@ export default function Profile() {
 
   const handleChangePw = async () => {
     if (newPw !== confirmPw) { toast.error(isAr ? "كلمات المرور غير متطابقة" : "Passwords don't match"); return; }
-    if (newPw.length < 8) { toast.error(isAr ? "كلمة المرور يجب أن تكون 8 أحرف على الأقل" : "Min 8 characters"); return; }
+    if (newPw.length < 8) { toast.error(isAr ? "الباسورد لازم يكون 8 أحرف على الأقل" : "Min 8 characters"); return; }
     setChangingPw(true);
-    try { await changePassword(currentPw, newPw); toast.success(isAr ? "تم تغيير كلمة المرور" : "Password changed"); setCurrentPw(""); setNewPw(""); setConfirmPw(""); }
+    try { await changePassword(currentPw, newPw); toast.success(isAr ? "تم تغيير الباسورد" : "Password changed"); setCurrentPw(""); setNewPw(""); setConfirmPw(""); }
     catch (e) { showError(e, language); }
     finally { setChangingPw(false); }
   };
@@ -167,7 +167,7 @@ export default function Profile() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-medium text-muted-foreground">{isAr ? "البريد الإلكتروني" : "Email"}</Label>
+              <Label className="text-[11px] font-medium text-muted-foreground">{isAr ? "الإيميل" : "Email"}</Label>
               <Input value={user?.email || ""} disabled className="h-10 text-sm rounded-lg bg-muted/30" />
             </div>
             <div className="space-y-1.5">
@@ -179,17 +179,17 @@ export default function Profile() {
       </div>
 
       {/* ═══════════════════════════════════════════════════════
-         SECTION 2: كلمة المرور — Password
+         SECTION 2: الباسورد — Password
          ═══════════════════════════════════════════════════════ */}
       <div className="rounded-xl border bg-card">
         <div className="px-6 py-4 border-b">
-          <h2 className="text-base font-bold">{isAr ? "كلمة المرور" : "Password"}</h2>
+          <h2 className="text-base font-bold">{isAr ? "الباسورد" : "Password"}</h2>
         </div>
         <div className="p-6 space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-medium text-muted-foreground">{isAr ? "أدخل كلمة المرور الحالية" : "Current Password"}</Label>
+            <Label className="text-[11px] font-medium text-muted-foreground">{isAr ? "أدخل الباسورد الحالي" : "Current Password"}</Label>
             <div className="relative">
-              <Input type={showPw ? "text" : "password"} value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder={isAr ? "أدخل كلمة المرور الخاصة بك" : "Enter your current password"} className="h-10 text-sm rounded-lg pr-9" />
+              <Input type={showPw ? "text" : "password"} value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder={isAr ? "أدخل الباسورد بتاعك" : "Enter your current password"} className="h-10 text-sm rounded-lg pr-9" />
               <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer" onClick={() => setShowPw(!showPw)}>
                 {showPw ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
               </button>
@@ -197,18 +197,18 @@ export default function Profile() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-medium text-muted-foreground">{isAr ? "أدخل كلمة المرور الجديدة" : "New Password"}</Label>
-              <Input type={showPw ? "text" : "password"} value={newPw} onChange={e => setNewPw(e.target.value)} placeholder={isAr ? "أدخل كلمة المرور الخاصة بك" : "Enter new password"} className="h-10 text-sm rounded-lg" />
+              <Label className="text-[11px] font-medium text-muted-foreground">{isAr ? "أدخل الباسورد الجديد" : "New Password"}</Label>
+              <Input type={showPw ? "text" : "password"} value={newPw} onChange={e => setNewPw(e.target.value)} placeholder={isAr ? "أدخل الباسورد بتاعك" : "Enter new password"} className="h-10 text-sm rounded-lg" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-medium text-muted-foreground">{isAr ? "تأكيد كلمة المرور الجديدة" : "Confirm New Password"}</Label>
-              <Input type={showPw ? "text" : "password"} value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder={isAr ? "أدخل كلمة المرور الخاصة بك" : "Confirm new password"} className="h-10 text-sm rounded-lg" />
+              <Label className="text-[11px] font-medium text-muted-foreground">{isAr ? "تأكيد الباسورد الجديد" : "Confirm New Password"}</Label>
+              <Input type={showPw ? "text" : "password"} value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder={isAr ? "أدخل الباسورد بتاعك" : "Confirm new password"} className="h-10 text-sm rounded-lg" />
             </div>
           </div>
           <div className="flex justify-end pt-1">
             <Button variant="outline" size="sm" className="h-8 text-xs rounded-lg gap-1.5" onClick={handleChangePw} disabled={changingPw || !currentPw || !newPw}>
               {changingPw && <Loader2 className="h-3 w-3 animate-spin" />}
-              {isAr ? "تغيير كلمة المرور" : "Change Password"}
+              {isAr ? "تغيير الباسورد" : "Change Password"}
             </Button>
           </div>
         </div>

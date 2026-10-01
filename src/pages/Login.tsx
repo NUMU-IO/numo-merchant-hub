@@ -26,21 +26,22 @@ import { ApiError, errorMessage } from "@/lib/api-error";
 import { PhoneInput, isValidE164 } from "@/components/forms/PhoneInput";
 import { isPartnerHost } from "@/lib/partner-host";
 import { safeNext } from "@/lib/login-redirect";
+import { toast } from "sonner";
 import { z } from "zod";
 import AnimatedCharacters from "@/components/AnimatedCharacters";
 
 const tr = (isAr: boolean, ar: string, en: string) => (isAr ? ar : en);
 
 const loginSchema = (isAr: boolean) => z.object({
-  email: z.string().min(1, tr(isAr, "البريد الإلكتروني مطلوب", "Email is required")).email(tr(isAr, "صيغة البريد الإلكتروني غير صحيحة", "Enter a valid email address")),
-  password: z.string().min(1, tr(isAr, "كلمة المرور مطلوبة", "Password is required")),
+  email: z.string().min(1, tr(isAr, "الإيميل مطلوب", "Email is required")).email(tr(isAr, "صيغة الإيميل غير صحيحة", "Enter a valid email address")),
+  password: z.string().min(1, tr(isAr, "الباسورد مطلوب", "Password is required")),
 });
 
 const registerSchema = (isAr: boolean) => z.object({
   firstName: z.string().min(2, tr(isAr, "الاسم الأول يجب أن يكون حرفين على الأقل", "First name must be at least 2 characters")).max(50, tr(isAr, "الاسم الأول طويل جدًا", "First name is too long")),
   lastName: z.string().min(2, tr(isAr, "اسم العائلة يجب أن يكون حرفين على الأقل", "Last name must be at least 2 characters")).max(50, tr(isAr, "اسم العائلة طويل جدًا", "Last name is too long")),
-  email: z.string().min(1, tr(isAr, "البريد الإلكتروني مطلوب", "Email is required")).email(tr(isAr, "صيغة البريد الإلكتروني غير صحيحة", "Enter a valid email address")),
-  password: z.string().min(8, tr(isAr, "كلمة المرور يجب أن تكون 8 أحرف على الأقل", "Password must be at least 8 characters")),
+  email: z.string().min(1, tr(isAr, "الإيميل مطلوب", "Email is required")).email(tr(isAr, "صيغة الإيميل غير صحيحة", "Enter a valid email address")),
+  password: z.string().min(8, tr(isAr, "الباسورد لازم يكون 8 أحرف على الأقل", "Password must be at least 8 characters")),
   // Phone is required on signup, but stays optional *here* on purpose:
   // this schema runs on every keystroke, and a required rule would show
   // "phone is required" before the user has reached the field. Presence
@@ -82,12 +83,19 @@ export default function Login() {
   const [waPhone, setWaPhone] = useState("");
 
   const alreadyRedeemed = searchParams.get("already_redeemed") === "1";
+  const sessionExpired = searchParams.get("expired") === "1";
 
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [twoFACode, setTwoFACode] = useState("");
 
   const { language, setLanguage, isRTL } = useLanguage();
   const isAr = language === "ar";
+
+  useEffect(() => {
+    if (sessionExpired) toast.info(isAr ? "انتهت الجلسة، سجّل دخول تاني" : "Your session ended — please log in again");
+    // Once per arrival, not per language switch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionExpired]);
 
   // Form-panel cursor tracker — drives the --mx/--my CSS vars that the
   // dot-grid spotlight masks against. Pointer events are cheap; we just

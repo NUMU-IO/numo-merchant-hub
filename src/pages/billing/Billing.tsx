@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDashboardStore } from "@/contexts/StoreContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import { apiClient } from "@/services/api";
@@ -63,35 +65,61 @@ const LIFECYCLE_LABEL: Record<string, { en: string; ar: string }> = {
   read_only: { en: "Locked", ar: "مقفول" },
 };
 
-// Per-plan feature lists, mirroring the landing page's pricing cards so a
-// merchant who compared tiers before signing up meets the same claims here.
-//
-// Hardcoded rather than fetched: /billing/plans returns pricing only, and three
-// short lists are not worth an API change. They MUST stay in step with
-// PLAN_LIMITS in the API — edit both together, or this page starts promising
-// ceilings the backend will not honour.
+// Per-plan feature lists. The numbers (products, stores, staff) come from the
+// live entitlement grants via limitFeatures(); these are the plan's other
+// selling points, which have no API source.
 const PLAN_FEATURES: Record<string, { en: string; ar: string }[]> = {
   payg: [
-    { en: "No monthly fee — you pay only when you sell", ar: "بدون اشتراك شهري — بتدفع لما تبيع بس" },
-    { en: "100 products, custom domain, all themes", ar: "١٠٠ منتج، دومين مخصص، كل الثيمات" },
+    {
+      en: "No monthly subscription. Top up your wallet with whatever suits you; the commission comes off paid orders only (cash on delivery: once delivered)",
+      ar: "من غير اشتراك شهري. بتشحن محفظتك بالمبلغ اللي يناسبك، والعمولة بتتخصم بس من الأوردر اللي اتدفع (في الدفع عند الاستلام: لما يتسلّم)",
+    },
+    { en: "Custom domain + all themes", ar: "دومين مخصص + كل الثيمات" },
     { en: "Rate locked at the day you activate", ar: "السعر مثبّت من يوم تفعيلك" },
-    { en: "Prepaid wallet — top up as you go", ar: "محفظة مسبقة الشحن — اشحن وقت ما تحب" },
   ],
   starter: [
-    { en: "100 products", ar: "١٠٠ منتج" },
     { en: "Custom domain + all themes", ar: "دومين مخصص + كل الثيمات" },
-    { en: "3 staff members", ar: "٣ أعضاء فريق" },
-    { en: "Discount codes + webhooks", ar: "أكواد خصم + ويبهوكس" },
-    { en: "0% commission — keep every pound", ar: "٠٪ عمولة — الإيراد كله ليك" },
+    { en: "Discount codes + connections to your other systems", ar: "أكواد خصم + ربط مع أنظمتك التانية" },
+    { en: "0% commission — keep every pound", ar: "0% عمولة — الإيراد كله ليك" },
   ],
   pro: [
-    { en: "Unlimited products and customers", ar: "منتجات وعملاء بلا حدود" },
-    { en: "Up to 3 stores on one account", ar: "لحد ٣ متاجر على نفس الحساب" },
-    { en: "10 staff members", ar: "١٠ أعضاء فريق" },
     { en: "Advanced analytics + automations", ar: "تحليلات متقدمة + أتمتة" },
-    { en: "Full API access", ar: "وصول كامل للـ API" },
+    { en: "Full API access for developers", ar: "ربط كامل للمطورين (API)" },
   ],
 };
+
+/** One plan's row of GET /stores/{id}/plan/limits — null means unlimited. */
+interface PlanLimitRow {
+  max_products: number | null;
+  max_stores: number | null;
+  max_staff_members: number | null;
+}
+
+// Shown until the live grants arrive; mirrors the entitlement seed
+// (alembic 20260925_entitlements) so the cards never flash a wrong ceiling.
+const LIMIT_FALLBACK: Record<string, PlanLimitRow> = {
+  payg: { max_products: 100, max_stores: 1, max_staff_members: 3 },
+  starter: { max_products: null, max_stores: 1, max_staff_members: 3 },
+  pro: { max_products: null, max_stores: 3, max_staff_members: 10 },
+};
+
+function limitFeatures(l: PlanLimitRow): { en: string; ar: string }[] {
+  const out = [
+    l.max_products == null
+      ? { en: "Unlimited products", ar: "منتجات بلا حدود" }
+      : { en: `${l.max_products} products`, ar: `${l.max_products} منتج` },
+  ];
+  if (l.max_stores == null) out.push({ en: "Unlimited stores", ar: "متاجر بلا حدود" });
+  else if (l.max_stores > 1) {
+    out.push({ en: `Up to ${l.max_stores} stores on one account`, ar: `لحد ${l.max_stores} متاجر على نفس الحساب` });
+  }
+  out.push(
+    l.max_staff_members == null
+      ? { en: "Unlimited staff", ar: "فريق بلا حدود" }
+      : { en: `${l.max_staff_members} staff members`, ar: `${l.max_staff_members} أعضاء فريق` },
+  );
+  return out;
+}
 
 // Self-serve paid tiers — the only plans payable via InstaPay.
 const PAID_SELF_SERVE = ["starter", "pro"];
@@ -123,6 +151,15 @@ const Billing = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const isAr = language === "ar";
+  const { currentStore } = useDashboardStore();
+  const limitsQuery = useQuery({
+    queryKey: ["plan-limits", currentStore?.id],
+    queryFn: () => apiClient<Record<string, PlanLimitRow>>(`/stores/${currentStore!.id}/plan/limits`),
+    enabled: !!currentStore?.id,
+    staleTime: 10 * 60 * 1000,
+  });
+  const limitsOf = (key: string) => limitFeatures(limitsQuery.data?.[key] ?? LIMIT_FALLBACK[key]);
+  const featuresOf = (key: string) => [...limitsOf(key), ...PLAN_FEATURES[key]];
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
@@ -488,8 +525,8 @@ const Billing = () => {
                     </p>
                     <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
                       {key === "starter"
-                        ? (isAr ? "١٠٠ منتج، دومين مخصص، كل الثيمات" : "100 products, custom domain, all themes")
-                        : (isAr ? "منتجات بلا حدود، تحليلات، أتمتة" : "Unlimited products, analytics, automations")}
+                        ? (isAr ? `${limitsOf(key)[0].ar}، دومين مخصص، كل الثيمات` : `${limitsOf(key)[0].en}, custom domain, all themes`)
+                        : (isAr ? `${limitsOf(key)[0].ar}، تحليلات، أتمتة` : `${limitsOf(key)[0].en}, analytics, automations`)}
                     </p>
                     {!isCurrent && (
                       <Button
@@ -551,18 +588,18 @@ const Billing = () => {
                 </div>
                 <p className="font-bold text-base">{isAr ? "ادفع وأنت تنمو" : "Pay as you Grow"}</p>
                 <p className="text-2xl font-extrabold mt-1 tabular-nums">
-                  {isAr ? "٠ ج.م" : "0 EGP"}
+                  {isAr ? "0 ج.م" : "0 EGP"}
                   <span className="text-sm font-medium text-muted-foreground">
                     {isAr ? " /شهر" : " /mo"}
                   </span>
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {commissionPct !== null
-                    ? (isAr ? `${commissionPct}٪ على كل طلب مدفوع` : `${commissionPct}% per paid order`)
-                    : (isAr ? "عمولة على كل طلب مدفوع" : "Commission per paid order")}
+                    ? (isAr ? `${commissionPct}% على كل أوردر اتدفع` : `${commissionPct}% per paid order`)
+                    : (isAr ? "عمولة على كل أوردر اتدفع" : "Commission per paid order")}
                 </p>
                 <ul className="mt-4 space-y-2 flex-1">
-                  {PLAN_FEATURES.payg.map((f, i) => (
+                  {featuresOf("payg").map((f, i) => (
                     <li key={i} className="flex items-start gap-2 text-xs leading-relaxed">
                       <Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-sage" />
                       <span>{isAr ? f.ar : f.en}</span>
@@ -619,7 +656,7 @@ const Billing = () => {
                             : ""}
                     </p>
                     <ul className="mt-4 space-y-2 flex-1">
-                      {PLAN_FEATURES[key].map((f, i) => (
+                      {featuresOf(key).map((f, i) => (
                         <li key={i} className="flex items-start gap-2 text-xs leading-relaxed">
                           <Check
                             className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${

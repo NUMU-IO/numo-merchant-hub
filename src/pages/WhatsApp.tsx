@@ -1368,8 +1368,8 @@ function WhatsAppAccessGate({
         ? "لم تتم الموافقة على طلب تفعيل واتساب هذه المرة. راجع السبب أدناه، ويمكنك إرسال الطلب من جديد."
         : "Your WhatsApp access request wasn't approved this time. Review the reason below — you're welcome to request again."
       : isAr
-      ? "يجب أن يفعّل فريق NUMU واتساب للأعمال لمتجرك قبل أن تتمكن من ربط رقم أو تشغيل الإشعارات التلقائية. أخبرنا كيف تنوي استخدامه وسنراجع طلبك."
-      : "The NUMU team needs to enable WhatsApp Business for your store before you can connect a number or switch on automatic notifications. Tell us how you plan to use it and we'll review your request.";
+      ? "واتساب لسه مش شغّال لمتجرك. اطلب التفعيل وهنرد عليك خلال يوم عمل."
+      : "WhatsApp isn't on for your store yet. Request activation and we'll get back to you within one working day.";
 
   const optionalLabel = isAr ? " (اختياري)" : " (optional)";
 

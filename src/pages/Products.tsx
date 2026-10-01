@@ -718,20 +718,23 @@ const Products = () => {
             ) : (
               <EmptyState
                 icon={Package}
-                title={isAr ? "متجرك في انتظار المنتجات" : "Your store is waiting for products"}
+                title={isAr ? "المتجر جاهز، ناقص بس حاجة تتباع 👀" : "Your store is ready — it just needs something to sell 👀"}
                 description={
                   isAr
-                    ? "أضف أول منتج وابدأ البيع. تقدر تضيف المنتجات يدوي أو تستوردها من إنستجرام أو ملف CSV."
-                    : "Add your first product to start selling. You can add products manually or import them from Instagram or a CSV file."
+                    ? "ضيف أول منتج بنفسك، أو استورد منتجاتك من ملف CSV أو من إنستجرام."
+                    : "Add your first product yourself, or import your products from a CSV file or Instagram."
                 }
                 action={
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap justify-center gap-3">
                     <Button onClick={() => navigate("/products/new")} size="sm" className="gap-1.5 rounded-lg px-5 h-9 shadow-sm">
                       <Plus className="h-4 w-4" />
-                      {isAr ? "أضف منتج" : "Add Product"}
+                      {isAr ? "ضيف أول منتج" : "Add your first product"}
                     </Button>
-                    <Button variant="outline" onClick={() => navigate("/social")} size="sm" className="gap-1.5 rounded-lg px-5 h-9">
-                      {isAr ? "استيراد منتجات" : "Import Products"}
+                    <Button variant="outline" onClick={() => setImportOpen(true)} size="sm" className="gap-1.5 rounded-lg px-5 h-9">
+                      {isAr ? "استورد CSV" : "Import CSV"}
+                    </Button>
+                    <Button variant="ghost" onClick={() => navigate("/social")} size="sm" className="gap-1.5 rounded-lg px-4 h-9">
+                      {isAr ? "من إنستجرام" : "From Instagram"}
                     </Button>
                   </div>
                 }

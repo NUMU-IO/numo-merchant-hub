@@ -652,6 +652,12 @@ export const Inbox = () => {
               <p className="mt-3 text-sm font-medium">
                 {t("omnichannel.no_threads_yet")}
               </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t("omnichannel.no_threads_hint")}
+              </p>
+              <Button size="sm" variant="outline" className="mt-4 rounded-lg" onClick={() => navigate("/channels")}>
+                {t("omnichannel.connect_accounts")}
+              </Button>
             </div>
           ) : (
             <div className="divide-y">

@@ -50,7 +50,7 @@ const FIELD_LABELS: Record<CustomerTargetField, { en: string; ar: string }> = {
   last_name: { en: "Last name", ar: "اسم العائلة" },
   phone: { en: "Phone *", ar: "رقم الموبايل *" },
   location: { en: "Location / city", ar: "الموقع / المدينة" },
-  email: { en: "Email", ar: "البريد الإلكتروني" },
+  email: { en: "Email", ar: "الإيميل" },
   accepts_marketing: { en: "Accepts marketing", ar: "يقبل التسويق" },
   notes: { en: "Notes", ar: "ملاحظات" },
   tags: { en: "Tags (comma-separated)", ar: "وسوم (مفصولة بفواصل)" },

@@ -299,7 +299,7 @@ export default function OnboardingWizard() {
     if (!shippingPref) defaults.shippingPref = "manual";
     if (paymentMethods.length === 0) defaults.paymentMethods = ["cod"];
 
-    handleSubmitConfig(defaults);
+    void handleSubmitConfig(defaults);
   };
 
   const handleSubmitConfig = async (
@@ -309,8 +309,8 @@ export default function OnboardingWizard() {
       shippingPref: string;
       paymentMethods: string[];
     }> = {}
-  ) => {
-    if (!currentStore?.id) return;
+  ): Promise<boolean> => {
+    if (!currentStore?.id) return false;
 
     setLoading(true);
     setError(null);
@@ -344,9 +344,11 @@ export default function OnboardingWizard() {
       if (Object.keys(defaults).length > 0) {
         navigate("/", { replace: true });
       }
+      return true;
     } catch (err: unknown) {
       setError(errorMessage(err, language));
       setLoading(false);
+      return false;
     } finally {
       if (Object.keys(defaults).length === 0) {
         setLoading(false);
@@ -402,7 +404,9 @@ export default function OnboardingWizard() {
     return true;
   };
 
+  // "See my store": open the live store in a new tab, land on the dashboard here.
   const handleFinish = () => {
+    if (storeUrl) window.open(storeUrl, "_blank", "noopener");
     navigate("/", { replace: true });
   };
 
@@ -417,14 +421,10 @@ export default function OnboardingWizard() {
       // Submit configuration, then advance to product step
       setLoading(true);
       setError(null);
-      try {
-        await handleSubmitConfig();
-        setStep(4);
-      } catch {
-        // Error already handled in handleSubmitConfig
-      } finally {
-        setLoading(false);
-      }
+      // A failed save shows its error and keeps the merchant on this step.
+      const ok = await handleSubmitConfig();
+      setLoading(false);
+      if (ok) setStep(4);
     } else if (step === 4 && productName && productPrice) {
       // Submit product, then advance to preview
       await handleProductSubmit();
@@ -975,7 +975,7 @@ export default function OnboardingWizard() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : step === TOTAL_STEPS ? (
                     <>
-                      {isAr ? "ابدأ البيع" : "Start Selling"}
+                      {isAr ? "شوف متجري" : "See my store"}
                       <Check className="brand-btn-arrow h-4 w-4" />
                     </>
                   ) : step === 4 ? (

@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useDashboardStore } from "@/contexts/StoreContext";
 import { MapPin, Plus, ArrowUpRight, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,6 +48,11 @@ export function ZonesOverviewCard({
   currency: string;
 }) {
   const navigate = useNavigate();
+  // New stores ship only to priced zones; older ones still fall back to free
+  // shipping. The empty state has to say which one this store is.
+  const { currentStore } = useDashboardStore();
+  const restricted =
+    ((currentStore?.settings as { shipping?: { restrict_to_zones?: boolean } } | null)?.shipping?.restrict_to_zones) === true;
   const n = (v: number) => (isAr ? v.toLocaleString("ar-EG-u-nu-latn") : v.toLocaleString());
   const covered = coverage?.covered.length ?? 0;
   const conflicts = coverage?.conflicts.length ?? 0;
@@ -100,10 +106,12 @@ export function ZonesOverviewCard({
         <div className="px-5 pb-5 pt-2 text-center">
           <p className="text-[13px] font-bold">{isAr ? "لسه مفيش مناطق شحن" : "No shipping zones yet"}</p>
           <p className="mt-1 text-[12px] text-muted-foreground">
-            {isAr ? "العميل مش هيقدر يكمل الدفع لحد ما تضيف منطقة بسعر." : "Customers can't check out until a zone with a rate exists."}
+            {restricted
+              ? (isAr ? "العميل مش هيقدر يكمل الأوردر لحد ما تضيف منطقة بسعر." : "Customers can't complete an order until a zone with a rate exists.")
+              : (isAr ? "لسه ما حدّدتش أسعار الشحن — العملاء شايفين شحن مجاني دلوقتي." : "You haven't set shipping prices yet — customers see free shipping right now.")}
           </p>
           <Button size="sm" className="mt-3 rounded-lg" onClick={() => navigate("/shipping/zones")}>
-            {isAr ? "ابدأ بقالب مصر (٤ مناطق)" : "Start with the Egypt 4-zone preset"}
+            {isAr ? "استخدم أسعار مصر المقترحة" : "Use the suggested Egypt prices"}
           </Button>
         </div>
       ) : (

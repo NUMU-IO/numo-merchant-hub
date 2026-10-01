@@ -315,7 +315,7 @@ export default function StaffPage() {
           <DialogTrigger asChild>
             <Button>
               <Plus className="w-4 h-4 mr-2" />
-              {isAr ? "ضيف موظف" : "Invite Staff"}
+              {isAr ? "ادعُ حد من فريقك" : "Invite a team member"}
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -438,7 +438,7 @@ export default function StaffPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-lg">{isAr ? "أعضاء الفريق" : "Team Members"}</CardTitle>
-              <CardDescription>{isAr ? countAr(staff.length, AR_MEMBERS) : `${staff.length} ${staff.length === 1 ? "member" : "members"}`}</CardDescription>
+              <CardDescription>{isAr ? (staff.length === 1 ? "عضو واحد" : countAr(staff.length, AR_MEMBERS)) : `${staff.length} ${staff.length === 1 ? "member" : "members"}`}</CardDescription>
             </div>
             <div className="relative w-full sm:w-64">
               <Search className={`absolute ${isAr ? "right-3" : "left-3"} top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground`} />

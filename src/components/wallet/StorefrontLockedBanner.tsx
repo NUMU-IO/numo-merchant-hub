@@ -51,7 +51,7 @@ const StorefrontLockedBanner = () => {
   const copyPassword = async () => {
     if (!password) return;
     await navigator.clipboard.writeText(password);
-    toast.success(isAr ? "تم نسخ كلمة المرور" : "Password copied");
+    toast.success(isAr ? "تم نسخ الباسورد" : "Password copied");
   };
 
   return (
@@ -64,21 +64,21 @@ const StorefrontLockedBanner = () => {
         <p>
           {isPayg && !isReadOnly
             ? isAr
-              ? "الزوار بيشوفوا صفحة كلمة مرور لحد أول شحنة لمحفظتك. اشحنها والمتجر يفتح فوراً — عمولتنا بتتخصم منها بس لما تبيع."
+              ? "الزوار بيشوفوا صفحة باسورد لحد أول شحنة لمحفظتك. اشحنها والمتجر يفتح فوراً — عمولتنا بتتخصم منها بس لما تبيع."
               : "Shoppers see a password page until your first wallet top-up. Top up and the store opens right away; our commission is only deducted when you sell."
             : isPayg
             ? isAr
-              ? "التجربة خلصت. لوحة التحكم شغالة زي ما هي، لكن الزوار بيشوفوا صفحة كلمة مرور. اشحن محفظتك عشان المتجر يفتح تاني."
+              ? "التجربة خلصت. لوحة التحكم شغالة زي ما هي، لكن الزوار بيشوفوا صفحة باسورد. اشحن محفظتك عشان المتجر يفتح تاني."
               : "Your trial ended. Your dashboard still works, but shoppers see a password page. Top up your wallet to reopen the store."
             : isAr
-              ? "التجربة خلصت. لوحة التحكم شغالة زي ما هي، لكن الزوار بيشوفوا صفحة كلمة مرور. ادفع باقتك وارفع الإيصال عشان المتجر يفتح تاني."
+              ? "التجربة خلصت. لوحة التحكم شغالة زي ما هي، لكن الزوار بيشوفوا صفحة باسورد. ادفع باقتك وارفع الإيصال عشان المتجر يفتح تاني."
               : "Your trial ended. Your dashboard still works, but shoppers see a password page. Pay for your plan and upload the receipt to reopen the store."}
         </p>
 
         {password ? (
           <div className="flex items-center gap-2 flex-wrap">
             <span>
-              {isAr ? "كلمة مرور المعاينة:" : "Preview password:"}
+              {isAr ? "باسورد المعاينة:" : "Preview password:"}
             </span>
             <code className="rounded-md border border-border/60 bg-background px-2 py-1 font-mono text-[11px] ltr-nums">
               {password}

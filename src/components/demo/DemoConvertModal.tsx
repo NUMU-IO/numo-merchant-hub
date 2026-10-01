@@ -133,7 +133,7 @@ const DemoConvertModal: React.FC<DemoConvertModalProps> = ({
 
           <div>
             <Label htmlFor="email">
-              {isAr ? "البريد الإلكتروني" : "Email"}
+              {isAr ? "الإيميل" : "Email"}
             </Label>
             <Input
               id="email"
@@ -148,7 +148,7 @@ const DemoConvertModal: React.FC<DemoConvertModalProps> = ({
 
           <div>
             <Label htmlFor="password">
-              {isAr ? "كلمة المرور" : "Password"}
+              {isAr ? "الباسورد" : "Password"}
             </Label>
             <Input
               id="password"

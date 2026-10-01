@@ -115,6 +115,8 @@ export default function CreateStore() {
         subdomain: withEnvSuffix(subdomain),
         country,
         contact_phone: user?.phone || phone || undefined,
+        // The storefront opens in the language the merchant signed up in.
+        default_language: language,
       });
       // Phase 5.11 — fire-and-forget seed. We don't block navigation
       // on it because the catalog inserts can take a couple of
@@ -161,6 +163,7 @@ export default function CreateStore() {
 
   const storeHost = `${subdomain}${getStoreSubdomainSuffix()}${getStoreDomainSuffix() ?? ""}`;
   const subdomainNote =
+    subdomainStatus === "checking" ? (isAr ? "بنشوف الرابط…" : "Checking the link…") :
     subdomainStatus === "available" ? (isAr ? `متاح! رابط متجرك: ${storeHost}` : `Available! Your link: ${storeHost}`) :
     subdomainStatus === "taken" ? (isAr ? "الرابط ده مش متاح. جرّب واحد من دول:" : "This link isn't available. Try one of these:") :
     subdomainStatus === "invalid" ? (isAr ? "مقدرناش نتأكد من الرابط، جرّب تاني." : "Couldn't check this link, try again.") :
@@ -268,7 +271,7 @@ export default function CreateStore() {
                 {isAr ? "ده العنوان اللي هتبعته لعملائك." : "This is the address you'll share with customers."}
               </p>
               {subdomainNote && (
-                <p aria-live="polite" className={`text-xs ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>{subdomainNote}</p>
+                <p aria-live="polite" className={`text-xs ${subdomainStatus === "available" ? "text-emerald-600" : subdomainStatus === "checking" ? "text-muted-foreground" : "text-destructive"}`}>{subdomainNote}</p>
               )}
               {subdomainStatus === "taken" && (
                 <div className="flex flex-wrap gap-2">

@@ -18,6 +18,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import StoreLinkShare from "@/components/StoreLinkShare";
+import { getPublicStoreUrl } from "@/lib/storefront";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -1305,9 +1307,16 @@ const Orders = () => {
               title={t("orders.emptyTitle")}
               description={t("orders.emptyBody")}
               action={
-                <Button size="sm" className="h-9 text-xs rounded-lg gap-1.5 px-4" onClick={() => navigate("/orders/create")}>
-                  <Package className="h-3.5 w-3.5" />{t("orders.createFirst")}
-                </Button>
+                // Orders arrive by people finding the store: sharing it is the
+                // job here; a manual phone order is the secondary path.
+                <div className="flex flex-col items-center gap-3">
+                  {getPublicStoreUrl(currentStore) && (
+                    <StoreLinkShare url={getPublicStoreUrl(currentStore)!} storeName={currentStore?.name} />
+                  )}
+                  <Button size="sm" variant="ghost" className="h-9 text-xs rounded-lg gap-1.5 px-4" onClick={() => navigate("/orders/create")}>
+                    <Package className="h-3.5 w-3.5" />{t("orders.createFirst")}
+                  </Button>
+                </div>
               }
             />
           )

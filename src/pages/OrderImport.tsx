@@ -57,7 +57,7 @@ const FIELD_LABELS: Record<TargetField, { en: string; ar: string }> = {
   external_order_id: { en: "External order ID (for dedupe)", ar: "رقم الطلب الأصلي (لمنع التكرار)" },
   customer_name: { en: "Customer name *", ar: "اسم العميل *" },
   customer_phone: { en: "Phone *", ar: "رقم الموبايل *" },
-  customer_email: { en: "Email", ar: "البريد الإلكتروني" },
+  customer_email: { en: "Email", ar: "الإيميل" },
   shipping_address: { en: "Shipping address *", ar: "عنوان الشحن *" },
   shipping_city: { en: "City / governorate *", ar: "المدينة / المحافظة *" },
   total: { en: "Order total *", ar: "إجمالي الطلب *" },

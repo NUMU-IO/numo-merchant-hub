@@ -596,7 +596,9 @@ const Payments = () => {
                     {isAr ? "مفيش حركات لسه" : "No transactions yet"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {isAr ? "المدفوعات من الطلبات هتظهر هنا" : "Payments from orders will appear here"}
+                    {isAr
+                    ? "فلوس الأوردرات بتظهر هنا: الكارت والمحفظة أول ما العميل يدفع، والدفع عند الاستلام لما الأوردر يتسلّم."
+                    : "Order money shows up here: card and wallet as soon as the customer pays, cash on delivery once the order is delivered."}
                   </p>
                 </div>
               ) : (
@@ -666,7 +668,9 @@ const Payments = () => {
                           {isAr ? "مفيش حركات لسه" : "No transactions yet"}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {isAr ? "المدفوعات من الطلبات هتظهر هنا" : "Payments from orders will appear here"}
+                          {isAr
+                    ? "فلوس الأوردرات بتظهر هنا: الكارت والمحفظة أول ما العميل يدفع، والدفع عند الاستلام لما الأوردر يتسلّم."
+                    : "Order money shows up here: card and wallet as soon as the customer pays, cash on delivery once the order is delivered."}
                         </p>
                       </div>
                     </TableCell>

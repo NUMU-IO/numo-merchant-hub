@@ -197,7 +197,8 @@ async function handle401(
 
 function redirectToLogin(): never {
   if (window.location.pathname !== "/login") {
-    window.location.href = loginPath(window.location.pathname, window.location.search);
+    const target = loginPath(window.location.pathname, window.location.search);
+    window.location.href = `${target}${target.includes("?") ? "&" : "?"}expired=1`;
   }
   throw new ApiError(401, null);
 }

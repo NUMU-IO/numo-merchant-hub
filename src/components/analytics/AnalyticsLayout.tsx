@@ -3,7 +3,11 @@ import { formatMoney } from "@/lib/format-money";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftRight, Download, RefreshCw } from "lucide-react";
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDashboardStore } from "@/contexts/StoreContext";
+import { recentOrdersQuery } from "@/services/orderApi";
+import { getPublicStoreUrl } from "@/lib/storefront";
+import StoreLinkShare from "@/components/StoreLinkShare";
 
 import {
   DateRangePicker,
@@ -73,6 +77,13 @@ export function AnalyticsLayout({
   const queryClient = useQueryClient();
 
   const { range, setRange } = useDateRangeUrlState();
+
+  // Before the first order every chart is a row of zeros. One card says what
+  // fills them and how to start, instead of each tab's bare "no data".
+  const { currentStore } = useDashboardStore();
+  const ordersQuery = useQuery({ ...recentOrdersQuery(currentStore?.id ?? ""), enabled: !!currentStore?.id });
+  const noOrdersYet = ordersQuery.data?.total === 0;
+  const storeUrl = getPublicStoreUrl(currentStore);
 
   // Session-sticky so flipping between analytics tabs keeps the mode;
   // deliberately NOT in the URL (the range already owns that surface).
@@ -178,6 +189,21 @@ export function AnalyticsLayout({
           </div>
         </div>
 
+        {noOrdersYet && (
+          <div className="rounded-xl border bg-card p-5 space-y-3">
+            <div>
+              <p className="text-sm font-bold">
+                {isAr ? "الأرقام هتبدأ تظهر أول ما الناس تزور متجرك" : "Numbers start showing as soon as people visit your store"}
+              </p>
+              <p className="text-[13px] text-muted-foreground mt-1">
+                {isAr
+                  ? "الزيارات بتظهر من أول زائر، والمبيعات والعملاء من أول أوردر. شارك رابط متجرك عشان تبدأ."
+                  : "Visits appear from the first visitor; sales and customers from the first order. Share your store link to get started."}
+              </p>
+            </div>
+            {storeUrl && <StoreLinkShare url={storeUrl} storeName={currentStore?.name} />}
+          </div>
+        )}
         {children}
       </div>
     </AnalyticsContext.Provider>

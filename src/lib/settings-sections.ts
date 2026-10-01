@@ -108,11 +108,11 @@ export const SETTINGS_SECTIONS: SettingSection[] = [
         title: { en: "Security", ar: "الأمان" },
         description: {
           en: "Password and 2-step verification",
-          ar: "كلمة المرور والمصادقة الثنائية",
+          ar: "الباسورد والمصادقة الثنائية",
         },
         icon: Shield,
         to: "/settings/preferences?section=security",
-        aliases: ["password", "2fa", "otp", "login", "كلمة السر", "الباسورد", "تسجيل الدخول"],
+        aliases: ["password", "2fa", "otp", "login", "الباسورد", "الباسورد", "تسجيل الدخول"],
         flag: "danger",
       },
       {

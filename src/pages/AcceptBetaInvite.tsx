@@ -44,7 +44,7 @@ import { z } from "zod";
 const passwordPathSchema = z.object({
   firstName: z.string().min(2, "الاسم الأول يجب أن يكون حرفين على الأقل").max(50),
   lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل").max(50),
-  password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
+  password: z.string().min(8, "الباسورد لازم يكون 8 أحرف على الأقل"),
 });
 
 const storeFieldsSchema = z.object({
@@ -382,7 +382,7 @@ export default function AcceptBetaInvite() {
             {/* Locked email from invite */}
             <div className="space-y-2">
               <Label className="text-[13px] font-medium">
-                {isAr ? "البريد الإلكتروني" : "Email"}
+                {isAr ? "الإيميل" : "Email"}
               </Label>
               <Input
                 value={invite.email}
@@ -498,7 +498,7 @@ export default function AcceptBetaInvite() {
                 {/* Password */}
                 <div className="space-y-2">
                   <Label className="text-[13px] font-medium">
-                    {isAr ? "كلمة المرور" : "Password"}
+                    {isAr ? "الباسورد" : "Password"}
                   </Label>
                   <div className="relative">
                     <Input

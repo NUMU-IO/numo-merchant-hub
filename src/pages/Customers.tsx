@@ -7,6 +7,8 @@ import { ResponsiveTable, MobileCardList, MobileCard } from "@/components/ui/res
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import StoreLinkShare from "@/components/StoreLinkShare";
+import { getPublicStoreUrl } from "@/lib/storefront";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Users, Search, ChevronLeft, ChevronRight, Mail, ShieldCheck, UserCheck,
@@ -449,7 +451,17 @@ export default function Customers() {
               <EmptyState
                 icon={Users}
                 title={debouncedSearch ? (isAr ? "مفيش نتائج للبحث" : "No results found") : (isAr ? "أول عميل في الطريق!" : "Your first customer is on the way!")}
-                description={debouncedSearch ? undefined : (isAr ? "العملاء بيظهروا تلقائياً مع الطلبات — أو أضفهم يدوياً أو استوردهم من ملف CSV من الأزرار فوق" : "Customers appear automatically with orders — or add them manually / import a CSV using the buttons above")}
+                description={debouncedSearch ? undefined : (isAr ? "العملاء بيظهروا هنا لوحدهم مع كل أوردر. شارك رابط متجرك، أو استورد عملاءك من ملف CSV." : "Customers show up here on their own with every order. Share your store link, or import your customers from a CSV file.")}
+                action={debouncedSearch ? undefined : (
+                  <div className="flex flex-col items-center gap-3">
+                    {getPublicStoreUrl(currentStore) && (
+                      <StoreLinkShare url={getPublicStoreUrl(currentStore)!} storeName={currentStore?.name} />
+                    )}
+                    <Button size="sm" variant="ghost" className="h-9 text-xs rounded-lg" onClick={() => navigate("/customers/import")}>
+                      {isAr ? "استورد عملاء من CSV" : "Import customers from CSV"}
+                    </Button>
+                  </div>
+                )}
               />
             </div>
           ) : (

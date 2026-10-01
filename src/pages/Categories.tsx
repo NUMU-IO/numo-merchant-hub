@@ -42,8 +42,13 @@ import {
 } from "@/services/categoryApi";
 import { useTemplateOptions, DEFAULT_TEMPLATE_VALUE } from "@/hooks/useTemplateOptions";
 
+// The seeded sample collection carries English only.
+const isSampleCollection = (cat: Category) =>
+  (cat.extra_data as Record<string, unknown> | null)?.demo_seed === true;
+
 function getCatName(cat: Category, lang: string): string {
   if (lang === "ar") {
+    if (isSampleCollection(cat)) return "مجموعة تجريبية";
     const nameAr = (cat.extra_data as Record<string, string> | null)?.name_ar;
     return nameAr || cat.name;
   }
@@ -52,6 +57,7 @@ function getCatName(cat: Category, lang: string): string {
 
 function getCatDesc(cat: Category, lang: string): string | null {
   if (lang === "ar") {
+    if (isSampleCollection(cat)) return "منتجات تجريبية عشان تشوف شكل متجرك. امسحها أول ما تضيف منتجاتك.";
     const descAr = (cat.extra_data as Record<string, string> | null)?.description_ar;
     return descAr || cat.description;
   }
