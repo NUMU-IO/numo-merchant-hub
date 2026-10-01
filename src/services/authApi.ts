@@ -192,7 +192,11 @@ export async function googleLogin(idToken: string): Promise<AuthResponse> {
   }
 
   const json = await res.json();
+  const data = json.data as LoginResponse;
   await initCSRF();
+  if (data.requires_2fa && data.challenge_token) {
+    throw new TwoFactorRequiredError(data.challenge_token);
+  }
   return json.data;
 }
 
