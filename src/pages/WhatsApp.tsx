@@ -172,7 +172,7 @@ function timeAgo(iso: string | null, isAr: boolean): string {
   if (mins < 60) return isAr ? `${mins} د` : `${mins}m`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return isAr ? `${hrs} س` : `${hrs}h`;
-  return new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+  return new Date(iso).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
     day: "numeric",
     month: "short",
   });
@@ -396,7 +396,7 @@ export default function WhatsApp() {
     (template) => template.status.toUpperCase() === "APPROVED"
   ).length;
 
-  const fmtNum = (n: number) => new Intl.NumberFormat(isAr ? "ar-EG" : "en-US").format(n);
+  const fmtNum = (n: number) => new Intl.NumberFormat(isAr ? "ar-EG-u-nu-latn" : "en-US").format(n);
 
   const chartData = useMemo(
     () =>
@@ -800,7 +800,7 @@ export default function WhatsApp() {
                 <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                   {isAr ? "حُفظ " : "Saved "}
-                  {lastSavedAt.toLocaleTimeString(isAr ? "ar-EG" : "en-US", {
+                  {lastSavedAt.toLocaleTimeString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}
@@ -1254,7 +1254,7 @@ function WhatsAppAccessGate({
 
   const fmtDate = (iso: string | null) =>
     iso
-      ? new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+      ? new Date(iso).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
           day: "numeric",
           month: "long",
           year: "numeric",
@@ -1550,7 +1550,7 @@ function WhatsAppAccessGate({
 }
 
 function fmtWhatsAppPrice(access: WhatsAppAccessState, isAr: boolean) {
-  const nf = new Intl.NumberFormat(isAr ? "ar-EG" : "en-US");
+  const nf = new Intl.NumberFormat(isAr ? "ar-EG-u-nu-latn" : "en-US");
   const cycle: Record<string, [string, string]> = {
     monthly: ["month", "شهرياً"],
     quarterly: ["quarter", "كل ٣ شهور"],
@@ -1669,7 +1669,7 @@ function WhatsAppPlanCard({
   storeId: string;
   onChange: (a: WhatsAppAccessState) => void;
 }) {
-  const nf = new Intl.NumberFormat(isAr ? "ar-EG" : "en-US");
+  const nf = new Intl.NumberFormat(isAr ? "ar-EG-u-nu-latn" : "en-US");
   const used = access.messages_used ?? 0;
   const allowance = access.message_allowance ?? null;
   const pct = allowance ? Math.min(100, Math.round((used / allowance) * 100)) : 0;
@@ -1678,7 +1678,7 @@ function WhatsAppPlanCard({
   const bar = blocked || pct >= 100 ? "bg-rose-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500";
 
   const until = access.active_until
-    ? new Date(access.active_until).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+    ? new Date(access.active_until).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
         day: "numeric",
         month: "long",
         year: "numeric",

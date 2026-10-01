@@ -117,7 +117,7 @@ function formatTime(iso: string, isAr: boolean): string {
   if (!iso) return "—";
   try {
     const d = new Date(iso);
-    return d.toLocaleString(isAr ? "ar-EG" : "en-GB", {
+    return d.toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-GB", {
       year: "numeric",
       month: "short",
       day: "numeric",

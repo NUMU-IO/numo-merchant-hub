@@ -19,6 +19,8 @@ import { apiClient } from "@/services/api";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { MemberOverridesDialog } from "@/components/staff/MemberOverridesDialog";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { AR_MEMBERS, countAr } from "@/lib/arabic-plural";
+import { formatDate } from "@/lib/format-date";
 
 interface StaffMember {
   id: string;
@@ -283,11 +285,11 @@ export default function StaffPage() {
     return `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase();
   };
 
-  const formatDate = (dateStr: string | null | undefined) => {
+  const formatStaffDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return "—";
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString();
+    return formatDate(d, language);
   };
 
   if (isLoading) {
@@ -313,7 +315,7 @@ export default function StaffPage() {
           <DialogTrigger asChild>
             <Button>
               <Plus className="w-4 h-4 mr-2" />
-              {isAr ? "دعو موظف" : "Invite Staff"}
+              {isAr ? "ضيف موظف" : "Invite Staff"}
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -410,8 +412,8 @@ export default function StaffPage() {
                 {invitations.map((invite) => (
                   <TableRow key={invite.id}>
                     <TableCell className="font-medium">{invite.email}</TableCell>
-                    <TableCell>{formatDate(invite.created_at)}</TableCell>
-                    <TableCell>{formatDate(invite.expires_at)}</TableCell>
+                    <TableCell>{formatStaffDate(invite.created_at)}</TableCell>
+                    <TableCell>{formatStaffDate(invite.expires_at)}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
@@ -436,7 +438,7 @@ export default function StaffPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="text-lg">{isAr ? "أعضاء الفريق" : "Team Members"}</CardTitle>
-              <CardDescription>{staff.length} {isAr ? "أعضاء" : "members"}</CardDescription>
+              <CardDescription>{isAr ? countAr(staff.length, AR_MEMBERS) : `${staff.length} ${staff.length === 1 ? "member" : "members"}`}</CardDescription>
             </div>
             <div className="relative w-full sm:w-64">
               <Search className={`absolute ${isAr ? "right-3" : "left-3"} top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground`} />
@@ -501,7 +503,7 @@ export default function StaffPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>{formatDate(member.joined_at)}</TableCell>
+                  <TableCell>{formatStaffDate(member.joined_at)}</TableCell>
                   <TableCell className={isAr ? "text-left" : "text-right"}>
                     <div className={`flex ${isAr ? "justify-start" : "justify-end"} gap-1`}>
                       <Button

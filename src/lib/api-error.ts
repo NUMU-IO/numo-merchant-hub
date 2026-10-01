@@ -99,7 +99,7 @@ function statusToMessage(status: number, lang: string): string {
     0:   ["No internet connection. Check your network and try again.",
           "لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مرة أخرى."],
     400: ["Invalid request. Please check your input and try again.",
-          "طلب غير صالح. تحقق من البيانات وحاول مرة أخرى."],
+          "في بيانات مش مظبوطة. راجعها وجرّب تاني."],
     401: ["Your session has expired. Please log in again.",
           "انتهت جلستك. يرجى تسجيل الدخول مرة أخرى."],
     403: ["You don't have permission to perform this action.",
@@ -159,9 +159,9 @@ const SERVER_DETAIL_MAP: Array<[RegExp, string, string]> = [
   [/invalid.*beta.*code/i, "Invalid beta invite code.", "كود الدعوة غير صحيح."],
   [/beta.*code.*expired/i, "This beta code has expired.", "انتهت صلاحية كود الدعوة."],
   [/beta.*code.*used/i, "This beta code has already been used.", "كود الدعوة مُستخدم بالفعل."],
-  [/subdomain.*taken/i, "This subdomain is already taken.", "هذا النطاق الفرعي مأخوذ بالفعل."],
+  [/subdomain.*taken/i, "This subdomain is already taken.", "رابط المتجر ده مستخدم بالفعل."],
   [/reserved subdomain/i, "This store link is reserved. Pick another one.", "الرابط ده محجوز، اختار رابط تاني."],
-  [/subdomain.*invalid/i, "Invalid subdomain format.", "صيغة النطاق الفرعي غير صالحة."],
+  [/subdomain.*invalid/i, "Invalid subdomain format.", "رابط المتجر لازم يكون حروف إنجليزي صغيرة وأرقام وشرطات بس."],
   [/store.*not.*found/i, "Store not found.", "المتجر غير موجود."],
 
   // Products

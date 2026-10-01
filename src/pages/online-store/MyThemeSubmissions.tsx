@@ -248,7 +248,7 @@ function ThemeCard({
               {expanded ? (
                 <ChevronDown className="h-4 w-4" />
               ) : (
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
               )}
             </Button>
           </div>

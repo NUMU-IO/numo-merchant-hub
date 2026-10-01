@@ -154,7 +154,7 @@ export default function OnlineStoreBlog() {
   const { currentStore } = useDashboardStore();
   const queryClient = useQueryClient();
   const storeId = currentStore?.id ?? "";
-  const locale = isRTL ? "ar-EG" : "en-US";
+  const locale = isRTL ? "ar-EG-u-nu-latn" : "en-US";
 
   const [selectedHandle, setSelectedHandle] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");

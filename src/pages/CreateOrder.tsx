@@ -105,7 +105,7 @@ const CreateOrder = () => {
   /* ── Step 4: Submit ── */
   const [creating, setCreating] = useState(false);
 
-  const fmt = (cents: number) => { const v = cents / 100; return isAr ? `${v.toLocaleString("ar-EG")} ج.م` : `EGP ${v.toLocaleString()}`; };
+  const fmt = (cents: number) => { const v = cents / 100; return isAr ? `${v.toLocaleString("ar-EG-u-nu-latn")} ج.م` : `EGP ${v.toLocaleString()}`; };
 
   /* ── Product search for picker ── */
   useEffect(() => {
@@ -294,7 +294,7 @@ const CreateOrder = () => {
     <div className="p-6 max-w-[900px] mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => navigate("/orders")}><ArrowLeft className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => navigate("/orders")}><ArrowLeft className="h-4 w-4 rtl:-scale-x-100" /></Button>
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "إنشاء طلب يدوي جديد" : "Create New Manual Order"}</h1>
           <p className="text-sm text-muted-foreground mt-1">{isAr ? "يمكنك إنشاء الطلبات وإنهاؤها دون تدخل العميل" : "Create and fulfill orders without customer involvement"}</p>

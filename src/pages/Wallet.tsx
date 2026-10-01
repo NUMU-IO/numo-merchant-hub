@@ -105,7 +105,7 @@ const Wallet = () => {
   };
 
   const fmt = (cents: number) =>
-    (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", { minimumFractionDigits: 2 });
+    (cents / 100).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US", { minimumFractionDigits: 2 });
 
   const refresh = useCallback(async () => {
     try {
@@ -171,14 +171,14 @@ const Wallet = () => {
   }, [searchParams.get("topup_id")]);
 
   const negative = (wallet?.balance_cents ?? 0) < 0;
-  const commissionPct = wallet ? (wallet.effective_commission_bps / 100).toLocaleString(isAr ? "ar-EG" : "en-US") : null;
+  const commissionPct = wallet ? (wallet.effective_commission_bps / 100).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US") : null;
 
   return (
     <div className="max-w-[900px] mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate("/payments")}>
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
         </Button>
         <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "المحفظة" : "Wallet"}</h1>
         {wallet && wallet.effective_commission_bps > 0 && (
@@ -304,7 +304,7 @@ const Wallet = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-end text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(t.created_at).toLocaleDateString(isAr ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      {new Date(t.created_at).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                     </TableCell>
                   </TableRow>
                 );
@@ -367,7 +367,7 @@ const Wallet = () => {
                     </TableCell>
                     <TableCell className="text-end tabular-nums text-muted-foreground">{fmt(t.balance_after_cents)}</TableCell>
                     <TableCell className="text-end text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(t.created_at).toLocaleDateString(isAr ? "ar-EG" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      {new Date(t.created_at).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                     </TableCell>
                   </TableRow>
                 );

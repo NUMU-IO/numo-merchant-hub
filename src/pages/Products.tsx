@@ -1113,7 +1113,7 @@ const Products = () => {
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" disabled={currentPage === 1}
                   onClick={() => setCurrentPage(p => p - 1)}>
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4 rtl:-scale-x-100" />
                 </Button>
                 {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                   const page = i + 1;
@@ -1131,7 +1131,7 @@ const Products = () => {
                 })}
                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" disabled={currentPage >= totalPages}
                   onClick={() => setCurrentPage(p => p + 1)}>
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
                 </Button>
               </div>
             </div>

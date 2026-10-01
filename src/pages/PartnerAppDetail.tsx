@@ -1077,7 +1077,7 @@ const ALL = "all";
 function ApiLogs({ appId }: { appId: string }) {
   const { t } = useTranslation();
   const { language } = useLanguage();
-  const locale = language === "ar" ? "ar-EG" : "en-GB";
+  const locale = language === "ar" ? "ar-EG-u-nu-latn" : "en-GB";
   const [hours, setHours] = useState("24");
   const [statusClass, setStatusClass] = useState(ALL);
   const [route, setRoute] = useState(ALL);

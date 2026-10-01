@@ -70,6 +70,7 @@ import { StoreLinkCard } from "@/components/dashboard/StoreLinkCard";
 import { PromoSwiper } from "@/components/dashboard/PromoSwiper";
 import { StoreHealthCard } from "@/components/dashboard/StoreHealthCard";
 import { RecentlyViewed } from "@/components/dashboard/RecentlyViewed";
+import { chartDayLabel } from "@/lib/format-date";
 
 /* Only the number re-renders per animation frame, not the whole Dashboard. */
 function CountUp({
@@ -291,10 +292,10 @@ const Dashboard = () => {
   const revenueChartData = useMemo(
     () =>
       chartData.map((d) => ({
-        day: d.date.slice(5),
+        day: chartDayLabel(d.date, language),
         revenue: d.revenue / 100,
       })),
-    [chartData],
+    [chartData, language],
   );
 
   // Same leading children as the full page below, so the theme card and the
@@ -358,7 +359,7 @@ const Dashboard = () => {
         : "First order today — let's start a streak!";
     }
     if (!isAr) return `${streakDays}-day order streak — you're on fire!`;
-    const n = streakDays.toLocaleString("ar-EG");
+    const n = streakDays.toLocaleString("ar-EG-u-nu-latn");
     const dayPhrase =
       streakDays === 2 ? "يومين" : streakDays <= 10 ? `${n} أيام` : `${n} يوم`;
     return `${dayPhrase} ورا بعض وفيهم طلبات — مولّعها ما شاء الله!`;
@@ -582,7 +583,7 @@ const Dashboard = () => {
                   isDayOneNudge
                     ? undefined
                     : isAr
-                      ? `أطول سلسلة ليك: ${(streak?.longest_streak ?? streakDays).toLocaleString("ar-EG")} يوم`
+                      ? `أطول سلسلة ليك: ${(streak?.longest_streak ?? streakDays).toLocaleString("ar-EG-u-nu-latn")} يوم`
                       : `Your longest streak: ${streak?.longest_streak ?? streakDays} days`
                 }
               >
@@ -931,7 +932,7 @@ const Dashboard = () => {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="text-[32px] font-extrabold tabular-nums leading-none">
-                        {isAr ? pendingCount.toLocaleString("ar-EG") : pendingCount}
+                        {isAr ? pendingCount.toLocaleString("ar-EG-u-nu-latn") : pendingCount}
                       </div>
                       <div className="text-xs text-muted-foreground font-semibold mt-1">
                         {isAr ? "مستنيين تجهيزك" : "Waiting on you"}
@@ -994,18 +995,7 @@ const Dashboard = () => {
                       variant="accent"
                       size="sm"
                       className="gap-1.5 flex-1"
-                      onClick={async () => {
-                        const url = getPublicStoreUrl(currentStore);
-                        if (currentStore && url) {
-                          if (navigator.share) {
-                            try { await navigator.share({ title: currentStore.name, url }); } catch { /* cancelled */ }
-                          } else {
-                            try {
-                              await navigator.clipboard.writeText(url);
-                            } catch { /* ignore */ }
-                          }
-                        }
-                      }}
+                      onClick={shareStoreLink}
                     >
                       <ExternalLink className="h-4 w-4" strokeWidth={2.2} />
                       {isAr ? "شارك المتجر" : "Share store"}
@@ -1045,7 +1035,7 @@ const Dashboard = () => {
                       </div>
                       <div className="text-[20px] font-extrabold tabular-nums leading-none mt-1">
                         {isAr
-                          ? (stats?.shipped_orders ?? 0).toLocaleString("ar-EG")
+                          ? (stats?.shipped_orders ?? 0).toLocaleString("ar-EG-u-nu-latn")
                           : (stats?.shipped_orders ?? 0)}
                       </div>
                     </div>
@@ -1316,7 +1306,7 @@ const Dashboard = () => {
                         title={isAr ? "اعرض تحليلات المنتج" : "View product analytics"}
                       >
                         <span className="text-[14px] font-extrabold text-muted-foreground/50 w-5 text-center tabular-nums">
-                          {isAr ? (i + 1).toLocaleString("ar-EG") : i + 1}
+                          {isAr ? (i + 1).toLocaleString("ar-EG-u-nu-latn") : i + 1}
                         </span>
                         <div className="souq-thumb h-9 w-9 overflow-hidden">
                           {p.image_url ? (
@@ -1336,7 +1326,7 @@ const Dashboard = () => {
                           </p>
                           <p className="text-[11px] text-muted-foreground tabular-nums">
                             {isAr
-                              ? p.quantity_sold.toLocaleString("ar-EG")
+                              ? p.quantity_sold.toLocaleString("ar-EG-u-nu-latn")
                               : p.quantity_sold}{" "}
                             {isAr ? "مبيعة" : "sold"}
                           </p>
@@ -1397,7 +1387,7 @@ const Dashboard = () => {
             const effectiveGoal = goalTarget * goalMultiplier;
             const progressPct = Math.min(100, Math.round((currentOrders / Math.max(1, effectiveGoal)) * 100));
             const remaining = Math.max(0, effectiveGoal - currentOrders);
-            const fmtN = (n: number) => isAr ? n.toLocaleString("ar-EG") : n.toLocaleString();
+            const fmtN = (n: number) => isAr ? n.toLocaleString("ar-EG-u-nu-latn") : n.toLocaleString();
             return (
               <Card className="mt-4">
                 <CardContent className="p-5">

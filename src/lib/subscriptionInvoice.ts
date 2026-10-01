@@ -32,13 +32,13 @@ export interface InvoiceParty {
 }
 
 const money = (cents: number, currency: string, ar: boolean) =>
-  `${(cents / 100).toLocaleString(ar ? "ar-EG" : "en-US", {
+  `${(cents / 100).toLocaleString(ar ? "ar-EG-u-nu-latn" : "en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} ${currency}`;
 
 const day = (iso: string, ar: boolean) =>
-  new Date(iso).toLocaleDateString(ar ? "ar-EG" : "en-US", {
+  new Date(iso).toLocaleDateString(ar ? "ar-EG-u-nu-latn" : "en-US", {
     day: "numeric",
     month: "short",
     year: "numeric",

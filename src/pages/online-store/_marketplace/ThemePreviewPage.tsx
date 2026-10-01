@@ -188,7 +188,7 @@ export default function ThemePreviewPage() {
           size="sm"
           onClick={() => navigate("/online-store/themes?tab=marketplace")}
         >
-          <ArrowLeft className="h-4 w-4 me-1.5" />
+          <ArrowLeft className="h-4 w-4 me-1.5 rtl:-scale-x-100" />
           {t("marketplace.preview.back")}
         </Button>
 

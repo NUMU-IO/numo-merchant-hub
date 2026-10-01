@@ -11,7 +11,7 @@ export function AppReviewTimeline({ appId }: { appId: string }) {
   const { language } = useLanguage();
   const reviews = useQuery({ queryKey: ["partners", "apps", appId, "reviews"], queryFn: () => getAppReviews(appId) });
   const date = (iso: string) =>
-    new Date(iso).toLocaleDateString(language === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short", year: "numeric" });
+    new Date(iso).toLocaleDateString(language === "ar" ? "ar-EG-u-nu-latn" : "en-GB", { day: "numeric", month: "short", year: "numeric" });
   const r = reviews.data;
 
   return (

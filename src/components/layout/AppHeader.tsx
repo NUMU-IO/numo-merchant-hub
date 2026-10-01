@@ -164,7 +164,7 @@ const AppHeader = () => {
               <span className={cn("relative inline-flex h-[9px] w-[9px] rounded-full", liveVisitors > 0 ? "bg-sage" : "bg-white/40")} />
             </span>
             <span className="tabular-nums text-sm font-extrabold">
-              {isAr ? liveVisitors.toLocaleString("ar-EG") : liveVisitors.toLocaleString()}
+              {isAr ? liveVisitors.toLocaleString("ar-EG-u-nu-latn") : liveVisitors.toLocaleString()}
             </span>
             <span className="text-[12.5px] font-semibold text-white/70">{t("header.liveNow")}</span>
           </div>

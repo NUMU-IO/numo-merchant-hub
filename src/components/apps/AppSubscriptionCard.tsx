@@ -115,7 +115,7 @@ export function AppSubscriptionCard({
       fixed: true,
     });
   const day = (iso: string) =>
-    new Date(iso).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-GB", {
+    new Date(iso).toLocaleDateString(lang === "ar" ? "ar-EG-u-nu-latn" : "en-GB", {
       day: "numeric",
       month: "long",
       year: "numeric",
@@ -201,7 +201,7 @@ export function AppSubscriptionCard({
   const busy = subscribe.isPending || cancel.isPending;
   const price = priceLabel ?? (sub?.price_cents != null ? money(sub.price_cents) : "");
   const days = (sub?.cycle === "annual" ? 365 : 30).toLocaleString(
-    lang === "ar" ? "ar-EG" : "en-US",
+    lang === "ar" ? "ar-EG-u-nu-latn" : "en-US",
   );
   const message =
     state === "none"

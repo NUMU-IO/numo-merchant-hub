@@ -12,6 +12,7 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -22,7 +23,10 @@ import {
   complete2FALogin as complete2FALoginApi,
   googleLogin as googleLoginApi,
   TwoFactorRequiredError,
+  updateProfile,
 } from "@/services/authApi";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { getImpersonationToken } from "@/services/api";
 import { initCSRF } from "@/services/csrf";
 import { purgeServiceWorkerCaches } from "@/lib/register-sw";
 import { revokePushSubscription } from "@/services/pushApi";
@@ -153,6 +157,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const setUserIfChanged = useCallback((u: User) => {
     setUser((prev) => (prev && JSON.stringify(prev) === JSON.stringify(u) ? prev : u));
   }, []);
+
+  // The merchant's language follows them, not the device: on sign-in the
+  // saved choice wins (unless a ?lang= link just picked one, e.g. the landing
+  // handoff), and any later switch is saved back to the profile.
+  const { language, setLanguage } = useLanguage();
+  const languageSyncedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user || !("language" in user)) {
+      languageSyncedFor.current = null;
+      return;
+    }
+    const firstPass = languageSyncedFor.current !== user.id;
+    languageSyncedFor.current = user.id;
+    const fromLink = new URLSearchParams(window.location.search).get("lang");
+    if (firstPass && !fromLink && user.language && user.language !== language) {
+      void setLanguage(user.language);
+      return;
+    }
+    // Not while a NUMU admin is impersonating: their switch is not the merchant's.
+    if (user.language !== language && !getImpersonationToken()) {
+      const chosen = language === "ar" ? "ar" : "en";
+      updateProfile({ language: chosen })
+        .then(() => setUser((prev) => (prev ? { ...prev, language: chosen } : prev)))
+        .catch(() => {});
+    }
+  }, [user, language, setLanguage]);
 
   useEffect(() => {
     // Fetch the landing route's chunk alongside /auth/me instead of after it.

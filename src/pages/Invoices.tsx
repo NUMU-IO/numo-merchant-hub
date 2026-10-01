@@ -60,11 +60,11 @@ export default function Invoices() {
 
   const formatCurrency = (cents: number) => {
     const val = cents / 100;
-    return isAr ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
+    return isAr ? `${val.toLocaleString("ar-EG-u-nu-latn")} ج.م` : `EGP ${val.toLocaleString()}`;
   };
 
   const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+    new Date(dateStr).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
       year: "numeric", month: "short", day: "numeric",
     });
 
@@ -151,7 +151,7 @@ export default function Invoices() {
       <div className="space-y-5 max-w-4xl">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={() => setSelectedInvoice(null)}>
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
           </Button>
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-extrabold tracking-tight leading-tight tabular-nums">{inv.invoice_number}</h1>
@@ -443,10 +443,10 @@ export default function Invoices() {
                   </p>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => p - 1)}>
-                      <ChevronLeft className="h-3.5 w-3.5" />
+                      <ChevronLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)}>
-                      <ChevronRight className="h-3.5 w-3.5" />
+                      <ChevronRight className="h-3.5 w-3.5 rtl:-scale-x-100" />
                     </Button>
                   </div>
                 </div>

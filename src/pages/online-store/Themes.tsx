@@ -587,7 +587,7 @@ function ActiveThemeHero({ theme, customization, isRTL, onCustomize, onPreview }
                   <span className="text-[11px]">
                     {isRTL ? "منشور" : "Published"}
                     {lastPublished
-                      ? ` · ${new Date(lastPublished).toLocaleDateString(isRTL ? "ar-EG" : "en-US", { month: "short", day: "numeric" })}`
+                      ? ` · ${new Date(lastPublished).toLocaleDateString(isRTL ? "ar-EG-u-nu-latn" : "en-US", { month: "short", day: "numeric" })}`
                       : ""}
                   </span>
                 </Badge>

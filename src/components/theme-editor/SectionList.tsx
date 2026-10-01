@@ -190,7 +190,7 @@ export function SectionList({
             </div>
 
             {/* Edit chevron — always visible, indicates clickability */}
-            <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+            <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground/60 group-hover:text-primary transition-colors rtl:-scale-x-100" />
 
             {/* Actions — visible on hover or when selected */}
             <div

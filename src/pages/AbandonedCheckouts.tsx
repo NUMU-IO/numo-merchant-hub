@@ -237,10 +237,10 @@ const AbandonedCheckouts = () => {
     return (
       <span className="tabular-nums">
         <span className="block">
-          {d.toLocaleDateString(isAr ? "ar-EG" : "en-GB", { year: "numeric", month: "2-digit", day: "2-digit" })}
+          {d.toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-GB", { year: "numeric", month: "2-digit", day: "2-digit" })}
         </span>
         <span className="block text-[10.5px] text-muted-foreground/80">
-          {d.toLocaleTimeString(isAr ? "ar-EG" : "en-GB", { hour: "2-digit", minute: "2-digit" })}
+          {d.toLocaleTimeString(isAr ? "ar-EG-u-nu-latn" : "en-GB", { hour: "2-digit", minute: "2-digit" })}
         </span>
       </span>
     );

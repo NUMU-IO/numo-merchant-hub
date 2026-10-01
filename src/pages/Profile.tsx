@@ -102,7 +102,7 @@ export default function Profile() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
           </Button>
           <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "إعدادات الحساب" : "Account Settings"}</h1>
         </div>

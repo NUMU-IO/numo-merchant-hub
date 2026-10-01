@@ -188,7 +188,7 @@ const Referrals = () => {
           <CardContent className="pt-6 text-center">
             <Users className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
             <p className="text-2xl font-bold">
-              {(summary?.total_referrals || 0).toLocaleString(isAr ? "ar-EG" : "en-US")}
+              {(summary?.total_referrals || 0).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US")}
             </p>
             <p className="text-xs text-muted-foreground">{isAr ? "تجار محالين" : "Referrals"}</p>
           </CardContent>
@@ -235,12 +235,12 @@ const Referrals = () => {
                       <td className="py-2.5 font-medium">{r.tenant_name}</td>
                       <td className="py-2.5 text-muted-foreground">
                         {new Date(r.referral_date).toLocaleDateString(
-                          isAr ? "ar-EG" : "en-US",
+                          isAr ? "ar-EG-u-nu-latn" : "en-US",
                           { year: "numeric", month: "short", day: "numeric" },
                         )}
                       </td>
                       <td className="py-2.5 text-center">
-                        {r.orders.toLocaleString(isAr ? "ar-EG" : "en-US")}
+                        {r.orders.toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US")}
                       </td>
                       <td className="py-2.5 text-end font-mono">
                         {formatMoney(r.commission_earned_cents, {

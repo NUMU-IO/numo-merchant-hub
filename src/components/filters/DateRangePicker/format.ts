@@ -91,6 +91,11 @@ function localeFor(lang: Lang) {
   return lang === "ar" ? arLocale : enUS;
 }
 
+// Arabic reads day-month-year («1 يناير 2024»); the English pattern with an
+// Arabic month name produced «يناير 1, 2024».
+const dayPattern = (lang: Lang) => (lang === "ar" ? "d MMM yyyy" : "MMM d, yyyy");
+const dayNoYearPattern = (lang: Lang) => (lang === "ar" ? "d MMM" : "MMM d");
+
 /** Trigger-button label that mirrors Shopify's compact format. */
 export function triggerLabel(range: DateRange, lang: Lang): string {
   if (range.preset === "today") return presetLabel("today", lang);
@@ -117,7 +122,7 @@ function showsTime(range: DateRange): boolean {
 
 function formatDateTime(d: Date, lang: Lang, withTime: boolean): string {
   const loc = localeFor(lang);
-  return format(d, withTime ? "MMM d, yyyy HH:mm" : "MMM d, yyyy", {
+  return format(d, withTime ? `${dayPattern(lang)} HH:mm` : dayPattern(lang), {
     locale: loc,
   });
 }
@@ -128,16 +133,16 @@ export function dateRangeSummary(range: DateRange, lang: Lang): string {
   const loc = localeFor(lang);
   const withTime = showsTime(range);
   if (isSameDay(range.start, range.end) && !withTime) {
-    return format(range.start, "MMM d, yyyy", { locale: loc });
+    return format(range.start, dayPattern(lang), { locale: loc });
   }
   if (isSameDay(range.start, range.end) && withTime) {
-    const day = format(range.start, "MMM d, yyyy", { locale: loc });
+    const day = format(range.start, dayPattern(lang), { locale: loc });
     const s = format(range.start, "HH:mm", { locale: loc });
     const e = format(range.end, "HH:mm", { locale: loc });
     return `${day}, ${s} – ${e}`;
   }
   if (isSameYear(range.start, range.end) && !withTime) {
-    return `${format(range.start, "MMM d", { locale: loc })} – ${format(range.end, "MMM d, yyyy", { locale: loc })}`;
+    return `${format(range.start, dayNoYearPattern(lang), { locale: loc })} – ${format(range.end, dayPattern(lang), { locale: loc })}`;
   }
   return `${formatDateTime(range.start, lang, withTime)} – ${formatDateTime(range.end, lang, withTime)}`;
 }

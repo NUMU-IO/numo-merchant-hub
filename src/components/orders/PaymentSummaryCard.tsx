@@ -283,7 +283,7 @@ export function PaymentSummaryCard({ order, refunds, onMarkPaid, onUnmarkPaid }:
                   {language === "ar" ? "الفلوس وصلتك" : "Cash collected"}
                   {" · "}
                   {new Date(order.cash_received_at).toLocaleDateString(
-                    language === "ar" ? "ar-EG" : "en-GB",
+                    language === "ar" ? "ar-EG-u-nu-latn" : "en-GB",
                     { day: "numeric", month: "short" },
                   )}
                 </span>

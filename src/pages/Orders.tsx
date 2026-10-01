@@ -610,7 +610,7 @@ const Orders = () => {
       <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="flex items-center justify-between">
           <Button variant="ghost" className="gap-2" onClick={() => setSelectedOrderDetail(null)}>
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
             {t("orders.back")}
           </Button>
           <div className="flex items-center gap-2">
@@ -994,7 +994,7 @@ const Orders = () => {
                       <div>
                         <p className="text-sm font-medium">{ev.description}</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(ev.timestamp).toLocaleDateString(language === "ar" ? "ar-EG" : "en-US")}
+                          {new Date(ev.timestamp).toLocaleDateString(language === "ar" ? "ar-EG-u-nu-latn" : "en-US")}
                         </p>
                       </div>
                     </div>
@@ -1023,8 +1023,8 @@ const Orders = () => {
 
   // === List View — Zid-style ===
   const isAr = language === "ar";
-  const fmtDate = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" });
-  const fmtTime = (d: string) => new Date(d).toLocaleTimeString(isAr ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" });
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", { month: "short", day: "numeric", year: "numeric" });
+  const fmtTime = (d: string) => new Date(d).toLocaleTimeString(isAr ? "ar-EG-u-nu-latn" : "en-US", { hour: "2-digit", minute: "2-digit" });
 
   return (
     <div className="md:p-6 max-w-[1200px] mx-auto space-y-4">

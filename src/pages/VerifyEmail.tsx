@@ -14,15 +14,14 @@ import {
   verifyEmailByCode, verifyEmailByToken, resendVerificationEmail,
 } from "@/services/authApi";
 import { ApiError, errorMessage } from "@/lib/api-error";
+import { toLatinDigits } from "@/lib/arabic-normalize";
 
-// An Arabic keyboard types ٠-٩; the code is ASCII.
-const latinDigits = (s: string) => s.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, Mail, RefreshCw, ArrowLeft } from "lucide-react";
+import { Loader2, CheckCircle2, Mail, RefreshCw, ArrowLeft, Globe } from "lucide-react";
 
 export default function VerifyEmail() {
   const { t } = useTranslation();
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const isAr = language === "ar";
   const { user, refreshUser, logout, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -125,7 +124,7 @@ export default function VerifyEmail() {
   }
 
   function handleCodeChange(index: number, value: string) {
-    value = latinDigits(value);
+    value = toLatinDigits(value);
     if (value && !/^\d$/.test(value)) return;
     const newCode = [...code];
     newCode[index] = value;
@@ -143,7 +142,7 @@ export default function VerifyEmail() {
 
   function handlePaste(e: React.ClipboardEvent) {
     e.preventDefault();
-    const pasted = latinDigits(e.clipboardData.getData("text")).replace(/\D/g, "").slice(0, 6);
+    const pasted = toLatinDigits(e.clipboardData.getData("text")).replace(/\D/g, "").slice(0, 6);
     if (!pasted.length) return;
     const newCode = [...code];
     for (let i = 0; i < 6; i++) newCode[i] = pasted[i] || "";
@@ -205,6 +204,14 @@ export default function VerifyEmail() {
       dir={isAr ? "rtl" : "ltr"}
       className="min-h-screen auth-page auth-dot-grid brand-surface paper-grain flex flex-col items-center justify-center p-4 sm:p-6"
     >
+      <button
+        type="button"
+        onClick={() => setLanguage(isAr ? "en" : "ar")}
+        className="fixed top-4 end-4 z-20 inline-flex items-center gap-1.5 rounded-[4px] border border-[var(--b-line)] bg-[var(--b-paper)] px-3 py-1.5 text-xs font-medium text-[var(--b-ink-soft)] hover:text-[var(--b-ink)] hover:border-[var(--b-navy)] transition-colors shadow-xs"
+      >
+        <Globe className="h-3.5 w-3.5" />
+        {isAr ? "English" : "العربية"}
+      </button>
       <div className="w-full max-w-[420px] relative z-10">
         <Brand />
         <div className="auth-card auth-enter p-7 sm:p-9">

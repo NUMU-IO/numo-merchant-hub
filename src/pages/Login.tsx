@@ -25,6 +25,7 @@ import { TwoFactorRequiredError } from "@/services/authApi";
 import { ApiError, errorMessage } from "@/lib/api-error";
 import { PhoneInput, isValidE164 } from "@/components/forms/PhoneInput";
 import { isPartnerHost } from "@/lib/partner-host";
+import { safeNext } from "@/lib/login-redirect";
 import { z } from "zod";
 import AnimatedCharacters from "@/components/AnimatedCharacters";
 
@@ -181,7 +182,7 @@ export default function Login() {
         navigate("/verify-email", { replace: true });
       } else {
         await login(email, password);
-        navigate("/", { replace: true });
+        navigate(safeNext(searchParams.get("next")), { replace: true });
       }
     } catch (err: unknown) {
       if (err instanceof TwoFactorRequiredError) {
@@ -208,7 +209,7 @@ export default function Login() {
     setLoading(true);
     try {
       await complete2FALogin(challengeToken, twoFACode);
-      navigate("/", { replace: true });
+      navigate(safeNext(searchParams.get("next")), { replace: true });
     } catch (err: unknown) {
       setError(errorMessage(err, language));
     } finally {
@@ -576,7 +577,7 @@ export default function Login() {
                           setError(null);
                           try {
                             await googleLogin(credentialResponse.credential);
-                            navigate("/", { replace: true });
+                            navigate(safeNext(searchParams.get("next")), { replace: true });
                           } catch (err: unknown) {
                             setError(errorMessage(err, language));
                           } finally {

@@ -488,7 +488,7 @@ const OnlineStoreLanding = () => {
             {lastPublished && (
               <span className="hidden sm:inline">
                 · {isRTL ? "آخر نشر" : "published"}{" "}
-                {new Date(lastPublished).toLocaleDateString(isRTL ? "ar-EG" : "en-US", { month: "short", day: "numeric" })}
+                {new Date(lastPublished).toLocaleDateString(isRTL ? "ar-EG-u-nu-latn" : "en-US", { month: "short", day: "numeric" })}
               </span>
             )}
           </div>
@@ -555,7 +555,7 @@ const OnlineStoreLanding = () => {
                 {lastPublished && (
                   <span>
                     {isRTL ? "آخر تحديث" : "Last updated"}{" "}
-                    {new Date(lastPublished).toLocaleString(isRTL ? "ar-EG" : "en-US", {
+                    {new Date(lastPublished).toLocaleString(isRTL ? "ar-EG-u-nu-latn" : "en-US", {
                       month: "short",
                       day: "numeric",
                       year: "numeric",

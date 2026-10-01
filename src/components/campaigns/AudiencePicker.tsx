@@ -153,7 +153,7 @@ export function AudiencePicker({
           ) : count !== null ? (
             <span className="font-medium tabular-nums">
               {isAr
-                ? `سيُرسل لـ ${count.toLocaleString("ar-EG")}`
+                ? `سيُرسل لـ ${count.toLocaleString("ar-EG-u-nu-latn")}`
                 : `Will send to ${count.toLocaleString()}`}
             </span>
           ) : (

@@ -104,13 +104,13 @@ const DraftOrders = () => {
   const formatCurrency = (cents: number) => {
     const val = cents / 100;
     return isAr
-      ? `${val.toLocaleString("ar-EG")} ج.م`
+      ? `${val.toLocaleString("ar-EG-u-nu-latn")} ج.م`
       : `EGP ${val.toLocaleString()}`;
   };
 
   const fmtDate = (iso: string | null | undefined) => {
     if (!iso) return "—";
-    return new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US");
+    return new Date(iso).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US");
   };
 
   return (

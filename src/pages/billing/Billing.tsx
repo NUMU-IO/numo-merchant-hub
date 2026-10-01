@@ -55,6 +55,14 @@ const PLAN_DISPLAY: Record<string, { name: string; nameAr: string }> = {
   enterprise: { name: "Enterprise", nameAr: "إنتربرايز" },
 };
 
+const LIFECYCLE_LABEL: Record<string, { en: string; ar: string }> = {
+  trial: { en: "Trial", ar: "فترة تجربة" },
+  demo: { en: "Demo", ar: "تجربة" },
+  active: { en: "Active", ar: "شغّال" },
+  past_due: { en: "Payment due", ar: "مستني الدفع" },
+  read_only: { en: "Locked", ar: "مقفول" },
+};
+
 // Per-plan feature lists, mirroring the landing page's pricing cards so a
 // merchant who compared tiers before signing up meets the same claims here.
 //
@@ -174,15 +182,15 @@ const Billing = () => {
 
   const plan = PLAN_DISPLAY[planKey] || PLAN_DISPLAY.trial;
   const fmt = (cents: number) =>
-    (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", { minimumFractionDigits: 2 });
+    (cents / 100).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US", { minimumFractionDigits: 2 });
   const fmtEgp = (cents: number) =>
-    `${(cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US")} ${isAr ? "ج.م" : "EGP"}`;
+    `${(cents / 100).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US")} ${isAr ? "ج.م" : "EGP"}`;
   const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+    new Date(iso).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
       day: "numeric", month: "short", year: "numeric",
     });
   const commissionPct = wallet
-    ? (wallet.effective_commission_bps / 100).toLocaleString(isAr ? "ar-EG" : "en-US")
+    ? (wallet.effective_commission_bps / 100).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US")
     : null;
 
   const catalog = plansData?.plans ?? [];
@@ -395,7 +403,11 @@ const Billing = () => {
                       : "bg-emerald-400/20 text-emerald-200"
                 }`}
               >
-                {tenant?.lifecycle_state || "active"}
+                {(() => {
+                  const state = tenant?.lifecycle_state || "active";
+                  const label = LIFECYCLE_LABEL[state];
+                  return label ? (isAr ? label.ar : label.en) : state;
+                })()}
               </Badge>
             </div>
 
@@ -470,7 +482,7 @@ const Billing = () => {
                         {isAr ? "باقتك الحالية" : "Current plan"}
                       </span>
                     )}
-                    <p className="font-bold">{key === "starter" ? "Starter" : "Pro"}</p>
+                    <p className="font-bold">{isAr ? PLAN_DISPLAY[key].nameAr : PLAN_DISPLAY[key].name}</p>
                     <p className="text-lg font-extrabold mt-0.5 tabular-nums">
                       {cents != null ? `${fmtEgp(cents)}/${per}` : "…"}
                     </p>
@@ -489,8 +501,8 @@ const Billing = () => {
                         {planKey === key
                           ? (isAr ? "التبديل لهذه الدورة" : "Switch to this cycle")
                           : key === "pro"
-                            ? (isAr ? "ترقية إلى Pro" : "Upgrade to Pro")
-                            : (isAr ? "التبديل إلى Starter" : "Switch to Starter")}
+                            ? (isAr ? "ترقية إلى برو" : "Upgrade to Pro")
+                            : (isAr ? "التبديل إلى ستارتر" : "Switch to Starter")}
                       </Button>
                     )}
                   </div>
@@ -592,7 +604,7 @@ const Billing = () => {
                           : (isAr ? "الأكثر اختياراً" : "Most popular")}
                       </span>
                     )}
-                    <p className="font-bold text-base">{key === "starter" ? "Starter" : "Pro"}</p>
+                    <p className="font-bold text-base">{isAr ? PLAN_DISPLAY[key].nameAr : PLAN_DISPLAY[key].name}</p>
                     <p className="text-2xl font-extrabold mt-1 tabular-nums">
                       {cents != null ? fmtEgp(cents) : "…"}
                       <span className="text-sm font-medium text-muted-foreground">{` /${per}`}</span>

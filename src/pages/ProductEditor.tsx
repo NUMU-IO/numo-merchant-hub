@@ -129,6 +129,8 @@ import {
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import { z } from "zod";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+import { toNumericInput } from "@/lib/arabic-normalize";
 
 // ── Product label presets (v1: fixed bilingual text, no colors/icons) ──
 const PRESET_LABELS: ProductLabel[] = [
@@ -469,6 +471,27 @@ const ProductEditor = () => {
       pendingFilesRef.current.forEach(p => URL.revokeObjectURL(p.url));
     };
   }, []);
+
+  // Unsaved-changes guard: compare the main fields with how they looked once
+  // the product loaded (edit) or on mount (create).
+  const formSnapshot = JSON.stringify([
+    formName, formNameAr, formDesc, formDescAr, formPrice, formComparePrice,
+    formCostPrice, formStock, formStatus, formSku, formSalePrice, formWeight,
+    formSeoTitle, formSeoDesc, formSlug, formImages, pendingFiles.length,
+  ]);
+  const [cleanSnapshot, setCleanSnapshot] = useState<string | null>(null);
+  const loadStartedRef = useRef(false);
+  useEffect(() => {
+    if (isLoadingProduct) {
+      loadStartedRef.current = true;
+      return;
+    }
+    if (cleanSnapshot === null && (!isEditMode || loadStartedRef.current)) {
+      setCleanSnapshot(formSnapshot);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingProduct]);
+  useUnsavedChangesGuard(cleanSnapshot !== null && cleanSnapshot !== formSnapshot && !isSaving);
 
   useEffect(() => {
     if (!storeId) return;
@@ -997,12 +1020,12 @@ const ProductEditor = () => {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/products")} className="h-8 w-8 rounded-lg">
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
           </Button>
           <h1 className="text-xl font-bold">
             {isEditMode
               ? (language === "ar" ? "تعديل المنتج" : "Edit Product")
-              : (language === "ar" ? "منتج فردي" : "New Product")}
+              : (language === "ar" ? "منتج جديد" : "New Product")}
           </h1>
         </div>
         <Button onClick={handleSave} disabled={isSaving} size="sm" className="h-8 text-xs rounded-lg gap-1.5">
@@ -1145,7 +1168,7 @@ const ProductEditor = () => {
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.price")} ({currentStore?.default_currency || "EGP"}) *</Label>
               <div className="relative">
-                <Input type="number" value={formPrice} onChange={e => setFormPrice(e.target.value)} placeholder="0.00" className={`h-10 rounded-lg ps-12 ${fieldErrors.price ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <Input type="text" inputMode="decimal" value={formPrice} onChange={e => setFormPrice(toNumericInput(e.target.value))} placeholder="0.00" className={`h-10 rounded-lg ps-12 ${fieldErrors.price ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
                 <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">{currentStore?.default_currency || "EGP"}</span>
               </div>
               {fieldErrors.price && <p className="text-[11px] text-destructive">{fieldErrors.price}</p>}
@@ -1153,7 +1176,7 @@ const ProductEditor = () => {
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.compareAtPrice")}</Label>
               <div className="relative">
-                <Input type="number" value={formComparePrice} onChange={e => setFormComparePrice(e.target.value)} placeholder="0.00" className={`h-10 rounded-lg ps-12 ${fieldErrors.comparePrice ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <Input type="text" inputMode="decimal" value={formComparePrice} onChange={e => setFormComparePrice(toNumericInput(e.target.value))} placeholder="0.00" className={`h-10 rounded-lg ps-12 ${fieldErrors.comparePrice ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
                 <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">{currentStore?.default_currency || "EGP"}</span>
               </div>
               {fieldErrors.comparePrice && <p className="text-[11px] text-destructive">{fieldErrors.comparePrice}</p>}
@@ -1161,7 +1184,7 @@ const ProductEditor = () => {
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.costPrice")}</Label>
               <div className="relative">
-                <Input ref={costInputRef} type="number" value={formCostPrice} onChange={e => setFormCostPrice(e.target.value)} placeholder="0.00" className={`h-10 rounded-lg ps-12 ${fieldErrors.costPrice ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <Input ref={costInputRef} type="text" inputMode="decimal" value={formCostPrice} onChange={e => setFormCostPrice(toNumericInput(e.target.value))} placeholder="0.00" className={`h-10 rounded-lg ps-12 ${fieldErrors.costPrice ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
                 <span className="absolute start-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/60 font-medium">{currentStore?.default_currency || "EGP"}</span>
               </div>
               {fieldErrors.costPrice ? (
@@ -1175,7 +1198,7 @@ const ProductEditor = () => {
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">{t("products.stock")}</Label>
               <div className="relative">
-                <Input ref={stockInputRef} type="number" value={formStock} onChange={e => setFormStock(e.target.value)} placeholder="0" className={`h-10 rounded-lg ps-8 ${fieldErrors.stock ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
+                <Input ref={stockInputRef} type="text" inputMode="numeric" value={formStock} onChange={e => setFormStock(toNumericInput(e.target.value, false))} placeholder="0" className={`h-10 rounded-lg ps-8 ${fieldErrors.stock ? "border-destructive ring-1 ring-destructive/20" : "bg-muted/30 border-transparent focus:bg-background focus:border-border"}`} />
                 <Hash className="absolute start-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40" />
               </div>
               {fieldErrors.stock && <p className="text-[11px] text-destructive">{fieldErrors.stock}</p>}
@@ -1533,7 +1556,7 @@ const ProductEditor = () => {
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-base font-bold">{language === "ar" ? "المتغيرات" : "Variants"}</CardTitle>
+              <CardTitle className="text-base font-bold">{language === "ar" ? "الاختيارات (مقاس/لون)" : "Variants"}</CardTitle>
               <CardDescription className="text-xs">
                 {language === "ar"
                   ? "هذا المنتج له خيارات، مثل المقاس أو اللون"
@@ -1574,7 +1597,7 @@ const ProductEditor = () => {
                 <Layers className="h-5 w-5 text-muted-foreground/50" />
               </div>
               <p className="text-[13px] text-muted-foreground/70 text-center">
-                {language === "ar" ? "مفيش متغيرات لسه" : "No variants yet"}
+                {language === "ar" ? "مفيش اختيارات لسه" : "No variants yet"}
               </p>
               <p className="text-[11px] text-muted-foreground/50 text-center">
                 {language === "ar" ? "اضغط \"إضافة متغير\" لإضافة مقاس أو لون" : "Add variants like Size or Color"}
@@ -1922,7 +1945,7 @@ const ProductEditor = () => {
           <CardContent>
             <p className="text-[11px] text-amber-600">
               {language === "ar"
-                ? "تم إيقاف الخيارات — سيتم حذف كل المتغيرات عند الحفظ ويعود المنتج منتجًا بسيطًا."
+                ? "قفلت الاختيارات — لما تحفظ هتتمسح كل الاختيارات ويرجع منتج من غير اختيارات."
                 : "Options turned off — saving will remove all variants and return this to a simple product."}
             </p>
           </CardContent>
@@ -2102,7 +2125,7 @@ const ProductEditor = () => {
                 {formStock && Number(formStock) === 0 && (
                   <div className="flex items-center gap-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                    <span className="text-[11px] text-red-600">{language === "ar" ? "نفذت الكمية" : "Out of stock"}</span>
+                    <span className="text-[11px] text-red-600">{language === "ar" ? "خلص من المخزون" : "Out of stock"}</span>
                   </div>
                 )}
               </div>
@@ -2267,11 +2290,10 @@ const ProductEditor = () => {
                       {language === "ar" ? "سعر الخصم" : "Discount price"}
                     </Label>
                     <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={formSalePrice}
-                      onChange={(e) => setFormSalePrice(e.target.value)}
+                      onChange={(e) => setFormSalePrice(toNumericInput(e.target.value))}
                       placeholder={formPrice || "0"}
                       className="h-9"
                     />

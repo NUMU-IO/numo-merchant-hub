@@ -150,7 +150,7 @@ function CategoryNode({
             onClick={() => onToggleExpand(cat.id)}
             className="h-6 w-6 flex items-center justify-center rounded-md hover:bg-muted transition-colors flex-shrink-0"
           >
-            {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5 rtl:-scale-x-100" />}
           </button>
         ) : (
           <div className="w-6 flex-shrink-0" />

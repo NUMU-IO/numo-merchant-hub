@@ -51,7 +51,7 @@ export function PartnerSubscriptions() {
     queryKey: ["partners", "subscriptions", appId === ALL ? undefined : appId],
     queryFn: () => listPartnerSubscriptions({ app_id: appId === ALL ? undefined : appId }),
   });
-  const day = (iso: string) => new Date(iso).toLocaleDateString(language === "ar" ? "ar-EG" : "en-GB");
+  const day = (iso: string) => new Date(iso).toLocaleDateString(language === "ar" ? "ar-EG-u-nu-latn" : "en-GB");
   const money = (cents: number, currency: string) =>
     formatMoney(cents, { fromCents: true, currency, locale: language === "ar" ? "ar" : "en", fixed: true });
 

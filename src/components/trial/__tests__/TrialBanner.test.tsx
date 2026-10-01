@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TrialBanner } from "../TrialBanner";
@@ -49,13 +49,13 @@ describe("TrialBanner", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("counts in Arabic-Indic digits with the right plural category", () => {
+  it("counts in Latin digits with the right plural category", () => {
     // Arabic counts in categories, not singular/plural. Getting 2 wrong is
-    // the tell of a machine-translated interface.
+    // the tell of a machine-translated interface. Digits are Latin, like
+    // every other number in the Arabic hub.
     on(2);
-    expect(screen.queryByText).toBeDefined();
     render(<TrialBanner />);
-    expect(screen.getByText(/باقي ٢ يومين/)).toBeInTheDocument();
+    expect(screen.getByText(/باقي 2 يومين/)).toBeInTheDocument();
   });
 
   it("escalates to the closing-the-storefront wording in the last days", () => {
@@ -66,23 +66,26 @@ describe("TrialBanner", () => {
     expect(screen.getByText(/المتجر هيتقفل قدام الزباين/)).toBeInTheDocument();
   });
 
-  it("stays low-key while there is plenty of time", () => {
+  it("stays one dismissible line while there is plenty of time", () => {
     on(30);
-    render(<TrialBanner />);
+    const { container } = render(<TrialBanner />);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByText("شوف الباقات")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "إخفاء" }));
+    expect(container).toBeEmptyDOMElement();
+    sessionStorage.clear();
   });
 
   it("draws one tick per day of the whole trial, filled for the days left", () => {
-    // The bar is the merchant's own month: 37 marks with 30 lit, not a
-    // 30-mark bar that looks full on the day it expires.
-    on(30);
+    // The bar is the merchant's own month: 37 marks with 5 lit, not a
+    // 5-mark bar that looks full on the day it expires.
+    on(5);
     const { container } = render(<TrialBanner />);
     const row = container.querySelector("[aria-hidden='true'].flex");
     const ticks = Array.from(row?.children ?? []);
     expect(ticks.length).toBe(37);
     // Counted inside the tick row, not across the banner: the CTA is saffron
-    // too, and a document-wide selector counted it as a 31st day.
-    expect(ticks.filter((t) => t.className.includes("bg-saffron")).length).toBe(30);
+    // too, and a document-wide selector counted it as an extra day.
+    expect(ticks.filter((t) => t.className.includes("bg-saffron")).length).toBe(5);
   });
 });

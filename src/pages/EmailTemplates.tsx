@@ -268,7 +268,7 @@ export default function EmailTemplates() {
   const formatUpdatedAt = (s: string) => {
     if (!s) return "—";
     try {
-      return new Date(s).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+      return new Date(s).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
@@ -538,7 +538,7 @@ export default function EmailTemplates() {
                         {isRTL ? (
                           <ChevronRight className="h-4 w-4" />
                         ) : (
-                          <ChevronLeft className="h-4 w-4" />
+                          <ChevronLeft className="h-4 w-4 rtl:-scale-x-100" />
                         )}
                       </Button>
                       <Button
@@ -551,7 +551,7 @@ export default function EmailTemplates() {
                         {isRTL ? (
                           <ChevronLeft className="h-4 w-4" />
                         ) : (
-                          <ChevronRight className="h-4 w-4" />
+                          <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
                         )}
                       </Button>
                     </div>

@@ -127,7 +127,7 @@ export function OrderTimeline({ storeId, orderId }: Props) {
     addComment.mutate(content);
   };
 
-  const dateLocale = language === "ar" ? "ar-EG" : "en-US";
+  const dateLocale = language === "ar" ? "ar-EG-u-nu-latn" : "en-US";
 
   return (
     <Card>

@@ -18,6 +18,8 @@ import {
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
 import { ImageCropDialog, fileFromCropBlob } from "@/components/ImageCropDialog";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
+
 interface PrefsState {
   favicon_url: string;
   password_enabled: boolean;
@@ -59,6 +61,7 @@ export default function OnlineStorePreferences() {
   });
   const [showPw, setShowPw] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  useUnsavedChangesGuard(isDirty);
 
   const { data: storeData, isLoading } = useQuery({
     queryKey: ["store", storeId],

@@ -47,7 +47,7 @@ export function ZonesOverviewCard({
   currency: string;
 }) {
   const navigate = useNavigate();
-  const n = (v: number) => (isAr ? v.toLocaleString("ar-EG") : v.toLocaleString());
+  const n = (v: number) => (isAr ? v.toLocaleString("ar-EG-u-nu-latn") : v.toLocaleString());
   const covered = coverage?.covered.length ?? 0;
   const conflicts = coverage?.conflicts.length ?? 0;
   const active = zones.filter((z) => z.is_active);

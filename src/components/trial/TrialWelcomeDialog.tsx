@@ -24,12 +24,6 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 const seenKey = (tenantId: string) => `numu.trial.welcomed.${tenantId}`;
 
-function digits(value: number, isAr: boolean): string {
-  return isAr
-    ? String(value).replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)])
-    : String(value);
-}
-
 export function TrialWelcomeDialog() {
   const { tenant } = useAuth();
   const { language } = useLanguage();
@@ -94,7 +88,7 @@ export function TrialWelcomeDialog() {
           />
           <div className="relative">
             <p className="text-[62px] font-bold leading-none tracking-tight text-saffron tabular-nums">
-              {digits(days, isAr)}
+              {days}
             </p>
             <p className="mt-1.5 text-[13px] text-white/70">
               {isAr

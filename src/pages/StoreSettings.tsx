@@ -170,6 +170,7 @@ import {
 } from "@/services/storeApi";
 
 import { useTrialPaywall } from "@/contexts/TrialPaywallContext";
+import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 // ─── Preload Google Fonts for font picker ────────────────────────────────────
 const HARDCODED_FONT_SETTINGS = [
@@ -847,33 +848,7 @@ const StoreSettings = () => {
 
   // ─── Effects ────────────────────────────────────────────────────────────
 
-  const unsaved = isDirty || profileDirty;
-  useEffect(() => {
-    if (!unsaved) return;
-    const message =
-      language === "ar"
-        ? "عندك تعديلات مش محفوظة. تخرج من غير ما تحفظ؟"
-        : "You have unsaved changes. Leave without saving?";
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    const onLinkClick = (e: MouseEvent) => {
-      const link = (e.target as Element | null)?.closest?.("a[href]");
-      if (!link || link.getAttribute("target") === "_blank") return;
-      if (link.getAttribute("href")?.startsWith("#")) return;
-      if (!window.confirm(message)) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    document.addEventListener("click", onLinkClick, true);
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      document.removeEventListener("click", onLinkClick, true);
-    };
-  }, [unsaved, language]);
+  useUnsavedChangesGuard(isDirty || profileDirty);
 
   // Pre-populate profile from currentStore
   useEffect(() => {

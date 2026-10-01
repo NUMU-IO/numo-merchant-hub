@@ -51,9 +51,9 @@ const storeFieldsSchema = z.object({
   storeName: z.string().min(3, "اسم المتجر يجب أن يكون 3 أحرف على الأقل").max(60),
   subdomain: z
     .string()
-    .min(3, "النطاق الفرعي يجب أن يكون 3 أحرف على الأقل")
+    .min(3, "رابط المتجر لازم يكون 3 حروف على الأقل")
     .max(30)
-    .regex(/^[a-z0-9-]+$/, "النطاق الفرعي يجب أن يحتوي فقط على أحرف صغيرة وأرقام وشرطات"),
+    .regex(/^[a-z0-9-]+$/, "رابط المتجر لازم يكون حروف إنجليزي صغيرة وأرقام وشرطات بس"),
 });
 
 type FieldErrors = Record<string, string>;
@@ -544,7 +544,7 @@ export default function AcceptBetaInvite() {
             {/* Subdomain */}
             <div className="space-y-2">
               <Label className="text-[13px] font-medium">
-                {isAr ? "النطاق الفرعي" : "Subdomain"}
+                {isAr ? "رابط المتجر" : "Store link"}
               </Label>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">

@@ -195,7 +195,7 @@ export default function MarketingCampaigns() {
   };
 
   const formatDate = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleDateString(isAr ? "ar-EG" : "en-EG") : "—";
+    iso ? new Date(iso).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-EG") : "—";
 
   return (
     <div className="space-y-6 md:p-6">

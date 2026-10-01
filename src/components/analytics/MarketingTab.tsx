@@ -147,8 +147,8 @@ export function MarketingTab({ range, formatCurrency }: MarketingTabProps) {
                             </span>
                           </div>
                         </td>
-                        <td className="text-end p-2 tabular-nums">{ch.visits.toLocaleString(isAr ? "ar-EG" : undefined)}</td>
-                        <td className="text-end p-2 tabular-nums">{ch.orders.toLocaleString(isAr ? "ar-EG" : undefined)}</td>
+                        <td className="text-end p-2 tabular-nums">{ch.visits.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}</td>
+                        <td className="text-end p-2 tabular-nums">{ch.orders.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}</td>
                         <td className="text-end p-2 font-semibold tabular-nums">{formatCurrency(ch.revenue)}</td>
                         <td className="text-end p-2 tabular-nums">{ch.conversion_rate}%</td>
                       </tr>
@@ -214,7 +214,7 @@ export function MarketingTab({ range, formatCurrency }: MarketingTabProps) {
           <Card className="border-border/60">
             <CardContent className="p-4 text-center">
               <p className="text-2xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
-                {data.total_visits.toLocaleString(isAr ? "ar-EG" : undefined)}
+                {data.total_visits.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
               </p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 {isAr ? "إجمالي الزيارات" : "Total Visits"}
@@ -224,7 +224,7 @@ export function MarketingTab({ range, formatCurrency }: MarketingTabProps) {
           <Card className="border-border/60">
             <CardContent className="p-4 text-center">
               <p className="text-2xl font-bold tabular-nums text-violet-600 dark:text-violet-400">
-                {data.attributed_visits.toLocaleString(isAr ? "ar-EG" : undefined)}
+                {data.attributed_visits.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                 <span className="text-sm text-muted-foreground ml-1">
                   ({data.total_visits > 0 ? ((data.attributed_visits / data.total_visits) * 100).toFixed(1) : 0}%)
                 </span>
@@ -255,7 +255,7 @@ export function MarketingTab({ range, formatCurrency }: MarketingTabProps) {
                     <span className="text-[11px] font-bold text-muted-foreground/40 w-4 tabular-nums shrink-0">{i + 1}</span>
                     <span className="text-[12.5px] font-medium truncate min-w-0 flex-1 ltr-nums" dir="ltr">{p.path}</span>
                     <span className="text-[12.5px] font-semibold tabular-nums shrink-0">
-                      {p.sessions.toLocaleString(isAr ? "ar-EG" : undefined)}
+                      {p.sessions.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                     </span>
                     <span className="text-[10.5px] text-muted-foreground shrink-0">
                       {isAr ? "جلسة" : "sessions"}
@@ -289,7 +289,7 @@ export function MarketingTab({ range, formatCurrency }: MarketingTabProps) {
                     <span className="text-[11px] font-bold text-muted-foreground/40 w-4 tabular-nums shrink-0">{i + 1}</span>
                     <span className="text-[12.5px] font-medium truncate min-w-0 flex-1 ltr-nums" dir="ltr">{r.host}</span>
                     <span className="text-[12.5px] font-semibold tabular-nums shrink-0">
-                      {r.sessions.toLocaleString(isAr ? "ar-EG" : undefined)}
+                      {r.sessions.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
                     </span>
                     <span className="text-[10.5px] text-muted-foreground shrink-0">
                       {isAr ? "جلسة" : "sessions"}

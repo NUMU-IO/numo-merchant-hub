@@ -164,7 +164,7 @@ export default function PromotionsList() {
   const formatDate = (s: string | null) => {
     if (!s) return "—";
     return new Date(s).toLocaleDateString(
-      language === "ar" ? "ar-EG" : "en-US",
+      language === "ar" ? "ar-EG-u-nu-latn" : "en-US",
       { year: "numeric", month: "short", day: "numeric" },
     );
   };
@@ -527,7 +527,7 @@ export default function PromotionsList() {
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4 rtl:-scale-x-100" />
           </Button>
           <span className="text-muted-foreground tabular-nums">
             {page + 1} / {totalPages}
@@ -538,7 +538,7 @@ export default function PromotionsList() {
             onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             disabled={page + 1 >= totalPages}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
           </Button>
         </div>
       )}

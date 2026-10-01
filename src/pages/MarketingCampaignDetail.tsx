@@ -123,7 +123,7 @@ const ATTRIBUTION_MODELS: AttributionModelName[] = [
 
 function formatCurrency(cents: number, isAr: boolean): string {
   const val = cents / 100;
-  return isAr ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
+  return isAr ? `${val.toLocaleString("ar-EG-u-nu-latn")} ج.م` : `EGP ${val.toLocaleString()}`;
 }
 
 export default function MarketingCampaignDetail() {
@@ -452,7 +452,7 @@ export default function MarketingCampaignDetail() {
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" size="sm" asChild>
             <Link to="/campaigns" className="gap-1.5">
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
               {isAr ? "الحملات" : "Campaigns"}
             </Link>
           </Button>

@@ -307,6 +307,27 @@
     }
   }
 
+  /* ...and the rule above still loses to the text-xs / text-sm utilities ~100
+     raw inputs carry: Tailwind v3 emits no cascade layers, so `.text-sm`
+     (0,1,0) beats `input` (0,0,1). Element + class (0,1,1) wins without
+     !important, and only lifts small sizes; bigger ones (the OTP boxes) stay. */
+  @media (max-width: 767px), (pointer: coarse) {
+    :is(input, select, textarea):is(.text-xs, .text-sm, .sm\:text-sm, .md\:text-sm, .text-\[11px\], .text-\[12px\], .text-\[13px\], .text-\[14px\], .text-\[15px\]) {
+      font-size: 16px;
+    }
+  }
+
+  /* Touch screens have no hover, so actions revealed on group-hover (image
+     remove, row edit/delete, card overlays) would never appear. The class
+     match outranks `.opacity-0`; same idea as SortableImageGrid's inline
+     `[@media(pointer:coarse)]:opacity-100`, applied everywhere at once. */
+  @media (hover: none) {
+    :root [class*="group-hover:opacity-100"],
+    :root [class*="group-hover/"][class*=":opacity-100"] {
+      opacity: 1;
+    }
+  }
+
   /* Souq UX baseline — keyboard-only focus shows a generous 4px navy
      glow ring on every interactive element. Per NHUB spec, the ring
      is WCAG-AA friendly (high contrast against any background) and

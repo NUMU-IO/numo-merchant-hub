@@ -327,9 +327,10 @@ function InstalledThemeRow({
   // protect against undefined fields here too in case the type evolves.
   const slug = themeMeta?.slug ?? "??";
   // "(V3)" is the engine generation — meaningless to a merchant.
-  const name = (themeMeta?.name ?? slug).replace(/\s*\(V\d+\)$/i, "");
+  const name = ((isRTL && themeMeta?.name_ar) || themeMeta?.name || slug).replace(/\s*\(V\d+\)$/i, "");
   const thumbnail = themeMeta?.thumbnail_url ?? null;
-  const desc = themeMeta?.short_description || themeMeta?.description || null;
+  const desc =
+    (isRTL && themeMeta?.description_ar) || themeMeta?.short_description || themeMeta?.description || null;
   const category = themeMeta?.category || null;
   const langs = (themeMeta?.supported_languages ?? []).map((l) => l.toUpperCase());
   const author = themeMeta?.author_name || null;

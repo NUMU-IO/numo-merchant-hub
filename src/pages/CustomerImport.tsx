@@ -170,7 +170,7 @@ export default function CustomerImport() {
           to="/customers"
           className="mb-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
+          <ArrowLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />
           {isAr ? "العملاء" : "Customers"}
         </Link>
         <h1 className="text-2xl font-extrabold tracking-tight leading-tight">

@@ -26,6 +26,7 @@ import { showError } from "@/lib/show-error";
 import { useUpgradeDialog } from "@/hooks/useUpgradeDialog";
 import { entitlementKeys, type UpgradeDetails } from "@/services/entitlementsApi";
 import i18n from "@/i18n";
+import { loginPath } from "@/lib/login-redirect";
 
 // Lazy-loaded pages for code splitting
 const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
@@ -228,11 +229,12 @@ for (const key of [["dashboard"], ["products"]]) {
 /** Redirects unauthenticated users to /login */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, bootError } = useAuth();
+  const { pathname, search } = useLocation();
   if (isLoading) return <BrandLoadingScreen />;
   // Server unreachable with no cached session: offline screen + Retry,
   // not a bounce to /login (whose chunk may not even be cached).
   if (bootError && !isAuthenticated) return <BrandLoadingScreen error />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to={loginPath(pathname, search)} replace />;
   return <>{children}</>;
 }
 
@@ -265,6 +267,7 @@ function SwitchVersionOnNavigate() {
 function RouteResolver({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading: authLoading, user, bootError } = useAuth();
   const { hasStores, isLoading: storeLoading, loadError: storeError } = useDashboardStore();
+  const { pathname, search } = useLocation();
 
   // Single loading state for all checks
   if (authLoading || (isAuthenticated && storeLoading)) {
@@ -272,13 +275,23 @@ function RouteResolver({ children }: { children: React.ReactNode }) {
   }
 
   if (bootError && !isAuthenticated) return <BrandLoadingScreen error />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to={loginPath(pathname, search)} replace />;
   if (user && !user.is_verified) return <Navigate to="/verify-email" replace />;
   // A failed store fetch is not "no store": offline screen + Retry.
   if (!hasStores && storeError) return <BrandLoadingScreen error />;
   if (!hasStores) return <NoStoreRedirect />;
 
   return <>{children}</>;
+}
+
+/** Signup lives on the landing page (one merchant signup form); /register and
+ *  /signup are the URLs merchants and support guess. */
+function LandingSignupRedirect() {
+  useEffect(() => {
+    const lang = (i18n.resolvedLanguage ?? i18n.language ?? "ar").startsWith("ar") ? "ar" : "en";
+    window.location.replace(`https://numueg.app/${lang}?signup=1`);
+  }, []);
+  return <BrandLoadingScreen />;
 }
 
 /** No store yet: a partner goes to their portal, everyone else creates a
@@ -349,6 +362,11 @@ const App = () => (
                   <Route path="/accept-invite" element={<AcceptBetaInvite />} />
                   <Route path="/token-handoff" element={<TokenHandoff />} />
                   <Route path="/staff/invite/accept" element={<AcceptInvitation />} />
+                  {/* Guessable URLs that used to 404 */}
+                  <Route path="/register" element={<LandingSignupRedirect />} />
+                  <Route path="/signup" element={<LandingSignupRedirect />} />
+                  <Route path="/dashboard" element={<Navigate to="/" replace />} />
+                  <Route path="/onboarding" element={<Navigate to="/onboarding-wizard" replace />} />
 
                   {/* Auth required, verification pending */}
                   <Route path="/verify-email" element={<VerifyEmail />} />

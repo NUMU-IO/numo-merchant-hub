@@ -38,6 +38,7 @@ import {
 import { NicheIcon } from "@/components/onboarding/NicheIcon";
 import { cn } from "@/lib/utils";
 import { clearPrefill, readPrefill } from "@/lib/onboardingPrefill";
+import { toNumericInput } from "@/lib/arabic-normalize";
 
 /* ──────────────────────────── Types ──────────────────────────── */
 
@@ -645,11 +646,13 @@ export default function OnboardingWizard() {
               <div className="relative w-32">
                 <Input
                   id={`zone-rate-${i}`}
-                  type="number"
-                  min="0"
-                  step="1"
+                  type="text"
+                  inputMode="decimal"
                   value={zoneRates[i]}
-                  onChange={(e) => setZoneRates((rates) => rates.map((r, j) => (j === i ? e.target.value : r)))}
+                  onChange={(e) => {
+                    const v = toNumericInput(e.target.value);
+                    setZoneRates((rates) => rates.map((r, j) => (j === i ? v : r)));
+                  }}
                   className="h-9 pe-12"
                 />
                 <span className="absolute inset-y-0 end-2 flex items-center text-xs text-muted-foreground">
@@ -753,13 +756,12 @@ export default function OnboardingWizard() {
           <Label className="text-sm font-medium">{isAr ? "السعر" : "Price"}</Label>
           <div className="relative">
             <Input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={productPrice}
-              onChange={(e) => setProductPrice(e.target.value)}
+              onChange={(e) => setProductPrice(toNumericInput(e.target.value))}
               placeholder="199"
               className="h-11 rounded-lg pe-16"
-              min="0"
-              step="0.01"
             />
             <span className="absolute inset-y-0 end-3 flex items-center text-sm text-muted-foreground">
               {currentStore?.default_currency || "EGP"}
@@ -769,12 +771,11 @@ export default function OnboardingWizard() {
         <div className="space-y-2">
           <Label className="text-sm font-medium">{isAr ? "الكمية المتاحة" : "Quantity in stock"}</Label>
           <Input
-            type="number"
+            type="text"
+            inputMode="numeric"
             value={productQuantity}
-            onChange={(e) => setProductQuantity(e.target.value)}
+            onChange={(e) => setProductQuantity(toNumericInput(e.target.value, false))}
             className="h-11 rounded-lg"
-            min="0"
-            step="1"
           />
         </div>
         <div className="space-y-2">

@@ -116,7 +116,7 @@ export function BlockEditorPanel() {
           className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
           onClick={goBack}
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
         </button>
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold">{blockLabel}</h2>

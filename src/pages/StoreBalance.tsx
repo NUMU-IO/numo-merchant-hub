@@ -44,10 +44,10 @@ const StoreBalance = () => {
   const [txFailed, setTxFailed] = useState(false);
   const [page, setPage] = useState(0);
 
-  const fmtBig = (cents: number) => (cents / 100).toLocaleString(isAr ? "ar-EG" : "en-US", { minimumFractionDigits: 2 });
+  const fmtBig = (cents: number) => (cents / 100).toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US", { minimumFractionDigits: 2 });
   const fmt = (cents: number) => formatMoney(cents, { fromCents: true, locale: isAr ? "ar" : "en" });
-  const fmtDate = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" });
-  const fmtTime = (d: string) => new Date(d).toLocaleTimeString(isAr ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" });
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", { month: "short", day: "numeric", year: "numeric" });
+  const fmtTime = (d: string) => new Date(d).toLocaleTimeString(isAr ? "ar-EG-u-nu-latn" : "en-US", { hour: "2-digit", minute: "2-digit" });
 
   useEffect(() => {
     if (!storeId) return;
@@ -76,7 +76,7 @@ const StoreBalance = () => {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate("/payments")}>
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
         </Button>
         <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{isAr ? "رصيد المتجر" : "Store Balance"}</h1>
       </div>

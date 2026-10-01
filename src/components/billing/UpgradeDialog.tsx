@@ -21,7 +21,7 @@ export function UpgradeDialog() {
   const details = useUpgradeDialog((s) => s.details);
   const close = useUpgradeDialog((s) => s.close);
 
-  const locale = isRTL ? "ar-EG" : "en-GB";
+  const locale = isRTL ? "ar-EG-u-nu-latn" : "en-GB";
   const reason = details?.reason;
   // A limit of 0 means the plan has none of it: say "not in your plan".
   const limit = typeof details?.limit === "number" && details.limit > 0 ? details.limit : null;

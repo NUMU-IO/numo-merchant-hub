@@ -92,12 +92,12 @@ export default function Customers() {
 
   const formatCurrency = (cents: number) => {
     const val = cents / 100;
-    return isAr ? `${val.toLocaleString("ar-EG")} ج.م` : `EGP ${val.toLocaleString()}`;
+    return isAr ? `${val.toLocaleString("ar-EG-u-nu-latn")} ج.م` : `EGP ${val.toLocaleString()}`;
   };
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+    return new Date(dateStr).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", {
       year: "numeric", month: "short", day: "numeric",
     });
   };
@@ -191,7 +191,7 @@ export default function Customers() {
       <div className="space-y-5">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={closeDetail}>
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
           </Button>
           {c.avatar_url ? (
             <img src={c.avatar_url} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-border" />
@@ -314,7 +314,7 @@ export default function Customers() {
                           </Badge>
                         </div>
                         <p className="text-[11px] text-muted-foreground">
-                          {new Date(o.created_at).toLocaleDateString(isAr ? "ar-EG" : "en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          {new Date(o.created_at).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US", { month: "short", day: "numeric", year: "numeric" })}
                           {" · "}{o.item_count} {isAr ? "منتج" : "items"}
                         </p>
                       </div>
@@ -372,21 +372,21 @@ export default function Customers() {
         {[
           {
             label: isAr ? "إجمالي العملاء" : "Total customers",
-            value: total.toLocaleString(isAr ? "ar-EG" : undefined),
+            value: total.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined),
             hint: isAr ? "كل العملاء المسجلين" : "All customer records",
             Icon: Users,
             chip: "ichip ichip-navy",
           },
           {
             label: isAr ? "عملاء جدد" : "New this month",
-            value: customerAnalytics?.new_customers.toLocaleString(isAr ? "ar-EG" : undefined) ?? "—",
+            value: customerAnalytics?.new_customers.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined) ?? "—",
             hint: isAr ? "من أول الشهر" : "Month to date",
             Icon: UserCheck,
             chip: "ichip ichip-sage",
           },
           {
             label: isAr ? "عملاء متكررون" : "Returning this month",
-            value: customerAnalytics?.returning_customers.toLocaleString(isAr ? "ar-EG" : undefined) ?? "—",
+            value: customerAnalytics?.returning_customers.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined) ?? "—",
             hint: isAr ? "اشتروا مرة أخرى" : "Bought again this month",
             Icon: Repeat2,
             chip: "ichip ichip-saffron",
@@ -586,10 +586,10 @@ export default function Customers() {
                   </p>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => p - 1)}>
-                      <ChevronLeft className="h-3.5 w-3.5" />
+                      <ChevronLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((p) => p + 1)}>
-                      <ChevronRight className="h-3.5 w-3.5" />
+                      <ChevronRight className="h-3.5 w-3.5 rtl:-scale-x-100" />
                     </Button>
                   </div>
                 </div>
@@ -614,7 +614,7 @@ interface TrustStatsCardProps {
 // Format big numbers compactly for the social-proof tiles: 12347 → "12.3k".
 // Returns the raw string for <1000 since "1k" is less readable than "873".
 function compactNumber(n: number, isAr: boolean): string {
-  if (n < 1000) return n.toLocaleString(isAr ? "ar-EG" : "en-US");
+  if (n < 1000) return n.toLocaleString(isAr ? "ar-EG-u-nu-latn" : "en-US");
   if (n < 1_000_000) {
     const v = (n / 1000).toFixed(n < 10_000 ? 1 : 0).replace(/\.0$/, "");
     return `${v}${isAr ? "ألف" : "k"}`;
@@ -1013,14 +1013,14 @@ function TrustStatsCard({ storeId, customerId, isAr }: TrustStatsCardProps) {
               <span className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
                 {isAr ? "آخر طلب: " : "Last order: "}
-                {new Date(data.last_order_at).toLocaleDateString(isAr ? "ar-EG" : "en-US")}
+                {new Date(data.last_order_at).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US")}
               </span>
             )}
             {data.last_rto_at && (
               <span className="text-red-500/70 flex items-center gap-1">
                 <RotateCcw className="h-3 w-3" />
                 {isAr ? "آخر مرتجع: " : "Last rejection: "}
-                {new Date(data.last_rto_at).toLocaleDateString(isAr ? "ar-EG" : "en-US")}
+                {new Date(data.last_rto_at).toLocaleDateString(isAr ? "ar-EG-u-nu-latn" : "en-US")}
               </span>
             )}
           </div>

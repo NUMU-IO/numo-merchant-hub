@@ -90,7 +90,7 @@ export function VersionHistoryPanel() {
       try {
         const date = new Date(iso);
         return new Intl.DateTimeFormat(
-          locale === "ar" ? "ar-EG" : "en-US",
+          locale === "ar" ? "ar-EG-u-nu-latn" : "en-US",
           { dateStyle: "medium", timeStyle: "short" },
         ).format(date);
       } catch {

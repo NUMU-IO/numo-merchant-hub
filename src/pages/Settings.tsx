@@ -126,7 +126,7 @@ export default function Settings() {
                   § {isAr ? section.title.ar : section.title.en}
                 </h2>
                 <span className="text-[11px] font-bold tabular-nums text-ink-faint">
-                  {isAr ? section.items.length.toLocaleString("ar-EG") : section.items.length}
+                  {isAr ? section.items.length.toLocaleString("ar-EG-u-nu-latn") : section.items.length}
                   {" "}{isAr ? "عنصر" : section.items.length === 1 ? "item" : "items"}
                 </span>
               </div>

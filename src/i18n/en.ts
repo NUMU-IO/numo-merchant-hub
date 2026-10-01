@@ -1926,7 +1926,7 @@ export default {
   },
   common: {
     currency: "EGP",
-    currencySymbol: "ج.م",
+    currencySymbol: "EGP",
     loading: "Loading...",
     error: "Something went wrong",
     loadFailed: "Couldn't load this. Check your connection and try again.",

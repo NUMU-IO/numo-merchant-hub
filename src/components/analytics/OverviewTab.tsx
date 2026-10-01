@@ -21,6 +21,7 @@ import type {
   LocationSales, CustomerAnalytics, ConversionStats,
   CodRejectionStats, FunnelData, TrafficSourceData, OrdersBreakdown,
 } from "@/services/analyticsApi";
+import { chartDayLabel } from "@/lib/format-date";
 
 interface OverviewTabProps {
   overview: SalesOverview | null;
@@ -73,7 +74,7 @@ export function OverviewTab({
     );
   };
 
-  const locale = isAr ? "ar-EG" : undefined;
+  const locale = isAr ? "ar-EG-u-nu-latn" : undefined;
   const fmtNum = (n: number) => n.toLocaleString(locale);
 
   // ── Funnel stages (Zid order) from the real /analytics/funnel counts ──
@@ -182,9 +183,10 @@ export function OverviewTab({
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 5" className="stroke-border/40" vertical={false} />
-                    <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="date" tickFormatter={(v: string) => chartDayLabel(v, isAr ? "ar" : "en")} tick={axisTick} axisLine={false} tickLine={false} />
                     <YAxis tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 100).toLocaleString()}`} />
                     <Tooltip
+                      labelFormatter={(v: string) => chartDayLabel(String(v), isAr ? "ar" : "en")}
                       contentStyle={tooltipStyle}
                       formatter={(value: number, name: string) => [
                         formatCurrency(value),
@@ -254,9 +256,10 @@ export function OverviewTab({
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 5" className="stroke-border/40" vertical={false} />
-                    <XAxis dataKey="date" tick={axisTick} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="date" tickFormatter={(v: string) => chartDayLabel(v, isAr ? "ar" : "en")} tick={axisTick} axisLine={false} tickLine={false} />
                     <YAxis tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip
+                      labelFormatter={(v: string) => chartDayLabel(String(v), isAr ? "ar" : "en")}
                       contentStyle={tooltipStyle}
                       formatter={(value: number, name: string) => [
                         value,
@@ -400,9 +403,9 @@ export function OverviewTab({
             {customerStats ? (
               <div className="space-y-3">
                 {[
-                  { label: isAr ? "إجمالي العملاء" : "Total Customers", value: customerStats.total_customers.toLocaleString(isAr ? "ar-EG" : undefined) },
-                  { label: isAr ? "عملاء جدد" : "New Customers", value: customerStats.new_customers.toLocaleString(isAr ? "ar-EG" : undefined) },
-                  { label: isAr ? "عملاء عائدين" : "Returning", value: customerStats.returning_customers.toLocaleString(isAr ? "ar-EG" : undefined) },
+                  { label: isAr ? "إجمالي العملاء" : "Total Customers", value: customerStats.total_customers.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined) },
+                  { label: isAr ? "عملاء جدد" : "New Customers", value: customerStats.new_customers.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined) },
+                  { label: isAr ? "عملاء عائدين" : "Returning", value: customerStats.returning_customers.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined) },
                   { label: isAr ? "متوسط قيمة العميل" : "Avg Customer Value", value: formatCurrency(customerStats.avg_customer_value) },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between rounded-lg p-2 -mx-2 hover:bg-muted/50 transition-colors">
@@ -440,12 +443,12 @@ export function OverviewTab({
                 </div>
                 <div className="space-y-2">
                   {[
-                    { label: isAr ? "إجمالي شحنات COD" : "Total COD Shipments", value: codRejection.total_cod_shipments.toLocaleString(isAr ? "ar-EG" : undefined) },
-                    { label: isAr ? "تم التسليم" : "Delivered", value: codRejection.delivered_count.toLocaleString(isAr ? "ar-EG" : undefined) },
+                    { label: isAr ? "إجمالي شحنات COD" : "Total COD Shipments", value: codRejection.total_cod_shipments.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined) },
+                    { label: isAr ? "تم التسليم" : "Delivered", value: codRejection.delivered_count.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined) },
                     // Backend: rejected = returned ∪ cancelled, so "Rejected"
                     // and "Returned" are NOT disjoint rows — label it so.
-                    { label: t("analytics.cod.rejectedOrReturned"), value: codRejection.rejected_count.toLocaleString(isAr ? "ar-EG" : undefined) },
-                    { label: isAr ? "منها مرتجع" : "of which returned", value: codRejection.returned_count.toLocaleString(isAr ? "ar-EG" : undefined) },
+                    { label: t("analytics.cod.rejectedOrReturned"), value: codRejection.rejected_count.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined) },
+                    { label: isAr ? "منها مرتجع" : "of which returned", value: codRejection.returned_count.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined) },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between rounded-lg p-2 -mx-2 hover:bg-muted/50 transition-colors">
                       <span className="text-[13px] text-muted-foreground">{item.label}</span>
