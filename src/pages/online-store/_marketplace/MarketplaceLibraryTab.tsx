@@ -317,7 +317,6 @@ function InstalledThemeRow({
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const themeMeta = theme.theme;
-  const versionMeta = theme.version;
   const installedDate = useMemo(() => {
     if (!theme.installed_at) return null;
     const d = new Date(theme.installed_at);
@@ -327,8 +326,8 @@ function InstalledThemeRow({
   // Defensive — if the join came back null we filtered upstream, but
   // protect against undefined fields here too in case the type evolves.
   const slug = themeMeta?.slug ?? "??";
-  const name = themeMeta?.name ?? slug;
-  const versionString = versionMeta?.version_string ?? "?";
+  // "(V3)" is the engine generation — meaningless to a merchant.
+  const name = (themeMeta?.name ?? slug).replace(/\s*\(V\d+\)$/i, "");
   const thumbnail = themeMeta?.thumbnail_url ?? null;
   const desc = themeMeta?.short_description || themeMeta?.description || null;
   const category = themeMeta?.category || null;
@@ -407,7 +406,6 @@ function InstalledThemeRow({
 
             {/* Meta row */}
             <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs text-muted-foreground">
-              <span className="font-mono">v{versionString}</span>
               {installedDate && (
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="h-3 w-3" />

@@ -385,6 +385,10 @@ export default function WhatsApp() {
   // The platform gate that sits ABOVE `connected`: a store can only connect
   // a number / switch on notifications once an admin has approved access.
   const approved = access?.status === "approved";
+  // Header, badge and counters read the same gate as WhatsAppAccessGate, so
+  // the page never says "live" above a "needs activation" card.
+  const gated = !!access && !approved;
+  const live = connected && !gated;
   const enabledNotifications = status
     ? Object.values(status.notifications ?? {}).filter(Boolean).length
     : 0;
@@ -446,8 +450,8 @@ export default function WhatsApp() {
                     {isAr ? "واتساب للأعمال" : "WhatsApp Business"}
                   </h1>
                   <Badge className="gap-1 border-white/15 bg-white/15 text-white hover:bg-white/15">
-                    {connected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
-                    {connected
+                    {live ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                    {live
                       ? isByo
                         ? isAr ? "متصل برقمك" : "Your number"
                         : isAr ? "مفعّل عبر NUMU" : "Live via NUMU"
@@ -498,11 +502,13 @@ export default function WhatsApp() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 divide-x divide-white/15 overflow-hidden rounded-2xl border border-white/15 bg-black/10 backdrop-blur rtl:divide-x-reverse">
-              <HeroMetric value={fmtNum(enabledNotifications)} label={isAr ? "إشعار مفعّل" : "Automations"} />
-              <HeroMetric value={fmtNum(approvedTemplates)} label={isAr ? "قالب معتمد" : "Templates"} />
-              <HeroMetric value={fmtNum(analytics?.active_conversations ?? 0)} label={isAr ? "محادثة نشطة" : "Active chats"} />
-            </div>
+            {!gated && (
+              <div className="grid grid-cols-3 divide-x divide-white/15 overflow-hidden rounded-2xl border border-white/15 bg-black/10 backdrop-blur rtl:divide-x-reverse">
+                <HeroMetric value={fmtNum(enabledNotifications)} label={isAr ? "إشعار مفعّل" : "Automations"} />
+                <HeroMetric value={fmtNum(approvedTemplates)} label={isAr ? "قالب معتمد" : "Templates"} />
+                <HeroMetric value={fmtNum(analytics?.active_conversations ?? 0)} label={isAr ? "محادثة نشطة" : "Active chats"} />
+              </div>
+            )}
           </div>
         </div>
 

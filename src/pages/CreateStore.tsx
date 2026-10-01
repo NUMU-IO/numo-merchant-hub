@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PhoneInput, isValidE164 } from "@/components/forms/PhoneInput";
-import { Loader2, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ArrowRight, Globe } from "lucide-react";
 import { getStoreDomainSuffix } from "@/lib/storefront";
 import { getStoreSubdomainSuffix, withEnvSuffix } from "@/lib/env";
 import { toStoreSlug } from "@/lib/store-slug";
@@ -31,7 +31,7 @@ type FieldErrors = Record<string, string>;
 
 export default function CreateStore() {
   const { t } = useTranslation();
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const { refetchStores, hasStores } = useDashboardStore();
@@ -47,11 +47,10 @@ export default function CreateStore() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  // Phase 5.11 — opt-in demo catalog. Default ON because most
-  // first-time merchants benefit from seeing something on their
-  // storefront immediately. Power users (importers / migrators) can
-  // untick to skip.
-  const [seedDemo, setSeedDemo] = useState(true);
+  // Opt-in demo catalog. Off by default: samples on a live store are
+  // products a customer can order that do not exist. The API removes them
+  // when the merchant saves their first real product.
+  const [seedDemo, setSeedDemo] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -170,6 +169,14 @@ export default function CreateStore() {
 
   return (
     <div className="min-h-screen auth-page auth-dot-grid relative flex items-center justify-center p-4 sm:p-6 lg:p-10">
+      <button
+        type="button"
+        onClick={() => setLanguage(isAr ? "en" : "ar")}
+        className="fixed top-4 end-4 z-20 inline-flex items-center gap-1.5 rounded-[4px] border border-[var(--b-line)] bg-[var(--b-paper)] px-3 py-1.5 text-xs font-medium text-[var(--b-ink-soft)] hover:text-[var(--b-ink)] hover:border-[var(--b-navy)] transition-colors shadow-xs"
+      >
+        <Globe className="h-3.5 w-3.5" />
+        {isAr ? "English" : "العربية"}
+      </button>
       {/* ── Brand text — lg+. Souq auth surface is warm cream, so the
           old `text-primary-foreground` (white) was invisible. Switched
           to navy ink with graduated opacity. ── */}
@@ -178,7 +185,7 @@ export default function CreateStore() {
           <span className="souq-wordmark text-base font-black tracking-[0.18em]">NUMU</span>
           <div className="max-w-[280px]">
             <h2 className="text-[1.85rem] font-extrabold text-navy leading-[1.25] tracking-tight">
-              Launch your<br />store today.
+              {isAr ? <>اعمل متجرك<br />النهارده.</> : <>Launch your<br />store today.</>}
             </h2>
             <div className="w-8 h-px bg-navy/20 mt-6 mb-5" />
             <p className="text-ink-soft text-[13px] leading-relaxed">{t("createStore.subtitle")}</p>
@@ -191,7 +198,7 @@ export default function CreateStore() {
       <div className="w-full max-w-[460px] lg:ms-auto lg:me-[8%] xl:me-[12%]">
         <div className="auth-glass rounded-2xl p-7 sm:p-9 auth-enter">
           <div className="lg:hidden mb-6 flex justify-center">
-            <span className="text-base font-black tracking-[0.18em] text-white/70">NUMU</span>
+            <span className="souq-wordmark text-base font-black tracking-[0.18em]">NUMU</span>
           </div>
 
           {hasStores && (
@@ -312,8 +319,7 @@ export default function CreateStore() {
             </div>
 
             {/* Phase 5.11 — demo seed toggle.
-                On by default; one click off for merchants who already
-                have their catalog ready to import. We use a real
+                Off by default (see seedDemo). We use a real
                 <input type="checkbox"> with proper label association
                 instead of a custom switch so screen readers + Tab key
                 Just Work. */}
@@ -332,8 +338,8 @@ export default function CreateStore() {
                 </span>
                 <span className="text-muted-foreground">
                   {isAr
-                    ? "يساعدك على معاينة متجرك قبل رفع كتالوجك. يمكنك حذفها لاحقًا بنقرة واحدة."
-                    : "Helps you preview your storefront before uploading your catalog. Delete them later with one click."}
+                    ? "عشان تشوف شكل متجرك قبل ما تضيف منتجاتك. بتتمسح لوحدها أول ما تضيف أول منتج ليك."
+                    : "To see your store before you add your own products. They are removed automatically when you add your first product."}
                 </span>
               </span>
             </label>
@@ -343,7 +349,7 @@ export default function CreateStore() {
             )}
 
             <Button type="submit" className="w-full h-11 text-sm font-semibold gap-2 rounded-lg mt-1" disabled={loading || subdomainStatus !== "available"}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t("createStore.create")}<ArrowRight className="h-4 w-4" /></>}
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{t("createStore.create")}<ArrowRight className="h-4 w-4 rtl:rotate-180" /></>}
             </Button>
           </form>
         </div>

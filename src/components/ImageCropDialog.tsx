@@ -14,6 +14,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Slider } from "@/components/ui/slider";
 import { Loader2, ZoomIn, RotateCw } from "lucide-react";
 
@@ -69,10 +70,12 @@ export function ImageCropDialog({
   cropShape = "round",
   aspect = 1,
   aspectPresets,
-  title = "تعديل الصورة",
+  title,
   loading = false,
   isRTL = false,
 }: ImageCropDialogProps) {
+  const { language } = useLanguage();
+  const isAr = language === "ar";
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
@@ -163,7 +166,7 @@ export function ImageCropDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-5 pt-5 pb-3">
-          <DialogTitle className="text-sm font-medium">{title}</DialogTitle>
+          <DialogTitle className="text-sm font-medium">{title ?? (isAr ? "تعديل الصورة" : "Edit image")}</DialogTitle>
         </DialogHeader>
 
         {/* Crop area */}
@@ -254,11 +257,11 @@ export function ImageCropDialog({
 
         <DialogFooter className="px-5 pb-5 pt-0">
           <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>
-            إلغاء
+            {isAr ? "إلغاء" : "Cancel"}
           </Button>
           <Button size="sm" onClick={handleSave} disabled={loading} className="gap-2">
             {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            حفظ
+            {isAr ? "حفظ" : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>

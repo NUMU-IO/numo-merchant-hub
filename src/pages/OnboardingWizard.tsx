@@ -1,7 +1,6 @@
 /**
- * OnboardingWizard — multi-step smart onboarding that auto-configures
- * the store based on the merchant's answers, then optionally creates
- * their first product and shows a store preview.
+ * OnboardingWizard — opens on the live store (link, share, phone preview),
+ * then optional steps: category, shipping prices, payments, first product.
  */
 
 import { useState, useCallback, useRef } from "react";
@@ -12,8 +11,10 @@ import { useDashboardStore } from "@/contexts/StoreContext";
 import { configureFromWizard, type WizardConfig } from "@/services/storeApi";
 import { track } from "@/lib/analytics";
 import { createProduct, uploadProductImage } from "@/services/productApi";
-import { errorMessage } from "@/lib/api-error";
+import { ApiError, errorMessage } from "@/lib/api-error";
 import { getPublicStoreUrl, getStoreFrameUrl } from "@/lib/storefront";
+import { applyEgypt4ZonePreset } from "@/services/shippingApi";
+import StoreLinkShare from "@/components/StoreLinkShare";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,13 +24,11 @@ import {
   ArrowLeft,
   ArrowRight,
   Sparkles,
-  MapPin,
   Truck,
   CreditCard,
   Check,
   SkipForward,
   Upload,
-  ExternalLink,
   ImagePlus,
   X,
   Package,
@@ -61,12 +60,6 @@ interface ChoiceOption {
   domain?: string;
   /** Fallback for the options that are not a company (own site, a shop). */
   icon?: React.ReactNode;
-}
-
-interface CountryOption {
-  code: string;
-  label: string;
-  flag: string;
 }
 
 interface ShippingOption {
@@ -124,19 +117,19 @@ const NICHES: NicheOption[] = [
   { id: "other", label: "أخرى", labelEn: "Other", icon: <NicheIcon kind="other" />, hue: "#5B6876" },
 ];
 
-const COUNTRIES: CountryOption[] = [
-  { code: "EG", label: "مصر", flag: "🇪🇬" },
-  { code: "SA", label: "السعودية", flag: "🇸🇦" },
-  { code: "AE", label: "الإمارات", flag: "🇦🇪" },
-  { code: "JO", label: "الأردن", flag: "🇯🇴" },
-  { code: "KW", label: "الكويت", flag: "🇰🇼" },
-];
-
 // Egyptian-market options (default).
 const SHIPPING_OPTIONS: ShippingOption[] = [
-  { id: "bosta", label: "بوسطة", desc: "شحن آلي مع تتبع — الأفضل لمصر" },
-  { id: "manual", label: "مناطق يدوية", desc: "حدد مناطق الشحن والأسعار بنفسك" },
-  { id: "both", label: "الاثنين معاً", desc: "بوسطة + مناطق يدوية كنسخة احتياطية" },
+  { id: "manual", label: "أسعار شحن حسب المنطقة", desc: "٤ مناطق تغطي الـ ٢٧ محافظة — تأكد الأسعار دلوقتي" },
+  { id: "bosta", label: "بوسطة", desc: "شحن مع تتبع — تربط حسابك في بوسطة من صفحة الشحن بعد الإعداد" },
+  { id: "both", label: "الاثنين", desc: "أسعار المناطق دلوقتي + بوسطة لما تربط حسابك" },
+];
+
+// The Egypt 4-zone preset, in the order the API takes `rates_cents`.
+const EGYPT_ZONES = [
+  { ar: "القاهرة الكبرى", en: "Greater Cairo", price: "50" },
+  { ar: "الإسكندرية والدلتا", en: "Alexandria & Delta", price: "60" },
+  { ar: "القناة وسيناء والصعيد", en: "Canal, Sinai & Upper Egypt", price: "70" },
+  { ar: "المناطق النائية", en: "Remote areas", price: "90" },
 ];
 
 const PAYMENT_OPTIONS: PaymentOption[] = [
@@ -151,7 +144,7 @@ const PAYMENT_OPTIONS: PaymentOption[] = [
 // integrated yet, so SA gets manual zones (+ COD). Payment is COD +
 // Moyasar (mada / Visa / Mastercard / Apple Pay).
 const SHIPPING_OPTIONS_SA: ShippingOption[] = [
-  { id: "manual", label: "مناطق يدوية", desc: "حدد مناطق الشحن والأسعار بنفسك" },
+  { id: "manual", label: "مناطق يدوية", desc: "تضيف مناطقك وأسعارها من صفحة الشحن — الطلب مش هيكمل لحد ما تضيف منطقة بسعر" },
 ];
 
 const PAYMENT_OPTIONS_SA: PaymentOption[] = [
@@ -169,19 +162,36 @@ const PREFILL_OPTIONS = {
   shipping: SHIPPING_OPTIONS.map((o) => o.id),
 };
 
-// Steps: 0 = welcome, 1-4 = config, 5 = first product, 6 = preview
-const TOTAL_STEPS = 6;
+// Steps: 0 = your store is live, 1 = category, 2 = shipping, 3 = payments,
+// 4 = first product, 5 = ready. Everything after 0 is skippable.
+const TOTAL_STEPS = 5;
 
 /* ──────────────────────────── Step Labels ──────────────────────────── */
 
 const STEP_LABELS = [
   { key: "niche", labelAr: "التصنيف", labelEn: "Category" },
-  { key: "country", labelAr: "الموقع", labelEn: "Location" },
   { key: "shipping", labelAr: "الشحن", labelEn: "Shipping" },
   { key: "payments", labelAr: "الدفع", labelEn: "Payments" },
   { key: "product", labelAr: "منتج", labelEn: "Product" },
   { key: "preview", labelAr: "معاينة", labelEn: "Preview" },
 ];
+
+/** Phone-sized live preview with a spinner until the store has painted, so
+ *  the frame is never an empty box. */
+function StorePhonePreview({ src, isAr }: { src: string; isAr: boolean }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div className="relative mx-auto w-[260px] h-[460px] rounded-[28px] border-[6px] border-[var(--b-ink)] bg-white overflow-hidden shadow-lg">
+      {!loaded && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white text-xs text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          {isAr ? "بنجهز المعاينة..." : "Loading your store..."}
+        </div>
+      )}
+      <iframe src={src} onLoad={() => setLoaded(true)} className="w-full h-full" title={isAr ? "معاينة المتجر" : "Store preview"} />
+    </div>
+  );
+}
 
 /* ──────────────────────────── Component ──────────────────────────── */
 
@@ -199,9 +209,10 @@ export default function OnboardingWizard() {
   const storeCountry = (currentStore?.country || "EG").toUpperCase();
   const [prefill] = useState(() => readPrefill(PREFILL_OPTIONS));
   const egPrefill = storeCountry === "EG" ? prefill : null;
-  const [step, setStep] = useState(0); // 0 = welcome
+  const [step, setStep] = useState(0); // 0 = your store is live
   const [businessType, setBusinessType] = useState<string>(prefill?.niche ?? "");
-  const [country, setCountry] = useState<string>(storeCountry);
+  const country = storeCountry;
+  const [zoneRates, setZoneRates] = useState<string[]>(EGYPT_ZONES.map((z) => z.price));
   const [sellsWhereToday, setSellsWhereToday] = useState<string>(prefill?.sellsWhere ?? "");
   const [monthlyOrdersBand, setMonthlyOrdersBand] = useState<string>(prefill?.ordersBand ?? "");
   const [city, setCity] = useState<string>("");
@@ -226,27 +237,17 @@ export default function OnboardingWizard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const progressValue = step === 0 ? 0 : (step / TOTAL_STEPS) * 100;
+  const storeUrl = getPublicStoreUrl(currentStore);
+  const frameUrl = getStoreFrameUrl(currentStore, isAr ? "ar" : "en");
+  const usesZonePreset = country === "EG" && (shippingPref === "manual" || shippingPref === "both");
 
   const canAdvance = useCallback(() => {
     switch (step) {
-      case 0: return true; // welcome
-      case 1: return !!businessType && !!sellsWhereToday && !!monthlyOrdersBand;
-      case 2: return !!country;
-      case 3: return !!shippingPref;
-      case 4: return paymentMethods.length > 0;
-      case 5: return true; // product step is skippable
-      case 6: return true; // preview is always passable
-      default: return false;
+      case 1: return !!businessType;
+      case 2: return !!shippingPref && (!usesZonePreset || zoneRates.every((r) => r !== "" && Number(r) >= 0));
+      default: return true;
     }
-  }, [
-    step,
-    businessType,
-    sellsWhereToday,
-    monthlyOrdersBand,
-    country,
-    shippingPref,
-    paymentMethods,
-  ]);
+  }, [step, businessType, shippingPref, usesZonePreset, zoneRates]);
 
   const togglePayment = (id: string) => {
     if (id === "cod") return;
@@ -294,7 +295,6 @@ export default function OnboardingWizard() {
       paymentMethods: string[];
     }> = {};
     if (!businessType) defaults.businessType = "other";
-    if (!country) defaults.country = "EG";
     if (!shippingPref) defaults.shippingPref = "manual";
     if (paymentMethods.length === 0) defaults.paymentMethods = ["cod"];
 
@@ -386,25 +386,45 @@ export default function OnboardingWizard() {
     setStep(TOTAL_STEPS); // Go to preview
   };
 
+  // The prices the merchant just confirmed become the store's zones. A store
+  // that already has zones keeps them (409).
+  const applyShippingPreset = async (): Promise<boolean> => {
+    if (!currentStore?.id || !usesZonePreset) return true;
+    try {
+      await applyEgypt4ZonePreset(currentStore.id, zoneRates.map((r) => Math.round(Number(r) * 100)));
+    } catch (err: unknown) {
+      if (!(err instanceof ApiError && err.status === 409)) {
+        setError(errorMessage(err, language));
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleFinish = () => {
     navigate("/", { replace: true });
   };
 
-  // When advancing from step 4 (payments), submit config first
   const handleStepTransition = async () => {
-    if (step === 4) {
+    if (step === 2) {
+      setLoading(true);
+      setError(null);
+      const ok = await applyShippingPreset();
+      setLoading(false);
+      if (ok) handleNext();
+    } else if (step === 3) {
       // Submit configuration, then advance to product step
       setLoading(true);
       setError(null);
       try {
         await handleSubmitConfig();
-        setStep(5);
+        setStep(4);
       } catch {
         // Error already handled in handleSubmitConfig
       } finally {
         setLoading(false);
       }
-    } else if (step === 5 && productName && productPrice) {
+    } else if (step === 4 && productName && productPrice) {
       // Submit product, then advance to preview
       await handleProductSubmit();
     } else {
@@ -416,24 +436,35 @@ export default function OnboardingWizard() {
 
   const renderWelcome = () => (
     <div className="text-center space-y-6">
-      <div className="w-20 h-20 mx-auto rounded-[14px] bg-[var(--b-saffron)]/15 border border-[var(--b-saffron)]/40 flex items-center justify-center">
-        <Sparkles className="h-10 w-10 text-[var(--b-saffron)]" />
+      <div className="w-16 h-16 mx-auto rounded-[14px] bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+        <Check className="h-8 w-8 text-emerald-600" />
       </div>
       <div>
         <h1 className="brand-display text-3xl font-bold tracking-tight text-[var(--b-ink)] leading-tight">
-          {isAr ? `أهلاً ${user?.first_name || ""}!` : `Welcome, ${user?.first_name || ""}!`}
+          {isAr ? "متجرك اتعمل!" : "Your store is live!"}
         </h1>
         <p className="text-lg text-[var(--b-ink-soft)] mt-2">
-          {isAr ? "خلينا نجهز متجرك في دقائق" : "Let's get your store ready in minutes"}
+          {currentStore?.name || (isAr ? `أهلاً ${user?.first_name || ""}` : `Welcome, ${user?.first_name || ""}`)}
         </p>
       </div>
+      {storeUrl && (
+        <div className="max-w-sm mx-auto text-start">
+          <StoreLinkShare url={storeUrl} storeName={currentStore?.name} />
+        </div>
+      )}
+      {frameUrl && <StorePhonePreview src={frameUrl} isAr={isAr} />}
+      <p className="text-sm text-[var(--b-ink-soft)] max-w-sm mx-auto">
+        {isAr
+          ? "٤ خطوات سريعة لأسعار الشحن والدفع وأول منتج — كلها اختيارية وتقدر ترجعلها من لوحة التحكم."
+          : "Four quick steps for shipping prices, payments and your first product — all optional, and you can come back to them from the dashboard."}
+      </p>
       <div className="flex flex-col gap-3 max-w-xs mx-auto">
         <Button size="lg" onClick={() => setStep(1)} className="brand-btn-primary gap-2 rounded-[4px]">
-          {isAr ? "يلا نبدأ" : "Let's go!"}
-          <ArrowLeft className="brand-btn-arrow h-4 w-4 rtl:rotate-180" />
+          {isAr ? "كمّل الإعداد" : "Continue setup"}
+          <ArrowRight className="brand-btn-arrow h-4 w-4 rtl:rotate-180" />
         </Button>
         <button type="button" className="text-sm text-[var(--b-ink-soft)] hover:text-[var(--b-navy)] transition-colors" onClick={handleSkip}>
-          {isAr ? "تخطي الإعداد" : "Skip setup"}
+          {isAr ? "روح للوحة التحكم" : "Go to the dashboard"}
         </button>
       </div>
     </div>
@@ -444,7 +475,7 @@ export default function OnboardingWizard() {
       <div className="text-center space-y-2">
         <h2 className="text-2xl font-bold tracking-tight">{isAr ? "ايه نوع منتجاتك؟" : "What do you sell?"}</h2>
         <p className="text-muted-foreground text-sm">
-          {isAr ? "اختار التصنيف الأقرب — هنضبط المتجر على أساسه" : "Pick the closest category — we'll optimize your store for it"}
+          {isAr ? "اختار التصنيف الأقرب — هنجهز خانات المنتجات المناسبة ليه" : "Pick the closest category — we'll set up the product fields that fit it"}
         </p>
         {prefill && (
           <p className="inline-flex items-center gap-1.5 rounded-full border border-[var(--b-saffron)]/40 bg-[var(--b-saffron)]/10 px-3 py-1 text-xs font-medium text-[var(--b-ink)]">
@@ -489,7 +520,7 @@ export default function OnboardingWizard() {
       <div className="space-y-5 pt-2 border-t border-border/50">
         <div className="space-y-3">
           <p className="text-sm font-medium">
-            {isAr ? "بتبيع فين دلوقتي؟" : "Where do you sell today?"}
+            {isAr ? "بتبيع فين دلوقتي؟ (اختياري)" : "Where do you sell today? (optional)"}
           </p>
           <div className="flex flex-wrap gap-2">
             {SELLS_WHERE.map((opt) => (
@@ -528,7 +559,7 @@ export default function OnboardingWizard() {
 
         <div className="space-y-3">
           <p className="text-sm font-medium">
-            {isAr ? "بتعمل كام أوردر في الشهر؟" : "How many orders a month?"}
+            {isAr ? "بتعمل كام أوردر في الشهر؟ (اختياري)" : "How many orders a month? (optional)"}
           </p>
           <div className="flex flex-wrap gap-2">
             {ORDER_BANDS.map((opt) => (
@@ -566,45 +597,7 @@ export default function OnboardingWizard() {
     </div>
   );
 
-  const renderStep2 = () => (
-    <div className="space-y-6">
-      <div className="text-center space-y-2">
-        <div className="flex justify-center mb-2">
-          <div className="p-3 rounded-xl bg-muted">
-            <MapPin className="h-7 w-7 text-muted-foreground" />
-          </div>
-        </div>
-        <h2 className="text-2xl font-bold tracking-tight">{isAr ? "فين متجرك؟" : "Where's your store?"}</h2>
-        <p className="text-muted-foreground text-sm">
-          {isAr ? "هنضبط العملة ومناطق الشحن تلقائياً" : "We'll auto-set currency and shipping zones"}
-        </p>
-      </div>
-      <div className="grid grid-cols-1 gap-3 max-w-sm mx-auto">
-        {COUNTRIES.map((c) => (
-          <button
-            key={c.code}
-            type="button"
-            onClick={() => setCountry(c.code)}
-            className={cn(
-              "flex items-center gap-4 p-4 rounded-xl border-2 transition-all duration-200",
-              "hover:border-foreground/30 hover:bg-accent/50",
-              country === c.code
-                ? "border-foreground bg-accent shadow-sm"
-                : "border-border/50 bg-card"
-            )}
-          >
-            <span className="text-3xl">{c.flag}</span>
-            <span className="text-base font-medium">{c.label}</span>
-            {country === c.code && (
-              <Check className="h-5 w-5 ms-auto text-foreground" />
-            )}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderStep3 = () => (
+  const renderShipping = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2">
         <div className="flex justify-center mb-2">
@@ -614,7 +607,7 @@ export default function OnboardingWizard() {
         </div>
         <h2 className="text-2xl font-bold tracking-tight">{isAr ? "إزاي بتشحن؟" : "How do you ship?"}</h2>
         <p className="text-muted-foreground text-sm">
-          {isAr ? "اختار طريقة الشحن المناسبة ليك" : "Choose your preferred shipping method"}
+          {isAr ? "العميل بيشوف سعر الشحن ده وقت الطلب" : "Customers see this shipping price when they order"}
         </p>
       </div>
       <div className="grid grid-cols-1 gap-3 max-w-md mx-auto">
@@ -641,10 +634,36 @@ export default function OnboardingWizard() {
           </button>
         ))}
       </div>
+      {usesZonePreset && (
+        <div className="max-w-md mx-auto rounded-xl border p-4 space-y-3">
+          <p className="text-sm font-medium">
+            {isAr ? "أسعار الشحن المقترحة — عدّلها لو تحب:" : "Suggested shipping prices — change any:"}
+          </p>
+          {EGYPT_ZONES.map((zone, i) => (
+            <div key={zone.en} className="flex items-center gap-3">
+              <Label htmlFor={`zone-rate-${i}`} className="flex-1 text-sm">{isAr ? zone.ar : zone.en}</Label>
+              <div className="relative w-32">
+                <Input
+                  id={`zone-rate-${i}`}
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={zoneRates[i]}
+                  onChange={(e) => setZoneRates((rates) => rates.map((r, j) => (j === i ? e.target.value : r)))}
+                  className="h-9 pe-12"
+                />
+                <span className="absolute inset-y-0 end-2 flex items-center text-xs text-muted-foreground">
+                  {currentStore?.default_currency || "EGP"}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
-  const renderStep4 = () => (
+  const renderPayments = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2">
         <div className="flex justify-center mb-2">
@@ -654,7 +673,9 @@ export default function OnboardingWizard() {
         </div>
         <h2 className="text-2xl font-bold tracking-tight">{isAr ? "إزاي بتقبض؟" : "How do you get paid?"}</h2>
         <p className="text-muted-foreground text-sm">
-          {isAr ? "اختار طرق الدفع — تقدر تغيرها بعدين" : "Choose payment methods — you can change these later"}
+          {isAr
+            ? "الدفع عند الاستلام شغال من دلوقتي. البطاقات والمحافظ محتاجة تربط حسابك من صفحة المدفوعات — علّم اللي عايزه ونفكّرك."
+            : "Cash on delivery works now. Cards and wallets need your account connected in Payments — tick the ones you want and we'll remind you."}
         </p>
       </div>
       <div className="grid grid-cols-1 gap-3 max-w-md mx-auto">
@@ -689,11 +710,13 @@ export default function OnboardingWizard() {
                 <div className="text-sm font-semibold">{opt.label}</div>
                 <div className="text-xs text-muted-foreground">{opt.desc}</div>
               </div>
-              {opt.alwaysOn && (
-                <span className="text-[11px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex-shrink-0">
-                  {isAr ? "تلقائي" : "Auto"}
-                </span>
-              )}
+              <span className="text-[11px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex-shrink-0">
+                {opt.alwaysOn
+                  ? (isAr ? "شغال ✓" : "On ✓")
+                  : isActive
+                    ? (isAr ? "هنفكّرك" : "We'll remind you")
+                    : (isAr ? "عايز ده" : "I want this")}
+              </span>
             </button>
           );
         })}
@@ -701,7 +724,7 @@ export default function OnboardingWizard() {
     </div>
   );
 
-  const renderStep5 = () => (
+  const renderProduct = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2">
         <div className="flex justify-center mb-2">
@@ -792,7 +815,7 @@ export default function OnboardingWizard() {
     </div>
   );
 
-  const renderStep6 = () => (
+  const renderReady = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2">
         <div className="flex justify-center mb-2">
@@ -801,32 +824,18 @@ export default function OnboardingWizard() {
           </div>
         </div>
         <h2 className="text-2xl font-bold tracking-tight">
-          {isAr ? "متجرك جاهز!" : "Your store is ready!"}
+          {isAr ? "كده الكلام — ابعت الرابط لعملائك" : "All set — send the link to your customers"}
         </h2>
         <p className="text-muted-foreground text-sm">
-          {isAr ? "شوف شكل متجرك — تقدر تعدل أي وقت من لوحة التحكم" : "See how your store looks — you can customize anytime from the dashboard"}
+          {isAr ? "تقدر تعدل أي حاجة بعدين من لوحة التحكم" : "You can change anything later from the dashboard"}
         </p>
       </div>
-      {getPublicStoreUrl(currentStore) && (
-        <div className="rounded-xl border overflow-hidden max-w-lg mx-auto">
-          <div className="bg-muted/50 px-4 py-2 flex items-center justify-between border-b">
-            <span className="text-xs text-muted-foreground font-mono truncate">{getPublicStoreUrl(currentStore)}</span>
-            <button
-              type="button"
-              onClick={() => window.open(getPublicStoreUrl(currentStore)!, "_blank")}
-              className="text-xs text-primary flex items-center gap-1 hover:underline shrink-0"
-            >
-              <ExternalLink className="h-3 w-3" />
-              {isAr ? "فتح" : "Open"}
-            </button>
-          </div>
-          <iframe
-            src={getStoreFrameUrl(currentStore) ?? undefined}
-            className="w-full h-[350px]"
-            title="Store Preview"
-          />
+      {storeUrl && (
+        <div className="max-w-sm mx-auto">
+          <StoreLinkShare url={storeUrl} storeName={currentStore?.name} />
         </div>
       )}
+      {frameUrl && <StorePhonePreview src={frameUrl} isAr={isAr} />}
     </div>
   );
 
@@ -834,11 +843,10 @@ export default function OnboardingWizard() {
     switch (step) {
       case 0: return renderWelcome();
       case 1: return renderStep1();
-      case 2: return renderStep2();
-      case 3: return renderStep3();
-      case 4: return renderStep4();
-      case 5: return renderStep5();
-      case 6: return renderStep6();
+      case 2: return renderShipping();
+      case 3: return renderPayments();
+      case 4: return renderProduct();
+      case 5: return renderReady();
       default: return null;
     }
   };
@@ -940,11 +948,11 @@ export default function OnboardingWizard() {
                   step <= 1 && "opacity-0 pointer-events-none"
                 )}
               >
-                <ArrowRight className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
                 {isAr ? "رجوع" : "Back"}
               </Button>
 
-              {step === 5 && (!productName || !productPrice) ? (
+              {step === 4 && (!productName || !productPrice) ? (
                 // On product step with empty fields — show skip + add later
                 <Button
                   type="button"
@@ -953,7 +961,7 @@ export default function OnboardingWizard() {
                   className="gap-2 rounded-[4px] border-[var(--b-line)] text-[var(--b-ink)] hover:bg-[var(--b-cream)]"
                 >
                   {isAr ? "تخطي — أضيف بعدين" : "Skip — add later"}
-                  <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
+                  <ArrowRight className="h-4 w-4 rtl:rotate-180" />
                 </Button>
               ) : (
                 <Button
@@ -969,7 +977,7 @@ export default function OnboardingWizard() {
                       {isAr ? "ابدأ البيع" : "Start Selling"}
                       <Check className="brand-btn-arrow h-4 w-4" />
                     </>
-                  ) : step === 5 ? (
+                  ) : step === 4 ? (
                     <>
                       {isAr ? "أضف المنتج" : "Add Product"}
                       <Package className="brand-btn-arrow h-4 w-4" />
@@ -977,7 +985,7 @@ export default function OnboardingWizard() {
                   ) : (
                     <>
                       {isAr ? "التالي" : "Next"}
-                      <ArrowLeft className="brand-btn-arrow h-4 w-4 rtl:rotate-180" />
+                      <ArrowRight className="brand-btn-arrow h-4 w-4 rtl:rotate-180" />
                     </>
                   )}
                 </Button>

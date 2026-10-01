@@ -544,6 +544,7 @@
     color: var(--b-terracotta, #C14A1C);
   }
   .auth-card-eyebrow.muted { color: var(--b-ink-soft, #2B3344); opacity: 0.7; }
+  [dir="rtl"] .auth-card-eyebrow { display: none; }
 
   /* Hero rule — hairline divider used in the left-panel marketing block */
   .auth-hero-rule {

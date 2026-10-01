@@ -79,8 +79,8 @@ export function lastNUnitLabel(
   n: number,
   lang: Lang,
 ): string {
-  const table = lang === "ar" ? LAST_N_UNIT_AR : LAST_N_UNIT_EN;
-  return n === 1 ? table[unit].one : table[unit].other;
+  if (lang === "ar") return n === 1 || n >= 11 ? LAST_N_UNIT_AR[unit].one : LAST_N_UNIT_AR[unit].other;
+  return n === 1 ? LAST_N_UNIT_EN[unit].one : LAST_N_UNIT_EN[unit].other;
 }
 
 export function presetLabel(preset: PresetKey, lang: Lang): string {

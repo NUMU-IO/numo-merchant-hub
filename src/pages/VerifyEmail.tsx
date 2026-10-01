@@ -238,7 +238,6 @@ export default function VerifyEmail() {
                 autoFocus={i === 0}
                 autoComplete={i === 0 ? "one-time-code" : "off"}
                 aria-label={isAr ? `الرقم ${i + 1} من رمز التحقق` : `Verification code digit ${i + 1}`}
-                placeholder="0"
               />
             ))}
           </div>

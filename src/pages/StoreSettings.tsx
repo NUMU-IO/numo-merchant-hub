@@ -620,6 +620,9 @@ const StoreSettings = () => {
     twitter: "",
   });
 
+  const [profileBaseline, setProfileBaseline] = useState(profileState);
+  const profileDirty = JSON.stringify(profileState) !== JSON.stringify(profileBaseline);
+
   // ─── Theme / Customization state ────────────────────────────────────────
   const [availableThemes, setAvailableThemes] = useState<AvailableTheme[]>([]);
   const [activeTheme, setActiveTheme] = useState("modern");
@@ -844,10 +847,38 @@ const StoreSettings = () => {
 
   // ─── Effects ────────────────────────────────────────────────────────────
 
+  const unsaved = isDirty || profileDirty;
+  useEffect(() => {
+    if (!unsaved) return;
+    const message =
+      language === "ar"
+        ? "عندك تعديلات مش محفوظة. تخرج من غير ما تحفظ؟"
+        : "You have unsaved changes. Leave without saving?";
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    const onLinkClick = (e: MouseEvent) => {
+      const link = (e.target as Element | null)?.closest?.("a[href]");
+      if (!link || link.getAttribute("target") === "_blank") return;
+      if (link.getAttribute("href")?.startsWith("#")) return;
+      if (!window.confirm(message)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("click", onLinkClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("click", onLinkClick, true);
+    };
+  }, [unsaved, language]);
+
   // Pre-populate profile from currentStore
   useEffect(() => {
     if (!currentStore) return;
-    setProfileState({
+    const loaded = {
       name: currentStore.name || "",
       description: currentStore.description || "",
       contact_email: currentStore.contact_email || "",
@@ -856,7 +887,9 @@ const StoreSettings = () => {
       facebook: currentStore.social_links?.facebook || "",
       instagram: currentStore.social_links?.instagram || "",
       twitter: currentStore.social_links?.twitter || "",
-    });
+    };
+    setProfileState(loaded);
+    setProfileBaseline(loaded);
     setStoreOnline(currentStore.status === "active");
     const s = (currentStore.settings || {}) as Record<string, unknown>;
     setClosureMessage((s.closure_message as string) || "");
@@ -1345,6 +1378,7 @@ const StoreSettings = () => {
         social_links:
           Object.keys(social_links).length > 0 ? social_links : null,
       });
+      setProfileBaseline(profileState);
       await refetchStores();
       toast.success(t("store.saved"));
     } catch (err) {
@@ -1543,7 +1577,7 @@ const StoreSettings = () => {
                       <input
                         type="file"
                         accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                        className="hidden"
+                        className="peer sr-only"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
@@ -1559,7 +1593,7 @@ const StoreSettings = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-2 cursor-pointer"
+                        className="gap-2 cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2"
                         asChild
                       >
                         <span>
@@ -1642,7 +1676,7 @@ const StoreSettings = () => {
                       <input
                         type="file"
                         accept="image/png,image/jpeg,image/webp,image/x-icon,image/svg+xml"
-                        className="hidden"
+                        className="peer sr-only"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
@@ -1658,7 +1692,7 @@ const StoreSettings = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-2 cursor-pointer"
+                        className="gap-2 cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2"
                         asChild
                       >
                         <span>
