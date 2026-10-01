@@ -193,6 +193,22 @@ export interface UpdateStoreData {
   default_currency?: string;
 }
 
+export type ReadinessKey = "product_live" | "shipping_priced" | "payment_method" | "contact_number";
+
+/** The four real conditions for taking orders, plus whether shoppers can see
+ *  the store yet (`lock_reason` is null when it is open). */
+export interface StoreReadiness {
+  items: { key: ReadinessKey; done: boolean }[];
+  done: number;
+  total: number;
+  ready: boolean;
+  lock_reason: string | null;
+}
+
+export function getStoreReadiness(storeId: string): Promise<StoreReadiness> {
+  return apiClient<StoreReadiness>(`/stores/${storeId}/onboarding/readiness`);
+}
+
 export async function updateStore(
   storeId: string,
   data: UpdateStoreData

@@ -23,7 +23,7 @@ import { toast } from "sonner";
  * the first wallet top-up, so they always ask the server.
  */
 const StorefrontLockedBanner = () => {
-  const { tenant, isReadOnly } = useAuth();
+  const { tenant, isReadOnly, user } = useAuth();
   const { currentStore } = useDashboardStore();
   const { language } = useLanguage();
   const navigate = useNavigate();
@@ -35,7 +35,7 @@ const StorefrontLockedBanner = () => {
   const statusQuery = useQuery({
     queryKey: ["storefront-password", storeId],
     queryFn: () => getStorefrontPassword(storeId as string),
-    enabled: !!storeId && (isReadOnly || isPayg),
+    enabled: !!storeId && (isReadOnly || isPayg || user?.is_verified === false),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -47,6 +47,7 @@ const StorefrontLockedBanner = () => {
   if (!locked) return null;
 
   const password = statusQuery.data?.billing_lock_password;
+  const awaitingVerification = statusQuery.data?.billing_lock_reason === "awaiting_verification";
 
   const copyPassword = async () => {
     if (!password) return;
@@ -62,7 +63,11 @@ const StorefrontLockedBanner = () => {
       </AlertTitle>
       <AlertDescription className="text-xs text-muted-foreground space-y-2.5">
         <p>
-          {isPayg && !isReadOnly
+          {awaitingVerification
+            ? isAr
+              ? "أكّد إيميلك عشان تفتح متجرك للناس. لحد ما تأكّد، الزوار بيشوفوا صفحة باسورد — وانت تقدر تجهّز كل حاجة عادي."
+              : "Confirm your email to open your store to customers. Until then shoppers see a password page — and you can keep building."
+            : isPayg && !isReadOnly
             ? isAr
               ? "الزوار بيشوفوا صفحة باسورد لحد أول شحنة لمحفظتك. اشحنها والمتجر يفتح فوراً — عمولتنا بتتخصم منها بس لما تبيع."
               : "Shoppers see a password page until your first wallet top-up. Top up and the store opens right away; our commission is only deducted when you sell."
@@ -98,10 +103,14 @@ const StorefrontLockedBanner = () => {
         <Button
           size="sm"
           className="h-7 text-xs gap-1.5"
-          onClick={() => navigate(isPayg ? "/wallet" : "/billing")}
+          onClick={() => navigate(awaitingVerification ? "/verify-email" : isPayg ? "/wallet" : "/billing")}
         >
           <Lock className="h-3 w-3" />
-          {isPayg
+          {awaitingVerification
+            ? isAr
+              ? "أكّد دلوقتي"
+              : "Verify now"
+            : isPayg
             ? isAr
               ? "اشحن المحفظة"
               : "Top up wallet"

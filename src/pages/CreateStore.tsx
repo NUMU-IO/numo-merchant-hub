@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDashboardStore } from "@/contexts/StoreContext";
-import { createStore, checkSubdomain, seedDemoCatalog } from "@/services/storeApi";
+import { createStore, checkSubdomain } from "@/services/storeApi";
 import { updateProfile } from "@/services/authApi";
 import { activateDefaultTheme } from "@/services/marketplaceApi";
 import { Button } from "@/components/ui/button";
@@ -39,18 +39,17 @@ export default function CreateStore() {
 
   const [name, setName] = useState("");
   const [subdomain, setSubdomain] = useState("");
-  // Market the store operates in — drives base currency (SAR/EGP), VAT
-  // (15%/14%) and the payment-gateway allow-list on the backend.
-  const [country, setCountry] = useState("EG");
   const [phone, setPhone] = useState(user?.phone ?? "");
+  // Market the store operates in — drives base currency (SAR/EGP), VAT
+  // (15%/14%) and the payment-gateway allow-list on the backend. Read from
+  // the phone's country code instead of asked; the picker stays one tap away.
+  const [pickedCountry, setPickedCountry] = useState<string | null>(null);
+  const [showMarkets, setShowMarkets] = useState(false);
+  const country = pickedCountry ?? (phone.startsWith("+966") ? "SA" : "EG");
   const [subdomainStatus, setSubdomainStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  // Opt-in demo catalog. Off by default: samples on a live store are
-  // products a customer can order that do not exist. The API removes them
-  // when the merchant saves their first real product.
-  const [seedDemo, setSeedDemo] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -118,15 +117,6 @@ export default function CreateStore() {
         // The storefront opens in the language the merchant signed up in.
         default_language: language,
       });
-      // Phase 5.11 — fire-and-forget seed. We don't block navigation
-      // on it because the catalog inserts can take a couple of
-      // seconds and the merchant gets to the dashboard sooner.
-      // Failure is silent: the dashboard's onboarding nudge "Add
-      // your first product" still surfaces if the seed didn't land,
-      // so the merchant has a path forward either way.
-      if (seedDemo && created?.id) {
-        void seedDemoCatalog(created.id).catch(() => {});
-      }
       // Default the new store to the luxury-minimal V3 theme so the
       // onboarding preview (and live storefront) show a polished theme
       // instead of the legacy green/modern default. Fire-and-forget like
@@ -291,6 +281,15 @@ export default function CreateStore() {
               <Label className="text-[13px] font-medium">
                 {isAr ? "السوق" : "Market"}
               </Label>
+              {!showMarkets && (
+                <p className="text-sm">
+                  {country === "SA" ? (isAr ? "🇸🇦 السعودية · ريال" : "🇸🇦 Saudi Arabia · SAR") : (isAr ? "🇪🇬 مصر · جنيه" : "🇪🇬 Egypt · EGP")}{" "}
+                  <button type="button" onClick={() => setShowMarkets(true)} className="text-xs font-semibold underline underline-offset-2 text-muted-foreground hover:text-foreground">
+                    {isAr ? "تغيير" : "Change"}
+                  </button>
+                </p>
+              )}
+              {showMarkets && (
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { code: "EG", flag: "🇪🇬", en: "Egypt", ar: "مصر", ccy: "EGP" },
@@ -299,7 +298,7 @@ export default function CreateStore() {
                   <button
                     key={m.code}
                     type="button"
-                    onClick={() => setCountry(m.code)}
+                    onClick={() => setPickedCountry(m.code)}
                     className={`flex items-center justify-between rounded-lg border px-3 h-11 text-sm transition-colors ${
                       country === m.code
                         ? "border-foreground ring-1 ring-foreground/5 bg-muted/40"
@@ -314,38 +313,13 @@ export default function CreateStore() {
                   </button>
                 ))}
               </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 {isAr
                   ? "نضبط العملة وضريبة القيمة المضافة ووسائل الدفع تلقائياً حسب السوق."
                   : "We auto-set currency, VAT and payment methods for this market."}
               </p>
             </div>
-
-            {/* Phase 5.11 — demo seed toggle.
-                Off by default (see seedDemo). We use a real
-                <input type="checkbox"> with proper label association
-                instead of a custom switch so screen readers + Tab key
-                Just Work. */}
-            <label className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={seedDemo}
-                onChange={(e) => setSeedDemo(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-input accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              />
-              <span className="text-xs leading-relaxed">
-                <span className="font-medium block mb-0.5">
-                  {isAr
-                    ? "أضف 5 منتجات تجريبية"
-                    : "Add 5 sample products"}
-                </span>
-                <span className="text-muted-foreground">
-                  {isAr
-                    ? "عشان تشوف شكل متجرك قبل ما تضيف منتجاتك. بتتمسح لوحدها أول ما تضيف أول منتج ليك."
-                    : "To see your store before you add your own products. They are removed automatically when you add your first product."}
-                </span>
-              </span>
-            </label>
 
             {error && (
               <p className="text-sm text-destructive bg-destructive/[0.04] border border-destructive/10 rounded-lg px-3 py-2.5">{error}</p>
