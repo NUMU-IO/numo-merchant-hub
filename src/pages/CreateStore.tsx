@@ -18,6 +18,7 @@ import { PhoneInput, isValidE164 } from "@/components/forms/PhoneInput";
 import { Loader2, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
 import { getStoreDomainSuffix } from "@/lib/storefront";
 import { getStoreSubdomainSuffix, withEnvSuffix } from "@/lib/env";
+import { toStoreSlug } from "@/lib/store-slug";
 import { ApiError } from "@/lib/api-error";
 import { z } from "zod";
 
@@ -43,7 +44,6 @@ export default function CreateStore() {
   const [country, setCountry] = useState("EG");
   const [phone, setPhone] = useState(user?.phone ?? "");
   const [subdomainStatus, setSubdomainStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
-  const [subdomainMsg, setSubdomainMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -55,7 +55,7 @@ export default function CreateStore() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const slug = name.toLowerCase().trim().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    const slug = toStoreSlug(name);
     if (slug.length >= 3) setSubdomain(slug);
   }, [name]);
 
@@ -69,8 +69,7 @@ export default function CreateStore() {
         // the DB and what other test stores would collide with.
         const result = await checkSubdomain(withEnvSuffix(subdomain));
         setSubdomainStatus(result.available ? "available" : "taken");
-        setSubdomainMsg(result.message);
-      } catch { setSubdomainStatus("invalid"); setSubdomainMsg("Could not check subdomain"); }
+      } catch { setSubdomainStatus("invalid"); }
     }, 500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [subdomain]);
@@ -154,6 +153,14 @@ export default function CreateStore() {
     subdomainStatus === "available" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> :
     subdomainStatus === "taken" || subdomainStatus === "invalid" ? <XCircle className="h-4 w-4 text-destructive" /> : null;
 
+  const storeHost = `${subdomain}${getStoreSubdomainSuffix()}${getStoreDomainSuffix() ?? ""}`;
+  const subdomainNote =
+    subdomainStatus === "available" ? (isAr ? `متاح! رابط متجرك: ${storeHost}` : `Available! Your link: ${storeHost}`) :
+    subdomainStatus === "taken" ? (isAr ? "الرابط ده مش متاح. جرّب واحد من دول:" : "This link isn't available. Try one of these:") :
+    subdomainStatus === "invalid" ? (isAr ? "مقدرناش نتأكد من الرابط، جرّب تاني." : "Couldn't check this link, try again.") :
+    subdomainStatus === "idle" && (name.trim() || subdomain) ? (isAr ? "اكتب الرابط بحروف إنجليزي صغيرة أو أرقام، 3 على الأقل." : "Type at least 3 lowercase English letters or numbers.") :
+    null;
+
   return (
     <div className="min-h-screen auth-page auth-dot-grid relative flex items-center justify-center p-4 sm:p-6 lg:p-10">
       {/* ── Brand text — lg+. Souq auth surface is warm cream, so the
@@ -225,7 +232,16 @@ export default function CreateStore() {
               <Label className="text-[13px] font-medium">{t("createStore.subdomain")}</Label>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
-                  <Input value={subdomain} onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="mystore" className={`${inputCls("subdomain")} pe-9`} />
+                  <Input
+                    value={subdomain}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSubdomain(/[\u0600-\u06FF]/.test(v) ? toStoreSlug(v) : v.toLowerCase().replace(/[^a-z0-9-]/g, ""));
+                    }}
+                    placeholder="mystore"
+                    dir="ltr"
+                    className={`${inputCls("subdomain")} pe-9`}
+                  />
                   {subdomainIcon && <div className="absolute inset-y-0 end-3 flex items-center">{subdomainIcon}</div>}
                 </div>
                 {getStoreDomainSuffix() && (
@@ -234,8 +250,20 @@ export default function CreateStore() {
                   </span>
                 )}
               </div>
-              {subdomainStatus !== "idle" && subdomainStatus !== "checking" && (
-                <p className={`text-xs ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>{subdomainMsg}</p>
+              <p className="text-xs text-muted-foreground">
+                {isAr ? "ده العنوان اللي هتبعته لعملائك." : "This is the address you'll share with customers."}
+              </p>
+              {subdomainNote && (
+                <p aria-live="polite" className={`text-xs ${subdomainStatus === "available" ? "text-emerald-600" : "text-destructive"}`}>{subdomainNote}</p>
+              )}
+              {subdomainStatus === "taken" && (
+                <div className="flex flex-wrap gap-2">
+                  {[`${subdomain}-store`, `${subdomain}-eg`].map((alt) => (
+                    <button key={alt} type="button" onClick={() => setSubdomain(alt.slice(0, 30))} className="rounded-md border px-2 py-1 text-xs font-mono hover:border-foreground/40" dir="ltr">
+                      {alt.slice(0, 30)}
+                    </button>
+                  ))}
+                </div>
               )}
               {fieldErrors.subdomain && <p className="text-xs text-destructive">{fieldErrors.subdomain}</p>}
             </div>

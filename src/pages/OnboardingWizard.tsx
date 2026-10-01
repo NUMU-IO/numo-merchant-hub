@@ -219,6 +219,7 @@ export default function OnboardingWizard() {
   // Product step state
   const [productName, setProductName] = useState("");
   const [productPrice, setProductPrice] = useState("");
+  const [productQuantity, setProductQuantity] = useState("1");
   const [productImage, setProductImage] = useState<File | null>(null);
   const [productImagePreview, setProductImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -357,10 +358,10 @@ export default function OnboardingWizard() {
     setLoading(true);
     setError(null);
     try {
-      const priceInCents = String(Math.round(parseFloat(productPrice) * 100));
       const product = await createProduct(currentStore.id, {
         name: productName,
-        price: priceInCents,
+        price: parseFloat(productPrice).toFixed(2),
+        quantity: Math.max(0, parseInt(productQuantity, 10) || 0),
         status: "active",
       });
       // The activation milestone the API stamps as `first_product_at`.
@@ -740,6 +741,17 @@ export default function OnboardingWizard() {
               {currentStore?.default_currency || "EGP"}
             </span>
           </div>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">{isAr ? "الكمية المتاحة" : "Quantity in stock"}</Label>
+          <Input
+            type="number"
+            value={productQuantity}
+            onChange={(e) => setProductQuantity(e.target.value)}
+            className="h-11 rounded-lg"
+            min="0"
+            step="1"
+          />
         </div>
         <div className="space-y-2">
           <Label className="text-sm font-medium">{isAr ? "صورة المنتج" : "Product Image"}</Label>

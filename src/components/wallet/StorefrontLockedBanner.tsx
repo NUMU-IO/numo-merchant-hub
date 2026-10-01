@@ -18,9 +18,9 @@ import { toast } from "sonner";
  * behind its pre-launch password. There is nothing to toggle here — only a
  * wallet top-up or a paid subscription clears it.
  *
- * The lock itself is read from the session (`tenant.is_read_only`), so the
- * banner needs no request to decide whether to render. The password costs
- * one call, and only while locked.
+ * Also fires for a PAYG store that has never been funded: those tenants are
+ * `active`, not read-only, but the backend keeps the storefront gated until
+ * the first wallet top-up, so they always ask the server.
  */
 const StorefrontLockedBanner = () => {
   const { tenant, isReadOnly } = useAuth();
@@ -35,7 +35,7 @@ const StorefrontLockedBanner = () => {
   const statusQuery = useQuery({
     queryKey: ["storefront-password", storeId],
     queryFn: () => getStorefrontPassword(storeId as string),
-    enabled: !!storeId && isReadOnly,
+    enabled: !!storeId && (isReadOnly || isPayg),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -62,7 +62,11 @@ const StorefrontLockedBanner = () => {
       </AlertTitle>
       <AlertDescription className="text-xs text-muted-foreground space-y-2.5">
         <p>
-          {isPayg
+          {isPayg && !isReadOnly
+            ? isAr
+              ? "الزوار بيشوفوا صفحة كلمة مرور لحد أول شحنة لمحفظتك. اشحنها والمتجر يفتح فوراً — عمولتنا بتتخصم منها بس لما تبيع."
+              : "Shoppers see a password page until your first wallet top-up. Top up and the store opens right away; our commission is only deducted when you sell."
+            : isPayg
             ? isAr
               ? "التجربة خلصت. لوحة التحكم شغالة زي ما هي، لكن الزوار بيشوفوا صفحة كلمة مرور. اشحن محفظتك عشان المتجر يفتح تاني."
               : "Your trial ended. Your dashboard still works, but shoppers see a password page. Top up your wallet to reopen the store."

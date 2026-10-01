@@ -1860,7 +1860,7 @@ export default {
     subtitle: "Set up your new online store in minutes",
     storeName: "Store Name",
     storeNamePlaceholder: "e.g. My Fashion Store",
-    subdomain: "Subdomain",
+    subdomain: "Your store link",
     description: "Description",
     descriptionPlaceholder: "Tell customers about your store...",
     language: "Language",

@@ -1869,7 +1869,7 @@
     subtitle: "جهّز متجرك الإلكتروني في دقايق",
     storeName: "اسم المتجر",
     storeNamePlaceholder: "مثلاً: متجر الأزياء",
-    subdomain: "الرابط الفرعي",
+    subdomain: "رابط متجرك",
     description: "الوصف",
     descriptionPlaceholder: "اكتب وصف قصير لمتجرك...",
     language: "اللغة",
