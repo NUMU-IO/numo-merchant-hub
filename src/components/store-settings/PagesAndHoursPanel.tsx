@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { FreeShippingHint } from "@/components/logistics/FreeShippingHint";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -512,24 +513,9 @@ export function ShippingPageEditor({ config, onChange, language }: ShippingPageE
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-          <div>
-            <Label>{ar ? "حد الشحن المجاني (EGP)" : "Free shipping threshold (EGP)"}</Label>
-            <Input
-              type="number"
-              min={0}
-              value={config.free_shipping_threshold ?? ""}
-              onChange={(e) =>
-                update({
-                  free_shipping_threshold:
-                    e.target.value === "" ? null : Number(e.target.value),
-                })
-              }
-              placeholder="500"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              {ar ? "اتركه فارغاً لإخفاء البطاقة." : "Leave blank to hide the banner."}
-            </p>
-          </div>
+          {/* No storefront or theme read this banner threshold; the real one is
+              on the zones' rates. */}
+          <FreeShippingHint isAr={ar} />
           <label className="flex items-center gap-2 cursor-pointer">
             <Checkbox
               checked={config.show_contact_section !== false}

@@ -18,6 +18,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { SettingsBreadcrumb } from "@/components/layout/SettingsBreadcrumb";
 import { useDashboardStore } from "@/contexts/StoreContext";
 import { CustomDomainCard } from "@/components/settings/CustomDomainCard";
+import { FreeShippingHint } from "@/components/logistics/FreeShippingHint";
 import {
   Card,
   CardContent,
@@ -153,7 +154,6 @@ import {
   fetchShippingSettings,
   addShippingZone,
   deleteShippingZone,
-  updateShippingSettings,
   fetchPaymobCredentials,
   savePaymobCredentials,
   deletePaymobCredentials,
@@ -690,7 +690,6 @@ const StoreSettings = () => {
   const [shippingData, setShippingData] = useState<ShippingSettings | null>(
     null,
   );
-  const [freeThreshold, setFreeThreshold] = useState(500);
   const [shippingLoadFailed, setShippingLoadFailed] = useState(false);
   const [shippingReloadKey, setShippingReloadKey] = useState(0);
   // Every save below rewrites the whole customization, so saving after a
@@ -989,7 +988,6 @@ const StoreSettings = () => {
     fetchShippingSettings(currentStore.id)
       .then((data) => {
         setShippingData(data);
-        setFreeThreshold(data.free_shipping_threshold ?? 500);
       })
       .catch(() => setShippingLoadFailed(true));
     // Fetch Bosta credentials
@@ -1426,19 +1424,6 @@ const StoreSettings = () => {
     },
     [currentStore?.id, language],
   );
-
-  const saveFreeThreshold = useCallback(async () => {
-    if (!currentStore?.id) return;
-    try {
-      const result = await updateShippingSettings(currentStore.id, {
-        free_shipping_threshold: freeThreshold,
-      });
-      setShippingData(result);
-      toast.success(t("store.saved"));
-    } catch (err) {
-      showError(err, language);
-    }
-  }, [currentStore?.id, freeThreshold, language, t]);
 
   // ─── Tab config ─────────────────────────────────────────────────────────
 
@@ -3274,25 +3259,12 @@ const StoreSettings = () => {
                   )}
                 </div>
 
-                {/* Free threshold */}
+                {/* Free shipping lives on the zones' rates (see the hint). */}
                 <div className="settings-field-group">
                   <div className="settings-field-group-label">
                     {t("store.freeThreshold")}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Input
-                      type="number"
-                      value={freeThreshold}
-                      onChange={(e) => setFreeThreshold(Number(e.target.value))}
-                      className="w-36"
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      {t("common.currency")}
-                    </span>
-                    <Button size="sm" onClick={saveFreeThreshold}>
-                      {t("store.save")}
-                    </Button>
-                  </div>
+                  <FreeShippingHint isAr={language === "ar"} className="text-sm text-muted-foreground" />
                 </div>
               </>
             )}

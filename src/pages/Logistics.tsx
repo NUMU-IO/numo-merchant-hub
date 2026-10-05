@@ -32,6 +32,7 @@ import {
 import { StatTile } from "@/components/ui/stat-tile";
 import { ShippingSetupHero, type SetupStep } from "@/components/logistics/ShippingSetupHero";
 import { ZonesOverviewCard } from "@/components/logistics/ZonesOverviewCard";
+import { FreeShippingHint } from "@/components/logistics/FreeShippingHint";
 import { useShippingZones, useShippingCoverage, useReferenceGovernorates } from "@/hooks/useShippingZones";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -878,7 +879,6 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
   const [editing, setEditing] = useState(false);
 
   // Zones
-  const [freeThreshold, setFreeThreshold] = useState(shippingData?.free_shipping_threshold ?? 500);
   const [showAddZone, setShowAddZone] = useState(false);
   const [newZone, setNewZone] = useState({ zone: "", governorates: "", rate: 0, estimated_days: "" });
 
@@ -1214,12 +1214,7 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
               </div>
             )}
           </div>
-          <div className="rounded-xl border bg-card px-5 py-3.5 flex items-center gap-3 flex-wrap">
-            <span className="text-[11px] text-muted-foreground whitespace-nowrap">{isAr ? "شحن مجاني فوق" : "Free shipping above"}</span>
-            <Input type="number" value={freeThreshold} onChange={e => setFreeThreshold(Number(e.target.value))} className="w-24 h-7 text-xs tabular-nums" />
-            <span className="text-[11px] text-muted-foreground">EGP</span>
-            <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={async () => { if (!storeId) return; try { await updateShippingSettings(storeId, { free_shipping_threshold: freeThreshold }); toast.success(isAr ? "تم الحفظ" : "Saved"); } catch (e) { showError(e, language); } }}>{isAr ? "حفظ" : "Save"}</Button>
-          </div>
+          <FreeShippingHint isAr={isAr} className="rounded-xl border bg-card px-5 py-3.5 text-[11px] text-muted-foreground" />
         </TabsContent>
 
         {/* ─── COD TAB ─── */}
