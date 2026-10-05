@@ -1064,7 +1064,7 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
       </div>
 
       {/* Tabs */}
-      <Tabs value={tab} onValueChange={v => setTab(v as BostaTab)} className="space-y-4">
+      <Tabs dir={isAr ? "rtl" : "ltr"} value={tab} onValueChange={v => setTab(v as BostaTab)} className="space-y-4">
         <TabsList className="h-9 p-0.5 bg-muted/60">
           <TabsTrigger value="shipments" className="text-xs gap-1.5 h-8 data-[state=active]:shadow-sm"><Package className="h-3.5 w-3.5" />{isAr ? "الشحنات" : "Shipments"}</TabsTrigger>
           <TabsTrigger value="config" className="text-xs gap-1.5 h-8 data-[state=active]:shadow-sm"><Zap className="h-3.5 w-3.5" />{isAr ? "الإعدادات" : "Setup"}</TabsTrigger>
@@ -1199,7 +1199,7 @@ const BostaDetailView = ({ storeId, isAr, language, bostaCreds, setBostaCreds, s
             {!shippingData ? <div className="flex justify-center py-8"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
             : shippingData.zones.length > 0 ? (
               <Table><TableHeader><TableRow className="hover:bg-transparent"><TableHead className="text-[10px] uppercase tracking-wider font-semibold">{isAr ? "المنطقة" : "Zone"}</TableHead><TableHead className="text-[10px] uppercase tracking-wider font-semibold">{isAr ? "المحافظات" : "Governorates"}</TableHead><TableHead className="text-[10px] uppercase tracking-wider font-semibold">{isAr ? "السعر" : "Rate"}</TableHead><TableHead className="text-[10px] uppercase tracking-wider font-semibold">{isAr ? "المدة" : "Est."}</TableHead><TableHead className="w-8" /></TableRow></TableHeader><TableBody>
-                {shippingData.zones.map(z => (<TableRow key={z.id}><TableCell className="text-xs font-medium">{z.zone}</TableCell><TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{z.governorates}</TableCell><TableCell className="text-xs tabular-nums font-medium">{z.rate} EGP</TableCell><TableCell className="text-xs text-muted-foreground">{z.estimated_days}</TableCell><TableCell><button onClick={() => handleDeleteZone(z.id)} className="text-muted-foreground/40 hover:text-destructive transition-colors cursor-pointer"><Trash2 className="h-3 w-3" /></button></TableCell></TableRow>))}
+                {shippingData.zones.map(z => (<TableRow key={z.id}><TableCell className="text-xs font-medium">{z.zone}</TableCell><TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{z.governorates}</TableCell><TableCell className="text-xs tabular-nums font-medium"><bdi dir="ltr">{z.rate} EGP</bdi></TableCell><TableCell className="text-xs text-muted-foreground"><bdi dir="ltr">{z.estimated_days}</bdi></TableCell><TableCell><button onClick={() => handleDeleteZone(z.id)} className="text-muted-foreground/40 hover:text-destructive transition-colors cursor-pointer"><Trash2 className="h-3 w-3" /></button></TableCell></TableRow>))}
               </TableBody></Table>
             ) : <div className="py-8 text-center text-xs text-muted-foreground">{isAr ? "لا توجد مناطق" : "No zones"}</div>}
             {showAddZone && (
