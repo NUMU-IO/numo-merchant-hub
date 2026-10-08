@@ -20,6 +20,8 @@ export type NicheIconKind =
   | "home"
   | "food"
   | "accessories"
+  | "books"
+  | "handmade"
   | "other";
 
 const PATHS: Record<NicheIconKind, string> = {
@@ -53,6 +55,15 @@ const PATHS: Record<NicheIconKind, string> = {
     '<path d="M2.5 10.5h7.5v3.5a3.2 3.2 0 0 1-3.2 3.2H5.7a3.2 3.2 0 0 1-3.2-3.2z"/>' +
     '<path d="M14 10.5h7.5V14a3.2 3.2 0 0 1-3.2 3.2h-1.1a3.2 3.2 0 0 1-3.2-3.2z"/>' +
     '<path d="M10 12.2c.6-1 3.4-1 4 0M2.5 10.5L4.4 7M21.5 10.5L19.6 7" fill="none"/>',
+  // an open book
+  books:
+    '<path d="M3 5.5c3-1 6-.8 9 1.2v13c-3-2-6-2.2-9-1.2z"/>' +
+    '<path d="M21 5.5c-3-1-6-.8-9 1.2v13c3-2 6-2.2 9-1.2z" fill-opacity=".38"/>',
+  // a ball of yarn with a needle through it
+  handmade:
+    '<circle cx="11" cy="13" r="7"/>' +
+    '<path d="M5.4 10.6c3 1.1 8 1 11.1-.9M4.9 14.4c3.9 1.5 9 1.1 12-1.4M8.2 7.2c2 3 3 8.2 1.9 12.6" fill="none"/>' +
+    '<path d="M15.6 7.4L21.5 2.5" fill="none"/>',
   // three filled tiles and one left for you to fill in
   other:
     '<rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/>' +

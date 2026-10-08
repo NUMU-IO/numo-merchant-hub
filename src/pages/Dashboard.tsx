@@ -54,7 +54,8 @@ import {
   Truck,
   Receipt,
   Gift,
-  Zap,
+  Globe,
+  ScrollText,
   Check,
   Activity,
   Lightbulb,
@@ -67,6 +68,10 @@ import { orderPath } from "@/lib/order-path";
 import { useCountUp } from "@/hooks/useCountUp";
 import { DashboardSkeleton } from "@/components/skeletons/DashboardSkeleton";
 import { StoreLinkCard } from "@/components/dashboard/StoreLinkCard";
+import { IdentitySheet } from "@/components/dashboard/IdentitySheet";
+import { ReadinessMeter } from "@/components/onboarding/ReadinessMeter";
+import { useStoreReadiness } from "@/hooks/useStoreReadiness";
+import FirstOrderCelebration from "@/components/dashboard/FirstOrderCelebration";
 import StoreLinkShare from "@/components/StoreLinkShare";
 import { PromoSwiper } from "@/components/dashboard/PromoSwiper";
 import { StoreHealthCard } from "@/components/dashboard/StoreHealthCard";
@@ -155,6 +160,8 @@ const Dashboard = () => {
     }
   };
   const [goalTarget, setGoalTarget] = useState(readGoal);
+  const [identityOpen, setIdentityOpen] = useState(false);
+  const { data: readiness } = useStoreReadiness(storeId);
   const [goalPeriodMode, setGoalPeriodMode] = useState<"monthly" | "yearly">("monthly");
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalInput, setGoalInput] = useState(String(goalTarget));
@@ -545,6 +552,9 @@ const Dashboard = () => {
       />
       {/* The store link, ready to share — the one day-one job */}
       <StoreLinkCard />
+      {lifetimeOrderCount === 1 && recentOrders[0] && storeId && (
+        <FirstOrderCelebration storeId={storeId} order={recentOrders[0]} />
+      )}
       {/* Zid-style pinned + recently opened pages */}
       <RecentlyViewed />
       {/* ─── Greeting strip — sits above the zones ────────────────────── */}
@@ -636,223 +646,79 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* ─── Setup checklist (first-time merchants) ──────────────────── */}
-      {showSetup &&
-        onboardingData &&
-        (() => {
-          const STEP_UI: Record<
-            string,
-            {
-              label: string;
-              labelAr: string;
-              desc: string;
-              descAr: string;
-              action: () => void;
-              cta: string;
-              ctaAr: string;
-              Icon: typeof Package;
-              time: string;
-              timeAr: string;
-            }
-          > = {
-            add_product: {
-              label: "Add a Product",
-              labelAr: "أضف منتج",
-              desc: "Add your first product to start selling online",
-              descAr: "أضف أول منتج لبدء البيع أونلاين",
-              action: () => navigate("/products/new"),
-              cta: "Add Product",
-              ctaAr: "أضف منتج",
-              Icon: Package,
-              time: "2 min",
-              timeAr: "دقيقتان",
-            },
-            set_identity: {
-              label: "Add Store Identity",
-              labelAr: "أضف هوية متجرك",
-              desc: "Upload logo and add store description",
-              descAr: "اعكس هويتك البصرية على متجرك",
-              action: () => navigate("/store"),
-              cta: "Add Details",
-              ctaAr: "أضف تفاصيلك",
-              Icon: Palette,
-              time: "3 min",
-              timeAr: "3 دقائق",
-            },
-            confirm_support: {
-              label: "Add Support Number",
-              labelAr: "أكد رقم الدعم",
-              desc: "Add a phone number so customers can reach you",
-              descAr: "أضف رقم للدعم لعملاؤك",
-              action: () => navigate("/store"),
-              cta: "Confirm Number",
-              ctaAr: "أكد الرقم",
-              Icon: CheckCircle2,
-              time: "30 sec",
-              timeAr: "30 ثانية",
-            },
-            add_shipping: {
-              label: "Set Up Shipping",
-              labelAr: "حدد الشحن",
-              desc: "Customers can't get a shipping price until you add a zone with a price",
-              descAr: "العميل مش هيعرف سعر الشحن لحد ما تضيف منطقة بسعر",
-              action: () => navigate("/shipping/zones"),
-              cta: "Add shipping prices",
-              ctaAr: "حط أسعار الشحن",
-              Icon: Truck,
-              time: "3 min",
-              timeAr: "3 دقائق",
-            },
-            configure_payment: {
-              label: "Online payments",
-              labelAr: "الدفع أونلاين",
-              desc: "Cash on delivery is on ✓ — card and wallet payments aren't connected yet",
-              descAr: "الدفع عند الاستلام شغال ✓ — الكارت والمحفظة لسه مش متوصّلين",
-              action: () => navigate("/payment-setup"),
-              cta: "Connect",
-              ctaAr: "وصّل",
-              Icon: CreditCard,
-              time: "5 min",
-              timeAr: "5 دقائق",
-            },
-            first_order: {
-              label: "Get Your First Order",
-              labelAr: "أول طلب",
-              desc: "Share your store link — this ticks itself when your first order lands",
-              descAr: "شارك رابط متجرك — بتكمّل لوحدها أول ما يجيلك أول طلب",
-              action: shareStoreLink,
-              cta: "Share store link",
-              ctaAr: "شارك الرابط",
-              Icon: Zap,
-              time: "1 min",
-              timeAr: "دقيقة",
-            },
-          };
-          const steps = onboardingData.steps
-            .filter((s) => s.key !== "create_store" && STEP_UI[s.key])
-            .map((s, i) => ({
-              ...STEP_UI[s.key],
-              key: s.key,
-              num: i + 1,
-              done: s.status === "completed" || s.status === "skipped",
-            }));
-          const doneCount = steps.filter((s) => s.done).length;
-          const totalSteps = steps.length;
-          const displayDone = doneCount;
-          const progressPercent =
-            totalSteps > 0 ? Math.round((displayDone / totalSteps) * 100) : 0;
-          // Everything the merchant controls is done; only the first order is left.
-          const readyForOrders = steps.length > 1 && steps.every((s) => s.done || s.key === "first_order");
-          const storeUrl = getPublicStoreUrl(currentStore);
+      {/* ─── Ready for orders: four real conditions, then optional polish ── */}
+      {showSetup && onboardingData && (() => {
+        const stepDone = (key: string) =>
+          onboardingData.steps.some((s) => s.key === key && (s.status === "completed" || s.status === "skipped"));
+        // Nice to have, never blocking: everything the meter does not require.
+        const polish = [
+          { key: "set_identity", ar: "اللوجو وجملة عن متجرك", en: "Logo and a line about your store", Icon: Palette, done: stepDone("set_identity"), action: () => setIdentityOpen(true) },
+          { key: "configure_payment", ar: "الدفع بالكارت أو المحفظة", en: "Card or wallet payments", Icon: CreditCard, done: stepDone("configure_payment"), action: () => navigate("/payment-setup") },
+          { key: "policies", ar: "سياسة الاستبدال والاسترجاع", en: "Return and exchange policy", Icon: ScrollText, done: false, action: () => navigate("/store?section=policies") },
+          { key: "domain", ar: "دومين خاص بيك", en: "Your own domain", Icon: Globe, done: false, action: () => navigate("/store?section=domain") },
+        ];
+        const storeUrl = getPublicStoreUrl(currentStore);
+        const open = readiness?.ready && !readiness.lock_reason;
 
-          return (
-            <section>
-              <div className="souq-onboard">
-                <div className="flex items-center justify-between gap-4 mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="ichip ichip-saffron">
-                      <Gift className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-base font-extrabold leading-tight">
-                        {isAr ? "كمّل تجهيز متجرك" : "Finish setting up your store"}
-                      </h2>
-                      <p className="text-[12px] text-white/60 mt-0.5">
-                        <span className="tabular-nums font-bold text-saffron">
-                          {displayDone}
-                        </span>
-                        <span className="text-white/30">/</span>
-                        <span className="tabular-nums">{totalSteps}</span>{" "}
-                        {isAr ? "مكتمل" : "completed"}
-                      </p>
-                    </div>
-                  </div>
+        return (
+          <section className="space-y-4">
+            <Card>
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className="text-base font-extrabold leading-tight">
+                    {isAr ? "جاهز تستقبل أوردرات؟" : "Ready to take orders?"}
+                  </h2>
                   {canDismissOnboarding && (
                     <button
                       type="button"
                       onClick={handleDismissOnboarding}
-                      className="text-[11px] text-white/40 hover:text-white/70 transition-colors shrink-0"
+                      className="text-[11px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
                     >
                       {isAr ? "إخفاء" : "Hide"}
                     </button>
                   )}
                 </div>
-                <div className="progress">
-                  <i style={{ width: `${progressPercent}%` }} />
-                </div>
-              </div>
+                <ReadinessMeter storeId={storeId} />
+              </CardContent>
+            </Card>
 
-              {readyForOrders && (
-                <Card className="mt-4 border-emerald-500/40 animate-in fade-in zoom-in-95 duration-500">
-                  <CardContent className="p-5 space-y-3">
-                    <div>
-                      <p className="text-base font-extrabold">
-                        {isAr ? "جاهز تستقبل أوردرات 🎉" : "You're ready for orders 🎉"}
-                      </p>
-                      <p className="text-[13px] text-muted-foreground mt-1">
-                        {isAr ? "ابعت الرابط لأول 10 عملاء تعرفهم." : "Send the link to the first 10 customers you know."}
-                      </p>
-                    </div>
-                    {storeUrl && <StoreLinkShare url={storeUrl} storeName={currentStore?.name} />}
-                  </CardContent>
-                </Card>
-              )}
+            {open && (
+              <Card className="border-emerald-500/40 animate-in fade-in zoom-in-95 duration-500">
+                <CardContent className="p-5 space-y-3">
+                  <div>
+                    <p className="text-base font-extrabold">
+                      {isAr ? "متجرك مفتوح للناس 🎉" : "Your store is open 🎉"}
+                    </p>
+                    <p className="text-[13px] text-muted-foreground mt-1">
+                      {isAr ? "ابعت الرابط لأول 10 عملاء تعرفهم." : "Send the link to the first 10 customers you know."}
+                    </p>
+                  </div>
+                  {storeUrl && <StoreLinkShare url={storeUrl} storeName={currentStore?.name} />}
+                </CardContent>
+              </Card>
+            )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
-                {steps.map((step) => {
-                  const Icon = step.Icon;
-                  return (
-                    <Card
-                      key={step.key}
-                      className={`overflow-hidden transition-all ${step.done ? "opacity-60" : "hover-lift cursor-pointer"}`}
-                      onClick={() => !step.done && step.action()}
-                    >
-                      <CardContent className="p-5 flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <div
-                            className={`ichip ${step.done ? "ichip-sage" : "ichip-saffron"}`}
-                          >
-                            {step.done ? (
-                              <Check className="h-5 w-5" />
-                            ) : (
-                              <Icon className="h-5 w-5" />
-                            )}
-                          </div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                            {isAr ? step.timeAr : step.time}
-                          </span>
-                        </div>
-                        <div>
-                          <h3
-                            className={`text-sm font-extrabold ${step.done ? "line-through text-muted-foreground" : ""}`}
-                          >
-                            {isAr ? step.labelAr : step.label}
-                          </h3>
-                          <p className="text-[12px] text-muted-foreground mt-1 leading-snug">
-                            {isAr ? step.descAr : step.desc}
-                          </p>
-                        </div>
-                        {!step.done && (
-                          <Button
-                            size="sm"
-                            variant="accent"
-                            className="self-start mt-1"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              step.action();
-                            }}
-                          >
-                            {isAr ? step.ctaAr : step.cta}
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+            <div>
+              <h3 className="text-sm font-extrabold mb-2">{isAr ? "خلّي متجرك أحلى" : "Make your store nicer"}</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {polish.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={item.action}
+                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-start text-sm transition-colors hover:bg-muted/50 ${item.done ? "opacity-60" : ""}`}
+                  >
+                    {item.done ? <Check className="h-4 w-4 text-emerald-600 shrink-0" /> : <item.Icon className="h-4 w-4 text-muted-foreground shrink-0" />}
+                    <span className={item.done ? "line-through text-muted-foreground" : "font-medium"}>{isAr ? item.ar : item.en}</span>
+                    <span className="ms-auto text-[11px] text-muted-foreground">{isAr ? "اختياري" : "Optional"}</span>
+                  </button>
+                ))}
               </div>
-            </section>
-          );
-        })()}
+            </div>
+          </section>
+        );
+      })()}
+      <IdentitySheet open={identityOpen} onOpenChange={setIdentityOpen} />
 
       {/* ─────────────────────────────── §TODAY ─────────────────────── */}
       <section>

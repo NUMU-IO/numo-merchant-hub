@@ -1,9 +1,13 @@
 /**
- * OnboardingWizard — opens on the live store (link, share, phone preview),
- * then optional steps: category, shipping prices, payments, first product.
+ * OnboardingWizard — store-first: opens on the merchant's live store (link,
+ * share, phone preview, optional "what do you sell"), then first product,
+ * "make it yours", shipping + payment, and go live (confirm the email, the
+ * store opens, share it). Everything after the reveal is skippable.
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -13,6 +17,13 @@ import { track } from "@/lib/analytics";
 import { createProduct, uploadProductImage } from "@/services/productApi";
 import { ApiError, errorMessage } from "@/lib/api-error";
 import { getPublicStoreUrl, getStoreFrameUrl } from "@/lib/storefront";
+import { resendVerificationEmail, verifyEmailByCode } from "@/services/authApi";
+import { updateStore, uploadStoreAsset } from "@/services/storeApi";
+import { activateThemeBySlug, getThemeDetail } from "@/services/marketplaceApi";
+import { recommendedThemes } from "@/lib/theme-recommendations";
+import { applyBrandColor, dominantColor, readableOnWhite } from "@/lib/brand-color";
+import { toLatinDigits } from "@/lib/arabic-normalize";
+import { ReadinessMeter } from "@/components/onboarding/ReadinessMeter";
 import { applyEgypt4ZonePreset } from "@/services/shippingApi";
 import StoreLinkShare from "@/components/StoreLinkShare";
 import { Button } from "@/components/ui/button";
@@ -34,6 +45,8 @@ import {
   Package,
   Globe,
   Store,
+  Palette,
+  Rocket,
 } from "lucide-react";
 import { NicheIcon } from "@/components/onboarding/NicheIcon";
 import { cn } from "@/lib/utils";
@@ -115,6 +128,8 @@ const NICHES: NicheOption[] = [
   { id: "home", label: "مستلزمات منزلية", labelEn: "Home & Living", icon: <NicheIcon kind="home" />, hue: "#BD6538" },
   { id: "food", label: "أطعمة ومشروبات", labelEn: "Food & Drinks", icon: <NicheIcon kind="food" />, hue: "#5F7D24" },
   { id: "accessories", label: "إكسسوارات", labelEn: "Accessories", icon: <NicheIcon kind="accessories" />, hue: "#A67A22" },
+  { id: "books", label: "كتب", labelEn: "Books", icon: <NicheIcon kind="books" />, hue: "#3F6E8C" },
+  { id: "handmade", label: "شغل يدوي", labelEn: "Handmade", icon: <NicheIcon kind="handmade" />, hue: "#8C5A3F" },
   { id: "other", label: "أخرى", labelEn: "Other", icon: <NicheIcon kind="other" />, hue: "#5B6876" },
 ];
 
@@ -163,18 +178,18 @@ const PREFILL_OPTIONS = {
   shipping: SHIPPING_OPTIONS.map((o) => o.id),
 };
 
-// Steps: 0 = your store is live, 1 = category, 2 = shipping, 3 = payments,
-// 4 = first product, 5 = ready. Everything after 0 is skippable.
-const TOTAL_STEPS = 5;
+// Steps: 0 = your store is live (+ optional category), 1 = first product,
+// 2 = make it yours, 3 = shipping + payment, 4 = go live & share.
+// Everything after 0 is skippable.
+const TOTAL_STEPS = 4;
 
 /* ──────────────────────────── Step Labels ──────────────────────────── */
 
 const STEP_LABELS = [
-  { key: "niche", labelAr: "التصنيف", labelEn: "Category" },
-  { key: "shipping", labelAr: "الشحن", labelEn: "Shipping" },
-  { key: "payments", labelAr: "الدفع", labelEn: "Payments" },
   { key: "product", labelAr: "منتج", labelEn: "Product" },
-  { key: "preview", labelAr: "معاينة", labelEn: "Preview" },
+  { key: "look", labelAr: "الشكل", labelEn: "Look" },
+  { key: "ship", labelAr: "الشحن والدفع", labelEn: "Ship & pay" },
+  { key: "live", labelAr: "افتح", labelEn: "Go live" },
 ];
 
 /** Phone-sized live preview with a spinner until the store has painted, so
@@ -198,9 +213,10 @@ function StorePhonePreview({ src, isAr }: { src: string; isAr: boolean }) {
 
 export default function OnboardingWizard() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const queryClient = useQueryClient();
   const { language } = useLanguage();
-  const { currentStore } = useDashboardStore();
+  const { currentStore, refetchStores } = useDashboardStore();
   const isAr = language === "ar";
 
   // Wizard state. Country seeds from the store's market (chosen at store
@@ -214,9 +230,9 @@ export default function OnboardingWizard() {
   const [businessType, setBusinessType] = useState<string>(prefill?.niche ?? "");
   const country = storeCountry;
   const [zoneRates, setZoneRates] = useState<string[]>(EGYPT_ZONES.map((z) => z.price));
-  const [sellsWhereToday, setSellsWhereToday] = useState<string>(prefill?.sellsWhere ?? "");
-  const [monthlyOrdersBand, setMonthlyOrdersBand] = useState<string>(prefill?.ordersBand ?? "");
-  const [city, setCity] = useState<string>("");
+  // Asked in the landing chat, if at all — never in the wizard any more.
+  const sellsWhereToday = prefill?.sellsWhere ?? "";
+  const monthlyOrdersBand = prefill?.ordersBand ?? "";
   const [shippingPref, setShippingPref] = useState<string>(egPrefill?.shipping ?? "");
   const [paymentMethods, setPaymentMethods] = useState<string[]>(
     egPrefill?.payments ? Array.from(new Set(["cod", ...egPrefill.payments])) : ["cod"],
@@ -237,6 +253,20 @@ export default function OnboardingWizard() {
   const [productImagePreview, setProductImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // "Make it yours" step
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoColor, setLogoColor] = useState<string | null>(null);
+  const [colorApplied, setColorApplied] = useState(false);
+  const [themes, setThemes] = useState<{ slug: string; name: string; thumbnail: string | null }[]>([]);
+  const [activeTheme, setActiveTheme] = useState<string | null>(null);
+  const [themeBusy, setThemeBusy] = useState<string | null>(null);
+
+  // Go-live step
+  const [code, setCode] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+
   const progressValue = step === 0 ? 0 : (step / TOTAL_STEPS) * 100;
   const storeUrl = getPublicStoreUrl(currentStore);
   const frameUrl = getStoreFrameUrl(currentStore, isAr ? "ar" : "en");
@@ -244,11 +274,10 @@ export default function OnboardingWizard() {
 
   const canAdvance = useCallback(() => {
     switch (step) {
-      case 1: return !!businessType;
-      case 2: return !!shippingPref && (!usesZonePreset || zoneRates.every((r) => r !== "" && Number(r) >= 0));
+      case 3: return !!shippingPref && (!usesZonePreset || zoneRates.every((r) => r !== "" && Number(r) >= 0));
       default: return true;
     }
-  }, [step, businessType, shippingPref, usesZonePreset, zoneRates]);
+  }, [step, shippingPref, usesZonePreset, zoneRates]);
 
   const togglePayment = (id: string) => {
     if (id === "cod") return;
@@ -325,7 +354,6 @@ export default function OnboardingWizard() {
       // half-answered wizard doesn't overwrite a previous full one.
       sells_where_today: sellsWhereToday || undefined,
       monthly_orders_band: monthlyOrdersBand || undefined,
-      city: city.trim() || undefined,
     };
 
     try {
@@ -386,7 +414,8 @@ export default function OnboardingWizard() {
       return;
     }
     setLoading(false);
-    setStep(TOTAL_STEPS); // Go to preview
+    toast.success(isAr ? "كده الكلام 🚀 أول منتج عندك بقى على المتجر" : "Nice 🚀 your first product is in your store");
+    setStep(2);
   };
 
   // The prices the merchant just confirmed become the store's zones. A store
@@ -404,32 +433,126 @@ export default function OnboardingWizard() {
     return true;
   };
 
-  // "See my store": open the live store in a new tab, land on the dashboard here.
   const handleFinish = () => {
-    if (storeUrl) window.open(storeUrl, "_blank", "noopener");
     navigate("/", { replace: true });
   };
 
   const handleStepTransition = async () => {
-    if (step === 2) {
-      setLoading(true);
-      setError(null);
-      const ok = await applyShippingPreset();
-      setLoading(false);
-      if (ok) handleNext();
-    } else if (step === 3) {
-      // Submit configuration, then advance to product step
-      setLoading(true);
-      setError(null);
-      // A failed save shows its error and keeps the merchant on this step.
-      const ok = await handleSubmitConfig();
-      setLoading(false);
-      if (ok) setStep(4);
-    } else if (step === 4 && productName && productPrice) {
-      // Submit product, then advance to preview
+    if (step === 1 && productName && productPrice) {
       await handleProductSubmit();
+    } else if (step === 3) {
+      // Shipping prices, then the configuration (payments, category, starter
+      // copy). A failed save shows its error and keeps the merchant here.
+      setLoading(true);
+      setError(null);
+      const ok = (await applyShippingPreset()) && (await handleSubmitConfig());
+      setLoading(false);
+      if (ok) {
+        await queryClient.invalidateQueries({ queryKey: ["store-readiness", currentStore?.id] });
+        setStep(4);
+      }
     } else {
       handleNext();
+    }
+  };
+
+  // "Make it yours": the recommended themes for the category that exist and
+  // are free, shown when the merchant reaches that step.
+  useEffect(() => {
+    if (step !== 2) return;
+    let cancelled = false;
+    Promise.all(
+      recommendedThemes(businessType).map((slug) =>
+        getThemeDetail(slug)
+          .then((d) => {
+            const t = (d as unknown as { theme?: { name?: string; name_ar?: string | null; thumbnail_url?: string | null; price_cents?: number } }).theme;
+            if (!t || (t.price_cents ?? 0) > 0) return null;
+            return {
+              slug,
+              name: ((isAr && t.name_ar) || t.name || slug).replace(/\s*\(V\d+\)$/i, ""),
+              thumbnail: t.thumbnail_url ?? null,
+            };
+          })
+          .catch(() => null),
+      ),
+    ).then((list) => {
+      if (!cancelled) setThemes(list.filter((t): t is NonNullable<typeof t> => !!t));
+    });
+    return () => { cancelled = true; };
+  }, [step, businessType, isAr]);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
+
+  const handleLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentStore?.id) return;
+    setLogoUploading(true);
+    try {
+      const { url } = await uploadStoreAsset(currentStore.id, file, "logo");
+      await updateStore(currentStore.id, { logo_url: url });
+      await refetchStores(currentStore.id);
+      const color = await dominantColor(file);
+      setLogoColor(color && readableOnWhite(color) ? color : null);
+      toast.success(isAr ? "شكله حلو عليك 👌" : "Looking good 👌");
+    } catch (err) {
+      setError(errorMessage(err, language));
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const applyLogoColor = async () => {
+    if (!currentStore?.id || !logoColor) return;
+    try {
+      await applyBrandColor(currentStore.id, logoColor);
+      setColorApplied(true);
+    } catch (err) {
+      setError(errorMessage(err, language));
+    }
+  };
+
+  const pickTheme = async (slug: string) => {
+    if (!currentStore?.id) return;
+    setThemeBusy(slug);
+    try {
+      await activateThemeBySlug(currentStore.id, slug);
+      setActiveTheme(slug);
+      // The colour lives on the theme's customization; a new theme starts
+      // without it, so the merchant can apply it again.
+      setColorApplied(false);
+    } catch (err) {
+      setError(errorMessage(err, language));
+    } finally {
+      setThemeBusy(null);
+    }
+  };
+
+  const verifyAndOpen = async () => {
+    if (code.length !== 6) return;
+    setVerifying(true);
+    setError(null);
+    try {
+      await verifyEmailByCode(code);
+      await refreshUser();
+      await queryClient.invalidateQueries({ queryKey: ["store-readiness", currentStore?.id] });
+      toast.success(isAr ? "متجرك مفتوح للناس ✅" : "Your store is open ✅");
+    } catch (err) {
+      setError(errorMessage(err, language));
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const resendCode = async () => {
+    try {
+      await resendVerificationEmail();
+      setResendIn(60);
+    } catch (err) {
+      setError(errorMessage(err, language));
     }
   };
 
@@ -454,146 +577,38 @@ export default function OnboardingWizard() {
         </div>
       )}
       {frameUrl && <StorePhonePreview src={frameUrl} isAr={isAr} />}
-      <p className="text-sm text-[var(--b-ink-soft)] max-w-sm mx-auto">
-        {isAr
-          ? "٤ خطوات سريعة لأسعار الشحن والدفع وأول منتج — كلها اختيارية وتقدر ترجعلها من لوحة التحكم."
-          : "Four quick steps for shipping prices, payments and your first product — all optional, and you can come back to them from the dashboard."}
-      </p>
+
+      {/* Optional, asked once: picks the product fields, starter copy and
+          recommended themes. */}
+      <div className="space-y-3 text-start">
+        <p className="text-sm font-medium text-center">{isAr ? "بتبيع إيه؟ (اختياري)" : "What do you sell? (optional)"}</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          {NICHES.map((niche) => (
+            <button
+              key={niche.id}
+              type="button"
+              onClick={() => setBusinessType(niche.id)}
+              aria-pressed={businessType === niche.id}
+              className={cn(
+                "inline-flex items-center gap-2 px-3 py-2 rounded-lg border-2 text-sm transition-all duration-200",
+                businessType === niche.id ? "border-foreground bg-accent font-medium" : "border-border/50 bg-card hover:border-foreground/30",
+              )}
+            >
+              <span style={{ color: niche.hue }} className="[&_svg]:h-5 [&_svg]:w-5">{niche.icon}</span>
+              {isAr ? niche.label : niche.labelEn}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="flex flex-col gap-3 max-w-xs mx-auto">
         <Button size="lg" onClick={() => setStep(1)} className="brand-btn-primary gap-2 rounded-[4px]">
-          {isAr ? "كمّل الإعداد" : "Continue setup"}
+          {isAr ? "ضيف أول منتج" : "Add your first product"}
           <ArrowRight className="brand-btn-arrow h-4 w-4 rtl:rotate-180" />
         </Button>
         <button type="button" className="text-sm text-[var(--b-ink-soft)] hover:text-[var(--b-navy)] transition-colors" onClick={handleSkip}>
           {isAr ? "روح للوحة التحكم" : "Go to the dashboard"}
         </button>
-      </div>
-    </div>
-  );
-
-  const renderStep1 = () => (
-    <div className="space-y-6">
-      <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold tracking-tight">{isAr ? "ايه نوع منتجاتك؟" : "What do you sell?"}</h2>
-        <p className="text-muted-foreground text-sm">
-          {isAr ? "اختار التصنيف الأقرب — هنجهز خانات المنتجات المناسبة ليه" : "Pick the closest category — we'll set up the product fields that fit it"}
-        </p>
-        {prefill && (
-          <p className="inline-flex items-center gap-1.5 rounded-full border border-[var(--b-saffron)]/40 bg-[var(--b-saffron)]/10 px-3 py-1 text-xs font-medium text-[var(--b-ink)]">
-            <Sparkles className="h-3.5 w-3.5 text-[var(--b-saffron)]" />
-            {isAr ? "اخترنالك دول من إجاباتك في شات نُمُو — غيّر اللي تحبه." : "Picked from your answers in the numu chat — change anything you like."}
-          </p>
-        )}
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {NICHES.map((niche) => (
-          <button
-            key={niche.id}
-            type="button"
-            onClick={() => setBusinessType(niche.id)}
-            className={cn(
-              "flex flex-col items-center gap-3 p-5 rounded-xl border-2 transition-all duration-200",
-              "hover:border-foreground/30 hover:bg-accent/50",
-              businessType === niche.id
-                ? "border-foreground bg-accent shadow-sm"
-                : "border-border/50 bg-card"
-            )}
-          >
-            <div
-              className="p-3 rounded-xl transition-colors"
-              style={
-                businessType === niche.id
-                  ? { background: niche.hue, color: "#fff" }
-                  : { background: `color-mix(in srgb, ${niche.hue} 12%, transparent)`, color: niche.hue }
-              }
-            >
-              {niche.icon}
-            </div>
-            <span className="text-sm font-medium">{isAr ? niche.label : niche.labelEn}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Qualification. Nothing below this line changes a store setting —
-          it tells sales who just walked in. Kept on this step rather than
-          given its own so the merchant answers everything about their
-          business in one pass. */}
-      <div className="space-y-5 pt-2 border-t border-border/50">
-        <div className="space-y-3">
-          <p className="text-sm font-medium">
-            {isAr ? "بتبيع فين دلوقتي؟ (اختياري)" : "Where do you sell today? (optional)"}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {SELLS_WHERE.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setSellsWhereToday(opt.id)}
-                className={cn(
-                  "inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 text-sm transition-all duration-200",
-                  "hover:border-foreground/30 hover:bg-accent/50",
-                  sellsWhereToday === opt.id
-                    ? "border-foreground bg-accent font-medium"
-                    : "border-border/50 bg-card"
-                )}
-              >
-                {opt.domain ? (
-                  <img
-                    src={`https://www.google.com/s2/favicons?domain=${opt.domain}&sz=64`}
-                    alt=""
-                    width={16}
-                    height={16}
-                    loading="lazy"
-                    className="h-4 w-4 rounded-sm object-contain"
-                    // A blocked or missing favicon must not leave a broken
-                    // image icon sitting in the middle of the chip.
-                    onError={(e) => { e.currentTarget.style.display = "none"; }}
-                  />
-                ) : (
-                  <span className="text-muted-foreground">{opt.icon}</span>
-                )}
-                {isAr ? opt.label : opt.labelEn}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <p className="text-sm font-medium">
-            {isAr ? "بتعمل كام أوردر في الشهر؟ (اختياري)" : "How many orders a month? (optional)"}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {ORDER_BANDS.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setMonthlyOrdersBand(opt.id)}
-                className={cn(
-                  "px-4 py-2 rounded-lg border-2 text-sm transition-all duration-200",
-                  "hover:border-foreground/30 hover:bg-accent/50",
-                  monthlyOrdersBand === opt.id
-                    ? "border-foreground bg-accent font-medium"
-                    : "border-border/50 bg-card"
-                )}
-              >
-                {isAr ? opt.label : opt.labelEn}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-2 max-w-sm">
-          <Label htmlFor="wizard-city" className="text-sm font-medium">
-            {isAr ? "المدينة (اختياري)" : "City (optional)"}
-          </Label>
-          <Input
-            id="wizard-city"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            maxLength={80}
-            placeholder={isAr ? "القاهرة" : "Cairo"}
-          />
-        </div>
       </div>
     </div>
   );
@@ -816,38 +831,140 @@ export default function OnboardingWizard() {
     </div>
   );
 
-  const renderReady = () => (
+  const renderLook = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2">
         <div className="flex justify-center mb-2">
-          <div className="p-3 rounded-xl bg-emerald-500/10">
-            <Check className="h-7 w-7 text-emerald-500" />
+          <div className="p-3 rounded-xl bg-muted">
+            <Palette className="h-7 w-7 text-muted-foreground" />
           </div>
         </div>
-        <h2 className="text-2xl font-bold tracking-tight">
-          {isAr ? "كده الكلام — ابعت الرابط لعملائك" : "All set — send the link to your customers"}
-        </h2>
+        <h2 className="text-2xl font-bold tracking-tight">{isAr ? "خلّيه شبهك" : "Make it yours"}</h2>
         <p className="text-muted-foreground text-sm">
-          {isAr ? "تقدر تعدل أي حاجة بعدين من لوحة التحكم" : "You can change anything later from the dashboard"}
+          {isAr ? "لوجو وشكل للمتجر — اختياري، وتقدر تغيّره في أي وقت." : "A logo and a look — optional, change it any time."}
         </p>
       </div>
-      {storeUrl && (
-        <div className="max-w-sm mx-auto">
-          <StoreLinkShare url={storeUrl} storeName={currentStore?.name} />
+
+      <div className="max-w-md mx-auto space-y-3">
+        <input ref={logoInputRef} type="file" accept="image/*" className="sr-only" onChange={handleLogo} />
+        <Button type="button" variant="outline" className="gap-2" onClick={() => logoInputRef.current?.click()} disabled={logoUploading}>
+          {logoUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+          {currentStore?.logo_url ? (isAr ? "غيّر اللوجو" : "Change logo") : (isAr ? "ارفع اللوجو" : "Upload your logo")}
+        </Button>
+        {logoColor && (
+          <div className="flex items-center gap-3 text-sm">
+            <span className="h-6 w-6 rounded-full border" style={{ background: logoColor }} aria-hidden="true" />
+            {colorApplied ? (
+              <span>{isAr ? "خدنا اللون من اللوجو ✓" : "Using your logo colour ✓"}</span>
+            ) : (
+              <Button type="button" size="sm" variant="ghost" onClick={applyLogoColor}>
+                {isAr ? "استخدم لون اللوجو في المتجر" : "Use your logo colour in the store"}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {themes.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-center">{isAr ? "اختار شكل يناسبك" : "Pick a look"}</p>
+          <div className="grid grid-cols-3 gap-3">
+            {themes.map((t) => (
+              <button
+                key={t.slug}
+                type="button"
+                onClick={() => pickTheme(t.slug)}
+                disabled={!!themeBusy}
+                aria-pressed={activeTheme === t.slug}
+                className={cn(
+                  "rounded-xl border-2 overflow-hidden text-start transition-all",
+                  activeTheme === t.slug ? "border-foreground" : "border-border/50 hover:border-foreground/30",
+                )}
+              >
+                <div className="aspect-[3/4] bg-muted">
+                  {t.thumbnail && <img src={t.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />}
+                </div>
+                <div className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium">
+                  {themeBusy === t.slug && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {activeTheme === t.slug && <Check className="h-3 w-3" />}
+                  <span className="truncate">{t.name}</span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       )}
-      {frameUrl && <StorePhonePreview src={frameUrl} isAr={isAr} />}
+      {frameUrl && <StorePhonePreview key={`${activeTheme}-${colorApplied}-${currentStore?.logo_url}`} src={frameUrl} isAr={isAr} />}
     </div>
   );
+
+  const renderGoLive = () => {
+    const verified = !!user?.is_verified;
+    return (
+      <div className="space-y-6">
+        <div className="text-center space-y-2">
+          <div className="flex justify-center mb-2">
+            <div className="p-3 rounded-xl bg-emerald-500/10">
+              <Rocket className="h-7 w-7 text-emerald-600" />
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold tracking-tight">{isAr ? "افتح المتجر للناس" : "Open your store"}</h2>
+        </div>
+
+        <div className="max-w-md mx-auto rounded-xl border p-4">
+          <ReadinessMeter storeId={currentStore?.id} />
+        </div>
+
+        {!verified ? (
+          <div className="max-w-md mx-auto space-y-3">
+            <p className="text-sm text-center">
+              {isAr ? `أكّد إيميلك وبعدها متجرك يفتح للناس. بعتنالك كود من 6 أرقام على ${user?.email ?? ""}` : `Confirm your email and your store opens. We sent a 6-digit code to ${user?.email ?? ""}`}
+            </p>
+            <div className="flex gap-2">
+              <Input
+                value={code}
+                onChange={(e) => setCode(toLatinDigits(e.target.value).replace(/\D/g, "").slice(0, 6))}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                dir="ltr"
+                aria-label={isAr ? "كود التأكيد" : "Verification code"}
+                className="h-11 text-center tracking-[0.4em] font-semibold"
+              />
+              <Button type="button" className="h-11 brand-btn-primary rounded-[4px]" onClick={verifyAndOpen} disabled={code.length !== 6 || verifying}>
+                {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : isAr ? "افتح المتجر" : "Open store"}
+              </Button>
+            </div>
+            <p className="text-xs text-center text-muted-foreground">
+              {isAr ? "مش لاقيه؟ بص في الـ Spam أو الترويجات. " : "Can't find it? Check Spam or Promotions. "}
+              <button type="button" className="underline disabled:no-underline disabled:opacity-60" onClick={resendCode} disabled={resendIn > 0}>
+                {resendIn > 0 ? (isAr ? `ابعت تاني بعد ${resendIn} ث` : `Resend in ${resendIn}s`) : (isAr ? "ابعت كود جديد" : "Send a new code")}
+              </button>
+            </p>
+          </div>
+        ) : (
+          storeUrl && (
+            <div className="max-w-sm mx-auto space-y-2">
+              <p className="text-sm text-center font-medium">{isAr ? "ابعت الرابط لأول 10 عملاء تعرفهم:" : "Send the link to the first 10 customers you know:"}</p>
+              <StoreLinkShare url={storeUrl} storeName={currentStore?.name} />
+            </div>
+          )
+        )}
+      </div>
+    );
+  };
 
   const renderCurrentStep = () => {
     switch (step) {
       case 0: return renderWelcome();
-      case 1: return renderStep1();
-      case 2: return renderShipping();
-      case 3: return renderPayments();
-      case 4: return renderProduct();
-      case 5: return renderReady();
+      case 1: return renderProduct();
+      case 2: return renderLook();
+      case 3: return (
+        <div className="space-y-10">
+          {renderShipping()}
+          {renderPayments()}
+        </div>
+      );
+      case 4: return renderGoLive();
       default: return null;
     }
   };
@@ -953,12 +1070,12 @@ export default function OnboardingWizard() {
                 {isAr ? "رجوع" : "Back"}
               </Button>
 
-              {step === 4 && (!productName || !productPrice) ? (
+              {step === 1 && (!productName || !productPrice) ? (
                 // On product step with empty fields — show skip + add later
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setStep(TOTAL_STEPS)}
+                  onClick={() => setStep(2)}
                   className="gap-2 rounded-[4px] border-[var(--b-line)] text-[var(--b-ink)] hover:bg-[var(--b-cream)]"
                 >
                   {isAr ? "تخطي — أضيف بعدين" : "Skip — add later"}
@@ -975,13 +1092,23 @@ export default function OnboardingWizard() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : step === TOTAL_STEPS ? (
                     <>
-                      {isAr ? "شوف متجري" : "See my store"}
+                      {isAr ? "روح للوحة التحكم" : "Go to the dashboard"}
                       <Check className="brand-btn-arrow h-4 w-4" />
                     </>
-                  ) : step === 4 ? (
+                  ) : step === 1 ? (
                     <>
-                      {isAr ? "أضف المنتج" : "Add Product"}
+                      {isAr ? "ضيفه للمتجر" : "Add to my store"}
                       <Package className="brand-btn-arrow h-4 w-4" />
+                    </>
+                  ) : step === 2 ? (
+                    <>
+                      {isAr ? "تمام كده" : "Looks good"}
+                      <ArrowRight className="brand-btn-arrow h-4 w-4 rtl:rotate-180" />
+                    </>
+                  ) : step === 3 ? (
+                    <>
+                      {isAr ? "أكّد" : "Confirm"}
+                      <ArrowRight className="brand-btn-arrow h-4 w-4 rtl:rotate-180" />
                     </>
                   ) : (
                     <>

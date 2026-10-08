@@ -277,6 +277,17 @@ export default function VerifyEmail() {
             </Button>
           </div>
 
+          {/* Build now, confirm before the store opens to customers. */}
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              onClick={() => navigate("/", { replace: true })}
+              className="text-sm font-semibold text-[var(--b-navy)] hover:underline underline-offset-2"
+            >
+              {isAr ? "كمّل جهّز متجرك، وأكّد قبل ما تفتحه للناس" : "Keep building — confirm before you open to customers"}
+            </button>
+          </div>
+
           {/* Go back */}
           <div className="mt-6 pt-5 border-t border-[var(--b-line)]">
             <button type="button" onClick={handleGoBack} className="w-full flex items-center justify-center gap-1.5 text-sm text-[var(--b-ink-soft)] hover:text-[var(--b-navy)] transition-colors">

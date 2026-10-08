@@ -2,13 +2,48 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
+/**
+ * `cards`: under 640px every row becomes a stacked card and each cell is
+ * labelled with its column header (copied into `data-label`, which the
+ * `.tbl-cards` CSS in index.css prints before the value). Headers are read
+ * from the DOM so pages don't have to repeat them per cell.
+ */
+const Table = React.forwardRef<
+  HTMLTableElement,
+  React.HTMLAttributes<HTMLTableElement> & { cards?: boolean }
+>(({ className, cards, ...props }, ref) => {
+  const innerRef = React.useRef<HTMLTableElement>(null);
+  React.useImperativeHandle(ref, () => innerRef.current as HTMLTableElement);
+
+  React.useEffect(() => {
+    const table = innerRef.current;
+    if (!cards || !table) return;
+    const label = () => {
+      const heads = Array.from(table.querySelectorAll("thead th"), (th) => th.textContent?.trim() ?? "");
+      table.querySelectorAll("tbody tr").forEach((tr) => {
+        Array.from(tr.children).forEach((cell, i) => {
+          const text = heads[i];
+          if (text && cell.getAttribute("data-label") !== text) cell.setAttribute("data-label", text);
+        });
+      });
+    };
+    label();
+    // Rows arrive and change after mount (pagination, filters, language).
+    const observer = new MutationObserver(label);
+    observer.observe(table, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [cards]);
+
+  return (
     <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+      <table
+        ref={innerRef}
+        className={cn("w-full caption-bottom text-sm", cards && "tbl-cards", className)}
+        {...props}
+      />
     </div>
-  ),
-);
+  );
+});
 Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
