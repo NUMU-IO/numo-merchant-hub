@@ -965,7 +965,7 @@ const Orders = () => {
             {o.customer_notes && (
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-base">{language === "ar" ? "ملاحظات العميل" : "Customer Notes"}</CardTitle></CardHeader>
-                <CardContent><p className="text-sm text-muted-foreground">{o.customer_notes}</p></CardContent>
+                <CardContent><p className="text-sm text-muted-foreground whitespace-pre-line" dir="auto">{o.customer_notes}</p></CardContent>
               </Card>
             )}
 
