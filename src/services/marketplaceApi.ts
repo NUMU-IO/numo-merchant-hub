@@ -303,14 +303,20 @@ export const DEFAULT_NEW_STORE_THEME_SLUG = "luxury-minimal-v3";
 
 export async function activateDefaultTheme(storeId: string): Promise<void> {
   try {
-    const detail = await getThemeDetail(DEFAULT_NEW_STORE_THEME_SLUG);
-    const marketplaceThemeId = detail?.theme?.id;
-    if (!marketplaceThemeId) return;
-    await installTheme(storeId, marketplaceThemeId).catch(() => {});
-    await activateTheme(storeId, marketplaceThemeId);
+    await activateThemeBySlug(storeId, DEFAULT_NEW_STORE_THEME_SLUG);
   } catch {
     // Convenience only — never surface to the merchant.
   }
+}
+
+/** Install (a 409 "already installed" is harmless) and activate a catalog
+ *  theme by its slug. Throws when the theme or the activation fails. */
+export async function activateThemeBySlug(storeId: string, slug: string): Promise<void> {
+  const detail = await getThemeDetail(slug);
+  const marketplaceThemeId = detail?.theme?.id;
+  if (!marketplaceThemeId) throw new Error(`Theme not found: ${slug}`);
+  await installTheme(storeId, marketplaceThemeId).catch(() => {});
+  await activateTheme(storeId, marketplaceThemeId);
 }
 
 /**

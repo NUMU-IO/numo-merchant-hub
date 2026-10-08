@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Check, Copy, ExternalLink, MessageCircle, QrCode } from "lucide-react";
+import { Check, Copy, ExternalLink, ImageDown, Loader2, MessageCircle, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -15,6 +15,7 @@ export default function StoreLinkShare({ url, storeName }: { url: string; storeN
   const isAr = language === "ar";
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
+  const [makingStory, setMakingStory] = useState(false);
   const display = url.replace(/^https?:\/\//, "");
 
   const copy = async () => {
@@ -22,6 +23,34 @@ export default function StoreLinkShare({ url, storeName }: { url: string; storeN
     setCopied(true);
     toast.success(isAr ? "اتنسخ الرابط" : "Link copied");
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // A ready-to-post Instagram/WhatsApp story: shared as a file where the
+  // browser can, downloaded otherwise.
+  const story = async () => {
+    setMakingStory(true);
+    try {
+      const { makeStoryImage } = await import("@/lib/story-image");
+      const blob = await makeStoryImage({ url, storeName, isAr });
+      const file = new File([blob], "numu-store-story.png", { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: storeName });
+      } else {
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = file.name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(href), 1000);
+        toast.success(isAr ? "الصورة اتحمّلت — انشرها ستوري" : "Image saved — post it as a story");
+      }
+    } catch (err) {
+      if ((err as Error)?.name !== "AbortError") {
+        toast.error(isAr ? "مقدرناش نعمل الصورة، جرّب تاني" : "Couldn't make the image, try again");
+      }
+    } finally {
+      setMakingStory(false);
+    }
   };
 
   const message = isAr
@@ -50,6 +79,10 @@ export default function StoreLinkShare({ url, storeName }: { url: string; storeN
         <Button type="button" size="sm" variant="outline" className="gap-1.5" aria-expanded={showQr} onClick={() => setShowQr((v) => !v)}>
           <QrCode className="h-3.5 w-3.5" />
           {isAr ? "افتحه على موبايلك" : "Open on your phone"}
+        </Button>
+        <Button type="button" size="sm" variant="outline" className="gap-1.5" disabled={makingStory} onClick={story}>
+          {makingStory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageDown className="h-3.5 w-3.5" />}
+          {isAr ? "صورة ستوري" : "Story image"}
         </Button>
       </div>
       {showQr && (

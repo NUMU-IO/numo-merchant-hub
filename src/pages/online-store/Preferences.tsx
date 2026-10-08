@@ -7,45 +7,22 @@ import { getStore, updateStore, uploadStoreAsset } from "@/services/storeApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
 import {
-  Search, BarChart3, Save, Loader2, Info,
-  Eye, EyeOff, ShieldCheck, ShieldOff, Upload, Image as ImageIcon, X,
+  Search, BarChart3, Save, Loader2,
+  ShieldCheck, Upload, Image as ImageIcon, X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
 import { ImageCropDialog, fileFromCropBlob } from "@/components/ImageCropDialog";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 
 interface PrefsState {
   favicon_url: string;
-  password_enabled: boolean;
-  password: string;
   ga_tracking_id: string;
   meta_pixel_id: string;
 }
-
-// Simple password strength (0-4)
-function passwordStrength(pw: string): number {
-  if (!pw) return 0;
-  let score = 0;
-  if (pw.length >= 8) score++;
-  if (/[A-Z]/.test(pw)) score++;
-  if (/[0-9]/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
-  return score;
-}
-
-const STRENGTH_LABEL: Record<number, { en: string; ar: string; cls: string }> = {
-  0: { en: "Too short", ar: "قصيرة جدًا", cls: "text-muted-foreground" },
-  1: { en: "Weak",      ar: "ضعيفة",      cls: "text-red-500" },
-  2: { en: "Fair",      ar: "مقبولة",     cls: "text-amber-500" },
-  3: { en: "Good",      ar: "جيدة",       cls: "text-blue-500" },
-  4: { en: "Strong",    ar: "قوية",       cls: "text-emerald-500" },
-};
 
 export default function OnlineStorePreferences() {
   const { isRTL } = useLanguage();
@@ -56,10 +33,8 @@ export default function OnlineStorePreferences() {
 
   const [form, setForm] = useState<PrefsState>({
     favicon_url: "",
-    password_enabled: false, password: "",
     ga_tracking_id: "", meta_pixel_id: "",
   });
-  const [showPw, setShowPw] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   useUnsavedChangesGuard(isDirty);
 
@@ -76,8 +51,6 @@ export default function OnlineStorePreferences() {
     const s = (storeData.settings ?? {}) as Record<string, unknown>;
     setForm({
       favicon_url:      (s.favicon_url        as string)  ?? "",
-      password_enabled: Boolean(s.password_enabled),
-      password:         (s.storefront_password as string) ?? "",
       ga_tracking_id:   (s.ga_tracking_id     as string)  ?? "",
       meta_pixel_id:    (s.meta_pixel_id      as string)  ?? "",
     });
@@ -93,11 +66,6 @@ export default function OnlineStorePreferences() {
       updateStore(storeId, {
         settings: {
           favicon_url:         form.favicon_url,
-          password_enabled:    form.password_enabled,
-          // When password protection is disabled, clear the stored password
-          // so the storefront gate unblocks even if it checks for a non-empty
-          // password as a secondary guard.
-          storefront_password: form.password_enabled ? form.password : "",
           ga_tracking_id:      form.ga_tracking_id,
           meta_pixel_id:       form.meta_pixel_id,
         },
@@ -110,8 +78,6 @@ export default function OnlineStorePreferences() {
     onError: (err) => showError(err),
   });
 
-  const pwStrength     = passwordStrength(form.password);
-  const pwMeta         = STRENGTH_LABEL[pwStrength];
 
   if (isLoading) {
     return (
@@ -169,7 +135,7 @@ export default function OnlineStorePreferences() {
         <ul className="list-disc list-inside space-y-1">
           <li>{isRTL ? "عنوان الصفحة ووصف الميتا وصورة المشاركة اتنقلوا لصفحة SEO في إعدادات المتجر." : "Homepage title, meta description and social sharing image now live on the SEO page in Store settings."}</li>
           <li>{isRTL ? "أضف Google Analytics و Meta Pixel لتتبع زيارات وتحويلات متجرك." : "Add Google Analytics and Meta Pixel to track your store visits and conversions."}</li>
-          <li>{isRTL ? "حماية المتجر بباسورد تمنع الوصول حتى يُدخل الزائر الباسورد — مفيدة قبل الإطلاق الرسمي." : "Password protection blocks access until visitors enter the password — useful before your official launch."}</li>
+          <li>{isRTL ? "حماية المتجر بباسورد قبل الإطلاق بتتظبط من صفحة المتجر الأونلاين." : "Pre-launch password protection is set on the Online Store page."}</li>
           <li>{isRTL ? "اضغط «حفظ» بعد أي تغيير لحفظه نهائيًا." : "Click Save after any change to persist it."}</li>
         </ul>
       </HelpTip>
@@ -262,107 +228,17 @@ export default function OnlineStorePreferences() {
         </div>
       </Section>
 
-      {/* ── Password protection ──────────────────────────────────────────────── */}
-      <Section
-        icon={form.password_enabled
-          ? <ShieldCheck className="h-4 w-4 text-amber-500" />
-          : <ShieldOff className="h-4 w-4" />}
-        title={isRTL ? "حماية المتجر بباسورد" : "Password protection"}
-        badge={form.password_enabled
-          ? <Badge className="text-[10px] px-1.5 bg-amber-500/12 text-amber-700 dark:text-amber-400 border-amber-300/60 hover:bg-amber-500/12">
-              {isRTL ? "مفعّل" : "Enabled"}
-            </Badge>
-          : null}
-      >
-        <div className="space-y-4">
-          {/* Toggle row */}
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium">{isRTL ? "تفعيل الباسورد" : "Enable password"}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {isRTL
-                  ? "يحجب المتجر عن الزوار حتى يدخلوا الباسورد الصح"
-                  : "Hides your store from visitors until they enter the correct password"}
-              </p>
-            </div>
-            <Switch
-              checked={form.password_enabled}
-              onCheckedChange={(v) => {
-                setForm((p) => ({
-                  ...p,
-                  password_enabled: v,
-                  // Clear the password when disabling so it isn't sent on save.
-                  password: v ? p.password : "",
-                }));
-                setIsDirty(true);
-              }}
-            />
-          </div>
-
-          {form.password_enabled && (
-            <>
-              <div className="border-t" />
-
-              {/* Password input */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">{isRTL ? "الباسورد" : "Store password"}</Label>
-                <div className="relative">
-                  <Input
-                    type={showPw ? "text" : "password"}
-                    value={form.password}
-                    onChange={(e) => set("password", e.target.value)}
-                    placeholder={isRTL ? "أدخل باسورد قوي..." : "Enter a strong password..."}
-                    className="pe-10"
-                    dir="ltr"
-                    autoComplete="new-password"
-                  />
-                  <button
-                    type="button"
-                    className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setShowPw((v) => !v)}
-                    aria-label={showPw ? "Hide password" : "Show password"}
-                  >
-                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-
-                {/* Strength meter */}
-                {form.password && (
-                  <div className="space-y-1">
-                    <div className="flex gap-1 h-1">
-                      {[1, 2, 3, 4].map((step) => (
-                        <div
-                          key={step}
-                          className={cn(
-                            "flex-1 rounded-full transition-all duration-300",
-                            pwStrength >= step
-                              ? step <= 1 ? "bg-red-500"
-                                : step === 2 ? "bg-amber-400"
-                                : step === 3 ? "bg-blue-500"
-                                : "bg-emerald-500"
-                              : "bg-muted",
-                          )}
-                        />
-                      ))}
-                    </div>
-                    <p className={cn("text-[11px] font-medium", pwMeta.cls)}>
-                      {isRTL ? pwMeta.ar : pwMeta.en}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Warning banner */}
-              <div className="flex items-start gap-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50 px-3.5 py-3">
-                <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
-                  {isRTL
-                    ? "تأكد من إلغاء تفعيل الباسورد قبل الإطلاق الرسمي لمتجرك للعموم."
-                    : "Remember to disable password protection before your public store launch."}
-                </p>
-              </div>
-            </>
-          )}
+      {/* ── Password protection lives on the Online Store page ─────────────── */}
+      <Section icon={<ShieldCheck className="h-4 w-4" />} title={isRTL ? "حماية المتجر بباسورد" : "Password protection"}>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {isRTL
+              ? "قفل المتجر بباسورد قبل الإطلاق بيتظبط من صفحة المتجر الأونلاين."
+              : "Locking your store with a password before launch is set on the Online Store page."}
+          </p>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/online-store">{isRTL ? "افتح المتجر الأونلاين" : "Open Online Store"}</Link>
+          </Button>
         </div>
       </Section>
     </div>
