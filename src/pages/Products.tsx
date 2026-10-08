@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -24,10 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
   DropdownMenuRadioGroup, DropdownMenuRadioItem,
@@ -119,8 +115,8 @@ const Products = () => {
   type SortKey = "newest" | "oldest" | "name_asc" | "name_desc" | "price_asc" | "price_desc" | "stock_desc";
   const [sortKey, setSortKey] = useState<SortKey>("newest");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // Product id -> pending delete timer. A delete waits 5s for an undo.
+  const pendingDeletes = useRef(new Map<string, number>());
   const [importOpen, setImportOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkActionInProgress, setBulkActionInProgress] = useState(false);
@@ -338,23 +334,39 @@ const Products = () => {
   };
   const statusStyle = (status: ProductStatus) => statusConfig[status] ?? statusConfig.draft;
 
-  const handleDelete = async () => {
-    if (!deleteTarget || !storeId || isDeleting) return;
-    setIsDeleting(true);
-    try {
-      await apiDeleteProduct(storeId, deleteTarget.id);
-      queryClient.setQueryData<ProductsPage>(listKey, (old) => old && {
-        ...old,
-        items: old.items.filter(p => p.id !== deleteTarget.id),
-        total: old.total - 1,
-      });
-      toast.success(t("products.productDeleted"));
-    } catch (err) {
-      showError(err, language);
-    } finally {
-      setIsDeleting(false);
-      setDeleteTarget(null);
-    }
+  // Delete with an undo instead of a confirm dialog: the row leaves the list
+  // at once, the API delete runs 5s later unless the merchant taps Undo.
+  // Navigating away doesn't cancel it (the timer outlives the page); closing
+  // the tab within 5s leaves the product in place, the safe side to fail on.
+  const deleteWithUndo = (product: Product) => {
+    if (!storeId || pendingDeletes.current.has(product.id)) return;
+    queryClient.setQueryData<ProductsPage>(listKey, (old) => old && {
+      ...old,
+      items: old.items.filter(p => p.id !== product.id),
+      total: old.total - 1,
+    });
+    const timer = window.setTimeout(async () => {
+      pendingDeletes.current.delete(product.id);
+      try {
+        await apiDeleteProduct(storeId, product.id);
+      } catch (err) {
+        showError(err, language);
+      } finally {
+        fetchProducts();
+      }
+    }, 5000);
+    pendingDeletes.current.set(product.id, timer);
+    toast(language === "ar" ? "اتمسح المنتج." : "Product deleted.", {
+      duration: 5000,
+      action: {
+        label: language === "ar" ? "تراجع" : "Undo",
+        onClick: () => {
+          window.clearTimeout(timer);
+          pendingDeletes.current.delete(product.id);
+          fetchProducts();
+        },
+      },
+    });
   };
 
   // Both of these counted over `productsList` — one page of the CURRENT
@@ -875,7 +887,7 @@ const Products = () => {
               }
             >
             <div className="overflow-x-auto">
-              <Table>
+              <Table cards>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30 border-b border-border/40">
                     <TableHead className="w-12 ps-4">
@@ -1060,7 +1072,7 @@ const Products = () => {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => setDeleteTarget(p)}
+                            onClick={() => deleteWithUndo(p)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -1089,7 +1101,7 @@ const Products = () => {
                                 {isAr ? "نسخ" : "Duplicate"}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => setDeleteTarget(p)} className="text-destructive focus:text-destructive">
+                              <DropdownMenuItem onClick={() => deleteWithUndo(p)} className="text-destructive focus:text-destructive">
                                 <Trash2 className="me-2 h-3.5 w-3.5" />
                                 {t("products.delete")}
                               </DropdownMenuItem>
@@ -1141,23 +1153,6 @@ const Products = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <AlertDialogContent className="rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("products.confirmDelete")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("products.confirmDeleteDesc")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-lg">{t("products.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg">
-              {isDeleting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-              {t("products.delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <ImportDialog open={importOpen} onOpenChange={setImportOpen} onImportComplete={fetchProducts} />
     </div>

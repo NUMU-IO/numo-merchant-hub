@@ -509,7 +509,7 @@ const AbandonedCheckouts = () => {
             }
           >
             <div className="overflow-x-auto">
-              <Table>
+              <Table cards>
                 <TableHeader>
                   <TableRow className="bg-muted/20 hover:bg-muted/20">
                     <TableHead className="text-[11px] font-semibold">{t("abandonedCheckouts.col.customer")}<span className="block text-[10px] font-normal text-muted-foreground">{t("abandonedCheckouts.col.email")}</span></TableHead>

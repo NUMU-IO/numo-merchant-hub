@@ -265,7 +265,7 @@ function SwitchVersionOnNavigate() {
 }
 
 function RouteResolver({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading: authLoading, user, bootError } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, bootError } = useAuth();
   const { hasStores, isLoading: storeLoading, loadError: storeError } = useDashboardStore();
   const { pathname, search } = useLocation();
 
@@ -276,7 +276,8 @@ function RouteResolver({ children }: { children: React.ReactNode }) {
 
   if (bootError && !isAuthenticated) return <BrandLoadingScreen error />;
   if (!isAuthenticated) return <Navigate to={loginPath(pathname, search)} replace />;
-  if (user && !user.is_verified) return <Navigate to="/verify-email" replace />;
+  // Unverified merchants build their store; it opens to shoppers once they
+  // confirm their email (the API holds it behind the pre-launch lock).
   // A failed store fetch is not "no store": offline screen + Retry.
   if (!hasStores && storeError) return <BrandLoadingScreen error />;
   if (!hasStores) return <NoStoreRedirect />;
@@ -376,9 +377,7 @@ const App = () => (
                     path="/create-store"
                     element={
                       <RequireAuth>
-                        <RequireVerified>
-                          <CreateStore />
-                        </RequireVerified>
+                        <CreateStore />
                       </RequireAuth>
                     }
                   />

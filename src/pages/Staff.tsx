@@ -399,7 +399,7 @@ export default function StaffPage() {
             <CardDescription>{isAr ? "دعوات مستنية تتوافق عليها" : "Invitations awaiting acceptance"}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
+            <Table cards>
               <TableHeader>
                 <TableRow>
                   <TableHead>{isAr ? "الإيميل" : "Email"}</TableHead>
@@ -453,7 +453,7 @@ export default function StaffPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table cards>
             <TableHeader>
               <TableRow>
                 <TableHead className={isAr ? "text-right" : ""}>{isAr ? "العضو" : "Member"}</TableHead>

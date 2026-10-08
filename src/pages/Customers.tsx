@@ -526,7 +526,7 @@ export default function Customers() {
                   </MobileCardList>
                 }
               >
-              <Table>
+              <Table cards>
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
                     <TableHead className="h-9 ps-5 text-[11px] font-semibold">{isAr ? "العميل" : "Customer"}</TableHead>
