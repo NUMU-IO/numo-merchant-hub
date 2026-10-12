@@ -89,7 +89,7 @@ export function CustomerPanel({ storeId, order }: Props) {
                 <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1">
                   {language === "ar" ? "ملاحظات العميل" : "Customer notes"}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground whitespace-pre-line" dir="auto">
                   {order.customer_notes}
                 </p>
               </div>
