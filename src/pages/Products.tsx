@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/lib/show-error";
+import { fetchAllPages, saveCsv } from "@/lib/csvDownload";
 import { getPublicStorePath } from "@/lib/storefront";
 
 const PAGE_SIZE = 20;
@@ -449,15 +450,16 @@ const Products = () => {
                 <Upload className="me-2 h-3.5 w-3.5" />
                 {isAr ? "استيراد" : "Import"}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {
-                const csv = exportProductsToCSV(productsList);
-                const blob = new Blob([csv], { type: "text/csv" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "products_export.csv";
-                a.click();
-                URL.revokeObjectURL(url);
+              <DropdownMenuItem onClick={async () => {
+                // Every product under the current filters, not just this page.
+                try {
+                  const all = await fetchAllPages(p =>
+                    listProducts(storeId!, { ...listParams, page: p, limit: 100 }),
+                  );
+                  saveCsv("products_export.csv", exportProductsToCSV(all.map(apiToProduct)));
+                } catch (err) {
+                  showError(err, language);
+                }
               }}>
                 <Download className="me-2 h-3.5 w-3.5" />
                 {isAr ? "تصدير" : "Export"}
