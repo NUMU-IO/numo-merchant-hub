@@ -4,6 +4,7 @@
 
 import { apiClient, apiClientFormData } from "./api";
 import { compressImage } from "@/lib/image-compression";
+import { buildCsv } from "@/lib/csvDownload";
 import { listCategories } from "./categoryApi";
 import { setOwnerMetafieldValue } from "./metafieldsApi";
 import { setBundlesForProduct } from "./bundleApi";
@@ -825,15 +826,13 @@ export function generateCSVTemplate(): string {
 }
 
 export function exportProductsToCSV(products: Product[]): string {
-  const headers = "name,name_ar,description,description_ar,price,compare_at_price,quantity,status,sku";
-  const rows = products.map(p => {
-    const escape = (s: string) => s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
-    return [
-      escape(p.name), escape(p.nameAr), escape(p.description), escape(p.descriptionAr),
+  return buildCsv(
+    ["name", "name_ar", "description", "description_ar", "price", "compare_at_price", "quantity", "status", "sku"],
+    products.map(p => [
+      p.name, p.nameAr, p.description, p.descriptionAr,
       p.price, p.compareAtPrice || "", p.stock, p.status, p.sku,
-    ].join(",");
-  });
-  return [headers, ...rows].join("\n");
+    ]),
+  );
 }
 
 // ---------------------------------------------------------------------------

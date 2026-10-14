@@ -30,6 +30,7 @@ import {
   seedDevStore,
 } from "@/services/partnersApi";
 import { Earnings } from "@/pages/Partners";
+import { downloadCsv } from "@/lib/csvDownload";
 
 const ALL = "all";
 const DOCS = "https://docs.numueg.app";
@@ -63,18 +64,11 @@ export function PartnerSubscriptions() {
   }, [subs.data, search]);
 
   const exportCsv = () => {
-    const head = ["store", "app", "status", "price", "currency", "cycle", "started", "renews"];
-    const lines = rows.map((s) =>
-      [s.store_name ?? "", s.app_name, s.status, (s.price_cents / 100).toFixed(2), s.currency, s.cycle, s.created_at, s.current_period_end]
-        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-        .join(","),
+    downloadCsv(
+      "subscriptions",
+      ["store", "app", "status", "price", "currency", "cycle", "started", "renews"],
+      rows.map((s) => [s.store_name ?? "", s.app_name, s.status, (s.price_cents / 100).toFixed(2), s.currency, s.cycle, s.created_at, s.current_period_end]),
     );
-    const url = URL.createObjectURL(new Blob([[head.join(","), ...lines].join("\n")], { type: "text/csv" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "subscriptions.csv";
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   return (

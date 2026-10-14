@@ -45,6 +45,7 @@ import { toast } from "sonner";
 import { printOrderInvoice } from "@/services/invoiceApi";
 import { orderPath } from "@/lib/order-path";
 import { showError } from "@/lib/show-error";
+import { downloadCsv, fetchAllPages } from "@/lib/csvDownload";
 import { OrdersSkeleton } from "@/components/skeletons/OrdersSkeleton";
 import InstapayProofReview from "@/components/payments/InstapayProofReview";
 import {
@@ -585,19 +586,31 @@ const Orders = () => {
     }
   };
 
-  const handleExportCSV = () => {
-    const rows = [["Order #", "Customer", "Date", "Total", "Payment", "Status"]];
-    const data = selected.size > 0 ? orders.filter(o => selected.has(o.id)) : orders;
-    data.forEach(o => {
-      rows.push([o.order_number, o.customer_name || "", o.created_at?.split("T")[0] || "", String(o.total / 100), o.payment_status, o.status]);
-    });
-    const csv = rows.map(r => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "orders.csv"; a.click();
-    URL.revokeObjectURL(url);
-    toast.success(language === "ar" ? "تم تصدير الطلبات!" : "Orders exported!");
+  // Selected rows, or every order under the current filters (not just the
+  // page on screen). buildCsv's BOM keeps Arabic readable in Excel.
+  const handleExportCSV = async () => {
+    try {
+      const data =
+        selected.size > 0
+          ? orders.filter(o => selected.has(o.id))
+          : await fetchAllPages(p =>
+              listOrders(storeId!, {
+                ...(cashView ? { cash_received: false } : { date_from: dateFrom, date_to: dateTo }),
+                ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+                ...(search ? { search } : {}),
+                page: p,
+                limit: 100,
+              }),
+            );
+      downloadCsv(
+        `orders-${new Date().toISOString().slice(0, 10)}`,
+        ["Order #", "Customer", "Date", "Total", "Payment", "Status"],
+        data.map(o => [o.order_number, o.customer_name || "", o.created_at?.split("T")[0] || "", o.total / 100, o.payment_status, o.status]),
+      );
+      toast.success(language === "ar" ? `تم تصدير ${data.length} طلب` : `Exported ${data.length} orders`);
+    } catch (err) {
+      showError(err, language);
+    }
   };
 
   // === Loading state ===
