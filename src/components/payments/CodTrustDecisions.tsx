@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { apiClient } from "@/services/api";
+import { downloadCsv } from "@/lib/csvDownload";
 
 interface DecisionFactor {
   code: string;
@@ -171,25 +172,17 @@ export default function CodTrustDecisions({ storeId, isAr }: Props) {
 
   function exportCsv() {
     if (!data) return;
-    const header = ["time", "phone_last4", "action", "score", "signals"];
-    const lines = data.items.map((d) =>
-      [
+    downloadCsv(
+      "cod-trust-decisions",
+      ["time", "phone_last4", "action", "score", "signals"],
+      data.items.map((d) => [
         d.created_at,
         d.phone_last4 || "",
         actionLabel(d.action_taken, false),
-        String(d.risk_score),
+        d.risk_score,
         meaningfulSignals(d.factors).join(" | "),
-      ]
-        .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
-        .join(","),
+      ]),
     );
-    const csv = [header.join(","), ...lines].join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "cod-trust-decisions.csv";
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   const FILTERS: { key: DecisionFilter; en: string; ar: string }[] = [
