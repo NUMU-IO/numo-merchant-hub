@@ -255,7 +255,7 @@ function RequestCard({
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {when.toLocaleString(isAr ? "ar-EG-u-nu-latn" : undefined)}
-              {request.source_url && (
+              {/^https?:\/\//i.test(request.source_url ?? "") && (
                 <>
                   {" · "}
                   <a
