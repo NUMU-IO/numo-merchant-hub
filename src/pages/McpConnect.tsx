@@ -84,7 +84,7 @@ export default function McpConnectPage() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="claude" dir={isRTL ? "rtl" : "ltr"}>
-            <TabsList>
+            <TabsList className="h-auto flex-wrap">
               <TabsTrigger value="claude">Claude</TabsTrigger>
               <TabsTrigger value="claude-code">Claude Code</TabsTrigger>
               <TabsTrigger value="chatgpt">ChatGPT</TabsTrigger>
@@ -111,7 +111,7 @@ export default function McpConnectPage() {
                   )}
                 </li>
               </ol>
-              <CopyBox label="Server URL" text={MCP_URL} />
+              <CopyBox label={t("Server URL", "رابط الخادم")} text={MCP_URL} />
             </TabsContent>
             <TabsContent value="claude-code" className="space-y-3 pt-3 text-sm">
               <p>
@@ -120,11 +120,13 @@ export default function McpConnectPage() {
               <CopyBox text={claudeCodeSnippet(KEY_PLACEHOLDER)} />
             </TabsContent>
             <TabsContent value="chatgpt" className="space-y-3 pt-3 text-sm">
+              {/* U+2068…U+2069 (\u2068…\u2069) isolate the English UI labels inside Arabic, so
+                  the arrows and quotes keep their RTL order. */}
               <ol className="list-decimal space-y-1 ps-5">
                 <li>
                   {t(
                     'On the web, open chatgpt.com/plugins → + → "Add custom MCP server"',
-                    'من المتصفح افتح chatgpt.com/plugins ← + ← "Add custom MCP server"',
+                    'من المتصفح افتح \u2068chatgpt.com/plugins\u2069 ← + ← "\u2068Add custom MCP server\u2069"',
                   )}
                 </li>
                 <li>
@@ -136,11 +138,11 @@ export default function McpConnectPage() {
                 <li>
                   {t(
                     'Tick "I understand…", click "Create as a plugin", then sign in to NUMU and approve',
-                    'علّم على "I understand…" واضغط "Create as a plugin"، وبعدين ادخل حساب NUMU ووافق',
+                    'علّم على "\u2068I understand…\u2069" واضغط "\u2068Create as a plugin\u2069"، وبعدين ادخل حساب NUMU ووافق',
                   )}
                 </li>
               </ol>
-              <CopyBox label="Server URL" text={MCP_URL} />
+              <CopyBox label={t("Server URL", "رابط الخادم")} text={MCP_URL} />
               <p className="text-muted-foreground">
                 {t(
                   'Or download the NUMU plugin and upload it with "Upload plugin archive" in the same window:',

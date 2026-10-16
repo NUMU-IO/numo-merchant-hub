@@ -115,7 +115,7 @@ export default function McpAuthorize() {
               {stores.length > 1 ? (
                 <div className="space-y-1.5">
                   <Label>{t("Store", "المتجر")}</Label>
-                  <Select value={chosen} onValueChange={setStoreId}>
+                  <Select dir={isRTL ? "rtl" : "ltr"} value={chosen} onValueChange={setStoreId}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
