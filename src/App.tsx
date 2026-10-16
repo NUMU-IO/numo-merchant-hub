@@ -132,6 +132,7 @@ const PartnerApps = lazyWithRetry(() => import("@/pages/PartnerApps"));
 const PartnerAppDetail = lazyWithRetry(() => import("@/pages/PartnerAppDetail"));
 const PartnerPortal = lazyWithRetry(() => import("@/pages/PartnerPortal"));
 const OAuthAuthorize = lazyWithRetry(() => import("@/pages/OAuthAuthorize"));
+const McpAuthorize = lazyWithRetry(() => import("@/pages/McpAuthorize"));
 const ForgotPassword = lazyWithRetry(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazyWithRetry(() => import("@/pages/ResetPassword"));
 const OnboardingWizard = lazyWithRetry(() => import("@/pages/OnboardingWizard"));
@@ -401,6 +402,17 @@ const App = () => (
                       <RequireAuth>
                         <RequireVerified>
                           <OAuthAuthorize />
+                        </RequireVerified>
+                      </RequireAuth>
+                    }
+                  />
+                  {/* ChatGPT / Claude sign-in consent (numu-mcp OAuth) — full page */}
+                  <Route
+                    path="/mcp/authorize"
+                    element={
+                      <RequireAuth>
+                        <RequireVerified>
+                          <McpAuthorize />
                         </RequireVerified>
                       </RequireAuth>
                     }
