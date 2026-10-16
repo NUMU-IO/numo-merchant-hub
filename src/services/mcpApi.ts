@@ -36,6 +36,16 @@ export const SCOPE_DOMAINS = [
   "settings",
 ] as const;
 
+/** The hosted MCP server every store connects to (numu-mcp). */
+export const MCP_URL = "https://mcp.numueg.app/mcp";
+
+/** Default recommendation: read everything + write catalog/media only. */
+export const RECOMMENDED_SCOPES = [
+  ...SCOPE_DOMAINS.map((d) => `${d}:read`),
+  "catalog:write",
+  "media:write",
+];
+
 export function listAccessTokens(storeId: string): Promise<AccessToken[]> {
   return apiClient<AccessToken[]>(`/stores/${storeId}/access-tokens/`);
 }

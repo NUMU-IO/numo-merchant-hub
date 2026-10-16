@@ -3,6 +3,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import {
   AccessToken,
   CreatedAccessToken,
+  RECOMMENDED_SCOPES,
   SCOPE_DOMAINS,
   createAccessToken,
   listAccessTokens,
@@ -64,13 +65,6 @@ export const DOMAIN_LABELS: Record<string, { en: string; ar: string }> = {
   risk: { en: "Trust network (COD risk)", ar: "شبكة الثقة (مخاطر الدفع عند الاستلام)" },
   settings: { en: "Store settings", ar: "إعدادات المتجر" },
 };
-
-/** Default recommendation: read everything + write catalog/media only. */
-const RECOMMENDED_SCOPES = [
-  ...SCOPE_DOMAINS.map((d) => `${d}:read`),
-  "catalog:write",
-  "media:write",
-];
 
 interface Props {
   storeId: string | undefined;

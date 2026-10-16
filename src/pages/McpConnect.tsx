@@ -12,12 +12,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, Code2, ShieldAlert } from "lucide-react";
+import { Bot, Code2, Download, ShieldAlert } from "lucide-react";
+import { MCP_URL } from "@/services/mcpApi";
 
-const MCP_URL = "https://mcp.numueg.app/mcp";
 const KEY_PLACEHOLDER = "numu_pat_YOUR_KEY_HERE";
-
-const headerSnippet = (key: string) => `Authorization: Bearer ${key}`;
+/** The archive for ChatGPT's "Upload plugin archive" (numu-mcp oauth.py). */
+const CHATGPT_PLUGIN_URL = `${new URL(MCP_URL).origin}/chatgpt-plugin.zip`;
 
 const claudeCodeSnippet = (key: string) =>
   `claude mcp add --transport http numu ${MCP_URL} --header "Authorization: Bearer ${key}"`;
@@ -76,8 +76,8 @@ export default function McpConnectPage() {
           <CardTitle>{t("How to connect", "طريقة الربط")}</CardTitle>
           <CardDescription>
             {t(
-              "Create a key above, then follow the steps for your AI app. Server URL:",
-              "أنشئ مفتاحًا بالأعلى، ثم اتبع خطوات تطبيق الذكاء الاصطناعي بتاعك. رابط الخادم:",
+              "ChatGPT and Claude connect by signing in to NUMU — no key needed. Claude Code, Cursor and other apps use a key from above. Server URL:",
+              "ChatGPT و Claude بيتربطوا لما تدخل حساب NUMU — من غير مفتاح. Claude Code و Cursor وباقي التطبيقات بتستخدم مفتاح من اللي فوق. رابط الخادم:",
             )}{" "}
             <code dir="ltr">{MCP_URL}</code>
           </CardDescription>
@@ -98,16 +98,20 @@ export default function McpConnectPage() {
                     "افتح claude.ai ← الإعدادات ← Connectors",
                   )}
                 </li>
-                <li>{t('Click "Add custom connector"', 'اضغط "Add custom connector"')}</li>
                 <li>
                   {t(
-                    "Paste the server URL and add the header below",
-                    "الصق رابط الخادم وأضف الهيدر التالي",
+                    'Click "Add custom connector" and paste the server URL',
+                    'اضغط "Add custom connector" والصق رابط الخادم',
+                  )}
+                </li>
+                <li>
+                  {t(
+                    "Click Connect, then sign in to NUMU and approve",
+                    "اضغط Connect، وبعدين ادخل حساب NUMU ووافق",
                   )}
                 </li>
               </ol>
               <CopyBox label="Server URL" text={MCP_URL} />
-              <CopyBox label="Header" text={headerSnippet(KEY_PLACEHOLDER)} />
             </TabsContent>
             <TabsContent value="claude-code" className="space-y-3 pt-3 text-sm">
               <p>
@@ -119,20 +123,36 @@ export default function McpConnectPage() {
               <ol className="list-decimal space-y-1 ps-5">
                 <li>
                   {t(
-                    "In ChatGPT: Settings → Apps & Connectors → Advanced → enable Developer mode",
-                    "في ChatGPT: الإعدادات ← Apps & Connectors ← Advanced ← فعّل وضع المطوّر",
+                    'On the web, open chatgpt.com/plugins → + → "Add custom MCP server"',
+                    'من المتصفح افتح chatgpt.com/plugins ← + ← "Add custom MCP server"',
                   )}
                 </li>
                 <li>
                   {t(
-                    'Create a new app with the server URL, auth type "Custom headers"',
-                    'أنشئ تطبيقًا جديدًا برابط الخادم ونوع مصادقة "Custom headers"',
+                    'Type NUMU in Name, paste the server URL below, and pick "OAuth" in Authentication',
+                    'اكتب NUMU في Name، والصق رابط الخادم اللي تحت، واختار "OAuth" في Authentication',
                   )}
                 </li>
-                <li>{t("Add the Authorization header below", "أضف هيدر Authorization التالي")}</li>
+                <li>
+                  {t(
+                    'Tick "I understand…", click "Create as a plugin", then sign in to NUMU and approve',
+                    'علّم على "I understand…" واضغط "Create as a plugin"، وبعدين ادخل حساب NUMU ووافق',
+                  )}
+                </li>
               </ol>
               <CopyBox label="Server URL" text={MCP_URL} />
-              <CopyBox label="Header" text={headerSnippet(KEY_PLACEHOLDER)} />
+              <p className="text-muted-foreground">
+                {t(
+                  'Or download the NUMU plugin and upload it with "Upload plugin archive" in the same window:',
+                  'أو نزّل ملف NUMU وارفعه من "Upload plugin archive" في نفس الشاشة:',
+                )}
+              </p>
+              <Button variant="outline" asChild>
+                <a href={CHATGPT_PLUGIN_URL}>
+                  <Download className="me-2 h-4 w-4" />
+                  {t("Download the ChatGPT plugin", "نزّل ملف ChatGPT")}
+                </a>
+              </Button>
             </TabsContent>
             <TabsContent value="cursor" className="space-y-3 pt-3 text-sm">
               <p>
