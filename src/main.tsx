@@ -133,6 +133,10 @@ if (import.meta.env.VITE_SENTRY_DSN) {
       release: import.meta.env.VITE_SENTRY_RELEASE,
       integrations: [browserTracingIntegration()],
       tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+      // Also send W3C traceparent on /api/v1 calls (same-origin, so Sentry's
+      // default propagation targets cover them): the API's OpenTelemetry spans
+      // then share this browser trace's id, linking Sentry and Grafana Tempo.
+      propagateTraceparent: true,
       replaysSessionSampleRate: 0.1,
       replaysOnErrorSampleRate: 1.0,
       beforeSend: scrubEvent,
