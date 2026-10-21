@@ -78,6 +78,7 @@ export default function EmbeddedApp() {
           src={session.url}
           title={slug}
           sandbox="allow-scripts allow-forms allow-same-origin allow-popups"
+          allow="clipboard-write"
           referrerPolicy="no-referrer"
           className="w-full rounded-lg border bg-background"
           style={{ height: height ?? "calc(100vh - 9rem)" }}
