@@ -14,6 +14,7 @@ import {
   apiToProduct,
   productToApiCreate,
   productToApiUpdate,
+  mergeEditorAttributes,
   type ProductStatus,
   type ProductVariant,
 } from "@/services/productApi";
@@ -86,7 +87,7 @@ interface PendingImage {
   url: string;
   file: File;
 }
-import { updateStore } from "@/services/storeApi";
+import { updateStore, uploadStoreAsset } from "@/services/storeApi";
 import {
   getProductLabels,
   updateProductLabels,
@@ -825,11 +826,14 @@ const ProductEditor = () => {
         if (payload.attributes) {
           (payload.attributes as Record<string, unknown>).continue_selling_when_out_of_stock = continueSellingOutOfStock;
         }
-        // Label rides in attributes; omitting the key clears it server-side
-        // (the update replaces attributes wholesale).
+        // Label rides in attributes; omitting the key clears it.
         if (formLabel && payload.attributes) {
           (payload.attributes as Record<string, unknown>).label = formLabel;
         }
+        // Re-read just before the PATCH so keys written since the page loaded
+        // (apps, imports) survive the wholesale attributes replace.
+        const fresh = await getProduct(storeId, productId);
+        payload.attributes = mergeEditorAttributes(fresh.attributes ?? {}, payload.attributes ?? {});
         await apiUpdateProduct(storeId, productId, payload);
         toast.success(t("products.productUpdated"));
       } else {
@@ -1498,11 +1502,11 @@ const ProductEditor = () => {
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "عنوان الصفحة" : "Page Title"}</Label>
-            <Input value={formSeoTitle} onChange={(e) => setFormSeoTitle(e.target.value)} placeholder={formName || (language === "ar" ? "عنوان المنتج" : "Product title")} className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+            <Input value={formSeoTitle} onChange={(e) => setFormSeoTitle(e.target.value)} maxLength={60} placeholder={formName || (language === "ar" ? "عنوان المنتج" : "Product title")} className="h-10 rounded-lg bg-muted/30 border-transparent focus:bg-background focus:border-border" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "وصف الصفحة" : "Meta Description"}</Label>
-            <Textarea value={formSeoDesc} onChange={(e) => setFormSeoDesc(e.target.value)} placeholder={language === "ar" ? "وصف قصير يظهر في نتائج البحث" : "Short description for search results"} rows={2} className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
+            <Textarea value={formSeoDesc} onChange={(e) => setFormSeoDesc(e.target.value)} maxLength={160} placeholder={language === "ar" ? "وصف قصير يظهر في نتائج البحث" : "Short description for search results"} rows={2} className="rounded-lg resize-none bg-muted/30 border-transparent focus:bg-background focus:border-border" />
           </div>
           <div className="space-y-1.5 pt-1">
             <Label className="text-xs font-medium text-muted-foreground">{language === "ar" ? "الرابط الأساسي (Canonical)" : "Canonical URL"}</Label>

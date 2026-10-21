@@ -918,3 +918,27 @@ export function productToApiUpdate(
 
   return data;
 }
+
+/** The `attributes` keys the product editor writes on save. A key the editor
+ *  starts writing must be added here, or the merge below drops it. */
+const EDITOR_ATTRIBUTE_KEYS = [
+  "nameAr", "descriptionAr", "categoryName", "categoryNameAr",
+  "variant_meta", "size_chart", "continue_selling_when_out_of_stock", "label",
+];
+
+/** An update replaces `attributes` wholesale, so the editor saves the stored
+ *  copy with only its own keys applied: set what the form holds, delete what
+ *  it cleared (undefined, null or ""). Keys written by apps or imports
+ *  (e.g. `seoTitleAr`) go back unchanged. */
+export function mergeEditorAttributes(
+  fresh: Record<string, unknown>,
+  editorAttributes: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = { ...fresh };
+  for (const key of EDITOR_ATTRIBUTE_KEYS) {
+    const value = editorAttributes[key];
+    if (value === undefined || value === null || value === "") delete merged[key];
+    else merged[key] = value;
+  }
+  return merged;
+}
